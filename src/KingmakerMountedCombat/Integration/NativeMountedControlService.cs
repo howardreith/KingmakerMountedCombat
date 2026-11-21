@@ -891,6 +891,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearTargetingPresentation("disabled");
                 ClearReserveBindings();
                 reserveScan.Reset();
+                pendingBadSlots.Clear(); activeBadSlotCleanup = null;
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -924,6 +925,8 @@ namespace KingmakerMountedCombat.Integration
         {
             ObservePendingRiderPrimaryOutcome();
             ReleaseStaleReserveScan();
+            // A native CleanupBadSlots that did not return normally still has its slots resolved.
+            if (activeBadSlotCleanup != null || pendingBadSlots.Count > 0) ResolvePendingBadSlots();
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
@@ -1453,6 +1456,7 @@ namespace KingmakerMountedCombat.Integration
             ClearTargetingPresentation("disposed");
             ClearReserveBindings();
             reserveScan.Reset();
+            pendingBadSlots.Clear(); activeBadSlotCleanup = null;
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
             loadFence.Reset();
@@ -1965,40 +1969,118 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
-            var petId = unit.Descriptor?.PetUniqueId;
-            var desired = ShouldLease(unit, NativeMountedControlKind.MountState);
-            if (!ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility))
+            var pending = new PendingSlotInvalidation
             {
-                // An older exact Mount / Dismount alias whose shell fact is gone (for example while the pet does not
-                // resolve): its index is the chosen slot, recorded before native empties it, with the migration's
-                // precedence (a canonical binding on the bar wins) and the companion-loss rules. A fenced outgoing
-                // world records it with the load scope's outgoing records.
-                var at = LegacyAliasIndex(slots);
-                if (at < 0) return;
-                if (!ArrangementsAccepted)
-                {
-                    if (loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, at, petId, desired))
-                        NativeSlotInvalidationCount++;
-                    return;
-                }
-                if (RecoverLegacyAlias(unit, slots)) NativeSlotInvalidationCount++;
+                Unit = unit, Slot = slot, Index = index, PetId = unit.Descriptor?.PetUniqueId,
+                Desired = ShouldLease(unit, NativeMountedControlKind.MountState),
+                Alias = !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility),
+                AliasIndex = -1
+            };
+            if (pending.Alias)
+            {
+                // An older exact Mount / Dismount alias: its bar's chosen alias index (a canonical binding wins).
+                pending.AliasIndex = LegacyAliasIndex(slots);
+                if (pending.AliasIndex < 0) return;
+            }
+            // Inside native CleanupBadSlots on this bar the outcome is not decided yet: native rebinds the slot to a live
+            // fact of the same blueprint, or empties it. It is resolved when that call returns (EndNativeBadSlotCleanup).
+            // GetSlot always empties the slot, so it is applied now.
+            if (activeBadSlotCleanup != null && ReferenceEquals(activeBadSlotCleanup, unit.UISettings))
+            {
+                pendingBadSlots.Add(pending);
                 return;
             }
+            ApplySlotInvalidation(pending, false);
+        }
+
+        internal long NativeSlotInvalidationCount { get; private set; }
+        internal long NativeSlotReboundCount { get; private set; }
+
+        private sealed class PendingSlotInvalidation
+        {
+            internal UnitEntityData Unit;
+            internal MechanicActionBarSlotAbility Slot;
+            internal int Index, AliasIndex;
+            internal string PetId;
+            internal bool Desired, Alias;
+        }
+
+        private Kingmaker.UI.UnitSettings.UnitUISettings activeBadSlotCleanup;
+        private readonly List<PendingSlotInvalidation> pendingBadSlots = new List<PendingSlotInvalidation>();
+
+        internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
+        {
+            ResolvePendingBadSlots();
+            activeBadSlotCleanup = settings;
+        }
+
+        internal void EndNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
+        {
+            if (!ReferenceEquals(activeBadSlotCleanup, settings)) return;
+            ResolvePendingBadSlots();
+        }
+
+        // Each slot native CleanupBadSlots was handed: rebound when the slot now holds a different binding of the same
+        // blueprint (native's own rebind to the live fact), otherwise emptied. Also run at the next update if the native
+        // call did not return normally.
+        private void ResolvePendingBadSlots()
+        {
+            activeBadSlotCleanup = null;
+            if (pendingBadSlots.Count == 0) return;
+            var pending = pendingBadSlots.ToArray();
+            pendingBadSlots.Clear();
+            foreach (var item in pending)
+            {
+                var slots = item.Unit?.UISettings?.Slots;
+                var now = slots == null || item.Index >= slots.Length ? null : slots[item.Index] as MechanicActionBarSlotAbility;
+                var rebound = now != null && !ReferenceEquals(now, item.Slot) &&
+                    ReferenceEquals(now.Ability?.Blueprint, item.Slot.Ability?.Blueprint);
+                ApplySlotInvalidation(item, rebound);
+            }
+        }
+
+        // rebound: native put a live fact of the same blueprint into the slot (the live arrangement there); otherwise the
+        // slot was emptied: never the player's removal, the chosen slot returns after the absence.
+        private void ApplySlotInvalidation(PendingSlotInvalidation item, bool rebound)
+        {
+            if (disposed || item?.Unit?.UniqueId == null) return;
+            var unit = item.Unit;
             if (!ArrangementsAccepted)
             {
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
-                // world, so the observation is kept with the load scope's outgoing records. An abandoned load returns
-                // the slot; a replaced world drops it.
-                if (loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, index, petId, desired))
-                    NativeSlotInvalidationCount++;
+                // world, so an emptied slot is kept with the load scope's outgoing records (an abandoned load returns
+                // it; a replaced world drops it). A rebound slot is still on the bar for the next update to observe.
+                if (rebound) return;
+                var recorded = item.Alias
+                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired)
+                    : loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired);
+                if (recorded) NativeSlotInvalidationCount++;
                 return;
             }
             // A slot of a removed or replaced companion is not the next companion's choice: it is retired, not remembered.
             if (RetireOnCompanionLoss(unit)) return;
-            if (placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, petId, desired)) NativeSlotInvalidationCount++;
+            if (rebound)
+            {
+                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true))
+                {
+                    placementRecorded.Add(unit.UniqueId);
+                    NativeSlotReboundCount++;
+                }
+                return;
+            }
+            if (item.Alias)
+            {
+                // The alias's index is the chosen slot, recorded by the reserve rule before it is lost.
+                if (placementIntent.AdmitSurvivingBinding(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired))
+                {
+                    placementRecorded.Add(unit.UniqueId);
+                    NativeSlotInvalidationCount++;
+                }
+                return;
+            }
+            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false))
+                NativeSlotInvalidationCount++;
         }
-
-        internal long NativeSlotInvalidationCount { get; private set; }
 
         // Positive evidence that the companion the rider's arrangement belongs to is gone (MountedControlPlacementIntent.
         // RetireOnCompanionLoss: the pet link names a different companion, or it is cleared while the rider no longer
@@ -2011,8 +2093,7 @@ namespace KingmakerMountedCombat.Integration
             var id = unit?.UniqueId;
             if (id == null || mountStateAbility == null || !ArrangementsAccepted) return false;
             var slots = unit.UISettings?.Slots;
-            var barHolds = slots != null && slots.Any(slot =>
-                ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+            var barHolds = slots != null && slots.Any(IsPublicBindingSlot);
             if (!placementIntent.RetireOnCompanionLoss(id, unit.Descriptor?.PetUniqueId,
                 ShouldLease(unit, NativeMountedControlKind.MountState), barHolds)) return false;
             if (slots != null) ClearPublicControlSlots(unit, slots);
@@ -2085,6 +2166,15 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        private bool IsPublicBindingSlot(MechanicActionBarSlot slot) =>
+            MountedControlSlotPolicy.IsPublicControlKind(ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
+
+        // The bar's public binding with the repair precedence (MountedControlSlotPolicy.RecoveredPublicSlot): its first
+        // canonical binding, otherwise its first exact older alias; -1 when neither is there. Observation, capture
+        // classification and the live archive writer all use this one index.
+        private int PublicBindingIndex(MechanicActionBarSlot[] slots) => slots == null ? -1 :
+            MountedControlSlotPolicy.RecoveredPublicSlot(slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray());
+
         // The index of the bar's first exact older Mount / Dismount alias, or -1 when a canonical public binding is on
         // the bar (it wins) or no alias is.
         private int LegacyAliasIndex(MechanicActionBarSlot[] slots)
@@ -2136,13 +2226,14 @@ namespace KingmakerMountedCombat.Integration
             reserveScan.Synchronize(player, player == null ? null : ReserveRosterUnits(CollectCurrentCandidateUnits()));
         }
 
-        // Only slots holding the public control; every other slot keeps its content and position.
+        // Only slots holding a public binding (the public control or an exact older Mount / Dismount alias standing for
+        // it); every other slot keeps its content and position.
         private void ClearPublicControlSlots(UnitEntityData unit, MechanicActionBarSlot[] slots)
         {
             var cleared = false;
             for (var index = 0; index < slots.Length; index++)
             {
-                if (!ReferenceEquals((slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility)) continue;
+                if (!IsPublicBindingSlot(slots[index])) continue;
                 unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, index);
                 cleared = true;
             }
@@ -2173,8 +2264,9 @@ namespace KingmakerMountedCombat.Integration
             // An older alias stands for the public control (archive capture can precede the first update).
             RecoverLegacyAlias(unit, slots);
             var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-            var bound = Array.FindIndex(slots, slot =>
-                ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
+            // The visible public binding: canonical first, else an older alias still on the bar (for example one a save
+            // scope returned), which is the player's current choice, never an empty slot.
+            var bound = PublicBindingIndex(slots);
             placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
                 unit.Descriptor?.PetUniqueId);
         }
@@ -2434,10 +2526,14 @@ namespace KingmakerMountedCombat.Integration
                     // the player's slot waiting for repair or for its pet: carried as the remembered slot while the rider
                     // still gets the control or its pet link still names the same companion; restore binds the current
                     // fact. A removed control (no slot) stays a removal.
+                    // The same selected index the live writer uses (PublicBindingIndex / LivePublicRows), and the
+                    // callability of that exact slot: when the writer skips it, its index is carried as remembered.
                     var slots = unit.UISettings?.Slots;
-                    var bound = slots != null && slots.Any(slot =>
-                        ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
-                    var written = slots != null && slots.Any(slot => LiveCaptureWritesPublicSlot(unit, slot as MechanicActionBarSlotAbility));
+                    var selected = PublicBindingIndex(slots);
+                    var bound = selected >= 0;
+                    var written = bound && MountedControlSlotPolicy.IsValidSavedRow(selected, MountedControlSlotPolicy.SavedMountState) &&
+                        IsCallableLiveBinding(unit, slots[selected] as MechanicActionBarSlotAbility,
+                            ResolveKind((slots[selected] as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
                     if (bound && !written && (ShouldLease(unit, NativeMountedControlKind.MountState) ||
                             placementIntent.Revalidate(id, true, true, unit.Descriptor?.PetUniqueId)))
                         placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
@@ -2484,15 +2580,6 @@ namespace KingmakerMountedCombat.Integration
             return fact != null && fact.Active && ReferenceEquals(fact.Data, ability) && ability.Caster?.Unit == unit;
         }
 
-        // Exactly the conditions under which CaptureLiveSlots writes a public-control slot row (non-legacy schema).
-        private bool LiveCaptureWritesPublicSlot(UnitEntityData unit, MechanicActionBarSlotAbility slot)
-        {
-            var ability = slot?.Ability;
-            if (unit == null || ability == null || !ReferenceEquals(ability.Blueprint, mountStateAbility) ||
-                !ShouldLease(unit, NativeMountedControlKind.MountState)) return false;
-            var fact = unit.Descriptor?.Abilities?.GetAbility(ability.Blueprint);
-            return fact != null && fact.Active && ReferenceEquals(fact.Data, ability) && ability.Caster?.Unit == unit;
-        }
 
         private void ObserveDepartedRiders(List<UnitEntityData> candidates)
         {

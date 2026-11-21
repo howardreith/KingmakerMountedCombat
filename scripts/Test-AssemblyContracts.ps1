@@ -1541,6 +1541,11 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($null-ne$abilitySlotIsBad-and-not$abilitySlotIsBad.IsStatic-and$abilitySlotIsBad.ReturnType.FullName-ceq'System.Boolean'-and
         $abilitySlotIsBad.GetParameters().Count-eq0-and$abilitySlotIsBad.DeclaringType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility'-and
         $abilityIsBadToken-eq0x06002F6E) ('toolbar: MechanicActionBarSlotAbility.IsBad is an instance bool override, token '+$abilityIsBadToken.ToString('X8'))
+    # KMC brackets the exact CleanupBadSlots (MountedPatchController.NativeCleanupBadSlotsToken) to see whether native
+    # rebound a bad public slot to a live fact of the same blueprint or emptied it.
+    $cleanupBadToken=if($null-eq$cleanupBad){0}else{$cleanupBad.MetadataToken}
+    Assert-Contract ($null-ne$cleanupBad-and-not$cleanupBad.IsStatic-and$cleanupBad.ReturnType.FullName-ceq'System.Void'-and
+        $cleanupBad.GetParameters().Count-eq0-and$cleanupBadToken-eq0x06003004) ('toolbar: UnitUISettings.CleanupBadSlots is an instance void method, token '+$cleanupBadToken.ToString('X8'))
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

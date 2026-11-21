@@ -41,6 +41,7 @@ namespace KingmakerMountedCombat.Integration
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
         // Kingmaker 2.1.7b MechanicActionBarSlotAbility.IsBad override, pinned in Test-AssemblyContracts.ps1.
         internal const int NativeAbilitySlotIsBadToken = 0x06002F6E;
+        internal const int NativeCleanupBadSlotsToken = 0x06003004;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -164,6 +165,9 @@ namespace KingmakerMountedCombat.Integration
                 // Toolbar persistence: native bad-slot cleanup's decision on the public control's slot (observation only).
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "IsBad", NativeAbilitySlotIsBadToken,
                     Type.EmptyTypes, null, nameof(PatchMethods.PublicSlotBadPostfix));
+                // Its outcome inside CleanupBadSlots: a rebind to a live fact of the same blueprint, or an empty slot.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
+                    Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
@@ -583,6 +587,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (__result) PatchBridge.NativeControls?.ObserveInvalidatedPublicSlot(__instance);
             }
+
+            internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
+                PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
+
+            internal static void BadSlotCleanupPostfix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
+                PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__instance);
 
             internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
             {

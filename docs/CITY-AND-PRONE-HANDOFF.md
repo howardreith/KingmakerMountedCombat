@@ -229,6 +229,23 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   the live arrangement at that slot (`ObserveBound`), as it already did for the canonical control. Removing the alias
   before its migration is the player's removal.
 
+**Round 12 additions.**
+- *One public-binding identity everywhere (R12-F1, R12-F2, R12-F3):* `PublicBindingIndex` is `RecoveredPublicSlot`
+  over the bar: the first canonical binding, otherwise the first exact older alias. It is used by bar observation
+  (`ObserveArrangementOnBar`, so a returned alias still on the bar is the player's choice and not an empty slot), by
+  capture classification and by the live writer. Classification now judges the callability of that exact selected
+  slot, so when the writer skips it (stale data), its index is carried as remembered. A later callable binding no
+  longer hides it. Retirement detection and cleanup (`RetireOnCompanionLoss`, `ClearPublicControlSlots`) treat both
+  older aliases as public bindings, so a replacement companion cannot adopt the old alias. The old
+  `LiveCaptureWritesPublicSlot` is gone.
+- *Native rebind outcome (R12-F4):* a new exact prefix/postfix brackets `UnitUISettings.CleanupBadSlots` (token
+  `06003004`, pinned in `Test-AssemblyContracts.ps1`). An `IsBad` report inside that call is held until it returns.
+  If native put a binding of the same blueprint back into the slot (its rebind to the live fact), that slot becomes
+  the live arrangement (`MountedControlPlacementIntent.ObserveNativeCleanupOutcome`), so a later removal is the
+  player's. Otherwise it is the ordinary invalidation. `GetSlot` always empties the slot and is applied at once. A
+  call that does not return normally is resolved at the next update. This patch is observation only and is NOT RUN
+  natively.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -377,12 +394,19 @@ Mutation runs with FAIL lines visible:
   placement record".
 - Removing the alias `ObserveBound` from the double's lease release (the pre-fix production line) failed exactly
   "removing an alias the save scope returned ... stays removed".
-All mutations were reverted. The controller gate on the round-11 commit is the result of record.
-| components (`bin\Tests`) | 1464/0 | 44 toolbar, 6 city-roster and 3 downed-target tests |
+All mutations were reverted. The controller gate then passed on `d431ea7f` in 24.9 s.
+Round 12: the `CleanupBadSlots` token was read from a passing contract run (a non-zero check that printed
+`06003004`) and then pinned. One local run on the fixed tree, with PASS lines temporarily silenced in
+`tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1468/0, Validate-Source 153/0, assembly
+contracts 821/0, archive bound 8/0, focused 5/5. A combined mutation run restored each pre-fix line: the domain
+rebind outcome ignored, and in the toolbar double canonical-only observation, canonical-only retirement and the
+any-slot callability check, each mirroring the pre-fix production line. It failed exactly the four new regressions.
+All mutations were reverted. The controller gate on the round-12 commit is the result of record.
+| components (`bin\Tests`) | 1468/0 | 48 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 821/0 (adds the `IsBad` override and `CleanupBadSlots` token rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
-| `Test-CityArchiveRowBound.ps1` (via wrapper) | 7/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
+| `Test-CityArchiveRowBound.ps1` (via wrapper) | 8/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; stale canonical at 3 before current at 9; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
 | `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 

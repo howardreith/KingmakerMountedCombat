@@ -116,6 +116,15 @@ internal static class ArchiveControlRowBoundTests
                 True(!decoded.Any(r => r.Index == 3 && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The alias slot 3 was written as a binding.");
             });
         }
+        Check("stale canonical data at 3 before current data at 9 saves the selected index 3 once, with the placement record, through the production codec", () =>
+        {
+            // The selected index is the first canonical binding (3); it is not callable, so the live writer skips it and
+            // classification carries 3 as the remembered slot (the same index and callability in both writers).
+            var kinds = Bar(3, NativeMountedControlKind.MountState, 9, NativeMountedControlKind.MountState);
+            var rows = Emit(ActorId(302), kinds, i => i == 9, placementRecorded: true, publicControlActive: true, absentIndex: 3);
+            var decoded = RoundTrip(rows);
+            ExpectOnePublicBinding(decoded, 3);
+        });
         Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);
         return failed == 0 ? 0 : 1;
     }

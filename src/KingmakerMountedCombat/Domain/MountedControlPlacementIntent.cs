@@ -110,6 +110,19 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
+        // The outcome of native UnitUISettings.CleanupBadSlots for a bad public slot it was handed: rebound (native put
+        // a live fact of the same blueprint into that slot) makes that slot the live arrangement, so a later removal is
+        // the player's; emptied is the ordinary invalidation (a temporary absence that returns to the slot). The
+        // companion identity is checked first either way. Returns true when an arrangement was recorded.
+        public bool ObserveNativeCleanupOutcome(string actorId, int slotIndex, string petId, bool controlDesired, bool rebound)
+        {
+            if (actorId == null || slotIndex < 0) return false;
+            if (!rebound) return ObserveNativeSlotInvalidated(actorId, slotIndex, petId, controlDesired);
+            if (RetireOnCompanionLoss(actorId, petId, controlDesired, true)) return false;
+            ObserveBound(actorId, slotIndex, petId);
+            return true;
+        }
+
         // An older save's binding that has no fact behind it now: a reserve rider's surviving public-control binding,
         // or an exact older Mount / Dismount alias on a rider whose public control is not live (for example while its
         // pet does not resolve), with no arrangement of its own. The binding is the player's choice (recovered as a
