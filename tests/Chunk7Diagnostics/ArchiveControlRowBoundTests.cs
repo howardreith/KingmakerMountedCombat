@@ -125,6 +125,22 @@ internal static class ArchiveControlRowBoundTests
             var decoded = RoundTrip(rows);
             ExpectOnePublicBinding(decoded, 3);
         });
+        Check("a remembered shortcut at 9 occupied by a callable older Mounted Charge saves the Charge at 9 and the shortcut off the bar through the production codec", () =>
+        {
+            // Interrupted intent at 9; the live writer emits the Charge row at 9 (and no public binding: the bar holds
+            // none); the remembered writer sees index 9 taken and adds the placement record only.
+            var actor = ActorId(303);
+            var charge = new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountedCharge } };
+            var rows = Emit(actor, Bar(9, NativeMountedControlKind.MountedCharge), i => false, placementRecorded: true,
+                publicControlActive: false, absentIndex: 9, otherLiveRows: charge, occupied: true);
+            var decoded = RoundTrip(rows);
+            True(decoded.Count(r => r.Index == 9 && r.Kind == MountedControlSlotPolicy.SavedMountedCharge) == 1 &&
+                !decoded.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) &&
+                decoded.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1 && decoded.Length == 2,
+                "The archive did not hold one Charge row at 9, no mount shortcut and one placement record.");
+            // Control: without the occupancy rule the kind-6 row at 9 would collide and the archive refuses it.
+            ExpectDuplicateRefused(rows.Concat(new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState } }).ToArray());
+        });
         Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);
         return failed == 0 ? 0 : 1;
     }
@@ -140,14 +156,18 @@ internal static class ArchiveControlRowBoundTests
 
     // NativeMountedControlService.CapturePersistentSlots for one rider: the live public rows, then (absentIndex: the
     // remembered arrangement classification recorded) the remembered rows composed after them.
+    // otherLiveRows: the live writer's other KMC rows for this rider (for example an older Mounted Charge awaiting
+    // migration); occupied: the remembered slot holds another binding on the bar.
     private static SavedMountedSlot[] Emit(string actor, NativeMountedControlKind[] kinds, Func<int, bool> callable, bool placementRecorded,
-        bool publicControlActive, int? absentIndex)
+        bool publicControlActive, int? absentIndex, SavedMountedSlot[] otherLiveRows = null, bool occupied = false)
     {
-        var rows = MountedControlSlotPolicy.LivePublicRows(kinds, callable, placementRecorded, publicControlActive)
-            .Select(row => new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value }).ToList();
+        var rows = (otherLiveRows ?? new SavedMountedSlot[0]).ToList();
+        rows.AddRange(MountedControlSlotPolicy.LivePublicRows(kinds, callable, placementRecorded, publicControlActive)
+            .Select(row => new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value }));
         var writtenBinding = rows.Any(r => r.Kind == MountedControlSlotPolicy.SavedMountState);
         if (absentIndex.HasValue && !writtenBinding)
-            foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(absentIndex.Value, rows.Select(r => r.Kind).ToArray()))
+            foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(absentIndex.Value,
+                rows.Select(r => new System.Collections.Generic.KeyValuePair<int, int>(r.Index, r.Kind)).ToArray(), occupied))
                 rows.Add(new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value });
         return rows.ToArray();
     }

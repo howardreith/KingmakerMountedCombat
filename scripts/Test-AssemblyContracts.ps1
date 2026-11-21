@@ -1546,6 +1546,31 @@ if($Target-eq'Kingmaker'){
     $cleanupBadToken=if($null-eq$cleanupBad){0}else{$cleanupBad.MetadataToken}
     Assert-Contract ($null-ne$cleanupBad-and-not$cleanupBad.IsStatic-and$cleanupBad.ReturnType.FullName-ceq'System.Void'-and
         $cleanupBad.GetParameters().Count-eq0-and$cleanupBadToken-eq0x06003004) ('toolbar: UnitUISettings.CleanupBadSlots is an instance void method, token '+$cleanupBadToken.ToString('X8'))
+    # What a successful rebind writes (NativeMountedControlService.ResolvePendingBadSlots relies on the resulting live data,
+    # not on object identity): CleanupBadSlots constructs one new MechanicActionBarSlotAbility, stores the fact's data in
+    # its Ability field and passes it to SetSlot; its other outcome constructs a MechanicActionBarSlotEmpty for SetSlot.
+    function Find-IlTokenPositions([byte[]]$Il,[int]$Opcode,[int]$Token){
+        $positions=@();[byte[]]$needle=[BitConverter]::GetBytes($Token)
+        for($index=1;$index-le$Il.Length-4;$index++){
+            if(($Opcode-lt0-or$Il[$index-1]-eq$Opcode)-and$Il[$index]-eq$needle[0]-and$Il[$index+1]-eq$needle[1]-and$Il[$index+2]-eq$needle[2]-and$Il[$index+3]-eq$needle[3]){$positions+=$index}
+        }
+        return ,$positions
+    }
+    $abilitySlotType=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility',$false)
+    $abilitySlotCtor=if($null-eq$abilitySlotType){$null}else{$abilitySlotType.GetConstructor([Type[]]@())}
+    $abilitySlotField=if($null-eq$abilitySlotType){$null}else{$abilitySlotType.GetField('Ability',$cityFlags)}
+    $emptySlotType=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false)
+    $emptySlotCtor=if($null-eq$emptySlotType){$null}else{$emptySlotType.GetConstructor([Type[]]@())}
+    $setSlotMethod=$uiSettings.GetMethod('SetSlot',$cityFlags)
+    $cleanupIl=if($null-eq$cleanupBad){[byte[]]@()}else{$cleanupBad.GetMethodBody().GetILAsByteArray()}
+    $rebindNew=if($null-eq$abilitySlotCtor){@()}else{Find-IlTokenPositions $cleanupIl 0x73 $abilitySlotCtor.MetadataToken}
+    $rebindStore=if($null-eq$abilitySlotField){@()}else{Find-IlTokenPositions $cleanupIl 0x7D $abilitySlotField.MetadataToken}
+    $setSlotCalls=if($null-eq$setSlotMethod){@()}else{Find-IlTokenPositions $cleanupIl -1 $setSlotMethod.MetadataToken}
+    $emptyNew=if($null-eq$emptySlotCtor){@()}else{Find-IlTokenPositions $cleanupIl 0x73 $emptySlotCtor.MetadataToken}
+    $rebindShape=$rebindNew.Count-eq1-and$rebindStore.Count-eq1-and$rebindNew[0]-lt$rebindStore[0]-and
+        @($setSlotCalls|Where-Object{$_-gt$rebindStore[0]}).Count-ge1-and$emptyNew.Count-ge1-and$abilitySlotField.FieldType.FullName-ceq'Kingmaker.UnitLogic.Abilities.AbilityData'
+    Assert-Contract $rebindShape ('toolbar: CleanupBadSlots rebinds a bad ability slot with a new slot object (newobj MechanicActionBarSlotAbility x'+$rebindNew.Count+
+        ', stfld Ability x'+$rebindStore.Count+', SetSlot calls '+$setSlotCalls.Count+', empty-slot newobj x'+$emptyNew.Count+')')
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

@@ -123,6 +123,18 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
+        // Native cleanup emptied an older Mount / Dismount alias whose shell fact is gone. For an actor with a recorded
+        // arrangement (for example an alias a save scope returned and recorded as live) that alias is the live
+        // placement being invalidated: the slot is remembered as a temporary absence (ObserveNativeSlotInvalidated).
+        // For an actor with none it is the discovery of an older unrecorded alias (AdmitSurvivingBinding).
+        public bool ObserveNativeAliasInvalidated(string actorId, int aliasIndex, string petId, bool controlDesired)
+        {
+            if (actorId == null || aliasIndex < 0) return false;
+            return entries.ContainsKey(actorId)
+                ? ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired)
+                : AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
+        }
+
         // An older save's binding that has no fact behind it now: a reserve rider's surviving public-control binding,
         // or an exact older Mount / Dismount alias on a rider whose public control is not live (for example while its
         // pet does not resolve), with no arrangement of its own. The binding is the player's choice (recovered as a
@@ -454,7 +466,8 @@ namespace KingmakerMountedCombat.Domain
         public bool AdmitOutgoingSurvivingBinding(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired)
         {
             if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
-            if (!outgoingIntent.AdmitSurvivingBinding(actorId, slotIndex, petId, controlDesired)) return false;
+            // The same distinction as the live records: a recorded placement is invalidated, an unrecorded alias recovered.
+            if (!outgoingIntent.ObserveNativeAliasInvalidated(actorId, slotIndex, petId, controlDesired)) return false;
             outgoingPlaced?.Add(actorId);
             return true;
         }

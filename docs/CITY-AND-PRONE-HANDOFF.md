@@ -246,6 +246,29 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   call that does not return normally is resolved at the next update. This patch is observation only and is NOT RUN
   natively.
 
+**Round 13 additions.**
+- *Rebind recognition (R12-F4):* the outcome is classified from what the slot holds when `CleanupBadSlots` returns
+  (`MountedControlSlotPolicy.IsNativeRebind`): a binding of the same KMC kind holding the live fact's own data is the
+  rebind, anything else is an emptying. Object identity is no longer used. A new assembly-contract row reads
+  `CleanupBadSlots`' IL in the pinned build: it constructs one new `MechanicActionBarSlotAbility`, stores the fact
+  data in its `Ability` field (an `AbilityData` field) and passes it to `SetSlot`; its other branch constructs a
+  `MechanicActionBarSlotEmpty`. The toolbar double drives both outcomes through the production classifier.
+- *Native emptying of a recorded alias (R13-F1):* `ObserveNativeAliasInvalidated` invalidates the recorded live
+  placement (a temporary absence at its index) when the actor has one, for example an alias a save scope returned.
+  It recovers an unrecorded older alias only when there is none. The load fence's outgoing records use the same
+  rule.
+- *No autofill copy at save release (R13-F2):* observing a public binding on the bar now satisfies the one-time
+  placement record. `TryInitialPlacement` also never runs while a public binding's save-scope lease is pending, and it
+  treats an alias as already placed.
+- *Occupied remembered slot (R13-F3):* `AbsentRowsAfterLive` takes the live writer's (index, kind) rows and the bar's
+  occupancy. When another binding holds the remembered index, the occupant keeps it and the shortcut is saved off
+  the bar: the placement record only, so no actor/index key repeats. `Test-CityArchiveRowBound.ps1` checks a live
+  older Mounted Charge at 9 through the production codec, with the duplicate refused as a control.
+- *Deferred cleanup across worlds (R13-F4):* each pending native report keeps its player world. It applies only in
+  that world and only while the same rider instance is still on its roster
+  (`MountedControlSlotPolicy.DeferredObservationApplies`, checked before the fence can be released). Work from a
+  replaced world is discarded, and an abandoned load still applies it.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -401,12 +424,19 @@ Round 12: the `CleanupBadSlots` token was read from a passing contract run (a no
 contracts 821/0, archive bound 8/0, focused 5/5. A combined mutation run restored each pre-fix line: the domain
 rebind outcome ignored, and in the toolbar double canonical-only observation, canonical-only retirement and the
 any-slot callability check, each mirroring the pre-fix production line. It failed exactly the four new regressions.
-All mutations were reverted. The controller gate on the round-12 commit is the result of record.
-| components (`bin\Tests`) | 1468/0 | 48 toolbar, 6 city-roster and 3 downed-target tests |
+All mutations were reverted. The controller gate then passed on `59eda252` in 45.4 s.
+Round 13: one local run on the fixed tree, with PASS lines temporarily silenced in `tests/TestRunner.cs` (reverted,
+absent from the diff), passed: components 1472/0, assembly contracts 822/0 (rebind shape: newobj
+`MechanicActionBarSlotAbility` x1, stfld `Ability` x1, `SetSlot` calls 3, empty-slot newobj x1), archive bound 9/0,
+focused 5/5. A combined mutation run then reverted five decisions: the rebind classifier, recorded-alias
+invalidation, occupancy, the deferred-world check, and in the double the observed and leased placement record. It
+failed exactly the five targeted regressions. All mutations were reverted. The controller gate on the round-13
+commit is the result of record.
+| components (`bin\Tests`) | 1472/0 | 52 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 821/0 (adds the `IsBad` override and `CleanupBadSlots` token rows) | reflection-only contracts; Wrath not selected |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 822/0 (adds the `IsBad` override, `CleanupBadSlots` token and rebind-shape rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
-| `Test-CityArchiveRowBound.ps1` (via wrapper) | 8/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; stale canonical at 3 before current at 9; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
+| `Test-CityArchiveRowBound.ps1` (via wrapper) | 9/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; stale canonical at 3 before current at 9; remembered slot occupied by a live Mounted Charge; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |
 | `Test-CityAreaAdapterBaseline.ps1` (via wrapper) | PASS: base `dbf63702` 63 errors, candidate 63 errors, 0 only in either | the area adapter's compile step on both trees; it executes in neither, so its in-world assertion stays unexecuted |
 

@@ -90,19 +90,38 @@ namespace KingmakerMountedCombat.Domain
             return result;
         }
 
-        // The rows an absent arrangement adds for one actor after the live writer ran, given the kinds it already wrote
-        // for that actor. None when the live writer already wrote the actor's public binding (the effective choice; the
-        // archive keys rows by actor and index, so the same choice is never written twice); otherwise
-        // AbsentArrangementRows, without a second placement record.
-        public static IList<KeyValuePair<int, int>> AbsentRowsAfterLive(int index, IEnumerable<int> liveKindsForActor)
+        // The rows an absent arrangement adds for one actor after the live writer ran, given the (index, kind) rows it
+        // already wrote for that actor. None when the live writer already wrote the actor's public binding (the
+        // effective choice; the archive keys rows by actor and index, so the same choice is never written twice). When
+        // the remembered slot now belongs to something else (rememberedSlotOccupied: another binding is on the bar
+        // there, or the live writer emitted another row at that index), the occupant keeps it and the shortcut is
+        // saved as off the bar: the placement record alone. Otherwise AbsentArrangementRows. Never a second placement
+        // record.
+        public static IList<KeyValuePair<int, int>> AbsentRowsAfterLive(int index, IEnumerable<KeyValuePair<int, int>> liveRowsForActor,
+            bool rememberedSlotOccupied = false)
         {
-            var live = liveKindsForActor == null ? new List<int>() : new List<int>(liveKindsForActor);
+            var live = liveRowsForActor == null ? new List<KeyValuePair<int, int>>() : new List<KeyValuePair<int, int>>(liveRowsForActor);
             var result = new List<KeyValuePair<int, int>>();
-            if (live.Exists(IsPublicBindingRow)) return result;
-            foreach (var row in AbsentArrangementRows(index))
-                if (row.Value != SavedPlacementRecord || !live.Contains(SavedPlacementRecord)) result.Add(row);
+            if (live.Exists(row => IsPublicBindingRow(row.Value))) return result;
+            var occupied = rememberedSlotOccupied ||
+                live.Exists(row => row.Value != SavedPlacementRecord && row.Key == index);
+            var hasRecord = live.Exists(row => row.Value == SavedPlacementRecord);
+            foreach (var row in AbsentArrangementRows(occupied ? -1 : index))
+                if (row.Value != SavedPlacementRecord || !hasRecord) result.Add(row);
             return result;
         }
+
+        // Native UnitUISettings.CleanupBadSlots' outcome for a bad slot it was handed, from what the slot holds when the
+        // call returns: a rebind leaves a binding of the same KMC kind whose ability data is the live fact's own (the
+        // pinned build writes a new slot object; an in-place data change is recognized the same way), anything else
+        // (an empty slot) is an emptying.
+        public static bool IsNativeRebind(NativeMountedControlKind reportedKind, NativeMountedControlKind kindNow, bool nowHoldsLiveFactData) =>
+            reportedKind != NativeMountedControlKind.None && kindNow == reportedKind && nowHoldsLiveFactData;
+
+        // A deferred native observation applies only in the player world that produced it and only while the reporting
+        // rider instance is still on that world's roster; work from a replaced world is discarded.
+        public static bool DeferredObservationApplies(object originWorld, object currentWorld, bool riderStillOnRoster) =>
+            originWorld != null && ReferenceEquals(originWorld, currentWorld) && riderStillOnRoster;
 
         // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
         // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
