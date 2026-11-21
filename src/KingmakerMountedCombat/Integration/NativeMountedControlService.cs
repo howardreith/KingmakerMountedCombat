@@ -891,7 +891,7 @@ namespace KingmakerMountedCombat.Integration
                 ClearTargetingPresentation("disabled");
                 ClearReserveBindings();
                 reserveScan.Reset();
-                pendingBadSlots.Clear(); activeBadSlotCleanup = null;
+                pendingBadSlots.Clear(); activeNativeSlotOperation = null; nativeSlotOperationDepth = 0;
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -926,7 +926,12 @@ namespace KingmakerMountedCombat.Integration
             ObservePendingRiderPrimaryOutcome();
             ReleaseStaleReserveScan();
             // A native CleanupBadSlots that did not return normally still has its slots resolved.
-            if (activeBadSlotCleanup != null || pendingBadSlots.Count > 0) ResolvePendingBadSlots();
+            // (Update never runs inside a native slot operation, so an open bracket here was left by an exception.)
+            if (activeNativeSlotOperation != null || nativeSlotOperationDepth != 0 || pendingBadSlots.Count > 0)
+            {
+                nativeSlotOperationDepth = 0;
+                ResolvePendingBadSlots();
+            }
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
@@ -1456,7 +1461,7 @@ namespace KingmakerMountedCombat.Integration
             ClearTargetingPresentation("disposed");
             ClearReserveBindings();
             reserveScan.Reset();
-            pendingBadSlots.Clear(); activeBadSlotCleanup = null;
+            pendingBadSlots.Clear(); activeNativeSlotOperation = null; nativeSlotOperationDepth = 0;
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
             loadFence.Reset();
@@ -1989,13 +1994,20 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
+            // Only a report made inside a native operation that replaces the slot on this bar (GetSlot or CleanupBadSlots,
+            // both bracketed) counts; a standalone validity query (for example a diagnostic reading the bar) changes
+            // nothing.
+            if (activeNativeSlotOperation == null || !ReferenceEquals(activeNativeSlotOperation, unit.UISettings)) return;
             var pending = new PendingSlotInvalidation
             {
                 World = Game.Instance?.Player, Kind = ResolveKind(slot.Ability?.Blueprint),
                 Unit = unit, Slot = slot, Index = index, PetId = unit.Descriptor?.PetUniqueId,
                 Desired = ShouldLease(unit, NativeMountedControlKind.MountState),
                 Alias = !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility),
-                AliasIndex = -1
+                AliasIndex = -1,
+                // The other public bindings on the bar when this slot is handed to native: copies of the choice, never
+                // a later placement.
+                Copies = Enumerable.Range(0, slots.Length).Where(i => i != index && IsPublicBindingSlot(slots[i])).ToList()
             };
             if (pending.Alias)
             {
@@ -2005,15 +2017,9 @@ namespace KingmakerMountedCombat.Integration
             }
             // A secondary canonical copy (not the bar's selected public binding) never replaces the choice.
             else if (!MountedControlSlotPolicy.IsSelectedPublicReport(PublicBindingIndex(slots), index)) return;
-            // Inside native CleanupBadSlots on this bar the outcome is not decided yet: native rebinds the slot to a live
-            // fact of the same blueprint, or empties it. It is resolved when that call returns (EndNativeBadSlotCleanup).
-            // GetSlot always empties the slot, so it is applied now.
-            if (activeBadSlotCleanup != null && ReferenceEquals(activeBadSlotCleanup, unit.UISettings))
-            {
-                pendingBadSlots.Add(pending);
-                return;
-            }
-            ApplySlotInvalidation(pending, false);
+            // The outcome is decided when the native operation returns (EndNativeSlotOperation): CleanupBadSlots rebinds
+            // the slot to a live fact of the same blueprint or empties it; GetSlot empties it.
+            pendingBadSlots.Add(pending);
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
@@ -2029,20 +2035,27 @@ namespace KingmakerMountedCombat.Integration
             internal int Index, AliasIndex;
             internal string PetId;
             internal bool Desired, Alias;
+            internal List<int> Copies;
         }
 
-        private Kingmaker.UI.UnitSettings.UnitUISettings activeBadSlotCleanup;
+        private Kingmaker.UI.UnitSettings.UnitUISettings activeNativeSlotOperation;
+        private int nativeSlotOperationDepth;
         private readonly List<PendingSlotInvalidation> pendingBadSlots = new List<PendingSlotInvalidation>();
 
+        // Native UnitUISettings.GetSlot / CleanupBadSlots begins (exact prefixes). A nested native call is part of the
+        // outer operation, which resolves its reports when it returns.
         internal void BeginNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
         {
-            ResolvePendingBadSlots();
-            activeBadSlotCleanup = disposed || !enabled ? null : settings;
+            if (nativeSlotOperationDepth++ > 0) return;
+            if (pendingBadSlots.Count > 0) ResolvePendingBadSlots();
+            activeNativeSlotOperation = disposed || !enabled ? null : settings;
         }
 
         internal void EndNativeBadSlotCleanup(Kingmaker.UI.UnitSettings.UnitUISettings settings)
         {
-            if (!ReferenceEquals(activeBadSlotCleanup, settings)) return;
+            if (nativeSlotOperationDepth > 0 && --nativeSlotOperationDepth > 0) return;
+            nativeSlotOperationDepth = 0;
+            if (activeNativeSlotOperation == null && pendingBadSlots.Count == 0) return;
             ResolvePendingBadSlots();
         }
 
@@ -2053,7 +2066,7 @@ namespace KingmakerMountedCombat.Integration
         // identity is not relied on. Also run at the next update if the native call did not return normally.
         private void ResolvePendingBadSlots()
         {
-            activeBadSlotCleanup = null;
+            activeNativeSlotOperation = null;
             if (pendingBadSlots.Count == 0) return;
             var pending = pendingBadSlots.ToArray();
             pendingBadSlots.Clear();
@@ -2080,13 +2093,20 @@ namespace KingmakerMountedCombat.Integration
             if (!ArrangementsAccepted)
             {
                 // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
-                // world, so an emptied slot is kept with the load scope's outgoing records (an abandoned load returns
-                // it; a replaced world drops it). A rebound slot is still on the bar for the next update to observe.
-                // A rebound slot is recorded live in those outgoing records too, so an abandoned load returns the live
-                // state (a later removal stays the player's).
+                // world, so the outcome is kept with the load scope's outgoing records (an abandoned load returns it; a
+                // replaced world drops it). A confirmed companion loss retires the outgoing arrangement and clears the
+                // rider's public bindings at once, so an abandoned load cannot hand the old binding to the new companion.
+                var outgoingSlots = unit.UISettings?.Slots;
+                if (loadFence.RetireOutgoingOnCompanionLoss(Game.Instance?.Player, unit.UniqueId, item.PetId, item.Desired,
+                    outgoingSlots != null && outgoingSlots.Any(IsPublicBindingSlot)))
+                {
+                    if (outgoingSlots != null) ClearPublicControlSlots(unit, outgoingSlots);
+                    return;
+                }
                 var recorded = item.Alias && !rebound
-                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired)
-                    : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired, rebound);
+                    ? loadFence.AdmitOutgoingSurvivingBinding(Game.Instance?.Player, unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies)
+                    : loadFence.ObserveOutgoingCleanupOutcome(Game.Instance?.Player, unit.UniqueId, item.Index, item.PetId, item.Desired, rebound,
+                        item.Copies, item.Alias);
                 if (recorded && rebound) NativeSlotReboundCount++;
                 else if (recorded) NativeSlotInvalidationCount++;
                 return;
@@ -2095,7 +2115,9 @@ namespace KingmakerMountedCombat.Integration
             if (RetireOnCompanionLoss(unit)) return;
             if (rebound)
             {
-                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true))
+                // A rebind of a recorded copy of an interrupted choice (for example the surviving older alias) keeps the
+                // choice; a rebind at the chosen slot or of anything else is the live arrangement.
+                if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, true, item.Copies, item.Alias))
                 {
                     placementRecorded.Add(unit.UniqueId);
                     NativeSlotReboundCount++;
@@ -2106,7 +2128,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 // A recorded placement (for example an alias a save scope returned) is invalidated as a temporary
                 // absence at its index; an unrecorded older alias is recovered by the reserve rule before it is lost.
-                if (placementIntent.ObserveNativeAliasInvalidated(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired))
+                if (placementIntent.ObserveNativeAliasInvalidated(unit.UniqueId, item.AliasIndex, item.PetId, item.Desired, item.Copies))
                 {
                     placementRecorded.Add(unit.UniqueId);
                     NativeSlotInvalidationCount++;
@@ -2115,7 +2137,7 @@ namespace KingmakerMountedCombat.Integration
             }
             // The player's canonical shortcut was seen: its one-time placement is satisfied even though native emptied it
             // (no autofill copy if its chosen slot is taken before the control returns).
-            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false))
+            if (placementIntent.ObserveNativeCleanupOutcome(unit.UniqueId, item.Index, item.PetId, item.Desired, false, item.Copies))
             {
                 placementRecorded.Add(unit.UniqueId);
                 NativeSlotInvalidationCount++;
@@ -2217,10 +2239,19 @@ namespace KingmakerMountedCombat.Integration
             return fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability);
         }
 
-        // A surviving secondary copy of an interrupted choice (MountedControlPlacementIntent.IsSecondaryBinding).
+        // A surviving secondary copy of an interrupted choice (MountedControlPlacementIntent.IsSecondaryBinding) that yields
+        // to it: only while the chosen slot is free. When the chosen slot is occupied, the surviving copy is the
+        // arrangement in live repair, capture and lease release alike.
         private bool IsSecondaryPublicSlot(UnitEntityData unit, MechanicActionBarSlot[] slots, int index) =>
             unit?.UniqueId != null && slots != null && index >= 0 && index < slots.Length &&
-            placementIntent.IsSecondaryBinding(unit.UniqueId, index, IsStaleOrAlias(unit, slots[index]));
+            placementIntent.IsSecondaryBinding(unit.UniqueId, index, IsStaleOrAlias(unit, slots[index])) && ChosenSlotFree(unit, slots);
+
+        private bool ChosenSlotFree(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            int chosen;
+            return unit?.UniqueId != null && slots != null && placementIntent.TryGetInterruptedChoice(unit.UniqueId, out chosen) &&
+                chosen < slots.Length && (slots[chosen] == null || slots[chosen] is MechanicActionBarSlotEmpty);
+        }
 
         private bool IsPublicBindingSlot(MechanicActionBarSlot slot) =>
             MountedControlSlotPolicy.IsPublicControlKind(ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint));
@@ -2330,7 +2361,7 @@ namespace KingmakerMountedCombat.Integration
             // interrupted elsewhere; a binding holding the live data (a player placement) is the arrangement.
             if (bound >= 0)
                 placementIntent.ObserveBindingAtBoundary(id, bound, IsStaleOrAlias(unit, slots[bound]), placementRecorded.Contains(id),
-                    unit.Descriptor?.PetUniqueId);
+                    unit.Descriptor?.PetUniqueId, ChosenSlotFree(unit, slots));
             else
                 placementIntent.ObserveAtBoundary(id, control != null && control.Active, bound, placementRecorded.Contains(id),
                     unit.Descriptor?.PetUniqueId);

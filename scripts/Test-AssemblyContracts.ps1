@@ -1546,6 +1546,13 @@ if($Target-eq'Kingmaker'){
     $cleanupBadToken=if($null-eq$cleanupBad){0}else{$cleanupBad.MetadataToken}
     Assert-Contract ($null-ne$cleanupBad-and-not$cleanupBad.IsStatic-and$cleanupBad.ReturnType.FullName-ceq'System.Void'-and
         $cleanupBad.GetParameters().Count-eq0-and$cleanupBadToken-eq0x06003004) ('toolbar: UnitUISettings.CleanupBadSlots is an instance void method, token '+$cleanupBadToken.ToString('X8'))
+    # KMC also brackets the exact GetSlot(int, UnitEntityData) (MountedPatchController.NativeGetSlotToken): an IsBad report
+    # counts only inside a native slot operation that replaces the slot, never for a standalone validity query.
+    $getSlotExact=$uiSettings.GetMethod('GetSlot',$cityFlags,$null,[Type[]]@([int],$assembly.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData',$false)),$null)
+    $getSlotToken=if($null-eq$getSlotExact){0}else{$getSlotExact.MetadataToken}
+    $emptyCtorForGetSlot=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false).GetConstructor([Type[]]@())
+    Assert-Contract ($null-ne$getSlotExact-and-not$getSlotExact.IsStatic-and$getSlotExact.ReturnType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot'-and
+        $getSlotToken-eq0x06002FFE-and(Test-MethodIlContainsToken $getSlotExact $emptyCtorForGetSlot.MetadataToken)) ('toolbar: UnitUISettings.GetSlot(int, UnitEntityData) replaces a bad slot with a new empty slot, token '+$getSlotToken.ToString('X8'))
     # What a successful rebind writes (NativeMountedControlService.ResolvePendingBadSlots relies on the resulting live data,
     # not on object identity): CleanupBadSlots constructs one new MechanicActionBarSlotAbility, stores the fact's data in
     # its Ability field and passes it to SetSlot; its other outcome constructs a MechanicActionBarSlotEmpty for SetSlot.

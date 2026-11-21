@@ -321,6 +321,26 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   (`ObserveBound`, or `ObserveOffBar` for a full bar). A direct change of companions before the next observation then
   retires it.
 
+**Round 17 additions.**
+- *Recorded copies (R14-F2, R15-F1):* when native cleanup interrupts the chosen slot, the other public bindings on
+  the bar at that moment are recorded as copies of the choice (`Entry.Copies`, carried through outgoing load
+  records). A recorded copy is secondary whether or not it holds live data, so the live canonical copy at 9 after
+  `GetSlot(3)` does not change the saved slot. A native rebind of a secondary copy, such as the surviving older
+  alias, keeps the interrupted choice (`ObserveNativeCleanupOutcome` with `aliasReport`). A placement made after the
+  cleanup with the live data is not a recorded copy and stays the player's.
+- *One occupied-slot rule (R17-F1):* a secondary copy yields only while the chosen slot is free (`ChosenSlotFree`).
+  When the chosen slot is occupied, the surviving copy becomes the arrangement at bar observation
+  (`ObserveBindingAtBoundary` with `chosenSlotFree` false), in live repair and therefore in capture and lease release.
+  Update-first and save-first runs agree, and Fireball stays at 4.
+- *Only native slot operations count (R17-F2):* a new exact prefix and postfix bracket `UnitUISettings.GetSlot(int,
+  UnitEntityData)` (token `06002FFE`, pinned in `Test-AssemblyContracts.ps1` together with its construction of an
+  empty slot) as well as `CleanupBadSlots`. An `IsBad` report is recorded only inside one of these operations on that
+  bar and is resolved when the operation returns. A standalone validity query, such as the F2 diagnostic's
+  `F2SlotKey`, changes nothing. A bracket left open by an exception is resolved at the next update.
+- *Fenced companion loss (R17-F3):* while a selected load fences the world, a confirmed companion loss on a native
+  report retires the outgoing arrangement (`MountedControlLoadFence.RetireOutgoingOnCompanionLoss`) and clears the
+  rider's public bindings at once. An abandoned load cannot hand the rebound binding to the new companion.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -501,10 +521,17 @@ assembly contracts 822/0, archive bound 9/0, focused 5/5. A mutation run forced 
 domain and removed the initial-placement record in the double. It failed exactly four regressions: the three new
 ones and round 15's save-between-reads test. The initial-placement test's fixture check was then loosened, so the
 mutation reports the inheritance itself ("Pet B inherited pet A's automatic placement"). All mutations were reverted.
-The controller gate on the round-16 commit is the result of record.
-| components (`bin\Tests`) | 1483/0 | 63 toolbar, 6 city-roster and 3 downed-target tests |
+The controller gate then passed on `d4b3c2d4` in 47.4 s; it ran after an owner-authorized pause and the switch to the
+new controller version. Round 17: the `GetSlot` token was read from a passing contract run (a non-zero check printed
+`06002FFE`) and then pinned. One local run on the fixed tree, with PASS lines temporarily silenced in
+`tests/TestRunner.cs` (reverted, absent from the diff), passed: components 1488/0, assembly contracts 823/0, archive
+bound 9/0, focused 5/5. A combined mutation run then reverted five decisions: in the domain, the rebound-copy check,
+recorded copies, the occupied-slot promotion and the fenced retirement; in the double, the native-operation gate,
+which mirrors production. It failed exactly the five new regressions. All mutations were reverted. The controller
+gate on the round-17 commit is the result of record.
+| components (`bin\Tests`) | 1488/0 | 68 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
-| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 822/0 (adds the `IsBad` override, `CleanupBadSlots` token and rebind-shape rows) | reflection-only contracts; Wrath not selected |
+| `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 823/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
 | `Test-CityArchiveRowBound.ps1` (via wrapper) | 9/0 (live alias with inactive canonical fact, both kinds; mixed bar, current and stale canonical; stale canonical at 3 before current at 9; remembered slot occupied by a live Mounted Charge; rows emitted by `LivePublicRows`/`AbsentRowsAfterLive`) | production `MountedArchiveData`/`MountedArchiveCodec` from this worktree; in-memory graphs |
 | `chunk7\Test-Chunk7SixPairArchiveAdapter.ps1` (via wrapper) | 22/0 | actual capture/restore methods, typed facades |

@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Integration
         // Kingmaker 2.1.7b MechanicActionBarSlotAbility.IsBad override, pinned in Test-AssemblyContracts.ps1.
         internal const int NativeAbilitySlotIsBadToken = 0x06002F6E;
         internal const int NativeCleanupBadSlotsToken = 0x06003004;
+        internal const int NativeGetSlotToken = 0x06002FFE;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -168,6 +169,9 @@ namespace KingmakerMountedCombat.Integration
                 // Its outcome inside CleanupBadSlots: a rebind to a live fact of the same blueprint, or an empty slot.
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
                     Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
+                // GetSlot replaces a bad slot too; an IsBad report counts only inside one of these two native operations.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "GetSlot", NativeGetSlotToken,
+                    new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
