@@ -53,6 +53,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a direct change of pets retires the old slot in update-first and save-first order", DirectPetChange);
             runner.Run("toolbar: an abandoned load returns reserve slots and deliberate removals the bar cannot reconstruct", AbandonedLoadRestores);
             runner.Run("toolbar: a superseded load releases only its own fence; an unstarted replacement leaves controls running", SupersededLoadFence);
+            runner.Run("toolbar: native cleanup with a cleared pet link, then a new pet before any update, retires the old slot", ClearedLinkCleanupThenNewPet);
+            runner.Run("toolbar: native cleanup during a load that is abandoned returns the slot in the surviving world", CleanupDuringAbandonedLoad);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -270,7 +272,13 @@ namespace KingmakerMountedCombat.Tests
             internal void NativeInvalidate(bool reactivated = false)
             {
                 var at = Find();
-                if (at >= 0) { if (S.Accepts && !RetireOnPetChange()) Intent.ObserveNativeSlotInvalidated(Id, at, PetId); Slots[at] = null; }
+                if (at >= 0)
+                {
+                    // While a selected load fences this world, the observation goes to the scope's outgoing records.
+                    if (!S.Accepts) S.Fence.ObserveOutgoingSlotInvalidated(S.Current, Id, at, PetId);
+                    else if (!RetireOnPetChange()) Intent.ObserveNativeSlotInvalidated(Id, at, PetId);
+                    Slots[at] = null;
+                }
                 FactLive = reactivated;
             }
 
@@ -813,6 +821,77 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(second.AbandonLoad(newerB) && !second.Fence.Fenced, "The newer scope could not abandon its own load.");
             second.Frame();
             TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The original records did not come back after the newer scope was abandoned.");
+        }
+
+        private static void ClearedLinkCleanupThenNewPet()
+        {
+            foreach (var reactivated in new[] { false, true })
+            {
+                // Pet A's control in slot 9; the link clears, native cleanup reports slot 9, pet B is linked, and only then
+                // does the first update run.
+                var rider = PlacedAt(9);
+                rider.PetId = null; rider.PetResolves = false;
+                rider.NativeInvalidate(reactivated);
+                rider.PetId = "horse-2"; rider.PetResolves = true;
+                rider.Frame(); rider.Frame();
+                TestRunner.True(rider.Find() == -1 && rider.Slots[9] == null && rider.Slots[0] == "Attack",
+                    "Pet B inherited pet A's slot 9, or another slot changed (reactivated=" + reactivated + ").");
+                var rows = rider.Save();
+                TestRunner.True(!rows.Any(r => r.Kind == 6) && rows.Count(r => r.Kind == 7) == 1,
+                    "The archive after the change carried a slot row for pet B (reactivated=" + reactivated + ").");
+                TestRunner.Equal(-1, rider.Find(), "The save scope put pet A's slot back for pet B (reactivated=" + reactivated + ").");
+            }
+            // Control: the same persistent pet id, briefly unresolved through the same cleanup, still returns to slot 9 once.
+            var same = PlacedAt(9, "same");
+            same.PetResolves = false;
+            same.NativeInvalidate();
+            same.Frame();
+            same.PetResolves = true; same.Frame(); same.Frame();
+            TestRunner.True(same.Find() == 9 && same.Count() == 1, "The same pet id lost slot 9 after native cleanup.");
+            var rows2 = same.Save();
+            TestRunner.True(rows2.Count(r => r.Kind == 6 && r.Index == 9) == 1, "The same pet's archive lost the slot row at 9.");
+        }
+
+        private static void CleanupDuringAbandonedLoad()
+        {
+            foreach (var reactivated in new[] { true, false })
+            {
+                var service = new Service();
+                var rider = PlacedAt(9, "rider", service);
+                var owner = new object();
+                service.BeginLoad(owner);                     // the outgoing player is still current
+                rider.NativeInvalidate(reactivated);          // native cleanup empties slot 9 while fenced
+                rider.Frame();                                // an update in the interval writes nothing
+                TestRunner.True(service.AbandonLoad(owner), "The owning scope could not abandon its load.");
+                rider.Frame(); rider.Frame();
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The abandoned load lost the slot native cleanup emptied (reactivated=" + reactivated + ").");
+                var rows = service.Save();
+                TestRunner.True(rows.Count(r => r.Actor == "rider" && r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Kind == 6) == 1,
+                    "The next save did not carry exactly one slot row at 9 (reactivated=" + reactivated + ").");
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The save scope changed the restored slot (reactivated=" + reactivated + ").");
+            }
+            // Control: a deliberate removal before the load (not yet seen by an update) stays removed after abandonment.
+            var removals = new Service();
+            var remover = PlacedAt(9, "remover", removals);
+            remover.Slots[9] = null;
+            var removalOwner = new object();
+            removals.BeginLoad(removalOwner);
+            TestRunner.True(removals.AbandonLoad(removalOwner), "The owning scope could not abandon its load.");
+            remover.Frame(); remover.Frame();
+            TestRunner.Equal(-1, remover.Find(), "An abandoned load re-added a deliberately removed control.");
+            var removalRows = removals.Save();
+            TestRunner.True(removalRows.Count == 1 && removalRows[0].Kind == 7, "The save after the removal carried a slot row.");
+            // Control: the same cleanup followed by a successful replacement gives the loaded world only its own rows.
+            var replaced = new Service();
+            var outgoing = PlacedAt(9, "rider", replaced);
+            replaced.BeginLoad(new object());
+            outgoing.NativeInvalidate(reactivated: true);
+            var incoming = new World();
+            var reserve = new Rider("rider", replaced, incoming) { InParty = false, Autofill = false };
+            replaced.InstallAndRestore(incoming, new List<SavedRow>());
+            TestRunner.True(replaced.Save().Count == 0, "The loaded world kept the outgoing world's cleanup.");
+            reserve.ToParty(); replaced.Frame(); replaced.Frame();
+            TestRunner.Equal(-1, reserve.Find(), "The loaded world reproduced the outgoing slot.");
         }
 
         private static void RemovalAfterLeaseRelease()

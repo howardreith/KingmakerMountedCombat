@@ -135,6 +135,18 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   replacement. A superseded scope's end callback now abandons its own fence; another scope's fence is never released;
   a newer scope that starts on the same fenced world takes ownership of the records already moved aside.
 
+**Round 6 additions.**
+- *Cleared pet link at native cleanup (R4-F2):* `MountedControlPlacementIntent.ObserveNativeSlotInvalidated` checks the
+  companion identity before it records anything: a cleared link (or one naming another companion) is positive evidence
+  that the slot's companion was removed, so the arrangement is retired instead of being re-recorded with an empty link
+  that a later pet could adopt. A pet B linked before the first update therefore gets no slot (a placement record
+  only); the same persistent pet id briefly unresolved still returns to its slot once.
+- *Native cleanup during an abandoned load (R5-F1):* while a selected load fences the outgoing world, the native
+  cleanup report goes to the load scope's outgoing records (`MountedControlLoadFence.ObserveOutgoingSlotInvalidated`,
+  current world must be the fenced one). `AbandonLoadedWorld` restores those records including the cleanup, so the
+  slot returns once in the surviving world; a successful world replacement drops them with the rest of the outgoing
+  records.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -246,9 +258,14 @@ one failed (an empty-difference wrapping artifact), one passed; the controller g
 Round 4: one local Fast run (with build) on the uncommitted tree passed (components 1443/0, Validate-Source 153/0,
 focused 5/5; its area-adapter comparison read the previous commit as HEAD); the controller gate then passed on
 `9ce8b7c1` in 22.4 s. Round 5: one local Fast run (with build) on the uncommitted tree passed (components 1447/0,
-Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD); the controller gate on the round-5
-commit is the result of record (final report).
-| components (`bin\Tests`) | 1447/0 | 27 toolbar, 6 city-roster and 3 downed-target tests |
+Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD); the controller gate then passed on
+`85d70ff2` in 29.6 s. Round 6: the two new reproductions were first run against a stub keeping the old behavior (the
+fence ignored the outgoing cleanup, the cleanup observer re-recorded an empty link): the local Fast run exited 1 (two
+runs, with and without build; the tool output was truncated before the FAIL lines, and the only changes from the
+all-pass round-5 tree were those two tests and the stub). After the fix, one local Fast run (with build) on the
+uncommitted tree passed (components 1449/0 with both new tests passing, Validate-Source 153/0, focused 5/5, area
+comparison against the previous HEAD); the controller gate on the round-6 commit is the result of record.
+| components (`bin\Tests`) | 1449/0 | 29 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

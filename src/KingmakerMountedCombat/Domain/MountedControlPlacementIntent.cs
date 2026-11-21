@@ -66,11 +66,16 @@ namespace KingmakerMountedCombat.Domain
         // Native bad-slot cleanup decided the public-control slot at slotIndex on this actor's bar is bad (its fact was
         // gone or inactive): that slot is the player's current choice (a move or first manual placement since the last
         // update included), and its emptying is a temporary absence, whatever the fact's state by the next update.
-        public void ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId)
+        // The companion identity is checked first, before anything overwrites the stored pet link: a cleared link, or one
+        // naming another companion, is positive evidence that the companion the slot belonged to was removed, so the
+        // arrangement is retired (a later companion cannot inherit it). Returns true when the slot was remembered.
+        public bool ObserveNativeSlotInvalidated(string actorId, int slotIndex, string petId)
         {
-            if (actorId == null || slotIndex < 0) return;
+            if (actorId == null || slotIndex < 0) return false;
+            if (string.IsNullOrEmpty(petId) || PetLinkChanged(actorId, petId)) { entries.Remove(actorId); return false; }
             ObserveBound(actorId, slotIndex, petId);
             ObserveAbsent(actorId, MountedControlAbsence.Temporary);
+            return true;
         }
 
         // A saved arrangement: a slot row (index >= 0) or a placement record without a slot (OffBar). A freshly loaded
@@ -305,6 +310,16 @@ namespace KingmakerMountedCombat.Domain
         {
             if (fencedWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) Release();
             return fencedWorld == null;
+        }
+
+        // Native bad-slot cleanup of an outgoing-world rider's slot while this fence holds (the outgoing player is still
+        // current): the observation goes to the outgoing records the scope keeps, so an abandoned load gets the slot
+        // back exactly; a successful replacement drops it with them. False (nothing recorded) when not fenced on
+        // currentWorld or when the observation proves the companion was removed.
+        public bool ObserveOutgoingSlotInvalidated(object currentWorld, string actorId, int slotIndex, string petId)
+        {
+            if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
+            return outgoingIntent.ObserveNativeSlotInvalidated(actorId, slotIndex, petId);
         }
 
         public void Reset() => Release();

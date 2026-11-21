@@ -1946,7 +1946,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ObserveInvalidatedPublicSlot(MechanicActionBarSlotAbility slot)
         {
             if (disposed || mountStateAbility == null || slot == null ||
-                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility) || !ArrangementsAccepted) return;
+                !ReferenceEquals(slot.Ability?.Blueprint, mountStateAbility)) return;
             var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
             // Only a current-world rider's own bar: the exact slot object must still be on it (native reads it from the
             // array before replacing it); any other slot object is ignored.
@@ -1954,10 +1954,20 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
+            var petId = unit.Descriptor?.PetUniqueId;
+            if (!ArrangementsAccepted)
+            {
+                // A selected load fences this (still current, outgoing) world: the live records belong to the incoming
+                // world, so the observation is kept with the load scope's outgoing records. An abandoned load returns
+                // the slot; a replaced world drops it.
+                if (loadFence.ObserveOutgoingSlotInvalidated(Game.Instance?.Player, unit.UniqueId, index, petId))
+                    NativeSlotInvalidationCount++;
+                return;
+            }
             // A slot of a previous companion is not the new companion's choice: it is retired, not remembered.
             if (RetireOnPetChange(unit)) return;
-            placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, unit.Descriptor?.PetUniqueId);
-            NativeSlotInvalidationCount++;
+            // A cleared pet link retires the arrangement here too, before the stored identity could be overwritten.
+            if (placementIntent.ObserveNativeSlotInvalidated(unit.UniqueId, index, petId)) NativeSlotInvalidationCount++;
         }
 
         internal long NativeSlotInvalidationCount { get; private set; }
