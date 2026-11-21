@@ -110,18 +110,32 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        // An older save: a current-world rider that is not reconciled now (the reserve roster) still carries a native
-        // public-control binding in slotIndex, with no arrangement of its own. The binding is the player's choice
-        // (recovered as a return from absence) when the rider's pet link names a companion; a cleared or different link
-        // retires instead. An arrangement already known, or retired in this world, wins over the binding. Returns true
-        // when the slot was recovered; the caller clears the binding either way (it has no fact behind it).
-        public bool AdmitSurvivingBinding(string actorId, int slotIndex, string petId)
+        // An older save's binding that has no fact behind it now: a reserve rider's surviving public-control binding,
+        // or an exact older Mount / Dismount alias on a rider whose public control is not live (for example while its
+        // pet does not resolve), with no arrangement of its own. The binding is the player's choice (recovered as a
+        // return from absence) when the rider's pet link names a companion, or while the rider still gets the control
+        // (controlDesired: a mounted or faulted relationship); a different link, or a cleared one while the rider no
+        // longer gets the control, retires instead. An arrangement already known, or retired in this world, wins over
+        // the binding. Returns true when the slot was recovered; the caller clears or repairs the binding.
+        public bool AdmitSurvivingBinding(string actorId, int slotIndex, string petId, bool controlDesired = false)
         {
             if (actorId == null || slotIndex < 0) return false;
-            if (string.IsNullOrEmpty(petId) || PetLinkChanged(actorId, petId)) { Retire(actorId); return false; }
+            if (PetLinkChanged(actorId, petId) || !controlDesired && string.IsNullOrEmpty(petId)) { Retire(actorId); return false; }
             if (entries.ContainsKey(actorId) || retired.Contains(actorId)) return false;
-            entries[actorId] = new Entry { Index = slotIndex, Interrupted = true, PetId = petId };
+            entries[actorId] = new Entry { Index = slotIndex, Interrupted = true, PetId = string.IsNullOrEmpty(petId) ? null : petId };
             return true;
+        }
+
+        // A save scope's lease of the public control's slot may put the control back at slotIndex only while that slot
+        // is still the rider's arrangement for its current companion: an arrangement retired since (companion removed
+        // or replaced) or changed since (off the bar, another slot) wins. A rider with no record keeps the plain
+        // restore (nothing known contradicts it).
+        public bool AllowsLeaseRestore(string actorId, int slotIndex, string petId)
+        {
+            Entry entry;
+            if (actorId == null || retired.Contains(actorId)) return false;
+            if (!entries.TryGetValue(actorId, out entry)) return true;
+            return entry.Index == slotIndex && !PetLinkChanged(actorId, petId);
         }
 
         // A saved arrangement: a slot row (index >= 0) or a placement record without a slot (OffBar). A freshly loaded
@@ -309,6 +323,43 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public void Clear() { entries.Clear(); retired.Clear(); }
+    }
+
+    // One-time scan bookkeeping (reserve-bar migration of older saves), held only as long as it is needed: the world it
+    // was made in and the units that are still members of the scanned roster. Synchronize with the current world and
+    // roster drops every unit that left the roster, and everything (the world included) when the world changed or none
+    // is current, so the ledger never keeps a removed unit or a disposed world alive. Identity is by reference.
+    public sealed class MountedScanLedger<TUnit> where TUnit : class
+    {
+        private object world;
+        private readonly List<TUnit> scanned = new List<TUnit>();
+
+        public int Count => scanned.Count;
+        public bool HoldsWorld => world != null;
+        public bool IsEmpty => world == null && scanned.Count == 0;
+        public bool Contains(TUnit unit) => unit != null && scanned.Exists(item => ReferenceEquals(item, unit));
+
+        public void Synchronize(object currentWorld, IEnumerable<TUnit> currentMembers)
+        {
+            if (currentWorld == null || !ReferenceEquals(currentWorld, world))
+            {
+                scanned.Clear();
+                world = currentWorld;
+                return;
+            }
+            var members = currentMembers == null ? new List<TUnit>() : new List<TUnit>(currentMembers);
+            scanned.RemoveAll(item => !members.Exists(member => ReferenceEquals(member, item)));
+        }
+
+        // True the first time this unit is seen since it (re)joined the roster in this world.
+        public bool MarkFirst(TUnit unit)
+        {
+            if (unit == null || world == null || Contains(unit)) return false;
+            scanned.Add(unit);
+            return true;
+        }
+
+        public void Reset() { scanned.Clear(); world = null; }
     }
 
     // The load boundary of the placement records. A selected load clears them when its native iterator starts

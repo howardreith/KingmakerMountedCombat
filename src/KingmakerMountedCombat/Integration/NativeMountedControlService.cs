@@ -890,7 +890,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 ClearTargetingPresentation("disabled");
                 ClearReserveBindings();
-                reserveScanned.Clear(); reserveScanWorld = null;
+                reserveScan.Reset();
                 RemoveAllManagedFacts(true);
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
@@ -923,6 +923,7 @@ namespace KingmakerMountedCombat.Integration
         internal void Update()
         {
             ObservePendingRiderPrimaryOutcome();
+            ReleaseStaleReserveScan();
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
@@ -1451,7 +1452,7 @@ namespace KingmakerMountedCombat.Integration
 
             ClearTargetingPresentation("disposed");
             ClearReserveBindings();
-            reserveScanned.Clear(); reserveScanWorld = null;
+            reserveScan.Reset();
             RemoveAllManagedFacts(true);
             placementIntent.Clear();
             loadFence.Reset();
@@ -1735,6 +1736,8 @@ namespace KingmakerMountedCombat.Integration
         {
             ClearTargetingPresentation("load");
             initialPlacements.Clear();
+            // The outgoing world's scan bookkeeping goes with it (an abandoned load rescans, which is idempotent).
+            reserveScan.Reset();
             loadFence.Begin(Game.Instance?.Player, loadOwner, placementIntent, placementRecorded);
         }
 
@@ -1875,6 +1878,8 @@ namespace KingmakerMountedCombat.Integration
             if (slots == null || abilities == null || mountStateAbility == null) return;
             var publicControl = abilities.GetAbility(mountStateAbility);
             var publicActive = publicControl != null && publicControl.Active;
+            // An older alias is emptied below while the control is not live: its index is recorded first.
+            if (!publicActive) RecoverLegacyAlias(unit, slots);
             var boundIndex = -1;
             for (var index = 0; index < slots.Length; index++)
             {
@@ -2008,11 +2013,13 @@ namespace KingmakerMountedCombat.Integration
         {
             if (disposed || !enabled || mountStateAbility == null || !ArrangementsAccepted) return;
             var player = Game.Instance?.Player;
+            var reserveUnits = ReserveRosterUnits(CollectCurrentCandidateUnits());
+            // The ledger keeps only this world and the units still on its reserve roster (MountedScanLedger).
+            reserveScan.Synchronize(player, reserveUnits);
             if (player == null) return;
-            if (!ReferenceEquals(reserveScanWorld, player)) { reserveScanned.Clear(); reserveScanWorld = player; }
-            foreach (var unit in ReserveRosterUnits(CollectCurrentCandidateUnits()))
+            foreach (var unit in reserveUnits)
             {
-                if (observedUnits.Contains(unit) || !reserveScanned.Add(unit)) continue;
+                if (observedUnits.Contains(unit) || !reserveScan.MarkFirst(unit)) continue;
                 var slots = unit.UISettings?.Slots;
                 if (slots == null || CountManagedHotbarSlots(unit) == 0) continue;
                 var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
@@ -2042,6 +2049,24 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal long ReserveBindingsRecovered { get; private set; }
+
+        // A reconciled rider's older exact Mount / Dismount alias (no canonical public binding on the bar) is the
+        // player's chosen slot. Repair turns it into the public control only while that control is live; otherwise the
+        // alias is emptied, so its index is recorded first (update-first and save-first alike) as a return from absence,
+        // by the reserve rule: a different companion, or a cleared link while the rider no longer gets the control,
+        // recovers nothing; an arrangement already known wins.
+        private void RecoverLegacyAlias(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            var id = unit?.UniqueId;
+            if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
+            var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
+            var at = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+            if (at < 0 || kinds[at] == NativeMountedControlKind.MountState) return;
+            if (!placementIntent.AdmitSurvivingBinding(id, at, unit.Descriptor?.PetUniqueId,
+                ShouldLease(unit, NativeMountedControlKind.MountState))) return;
+            placementRecorded.Add(id);
+            logger.Info("Older Mount / Dismount binding recorded as the chosen slot: unitId=" + id + "; slot=" + at + ".");
+        }
 
         // Disable and disposal: every exact KMC binding on a current-world rider that is not reconciled is cleared too.
         private void ClearReserveBindings()
@@ -2073,8 +2098,16 @@ namespace KingmakerMountedCombat.Integration
             return result;
         }
 
-        private object reserveScanWorld;
-        private readonly HashSet<UnitEntityData> reserveScanned = new HashSet<UnitEntityData>(new ReferenceIdentity<UnitEntityData>());
+        private readonly MountedScanLedger<UnitEntityData> reserveScan = new MountedScanLedger<UnitEntityData>();
+
+        // Every update, before any early return: once the world is gone or replaced, or a scanned unit left the reserve
+        // roster, the ledger lets go of it, whether or not reconciliation runs this frame.
+        private void ReleaseStaleReserveScan()
+        {
+            if (reserveScan.IsEmpty) return;
+            var player = Game.Instance?.Player;
+            reserveScan.Synchronize(player, player == null ? null : ReserveRosterUnits(CollectCurrentCandidateUnits()));
+        }
 
         // Only slots holding the public control; every other slot keeps its content and position.
         private void ClearPublicControlSlots(UnitEntityData unit, MechanicActionBarSlot[] slots)
@@ -2110,6 +2143,8 @@ namespace KingmakerMountedCombat.Integration
             if (id == null || slots == null || mountStateAbility == null || !ArrangementsAccepted) return;
             // A removed or replaced companion is retired before the boundary observation could overwrite its identity.
             if (RetireOnCompanionLoss(unit)) return;
+            // An older alias stands for the public control (archive capture can precede the first update).
+            RecoverLegacyAlias(unit, slots);
             var control = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
             var bound = Array.FindIndex(slots, slot =>
                 ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, mountStateAbility));
@@ -2602,7 +2637,11 @@ namespace KingmakerMountedCombat.Integration
                     continue;
                 }
                 var fact = lease.Unit.Descriptor?.Abilities?.GetAbility(lease.Blueprint);
-                if (restore && fact != null && fact.Active)
+                // The public control goes back only while this slot is still the rider's arrangement for its current
+                // companion: the update that ended the scope may have retired it (companion removed or replaced).
+                var arrangementHolds = !ReferenceEquals(lease.Blueprint, mountStateAbility) ||
+                    placementIntent.AllowsLeaseRestore(lease.Unit.UniqueId, lease.Index, lease.Unit.Descriptor?.PetUniqueId);
+                if (restore && fact != null && fact.Active && arrangementHolds)
                 {
                     lease.Unit.UISettings.SetSlot(
                         new MechanicActionBarSlotAbility { Unit = lease.Unit, Ability = fact.Data },
@@ -2898,16 +2937,10 @@ namespace KingmakerMountedCombat.Integration
             EventBus.RaiseEvent<IWarningNotificationUIHandler>(handler => handler.HandleWarning(message, true));
         }
 
-        private NativeMountedControlKind ResolveKind(BlueprintAbility ability)
-        {
-            if (ReferenceEquals(ability, mountAbility)) { return NativeMountedControlKind.MountCompanion; }
-            if (ReferenceEquals(ability, dismountAbility)) { return NativeMountedControlKind.Dismount; }
-            if (ReferenceEquals(ability, riderPrimaryAbility)) { return NativeMountedControlKind.RiderPrimary; }
-            if (ReferenceEquals(ability, mountPrimaryAbility)) { return NativeMountedControlKind.MountPrimary; }
-            if (ReferenceEquals(ability, mountedChargeAbility)) { return NativeMountedControlKind.MountedCharge; }
-            if (ReferenceEquals(ability, mountStateAbility)) { return NativeMountedControlKind.MountState; }
-            return NativeMountedControlKind.None;
-        }
+        // A missing blueprint is never a KMC control, even while a control field is still unregistered (null).
+        private NativeMountedControlKind ResolveKind(BlueprintAbility ability) =>
+            MountedControlSlotPolicy.ResolveExactKind(ability, mountAbility, dismountAbility, riderPrimaryAbility,
+                mountPrimaryAbility, mountedChargeAbility, mountStateAbility);
 
         private IEnumerable<BlueprintAbility> EnumerateBlueprints()
         {

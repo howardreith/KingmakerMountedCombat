@@ -177,6 +177,27 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   are kept, and the control returns to its chosen empty slot. A link naming another companion still retires the
   arrangement there, and a cleared link after entitlement ends still retires it (`RetireOnCompanionLoss`).
 
+**Round 9 additions.**
+- *Identity before registration (R9-F1):* `ResolveKind` now delegates to `MountedControlSlotPolicy.ResolveExactKind`,
+  which returns None for a missing blueprint (an item or another non-ability slot) before any comparison. Before or
+  during registration a null control field can no longer match it. Disable, disposal, reserve cleanup and the save
+  scope's lease capture therefore touch only identifiable KMC bindings.
+- *Lease release after a companion change (R9-F2):* `ClearSerializationHotbarLeases` puts the public control back
+  only while `AllowsLeaseRestore` holds. That means the leased index is still the rider's arrangement and its pet link
+  names the same companion. A retirement, an off-bar arrangement or a different slot recorded by the scope-ending
+  update wins. Same-companion restores and the placeholder check are unchanged.
+- *Scan bookkeeping lifetime (R9-F3):* the reserve scan uses `MountedScanLedger`. On every update (before any early
+  return) and at every scan it is synchronized with the current player and reserve roster: units that left the roster
+  are dropped, and everything (the world included) is dropped when the world changes or none is current. It is also
+  reset when a selected load begins, on disable and on disposal. A unit is scanned once per stay on the reserve roster.
+  A rescan is idempotent: cleared bindings stay cleared and an existing arrangement wins.
+- *A party rider's older alias while its pet is unresolved (R9-F4):* `RecoverLegacyAlias` records an exact older
+  Mount / Dismount alias as the chosen slot before repair empties it. It runs at the start of
+  `ReconcilePublicControlSlots` when the public control is not live, and in every bar observation (so archive capture
+  before the first update sees it). It uses `RecoveredPublicSlot`'s precedence, so a canonical binding wins, and the
+  reserve rule: a different companion, or a cleared link while the rider no longer gets the control, recovers
+  nothing, and an existing arrangement wins.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -304,8 +325,13 @@ two old decisions, the unconditional revalidation and the first-match recovery p
 truncated in the tool output). After restoring the fix, one local Fast run (with build) passed: components 1454/0
 with the two new tests passing, Validate-Source 153/0, focused 5/5, area comparison against the previous HEAD. The
 Charge migration in the toolbar double mirrors the service's loop; the service's `ResolveStockChargeForSlot` itself
-is exercised only in native play. The controller gate on the round-8 commit is the result of record.
-| components (`bin\Tests`) | 1454/0 | 34 toolbar, 6 city-roster and 3 downed-target tests |
+is exercised only in native play. The controller gate then passed on `a3462521` in 24.8 s. Round 9: one local Fast run
+(with build) on the fixed tree passed: components 1458/0 with the four new tests passing, Validate-Source 153/0,
+focused 5/5. A mutation run then reverted three domain decisions: the null-blueprint rule, the lease-restore check and
+the ledger's pruning and release. It exited 1 (FAIL lines truncated in the tool output), and the decisions were
+restored before commit. The alias recovery's call sites are service code, mirrored by the toolbar double. The
+controller gate on the round-9 commit is the result of record.
+| components (`bin\Tests`) | 1458/0 | 38 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 820/0 (adds the `IsBad` override row) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

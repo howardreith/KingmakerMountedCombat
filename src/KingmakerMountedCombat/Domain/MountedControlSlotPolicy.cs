@@ -44,6 +44,22 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
+        // The exact KMC identity of a slot's ability blueprint, by reference. A missing blueprint (an item, an empty or
+        // another non-ability slot) is never a KMC control, including before or after registration when some control
+        // blueprints are still (or again) null: only an identifiable registered blueprint matches.
+        public static NativeMountedControlKind ResolveExactKind<T>(T ability, T mount, T dismount, T riderPrimary,
+            T mountPrimary, T mountedCharge, T mountState) where T : class
+        {
+            if (ability == null) return NativeMountedControlKind.None;
+            if (ReferenceEquals(ability, mount)) return NativeMountedControlKind.MountCompanion;
+            if (ReferenceEquals(ability, dismount)) return NativeMountedControlKind.Dismount;
+            if (ReferenceEquals(ability, riderPrimary)) return NativeMountedControlKind.RiderPrimary;
+            if (ReferenceEquals(ability, mountPrimary)) return NativeMountedControlKind.MountPrimary;
+            if (ReferenceEquals(ability, mountedCharge)) return NativeMountedControlKind.MountedCharge;
+            if (ReferenceEquals(ability, mountState)) return NativeMountedControlKind.MountState;
+            return NativeMountedControlKind.None;
+        }
+
         // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
         // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
         // -1 when the bar holds neither.

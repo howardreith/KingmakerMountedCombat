@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
@@ -60,6 +61,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: an older capital save's surviving reserve binding is saved as its slot, never serialized, and cleared on disable", OlderCapitalSaveReserveBinding);
             runner.Run("toolbar: an older reserve bar keeps the public slot over a legacy alias and migrates its Mounted Charge to stock Charge", OlderReserveBarMigration);
             runner.Run("toolbar: native cleanup while a faulted relationship still grants Dismount with an empty pet link keeps the slot", FaultedRiderKeepsInterruptedSlot);
+            runner.Run("toolbar: before full registration only an identifiable KMC blueprint is cleaned up; items and ordinary abilities survive", UnregisteredCleanupKeepsUnrelatedSlots);
+            runner.Run("toolbar: a save-scope lease does not restore a slot retired for a companion replaced during the scope", LeaseReleaseAfterCompanionChange);
+            runner.Run("toolbar: reserve scan bookkeeping releases removed units and a disposed world, and never repeats a scan", ReserveScanLedgerLifetime);
+            runner.Run("toolbar: a party rider's older alias survives a temporarily unresolved pet in update-first and save-first order", LegacyAliasWhilePetUnresolved);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -169,7 +174,9 @@ namespace KingmakerMountedCombat.Tests
             }
 
             // A save in production order; returns the owned archive rows.
-            internal List<SavedRow> Save()
+            // duringScope: something that happens while the save worker holds the scope (after the leases and fact
+            // removal, before EndSaveSerializationScope's update and the lease release).
+            internal List<SavedRow> Save(Action duringScope = null)
             {
                 AdmitReserve();
                 var candidates = Candidates;
@@ -196,6 +203,7 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var rider in scoped.Concat(Reserve).Distinct().ToList()) rider.Lease();
                 SerializedKmcSlots = CurrentWorld.Sum(r => r.KmcCount());
                 foreach (var rider in scoped) rider.KmcRemove(clearSlots: false, interrupt: rider.World == Current);
+                duringScope?.Invoke();
                 Frame();
                 foreach (var rider in scoped) rider.ReleaseLeases();
                 return rows;
@@ -284,6 +292,15 @@ namespace KingmakerMountedCombat.Tests
                 var replaced = false;
                 if (Desired && !FactLive) { FactLive = true; DataVersion++; replaced = true; }
                 if (!Desired) FactLive = false;
+                // ReconcilePublicControlSlots: an older alias becomes the live control in its slot, or is emptied (its
+                // index recorded first) while the control is not live.
+                if (!FactLive) RecoverAlias();
+                for (var i = 0; i < Slots.Length; i++)
+                {
+                    if (MountedControlSlotPolicy.RepairLiveSlot(Service.KindOf(Slots[i])) != MountedControlSlotRepair.MountState) continue;
+                    Slots[i] = FactLive && Find() < 0 ? Data : null;
+                    S.Placed.Add(Id);
+                }
                 var bound = Find();
                 if (FactLive && bound >= 0 && Slots[bound] != Data) Slots[bound] = Data; // stale binding rebound
                 // Confirmed permanent loss clears the public-control slots.
@@ -303,7 +320,19 @@ namespace KingmakerMountedCombat.Tests
             internal void ObserveBar()
             {
                 if (RetireOnPetChange()) return;
+                RecoverAlias();
                 Intent.ObserveAtBoundary(Id, FactLive, Find(), S.Placed.Contains(Id), PetId);
+            }
+
+            // RecoverLegacyAlias: an older exact Mount / Dismount alias (no canonical public binding) is recorded as the
+            // chosen slot before repair could empty it.
+            internal void RecoverAlias()
+            {
+                if (!S.Accepts) return;
+                var kinds = Slots.Select(Service.KindOf).ToArray();
+                var at = MountedControlSlotPolicy.RecoveredPublicSlot(kinds);
+                if (at < 0 || kinds[at] == NativeMountedControlKind.MountState) return;
+                if (Intent.AdmitSurvivingBinding(Id, at, PetId, Desired)) S.Placed.Add(Id);
             }
 
             // Native deactivates the fact (no slot holds it, so native cleanup reports nothing).
@@ -340,7 +369,7 @@ namespace KingmakerMountedCombat.Tests
             internal void ReleaseLeases()
             {
                 foreach (var at in leases)
-                    if (Slots[at] == null && FactLive && World == S.Current && InParty)
+                    if (Slots[at] == null && FactLive && World == S.Current && InParty && Intent.AllowsLeaseRestore(Id, at, PetId))
                     { Slots[at] = Data; Intent.ObserveBound(Id, at, PetId); }
                 leases.Clear();
             }
@@ -379,7 +408,7 @@ namespace KingmakerMountedCombat.Tests
             internal void ToReserve() { LeaveParty(); Frame(); }
             internal void ToParty() { InParty = true; }
 
-            internal List<SavedRow> Save() => S.Save();
+            internal List<SavedRow> Save(Action duringScope = null) => S.Save(duringScope);
 
             internal void Restore(List<SavedRow> rows, bool loadedWorld)
             {
@@ -1169,6 +1198,138 @@ namespace KingmakerMountedCombat.Tests
             replaced.NativeInvalidate();
             replaced.Frame(); replaced.Frame();
             TestRunner.Equal(-1, replaced.Find(), "A different companion inherited slot 9 while the relationship granted the control.");
+        }
+
+        // Bar slots for the identity rule: Blueprint null stands for an item or other non-ability slot.
+        private sealed class BarSlot { internal object Blueprint; }
+
+        private static void UnregisteredCleanupKeepsUnrelatedSlots()
+        {
+            var registeredState = new object();
+            var registeredMount = new object();
+            // Nothing registered, partially registered (public control only), and fully registered.
+            var registrations = new[]
+            {
+                new object[] { null, null, null, null, null, null },
+                new object[] { null, null, null, null, null, registeredState },
+                new object[] { registeredMount, new object(), new object(), new object(), new object(), registeredState }
+            };
+            foreach (var r in registrations)
+            {
+                var item = new BarSlot { Blueprint = null };            // an item / non-ability shortcut
+                var ordinary = new BarSlot { Blueprint = new object() }; // an ordinary ability
+                var kmc = new BarSlot { Blueprint = registeredState };   // an exact registered KMC binding
+                var bar = new[] { item, ordinary, kmc };
+                // ClearManagedHotbarSlots / CaptureAndClearManagedHotbarSlots: only slots ResolveKind names are taken.
+                for (var i = 0; i < bar.Length; i++)
+                    if (MountedControlSlotPolicy.ResolveExactKind(bar[i].Blueprint, r[0], r[1], r[2], r[3], r[4], r[5]) != NativeMountedControlKind.None)
+                        bar[i] = null;
+                var label = " (registered=" + r.Count(x => x != null) + ")";
+                TestRunner.True(ReferenceEquals(bar[0], item) && ReferenceEquals(bar[1], ordinary), "Cleanup replaced an item or an ordinary ability" + label + ".");
+                if (r[5] != null) TestRunner.True(bar[2] == null, "Cleanup kept an exact registered KMC binding" + label + ".");
+            }
+            TestRunner.Equal(NativeMountedControlKind.MountCompanion,
+                MountedControlSlotPolicy.ResolveExactKind(registeredMount, registeredMount, null, null, null, null, null),
+                "An exact registered Mount binding was not identified.");
+        }
+
+        private static void LeaseReleaseAfterCompanionChange()
+        {
+            // Pet A's slot 9 is leased for serialization; the link changes to supported pet B before the scope ends.
+            var rider = PlacedAt(9);
+            rider.Save(() => { rider.PetId = "horse-2"; });
+            TestRunner.True(rider.Find() == -1 && rider.Slots[9] == null && rider.Slots[0] == "Attack",
+                "The lease release restored pet A's slot 9 for pet B, or another slot changed.");
+            rider.Frame(); rider.Frame();
+            TestRunner.Equal(-1, rider.Find(), "A later update returned the retired slot for pet B.");
+            var rows = rider.Save();
+            TestRunner.True(!rows.Any(r => r.Kind == 6), "The next archive kept a slot row for pet B.");
+            // Control: pet A retained through the scope restores exactly one binding at 9.
+            var same = PlacedAt(9, "same");
+            same.Save(() => { });
+            TestRunner.True(same.Find() == 9 && same.Count() == 1, "The same companion's lease did not restore slot 9 once.");
+            TestRunner.True(same.Save().Count(r => r.Kind == 6 && r.Index == 9) == 1, "The same companion's next archive lost the row at 9.");
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference[] ArmLedger(MountedScanLedger<object> ledger)
+        {
+            var world = new object();
+            var unit = new object();
+            ledger.Synchronize(world, new[] { unit });
+            TestRunner.True(ledger.MarkFirst(unit) && !ledger.MarkFirst(unit), "The first scan was not recorded exactly once.");
+            return new[] { new WeakReference(world), new WeakReference(unit) };
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void SyncLedger(MountedScanLedger<object> ledger, WeakReference world) =>
+            ledger.Synchronize(world.Target, new object[0]); // the unit left the reserve roster; the world is current
+
+        private static void Collect() { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
+
+        private static void ReserveScanLedgerLifetime()
+        {
+            var ledger = new MountedScanLedger<object>();
+            var refs = ArmLedger(ledger);
+            SyncLedger(ledger, refs[0]);
+            Collect();
+            TestRunner.True(ledger.Count == 0 && !refs[1].IsAlive, "The ledger kept a unit that left the reserve roster.");
+            TestRunner.True(ledger.HoldsWorld && refs[0].IsAlive, "The current world was dropped while it was still current.");
+            ledger.Synchronize(null, null);                 // the world is disposed with no replacement player
+            Collect();
+            TestRunner.True(!ledger.HoldsWorld && !refs[0].IsAlive, "The ledger kept the disposed world alive.");
+            // Control: repeated scans of an unchanged reserve bar never repeat the migration.
+            var world = new object(); var unit = new object();
+            var stable = new MountedScanLedger<object>();
+            stable.Synchronize(world, new[] { unit });
+            var first = stable.MarkFirst(unit);
+            var repeats = 0;
+            for (var i = 0; i < 3; i++) { stable.Synchronize(world, new[] { unit }); if (stable.MarkFirst(unit)) repeats++; }
+            TestRunner.True(first && repeats == 0 && stable.Count == 1, "An unchanged reserve bar was scanned again.");
+            // A new world starts afresh.
+            stable.Synchronize(new object(), new[] { unit });
+            TestRunner.True(stable.Count == 0 && stable.MarkFirst(unit), "A replaced world kept the previous world's scans.");
+        }
+
+        private static void LegacyAliasWhilePetUnresolved()
+        {
+            foreach (var saveFirst in new[] { false, true })
+            {
+                // An older native bar: legacy Mount alias at 9, no owned rows, the persistent pet id set but the pet unit
+                // not resolving.
+                var service = new Service();
+                var rider = new Rider("rider", service, service.Current) { PetResolves = false, Autofill = false };
+                rider.Slots[0] = "Attack";
+                rider.Slots[9] = "KMC_Mount#0";
+                if (!saveFirst) { service.Frame(); service.Frame(); }
+                var rows = service.Save();
+                var label = " (saveFirst=" + saveFirst + ")";
+                TestRunner.True(rows.Count(r => r.Kind == 6 && r.Index == 9) == 1 && rows.Count(r => r.Kind == 6) == 1 && rows.Count(r => r.Kind == 7) == 1,
+                    "The resave did not keep the alias index at 9" + label + ".");
+                TestRunner.True(rider.KmcCount() == 0 && rider.Slots[0] == "Attack", "The alias stayed, or an unrelated slot changed" + label + ".");
+                // The same pet resolves: the canonical control returns once at 9 (in this world, and after a reload).
+                var loaded = rider.Load(rows);
+                rider = loaded;
+                rider.Frame();
+                rider.PetResolves = true; rider.Frame(); rider.Frame();
+                TestRunner.True(rider.Find() == 9 && rider.Count() == 1, "The same pet's return did not restore the canonical control once" + label + ".");
+            }
+            // In-world return without a reload.
+            var inWorld = new Service();
+            var stays = new Rider("rider", inWorld, inWorld.Current) { PetResolves = false, Autofill = false };
+            stays.Slots[9] = "KMC_Dismount#0";
+            inWorld.Frame();
+            stays.PetResolves = true; inWorld.Frame(); inWorld.Frame();
+            TestRunner.True(stays.Find() == 9 && stays.Count() == 1, "The in-world return did not restore slot 9 once.");
+            // A cleared link recovers nothing.
+            var cleared = new Service();
+            var orphan = new Rider("rider", cleared, cleared.Current) { PetId = null, PetResolves = false, Autofill = false };
+            orphan.Slots[9] = "KMC_Mount#0";
+            cleared.Frame();
+            var orphanRows = cleared.Save();
+            TestRunner.True(!orphanRows.Any(r => r.Kind == 6) && orphan.KmcCount() == 0, "A cleared link recovered the alias index.");
+            orphan.PetId = "horse-1"; orphan.PetResolves = true; cleared.Frame(); cleared.Frame();
+            TestRunner.Equal(-1, orphan.Find(), "A later pet received the alias slot recovered from a cleared link.");
         }
 
         private static void RemovalAfterLeaseRelease()
