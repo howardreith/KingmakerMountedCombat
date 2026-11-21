@@ -169,6 +169,20 @@ namespace KingmakerMountedCombat.Domain
             return first;
         }
 
+        // The saved public row an actor's arrangement is seeded from, among its public rows in archive order. A replay of
+        // rows captured earlier in this world takes the first row (later in-world edits are protected elsewhere). A freshly
+        // loaded save takes the first row whose destination slot can hold the control now (restorable: empty, or a public
+        // binding), as the pre-change reader skipped an occupied row and went on to the next one; when none can, the first
+        // row (the occupied-slot rule then records the shortcut off the bar). -1 for no rows.
+        public static int SelectSeededPublicRow(IList<int> publicRowIndices, Func<int, bool> restorable, bool loadedWorld)
+        {
+            if (publicRowIndices == null || publicRowIndices.Count == 0) return -1;
+            if (loadedWorld && restorable != null)
+                foreach (var index in publicRowIndices)
+                    if (restorable(index)) return index;
+            return publicRowIndices[0];
+        }
+
         // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
         // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
         // -1 when the bar holds neither.

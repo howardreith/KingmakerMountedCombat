@@ -365,6 +365,17 @@ namespace KingmakerMountedCombat.Domain
             return entry.Interrupted || entry.Index == OffBar;
         }
 
+        // The slot the actor's arrangement names now, live or interrupted (never OffBar). This is the decision about which
+        // slot the player owns; TryGetArrangement is the separate archive query for an absent arrangement.
+        public bool TryGetChosenSlot(string actorId, out int index)
+        {
+            Entry entry;
+            index = OffBar;
+            if (actorId == null || !entries.TryGetValue(actorId, out entry) || entry.Index < 0) return false;
+            index = entry.Index;
+            return true;
+        }
+
         // Positive evidence, for a reconciled rider that no longer gets the control, that the loss is permanent: its pet
         // link is cleared, or names another unit than the one its arrangement was observed with. The caller then also
         // clears the rider's public-control slots, so a later companion cannot revive the old binding.
@@ -633,6 +644,11 @@ namespace KingmakerMountedCombat.Domain
             outgoingPlaced?.Add(actorId);
             return true;
         }
+
+        // The outgoing records while this fence holds on currentWorld (read-only use: the arrangement a native report on
+        // the outgoing world belongs to), otherwise null.
+        public MountedControlPlacementIntent OutgoingRecords(object currentWorld) =>
+            fencedWorld != null && outgoingIntent != null && ReferenceEquals(currentWorld, fencedWorld) ? outgoingIntent : null;
 
         // The interrupted choice held in the outgoing records while this fence holds (the arrangement a native report on
         // the outgoing world belongs to).

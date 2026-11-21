@@ -455,6 +455,29 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
 - *Acceptance evidence (R21-F3):* the negative-control row is split. The brain-proposal and downed-ally controls are
   UNIT. The Charge and replacement-target filters are TRACE, with the source checks named.
 
+**Round 22 additions.**
+- *An adopted fallback stays the live choice (R22-F1):* copy identity now asks which slot the arrangement names, live
+  or interrupted (`MountedControlPlacementIntent.TryGetChosenSlot`). The archive query for absent arrangements
+  (`TryGetArrangement`) stays separate. After a save adopts fallback 7 before repair, capture and the save scope still
+  read 7 as the player's: kind 6 at 7, one shortcut after the release, and 7 after cold load.
+- *A native rebind of the selected slot records its siblings (R18-F1):* when native rebinds the player's own binding,
+  `TrackCopies` adds the other public bindings on the bar at that moment to the identified copies. Removing the
+  rebound 3 at once then leaves no shortcut, update-first and save-first, instead of promoting the current
+  duplicate at 9.
+- *Reports attributed by the effective binding (R19-F2):* with no interrupted choice, a native report counts only for
+  the effective binding of the owning records: the live records, or `MountedControlLoadFence.OutgoingRecords` while
+  a load fences the world. This replaces the raw first canonical index, so a lower recorded copy no longer hides
+  native emptying of the moved shortcut at 11.
+- *Fresh loads skip an occupied legacy row (R22-F2):* with several public rows, a freshly loaded save seeds the first
+  row whose slot can hold the control now (`MountedControlSlotPolicy.SelectSeededPublicRow`), as the pre-change
+  reader did. Replays still take the first row.
+- *First reserve scan keeps a fallback (R22-F3):* `AdmitReserveBindings` classifies the effective binding before
+  clearing the bar. A fallback copy for an occupied chosen slot becomes the choice (`PromoteFallback`, same companion
+  only); otherwise the reserve rule applies. The copy objects are released after the bar is cleared.
+- *Removed riders release copies (R20-F1):* each update releases the recorded copies of any actor that is no longer
+  one of the current world's player characters (`ReleaseCopiesOfDepartedRiders`), including a rider removed before
+  its first reserve scan. The registry's world goes with its last entry.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -689,7 +712,22 @@ One local Fast run, with PASS lines temporarily silenced (reverted), passed: com
   binding, reserve-scan release, and a world-free lookup.
 It failed exactly the five targeted regressions. All mutations were reverted. The controller gate on the round-21
 commit is the result of record.
-| components (`bin\Tests`) | 1502/0 | 82 toolbar, 6 city-roster and 3 downed-target tests |
+
+Round 22 extended four tests and added one:
+- `OccupiedChosenSlotWithTwoCopies`: an immediate save before repair;
+- `StaleThenCurrentCanonical`: native rebind first, then immediate removal, update-first and save-first;
+- `MoveBeyondSurvivingCopy`: native emptying of the moved 11 after the rebind pass;
+- `DepartedRiderReleasesCopies`: an occupied first-time reserve scan and removal before the first scan;
+- new: `LegacyRowsSkipOccupiedFirst`.
+One local Fast run, with PASS lines temporarily silenced (reverted), passed: components 1503/0 and Validate-Source
+153/0. A combined mutation run then reverted six decisions:
+- in the domain, `TryGetChosenSlot` for live arrangements and `SelectSeededPublicRow`;
+- in the double, each mirroring the production line: sibling recording on a rebind, effective-binding attribution,
+  reserve fallback promotion, and departed-rider release.
+Five targeted regressions failed. The departed-rider release was masked by an earlier assertion in the same test,
+so a separate run with only that mutation failed its assertion. All mutations were reverted. The controller gate on
+the round-22 commit is the result of record.
+| components (`bin\Tests`) | 1503/0 | 83 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |
