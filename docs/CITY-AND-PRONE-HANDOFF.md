@@ -7,11 +7,18 @@ execution model and remaining work plan; the earlier acceptance criteria and saf
 Branch `codex/mounted-city-and-prone-fixes` from `main` `dbf63702` (0.2.13). Draft PR #57. Development candidate
 only: no merge, release, tag, install or native run.
 
-**Current status (manual round 4, 2026-11-22).** Claude, in ordinary interactive development, answered the ten findings of
-the replacement enrollment's review round 3. Source candidate `e429d290` (`4cdc34c0` with a test-fixture fix); this
-handoff is documentation on top of it. The focused Fast gate passes on `e429d290`. The corrections are **claimed by
-Claude** and await the owner's independent (Pro) review: none of them is independently verified yet (section 9). Native
-behavior remains NOT RUN for all three original issues (sections 11–12).
+**Current status (manual round 5, 2026-11-22).** Source candidate **`397fb226`**; this handoff is documentation on top of
+it. History of the manual rounds:
+- Manual round 4: Claude, in ordinary interactive development, answered the ten findings of the replacement
+  enrollment's review round 3 (source `e429d290`, handoff `74fa9931`).
+- The owner's independent Pro review of `74fa9931` returned **changes_required**. At the source-review level it would
+  close seven findings: R1-F10, R3-F1, R2-F1, R2-F4, R3-F2, R1-F13 and R3-F3. It kept R2-F2, R2-F3 and R2-F5 open with one
+  concrete sequence each. Those sequences were traced from the source by the reviewer, not executed.
+- Manual round 5: Claude reproduced all three (executed: each fails on `e429d290`'s production code) and corrected them
+  in `397fb226`, where the focused Fast gate passes.
+
+The three round-5 corrections are **claimed by Claude** and await the next independent review (section 9). Native behavior
+remains NOT RUN for all three original issues (sections 11–13).
 
 **Enrollment history (kept visible as the addendum requires).**
 - First enrollment `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c`: 26 review rounds and 27 writer
@@ -122,19 +129,26 @@ that return; only an available bar that cannot hold the index gives it up.
   settles it. While a selected load is open and no player world exists, thrown operations are held in their own list,
   which a later operation cannot consume. They are settled when their own world is current again, and dropped on world
   replacement, an unfenced disposal (main menu) and disable.
-- **The bar as native started.** The prefix notes every public binding (slot object, and what CleanupBadSlots would
-  rebind into it: the active fact's data) and every other occupied slot. After the postfix, or at settlement, the bar is
+- **The bar as native started.** The prefix notes every public binding (slot object) and every other occupied slot. After the postfix, or at settlement, the bar is
   observed **as it stood then**, occupancy included, and the written slots are applied in index order:
   - an emptied chosen slot becomes pending; a rebound chosen slot is live;
   - a rebound copy stays a copy under its new slot object;
   - an emptied copy is gone, unless it was the last surviving copy of a pending choice whose slot was occupied, in
     which case it becomes that choice.
-- **What a thrown operation can have written** (method-specific evidence, R2-F5). GetSlot only ever writes an empty slot
-  bound to the unit; it constructs no ability slot (installed contract). CleanupBadSlots writes that, or a new binding of
-  exactly the fact data noted at the prefix. Anything else in a noted slot is a later edit, read at the next ordinary
-  observation. So a fact deactivated after a genuine rebind does not make the rebind a placement, and a player's
-  placement after GetSlot threw is never credited to native. A supported exception-safe boundary does not exist on
-  Harmony 1.2: a prefix that re-ran the original would run other mods' GetSlot patches twice.
+- **What a thrown operation actually wrote** (R2-F5, revised in manual round 5).
+  - **GetSlot** only ever writes an empty slot bound to the unit; it constructs no ability slot (installed contract).
+    Such a slot in its noted index is its write.
+  - **CleanupBadSlots** writes only through its own three plain calls of the non-virtual `UnitUISettings.SetSlot`
+    (installed contract). KMC's transpiler redirects exactly those call sites to `NativeCleanupSetSlot`, which performs
+    the same `SetSlot` and then records the write on the open operation (`RecordNativeSlotWrite`). A cleanup that throws
+    is settled only from those recorded writes, while the slot still holds the object native wrote.
+  - Anything else in a noted slot is a later edit, read at the next ordinary observation. A player's placement of the
+    very fact data cleanup would have rebound is therefore never credited to native (the Pro review's sequence), and a
+    fact deactivated after a genuine rebind does not turn it into a placement.
+  - The native exception propagates unchanged: nothing is caught and the original is never re-run. Manual round 4's
+    possible-write evidence (the fact data a cleanup *could* rebind) is removed.
+  - No exception-safe boundary was added. Harmony 1.2 has no finalizer, and a prefix that re-ran the original would run
+    other mods' patches twice.
 
 **Authority and identity.**
 - Placement authority goes by exact roster identity. An object on the current player roster authors its actor's
@@ -144,9 +158,12 @@ that return; only an available bar that cannot hold the index gives it up.
   companion, or cleared while the rider no longer gets the control, retires the arrangement. The companion an
   arrangement belongs to is recorded as soon as it is known, whether or not the bar is readable, and a fresh load's
   arrangement takes the loaded rider's link (R2-F3).
-- A retirement made while the bar cannot be read clears that bar's surviving public bindings the first time it is
-  readable again: the player cannot edit an unreadable bar, so they predate the retirement. A later placement for the new
-  companion is then an ordinary fresh placement (R2-F3).
+- A retirement made while the bar cannot be read records which bindings predate it (R2-F3, revised in manual round 5):
+  the arrangement's known bindings by slot object, meaning the chosen binding (recorded at every observation and at
+  KMC's own binds) and the known copies. For a bar never read (an arrangement only seeded from the archive), every binding
+  it will hold counts as predating. When the bar is readable again, exactly those are cleared, and they are never read
+  as a placement, neither on the bar nor in a native operation's view of it. A binding the player placed afterwards,
+  even before KMC's first observation, is an ordinary fresh placement for the new companion.
 - A unit positively identified as a pet owns no arrangement or marker. Rows admitted before it resolved are purged when
   it appears as a pet.
 - **Capture authority (R1-F10, R3-F1).** Every capture first prepares: each placement unit's bar is observed now, so rows
@@ -166,8 +183,10 @@ takes the first row.
   that actor (a native read of its bar before the restore). The one exception follows the same principle: an observed
   choice that was only an older Mount / Dismount alias (an F2 leftover, which the player cannot place) yields to the
   archive's record of the actor. That record is its public row, or a marker without one (off the bar). The alias becomes
-  what seeding first makes of it: a known copy, or the fallback its native emptying earned when the archive's slot is
-  occupied. A canonical binding read before the restore still wins (genuine native recovery) (R2-F2).
+  what seeding first makes of it. When the archived slot can take the control, the alias is a known copy of it. When that
+  slot is occupied, the fallback is the first leftover in F2's order, which is exactly the alias the observation chose:
+  that choice stands with whatever native did to it, and another surviving copy never displaces it (corrected in manual
+  round 5). A canonical binding read before the restore still wins (genuine native recovery) (R2-F2).
 - Seeding first and observing second give the same result.
 
 | Boundary | What the lifecycle does, in order |
@@ -211,9 +230,13 @@ R1-F1).
 - Respec's whole-bar reset (`UnitUISettings.CleanupSlots`) is not tracked.
 - A native slot replacement outside `GetSlot` and `CleanupBadSlots` would read as a removal; none is known in 2.1.7b.
 - The player dragging the control back onto a copy's own slot under the same slot object is still a copy.
-- A thrown CleanupBadSlots whose rebind slot the player re-places with the same fact data within the same frame, before
-  settlement, is indistinguishable from native's rebind and is read as native's (it settles at the next entry, normally the
-  same frame; the player cannot edit an unreadable bar or edit during a load).
+- The CleanupBadSlots write transpiler is pinned by contract (three plain `SetSlot` call sites; the hook's and
+  transpiler's signatures on the built product) and fails loudly at patch time if the count differs. It is not executed
+  offline; its effect is modeled in the component and wiring fixtures, which report each write as the hook does.
+- An arrangement only seeded from the archive and retired before its bar was ever read treats every binding that bar
+  later holds as predating the retirement, so a placement made before KMC's first observation of that bar is cleared
+  too (there is no observation to tell them apart). The Pro review's case (a bar observed before it was hidden) keeps
+  the fresh placement.
 - A seeded arrangement records the loaded rider's pet link; an in-world replay that seeds an actor with no arrangement
   records the current link (before this change, no link; either way a replay never recreates a retired actor).
 - Behavior is component-tested through the production component, and the adapter wiring through its fixture. The
@@ -265,7 +288,8 @@ target-side. This is a trace, not an observation.
 Provenance for all six: enrollment `…-e55c`, round 26, reviewed commit `6298f2a5`, archived review
 `docs/agent-reviews/pr-57/112-r26-review.md` (envelope `113`). These are acceptance-case references, not findings of
 this enrollment. Evidence type: UNIT (the production lifecycle through thin fakes). All six pass on source candidate
-`e429d290` (focused Fast gate of manual round 4, section 10; unchanged test bodies). None is observed in game.
+`397fb226` (focused Fast gate of manual round 5, section 10; unchanged test bodies; also on `e429d290`). None is
+observed in game.
 
 | Case | Outcome | Test | What it exercises |
 | --- | --- | --- | --- |
@@ -288,7 +312,7 @@ Evidence types:
 - TRACE: source reading only, with no execution of that code path.
 - NATIVE: in-game structured evidence.
 
-Source identity: source candidate `e429d290` (product DLL of its Release build sha256 `51e70773…161df`, built by the
+Source identity: source candidate `397fb226` (product DLL of its Release build sha256 `d300aacd…5446b`, built by the
 gate; no package was built). Results below are from the focused gate on that commit unless a row names another commit.
 
 | Area | Case | Result | Evidence |
@@ -301,12 +325,13 @@ gate; no package was built). Results below are from the focused gate on that com
 | Toolbar persistence | Occupied slots, another rider, unrelated slots | PASS | UNIT `OccupiedAndIndependent` |
 | Toolbar persistence | Companion removal, roster loss, disable, world disposal; former instances and late-resolving pets | PASS | UNIT `CompanionLoss`, `DisableAndLifetime`, `FormerInstanceKeepsReplacement`, `FormerInstanceInWorldCapture`, `LateResolvingPetPurged`, `HiddenBarCompanionRetirement` |
 | Toolbar persistence | Older archives read while the bar is unreadable; leftover aliases read before or after seeding | PASS | UNIT `DelayedBarKeepsOlderRows`, `LoneAliasBeforeOrAfterSeeding`, `MixedArchiveRows`, `IncomingObservationBeforeRestore` |
-| Toolbar persistence | Native operations: own postfix, held thrown writes, method-specific settlement, occupancy as native started | PASS | UNIT `HeldThrownWriteSurvivesCompleteRead`, `ThrownOperationEvidence`, `FencedThrownNativeWrite`, `ThrownCleanupEdges`, `NativeOperationEdges` |
-| Toolbar persistence | Adapter forwarding, roster inputs, capture authority, Charge versus the public predicate, held write through the service brackets, native bar owner | PASS | WIRING (9 checks; 9 wiring mutations killed) |
+| Toolbar persistence | Native operations: own postfix, held thrown writes, settlement from actual writes, occupancy as native started | PASS | UNIT `HeldThrownWriteSurvivesCompleteRead`, `ThrownOperationEvidence` (c)–(f), `FencedThrownNativeWrite`, `ThrownCleanupEdges`, `NativeOperationEdges` |
+| Toolbar persistence | Adapter forwarding, roster inputs, capture authority, Charge versus the public predicate, held write through the service brackets, native bar owner, recorded cleanup writes | PASS | WIRING (10 checks; 10 wiring mutations killed) |
 | Toolbar persistence | Archive bound and row shapes | PASS | ARCHIVE (7/0) |
 | Toolbar persistence | Actual archive capture and presentation restore | PASS | ADAPTER (six-pair, 22/0) |
 | Toolbar persistence | Native bad-slot replacement, rebind shape, native empty slot bound to the unit, drag-off writes null; `UnitUISettings.Owner`; no nesting; GetSlot only empties; GetSlot parameter names | PASS | CONTRACT (installed assembly) |
-| Toolbar persistence | The product's GetSlot / CleanupBadSlots prefixes and postfix bind `__instance`, `index`, `unit` and `__state` | PASS | CONTRACT (reflection on the built product) |
+| Toolbar persistence | The product's GetSlot / CleanupBadSlots prefixes and postfix bind `__instance`, `index`, `unit` and `__state`; the cleanup write hook takes `SetSlot`'s instance and arguments; the write transpiler maps the Harmony12 instruction stream | PASS | CONTRACT (reflection on the built product; not executed) |
+| Toolbar persistence | CleanupBadSlots writes only through exactly three plain calls of the non-virtual `SetSlot` | PASS | CONTRACT (installed assembly) |
 | Toolbar persistence | Area-restore adapter | not executed | `Test-CityAreaAdapterBaseline.ps1` 63/63 compares compiler diagnostics only: base and candidate both fail to compile its facade with the same 63 errors, and none of the area-restoration assertions run |
 | Toolbar persistence | The same in game | NOT RUN | NATIVE (playtests 1–2) |
 | City companion UI | Owner and pet mapping, exact instance, multiple pets, exclusions, repeated opening, disabled | PASS | UNIT `CityCompanionRosterProjectionTests` (unchanged) |
@@ -318,8 +343,8 @@ gate; no package was built). Results below are from the focused gate on that com
 | Negative controls | Charge keeps its conscious-only rule at admission and revalidation (`TargetValid` requires `IsConscious && !IsFinallyDead`: `MountedCombatController.Charge.cs`; the `MountedPairAttackCommand` charge revalidation). Continuation candidates are filtered to conscious, not finally dead enemies. The automatic-gate target check stays conscious-only. | PASS | TRACE. The component tests feed these paths preclassified inputs; no executed test passes an unconscious unit through these integration filters. |
 | Negative controls | Blocked line of sight, unavailable actions, out-of-range approach, standing targets, unmounted ranged, mounted melee, mounted penalties | NOT RUN | NATIVE (paths unchanged in code; playtest 5) |
 | Shared regressions | Tabletop Rules Expansion click composition, both orders | PASS | COMPOSITION |
-| Shared regressions | Existing component suite | PASS | UNIT (1472/0 on `e429d290`) |
-| Shared regressions | U02 presentation probe; F2 reader source guards | PASS on `56366c41` only | detached probe 239/0 and F2 guards ran on `56366c41` (first enrollment); not rerun on any later commit, so not evidence for `e429d290` |
+| Shared regressions | Existing component suite | PASS | UNIT (1472/0 on `397fb226`) |
+| Shared regressions | U02 presentation probe; F2 reader source guards | PASS on `56366c41` only | detached probe 239/0 and F2 guards ran on `56366c41` (first enrollment); not rerun on any later commit, so not evidence for `397fb226` |
 
 ## 7. R1–R26 regression map (addendum E)
 
@@ -420,16 +445,18 @@ temp directories:
 Each unmutated copy must pass. Each one-line production mutation must make its named checks fail. The script confirms
 afterwards that the worktree is byte-identical.
 
-Results on `e429d290` (manual round 4, focused gate; section 10): baselines lifecycle 52/0 and wiring 9/0; all 31
-mutations killed. (Earlier, on `b868cd41`: 43/0, 5/0, 18 of 18.) Manual round 4 adapted the needles of M1b, M3e, M4a and
+Results on `397fb226` (manual round 5, focused gate; section 10): baselines lifecycle 52/0 and wiring 10/0; all 36
+mutations killed; failing-check counts below are from that gate. (On `e429d290`: 52/0, 9/0, 31 of 31; on `b868cd41`:
+43/0, 5/0, 18 of 18.) Manual round 5 re-targeted M4a, M6b and M6c at the actual-write settlement and M8a at the
+provenance-based sanitation, and added M6e, M7c, M8b, M8c and W10. Manual round 4 adapted the needles of M1b, M3e, M4a and
 W3 to the corrected code without changing what they break. It added M5–M8 and W6–W9, one per repaired boundary. Two
 link-recording points for R2-F3 (at seeding, and at a hidden-bar observation) each suffice for the tested sequence, so no
-single-line mutation isolates either; M8a covers the unreadable-bar sanitation.
+single-line mutation isolates either; M8a–M8c cover the unread-retirement sanitation and its provenance.
 
 | Mutation | Class | Failing checks |
 | --- | --- | --- |
 | M1a no observation before a sweep | observation | 1 |
-| M1b no observation before a native write is applied | observation | 16 |
+| M1b no observation before a native write is applied | observation | 17 |
 | M2a pets omitted from sanitation | actor | 2 |
 | M2b reserve owners omitted from observation | actor | 9 |
 | M2c a pair-custody former instance authors | actor / authority | 2 (review R1-F10) |
@@ -439,26 +466,31 @@ single-line mutation isolates either; M8a covers the unreadable-bar sanitation.
 | M3d a missing player in an open load treated as disposal | world lifetime | 1 (review R1-F2) |
 | M3e a thrown native write dropped at a missing player in an open load | world lifetime | 2 (review R2-F4) |
 | M4a a player's null write counted as native | edit versus invalidation | 1 |
-| M4b a native emptying leaves nothing pending | edit versus invalidation | 21 |
+| M4b a native emptying leaves nothing pending | edit versus invalidation | 22 |
 | M4c a removal kept as owed back | edit versus invalidation | 15 |
 | M5a an in-world capture takes rows from a non-authoring former instance | capture authority | 1 (R1-F10) |
 | M5b a capture writes rows from cached arrangements without preparing | capture preparation | 18 (R1-F10, R3-F1) |
 | M6a a postfix that opened nothing consumes the held thrown write | native invocation | 1 (R2-F4) |
 | M6b a thrown GetSlot credited with a rebind it cannot write | native evidence | 1 (R2-F5) |
-| M6c a thrown cleanup's rebind judged by the fact's later state | native evidence | 1 (R2-F5) |
+| M6c a thrown cleanup settled from slot contents, not its recorded writes | native evidence | 1 (R2-F5) |
 | M6d a thrown operation read against occupancy at settlement | native evidence | 1 (R2-F5) |
+| M6e a cleanup's own writes not recorded | native evidence | 3 (R2-F5) |
 | M7a a fresh load chooses among its rows while the bar is unreadable | archive selection | 1 (R2-F1) |
 | M7b a leftover alias read before seeding overrides the archive | observation provenance | 1 (R2-F2) |
+| M7c an occupied archived slot displaces the fallback a native read established | observation provenance | 1 (R2-F2) |
 | M8a a bar unreadable at retirement is not sanitized when it returns | retirement | 1 (R2-F3) |
+| M8b a native view of a bar retired unread read as a placement | retirement | 1 (R2-F3) |
+| M8c an unread retirement treats every later binding as predating it | retirement | 1 (R2-F3) |
 | W1 save scope not forwarded | wiring | 2 |
 | W2 detached roster omitted | wiring | 1 |
-| W3 native prefix not forwarded | wiring | 4 |
+| W3 native prefix not forwarded | wiring | 5 |
 | W4 no persistent pet | wiring | 1 |
 | W5 no reserve or detached owners | wiring | 2 |
 | W6 other managed rows from every candidate, not the authoring units | wiring / authority | 1 (R1-F10) |
 | W7 the host's public-binding predicate accepts any callable KMC command | wiring / predicate | 1 (R3-F1) |
 | W8 the bar owner derived from a slot's contents | wiring / owner | 1 (R3-F2) |
 | W9 GetSlot's unit argument ignored | wiring / owner | 1 (R3-F2) |
+| W10 a write reported by the redirected SetSlot call site not forwarded | wiring / native evidence | 1 (R2-F5) |
 
 Limit: the main service file's `SetEnabled`, `Update` and `Dispose`, and the one-line Harmony forwarders, are mirrored
 in the fixture, not compiled. For the forwarders changed in manual round 4, `Test-AssemblyContracts.ps1` reads the built
@@ -504,6 +536,24 @@ production sources (test call shapes shimmed for the new native-operation token 
 | R3-F2 a stale slot owner suppresses native invalidation | The bar owner comes from GetSlot's `unit` argument (checked against the bar) or `UnitUISettings.Owner.Unit`, never from slot contents; the prefixes pass the unit argument. | Wiring R3-F2: a stale public slot naming the discarded rider object, emptied by GetSlot before the first scan (owner attached, and unit argument only) → the current rider recovers 9, the discarded object nothing, saved 9; whole-bar cleanup with a stale-owner alias at 4 before the chosen 9 → 9 returns once, the alias does not. Contract rows: `Owner` type and token, no nesting, GetSlot only empties, GetSlot parameter names, product forwarder shapes. | WIRING + CONTRACT; mutations W8, W9 | PASS; fails on `6251885` |
 | R1-F13 regression map omits archived triggers | The three sequences as single tests in archived order; map rows name the subcase and asserted outcome (section 7). | `ArchivedR17F1AbandonedLoadFallback`, `ArchivedR17F2AbortedThenSuccessfulRead`, `ArchivedR19F3ReplacementPlacementInvalidated` | UNIT | PASS; they also pass on `6251885` (missing coverage, not defects) |
 | R3-F3 developer summary omits the six inherited cases | Section 5 here and the developer summary returned with this candidate list all six individually with result, test and evidence type. | (reporting) | — | done in both deliverables |
+
+**Independent review of manual round 4 (Pro, on `74fa9931`; changes_required).** The reviewer's assessments come from
+source tracing and the existing fixtures; the reviewer executed nothing and launched nothing.
+- **Closed at the source/fixture or reporting level** (independent assessment): R1-F10, R3-F1, R2-F1, R2-F4, R3-F2, R1-F13
+  and R3-F3. Their corrections and tests are unchanged in `397fb226`, except that the R2-F5 evidence route they share
+  was revised (below).
+- **Kept open:** R2-F2, R2-F3 and R2-F5, each with a traced sequence.
+
+**Manual round 5 (Claude; commit `397fb226`).** Status of every row: correction **claimed by Claude, not independently
+verified**. "Fails on `e429d290`" means the new test was compiled against that commit's production sources and failed
+there; the only shim removes the new write-report calls the old source lacks (and gives its fake host the two host
+members that source still required). Each test passes on `397fb226`.
+
+| Finding (Pro review) | Pro's traced failure | Correction (claimed) | Test / subcase and asserted outcome | Evidence | Result |
+| --- | --- | --- | --- | --- | --- |
+| R2-F2 load-order regression with an occupied archived slot | archived 3 (Fireball there), stale Mount 9, stale Dismount 11; GetSlot(9) before seeding saved 11, after seeding 9 | When the archived slot is occupied, the fallback the leftover-alias observation established stands (seeding first chooses the same first leftover), with native's emptying of it; another surviving copy never displaces it. | `LoneAliasBeforeOrAfterSeeding`, "occupied 3 with aliases 9 and 11", both orders: 9 and one marker on the immediate save, the party return and the cold restore; Fireball at 3 and no alias left, in the continuing world and after the cold restore | UNIT; mutation M7c | PASS; native-first fails on `e429d290` (saved `[11]`), as traced |
+| R2-F3 a native read recreates the retired shortcut; a fresh placement is cleared | the unread-retirement cleanup cleared the live bar, then the native operation's old view recreated A's 9 for B; a fresh 11 before the first observation was cleared with it | The unread retirement records the bindings that predate it by slot object (chosen binding and copies; all, for a bar never read); only those are cleared, and they are skipped in the bar and in a native view. | `HiddenBarCompanionRetirement` (c): same bar reattached, A's 9 invalidated by GetSlot before the first update: no shortcut after updates, in the save, after the cold load. (d): B's fresh live 11 before the first observation: only 11, saved, restored once, A's 9 cleared. (e) guard: not live at the first update, then a native read: nothing. Same-pet control (a) keeps 9 once. | UNIT; mutations M8a, M8b, M8c | PASS; (c) fails on `e429d290` (`[9]`), (d) fails there (`[]`); (e) passes there (a guard for M8a, not a reproduction) |
+| R2-F5 a failed whole-bar cleanup credits a later player placement | cleanup throws before writing; the player places the live control at 9; GetSlot(9) settles the cleanup, credits the new slot as native's rebind, saves 3 | Exact evidence of the actual write: CleanupBadSlots's three SetSlot call sites are redirected (transpiler) to record each write as it completes; a thrown cleanup counts only recorded writes. The possible-write evidence is removed. | `ThrownOperationEvidence` (f): saved 9 and one marker, only 9 after the update and after the cold restore; (c) still: rebind then fact deactivation keeps 3. Wiring R2-F5 (through the service and its write report): rebind then deactivation → 3; no write then the player's 9 and a GetSlot(9) → 9. CONTRACT: three plain SetSlot calls; hook and transpiler shapes. | UNIT + WIRING + CONTRACT; mutations M6c, M6e, W10 | PASS; (f) and the wiring player-placement variant fail on `e429d290` (saved `[3]`), as traced |
 
 ## 10. Validation (offline, this enrollment)
 
@@ -570,6 +620,38 @@ selected. The cumulative development budget was carried over, not reset.
 
 Not rerun on `e429d290`: the U02 presentation probe and the F2 reader (results belong to `56366c41`), and every native
 case.
+
+### Manual round 5 (Claude, 2026-11-22, after the Pro review of `74fa9931`)
+
+Focused development checkpoint; the budget was carried over.
+- **Reproductions first.** The three Pro sequences (plus R2-F3 (d)) were added and run against the then-current source
+  `e429d290`. All four failed exactly as traced: R2-F2 saved `[11]`, R2-F3 (c) gave `[9]`, R2-F3 (d) gave `[]`, R2-F5
+  (f) saved `[3]`. The wiring R2-F5 player-placement variant also failed on `e429d290`'s production code.
+- **Installed contract read before choosing the hook:** CleanupBadSlots's `SetSlot` call sites (three plain `call`s of
+  the non-virtual method), and the installed loader's Harmony 1.2.0.1.
+- **Scratch runs:** lifecycle 52/0, wiring 10/0. Mutation script: 36 of 36 killed.
+- **`MSBuild KingmakerMountedCombat.sln /p:Configuration=Release`:** PASS (33 s).
+- **`Test-AssemblyContracts.ps1 -Target Kingmaker`:** 835/0. A first run stopped at a reflection-only resolution of the
+  transpiler's Harmony12 parameter type; the check now preloads the installed `0Harmony12` and verifies the full signature.
+- **Gate on `397fb226`: PASS**, `TIER FAST PASS=4 FAIL=0` (0.86 min; focused step 37.6 s; whole invocation 51.8 s). Log
+  `C:\Dev\KingmakerMountedCombatLab\artifacts\pr57-manual-round4-gates\gate-focused-397fb226.log` (sha256 `fcf235d6…`).
+  Budget afterwards: 69.78 of 90 minutes spent (entry 131).
+
+| Check (gate on `397fb226`) | Result | Limits |
+| --- | --- | --- |
+| build | PASS | Release; product DLL sha256 `d300aacd…5446b` |
+| components | 1472/0 | the round-5 cases are subcases of existing toolbar tests |
+| Validate-Source | 153/0 | source rules |
+| assembly contracts (Kingmaker) | 835/0 | reflection only; 3 more toolbar rows than round 4 |
+| TRE click composition | 21/0, both orders | substituted execution |
+| archive row bound | 7/0 | production DTO and codec |
+| six-pair archive adapter | 22/0 | typed facades |
+| area adapter baseline | PASS (63/63) | compile step only; no area-restoration assertion executes |
+| target liveness | PASS | source checks |
+| toolbar mutations | PASS: lifecycle 52/0, wiring 10/0, 36/36 killed | temp copies; worktree unchanged |
+
+Not run: the U02 presentation probe and the F2 reader (results belong to `56366c41`), the CleanupBadSlots write
+transpiler itself (contract-pinned, not executed offline), and every native case.
 
 ## 11. Native checks: what exists and what each case needs
 
@@ -666,10 +748,10 @@ Per-case prerequisites found so far (unchanged):
 
 Restoration: no native transaction ran (manual round 4 included: no package, staging, launch, lock or save was touched).
 
-## 13. Status of each original issue (manual round 4)
+## 13. Status of each original issue (manual round 5)
 
 | Issue | Source | Offline evidence | Native behavior |
 | --- | --- | --- | --- |
-| 1. Mount / Dismount keeps the chosen toolbar slot (city, area, party/reserve, save/load, companion lifecycle; moves and removals respected) | Corrections complete as claimed by Claude for all eight round-3 functional findings; awaiting the owner's independent review | UNIT 52 toolbar tests, WIRING 9, CONTRACT, 31 mutations (section 10) | NOT RUN (playtests 1–2) |
+| 1. Mount / Dismount keeps the chosen toolbar slot (city, area, party/reserve, save/load, companion lifecycle; moves and removals respected) | Seven findings closed at source review by Pro; the three Pro findings corrected as claimed by Claude in `397fb226`, awaiting the next independent review | UNIT 52 toolbar tests, WIRING 10, CONTRACT, 36 mutations (section 10) | NOT RUN (playtests 1–2) |
 | 2. The owner's animal companion in the capital's Inventory and Character screens | Unchanged since the first enrollment (UI projection of the exact persistent, reciprocal pet) | UNIT `CityCompanionRosterProjectionTests`; CONTRACT | NOT RUN (playtest 3) |
 | 3. A mounted ranged character cannot attack a prone target | The identified rejection of an explicit mounted attack on a living target that was already unconscious is corrected in source. The original prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious remains unknown. | UNIT `MountedDownedTargetOrderTests` (executed predicates); conscious prone: TRACE only | NOT RUN (playtests 4–5). The report stays open until the behavior is verified or the owner explicitly accepts this unresolved status. |
