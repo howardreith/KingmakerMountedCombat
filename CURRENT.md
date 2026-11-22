@@ -10,8 +10,9 @@ Start here. The sections below this one are dated history, newest first.
   (`6c1a61d7`, records 115–126) and it is cancelled (PR comment `status-9-cancelled`). Claude answered all ten findings
   (source `e429d290`). The owner's Pro review of `74fa9931` closed seven at source review and kept three open (R2-F2,
   R2-F3, R2-F5). Claude corrected those three (`397fb226`). The second Pro review closed R2-F2, accepted the R2-F5
-  correction in source and asked for an executed hook check, and kept R2-F3 open. Claude answered both in source
-  candidate `2d0bde62`, where the focused Fast gate passes (8 children). Those corrections are claimed, not yet
+  correction in source and asked for an executed hook check, and kept R2-F3 open. Claude answered both (`2d0bde62`). The
+  third Pro review accepted those in source and raised one new P2 (R6-F1, the pin's authority). Claude corrected it in
+  source candidate `36f95d53`, where the focused Fast gate passes (8 children). That correction is claimed, not yet
   independently verified: the next step is the owner's independent review of that candidate. Native verification follows
   that review.
 - **Fixes:** Mount / Dismount keeps the player's toolbar arrangement through temporary absence (area changes, the
