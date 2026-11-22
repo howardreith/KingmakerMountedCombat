@@ -125,10 +125,13 @@ namespace KingmakerMountedCombat.Domain
         // its chosen slot free. Only an interrupted choice whose slot is occupied lets the copy become the fallback.
         // chosenSlotFree, as the callers pass it: the chosen slot is free, or the player holds a newer binding of its own
         // elsewhere on the bar (a copy never becomes the fallback over the player's binding).
+        // An explicit off-bar arrangement (the player removed the control) makes every copy yield: emptying or rebinding the
+        // known duplicate never undoes the removal.
         private bool CopyYields(string actorId, int slotIndex, bool chosenSlotFree)
         {
             Entry entry;
-            if (actorId == null || !entries.TryGetValue(actorId, out entry) || entry.Index < 0 || entry.Index == slotIndex) return false;
+            if (actorId == null || !entries.TryGetValue(actorId, out entry) || entry.Index == slotIndex) return false;
+            if (entry.Index == OffBar) return true;
             return !entry.Interrupted || chosenSlotFree;
         }
 
@@ -617,11 +620,12 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        // False while the fenced outgoing world is still current; a different current world releases the fence and drops
-        // the outgoing records (the incoming world owns its own).
+        // False while the fenced outgoing world is still current; a distinct current world releases the fence and drops the
+        // outgoing records (the incoming world owns its own). No current world at all (an interval between worlds) keeps the
+        // fence and its records: the load may still be abandoned with the outgoing world current again.
         public bool Accepts(object currentWorld)
         {
-            if (fencedWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) Release();
+            if (fencedWorld != null && currentWorld != null && !ReferenceEquals(currentWorld, fencedWorld)) Release();
             return fencedWorld == null;
         }
 

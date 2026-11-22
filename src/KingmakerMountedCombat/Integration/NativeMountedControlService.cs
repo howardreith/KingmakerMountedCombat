@@ -1953,8 +1953,11 @@ namespace KingmakerMountedCombat.Integration
                 }
                 var repair = MountedControlSlotPolicy.RepairLiveSlot(kind);
                 if (repair == MountedControlSlotRepair.Keep) continue;
+                // The alias at the effective slot becomes the public control there, even while a canonical copy scheduled for
+                // removal below is still on the bar (the same decision as the deduplication); with no effective binding,
+                // the first alias migrates only when no canonical binding is there.
                 var replacement = repair == MountedControlSlotRepair.MountState
-                    ? (publicActive && !SlotsHold(slots, mountStateAbility) ? publicControl.Data : null)
+                    ? (publicActive && (index == effective || effective < 0 && !SlotsHold(slots, mountStateAbility)) ? publicControl.Data : null)
                     : ResolveStockChargeForSlot(unit, slots);
                 unit.UISettings.SetSlot(replacement == null
                     ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = unit }
@@ -2044,6 +2047,9 @@ namespace KingmakerMountedCombat.Integration
             var slots = unit.UISettings?.Slots;
             var index = slots == null ? -1 : Array.FindIndex(slots, candidate => ReferenceEquals(candidate, slot));
             if (index < 0) return;
+            // The current player world owns the placement maps before this report reads or writes them (an incoming world's
+            // first native report may precede its first update and its archive restore).
+            SyncPlacementWorld();
             // Only a report inside a native operation that replaces the slot on this bar (GetSlot or CleanupBadSlots) counts
             // (MountedNativeSlotScope); a standalone validity query changes nothing. Native wrote the previous reported slot
             // before moving on to this one: that outcome is applied first, so this report is read against it.
@@ -2242,6 +2248,7 @@ namespace KingmakerMountedCombat.Integration
             // Only in the world that produced the report and for the same rider instance, still on its roster: work
             // left over from a replaced world is discarded (checked before the fence can be released by the new world).
             if (!MountedControlSlotPolicy.DeferredObservationApplies(item.World, Game.Instance?.Player, IsOnPlayerRoster(unit))) return false;
+            SyncPlacementWorld();
             bool recorded;
             if (!ArrangementsAccepted)
             {
@@ -2385,43 +2392,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (observedUnits.Contains(unit) || !reserveScan.MarkFirst(unit)) continue;
                 var slots = unit.UISettings?.Slots;
-                if (slots == null || CountManagedHotbarSlots(unit) == 0) { ForgetCopies(unit.UniqueId); continue; }
+                if (slots == null) { ForgetCopies(unit.UniqueId); continue; }
+                // The bar as the player last left it is classified before it is cleared (also when no binding is left).
+                ClassifyFirstSeenReserveBar(unit, slots);
+                if (CountManagedHotbarSlots(unit) == 0) { ForgetCopies(unit.UniqueId); continue; }
                 var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
-                // The effective binding, classified before the bar is cleared (the decision live repair makes): the
-                // player's own binding (with no arrangement, ReconcilePublicControlSlots' precedence: the public control
-                // wins over an older alias), or the fallback copy of a choice interrupted on an occupied slot. Copies that
-                // yield to a free chosen slot leave that choice as it is.
-                bool onlyYieldingCopies;
-                var bound = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
-                var petId = unit.Descriptor?.PetUniqueId;
-                var fallback = bound >= 0 && IsPublicCopyAt(unit, slots, bound) && !string.IsNullOrEmpty(petId) &&
-                    !placementIntent.PetLinkChanged(unit.UniqueId, petId);
-                if (fallback)
-                {
-                    placementIntent.PromoteFallback(unit.UniqueId, bound, petId);
-                    placementRecorded.Add(unit.UniqueId);
-                    logger.Info("Surviving Mount / Dismount fallback of a reserve rider kept as its chosen slot: unitId=" +
-                        unit.UniqueId + "; slot=" + bound + ".");
-                }
-                else if (bound >= 0 && placementIntent.AdmitSurvivingBinding(unit.UniqueId, bound, petId))
-                {
-                    placementRecorded.Add(unit.UniqueId);
-                    ReserveBindingsRecovered++;
-                    logger.Info("Surviving Mount / Dismount binding of a reserve rider recovered as its chosen slot: unitId=" +
-                        unit.UniqueId + "; slot=" + bound + ".");
-                }
-                else if (bound >= 0 && !placementIntent.IsRetired(unit.UniqueId))
-                {
-                    // The effective binding is the rider's live chosen slot (for example a fallback native rebound before
-                    // this scan): clearing it below is a temporary interruption, so the slot is carried and returns. A
-                    // changed or cleared companion link was retired by AdmitSurvivingBinding above.
-                    int chosen;
-                    if (placementIntent.TryGetChosenSlot(unit.UniqueId, out chosen) && chosen == bound)
-                    {
-                        placementIntent.ObserveAbsent(unit.UniqueId, MountedControlAbsence.Temporary);
-                        placementRecorded.Add(unit.UniqueId);
-                    }
-                }
                 // Every KMC binding goes; an older Mounted Charge becomes the rider's own stock Charge in the same slot
                 // (the existing migration: only when that Charge is available and not already on the bar).
                 for (var index = 0; index < slots.Length; index++)
@@ -2438,6 +2413,54 @@ namespace KingmakerMountedCombat.Integration
                 // pet identity stay in the placement records).
                 ForgetCopies(unit.UniqueId);
                 MarkBarChanged(unit);
+            }
+        }
+
+        // A first-seen reserve bar, before the scan clears its KMC bindings: the effective binding (the decision live repair
+        // makes) or its absence, against the rider's arrangement.
+        // - A fallback copy for a choice interrupted on an occupied slot becomes the choice (same companion only).
+        // - With no arrangement, a surviving binding is recovered by the reserve rule (AdmitSurvivingBinding, which also
+        //   retires on a changed or cleared companion link).
+        // - A live arrangement takes the latest edit: the effective binding wherever it is now (a move included), as a
+        //   temporary interruption because the scan clears it; or, with no binding left, the player's removal (off the bar).
+        // - An interrupted choice or an off-bar arrangement stays as it is; copies yielding to a free chosen slot change
+        //   nothing.
+        private void ClassifyFirstSeenReserveBar(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            var id = unit.UniqueId;
+            var petId = unit.Descriptor?.PetUniqueId;
+            bool onlyYieldingCopies;
+            var bound = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
+            if (bound >= 0 && IsPublicCopyAt(unit, slots, bound) && !string.IsNullOrEmpty(petId) && !placementIntent.PetLinkChanged(id, petId))
+            {
+                placementIntent.PromoteFallback(id, bound, petId);
+                placementRecorded.Add(id);
+                logger.Info("Surviving Mount / Dismount fallback of a reserve rider kept as its chosen slot: unitId=" + id + "; slot=" + bound + ".");
+                return;
+            }
+            if (bound >= 0 && placementIntent.AdmitSurvivingBinding(id, bound, petId))
+            {
+                placementRecorded.Add(id);
+                ReserveBindingsRecovered++;
+                logger.Info("Surviving Mount / Dismount binding of a reserve rider recovered as its chosen slot: unitId=" + id + "; slot=" + bound + ".");
+                return;
+            }
+            if (!placementIntent.Has(id) || placementIntent.IsRetired(id)) return;
+            // The reserve rule for an existing arrangement: a changed companion, or a cleared link, retires it.
+            if (string.IsNullOrEmpty(petId) || placementIntent.PetLinkChanged(id, petId)) { placementIntent.Retire(id); return; }
+            int chosen, interrupted;
+            var live = placementIntent.TryGetChosenSlot(id, out chosen) && !placementIntent.TryGetInterruptedChoice(id, out interrupted);
+            if (!live) return;
+            if (bound >= 0)
+            {
+                placementIntent.ObserveBound(id, bound, petId);
+                placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+                placementRecorded.Add(id);
+            }
+            else if (!onlyYieldingCopies)
+            {
+                placementIntent.ObserveOffBar(id, petId);
+                placementRecorded.Add(id);
             }
         }
 
@@ -2822,7 +2845,11 @@ namespace KingmakerMountedCombat.Integration
         private void RemoveAllManagedFacts(bool cleanupSlots)
         {
             CancelPendingNativeControls(CleanupTrigger.ModDisabled);
-            foreach (var unit in CollectCandidateUnits())
+            // Current-world reserve and detached riders too: an exact temporary KMC fact never stays on any of the player's
+            // characters through save serialization, disable or disposal (unrelated facts are untouched).
+            var units = CollectCandidateUnits();
+            foreach (var reserve in ReserveRosterUnits(CollectCurrentCandidateUnits())) AddUnique(units, reserve);
+            foreach (var unit in units)
             {
                 RemoveManagedFacts(unit, cleanupSlots);
             }

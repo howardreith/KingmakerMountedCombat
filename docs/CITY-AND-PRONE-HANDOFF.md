@@ -502,6 +502,29 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   only when nothing was recorded. A callable alias moved from 9 to 11 after native emptied 4 migrates to one shortcut
   at 11. The untouched alias still yields to 4.
 
+**Round 24 additions.**
+- *Known duplicates yield to a removal (R18-F1):* `CopyYields` treats an explicit off-bar arrangement as one every copy
+  yields to. Native GetSlot emptying or rebinding the identified duplicate never undoes the player's removal. A new
+  placement is still recognized by its own binding identity.
+- *First reserve scan takes the latest edit (R22-F3):* `ClassifyFirstSeenReserveBar` runs before the scan clears a
+  first-seen reserve bar, including a bar with no binding left. A live arrangement takes the effective binding
+  wherever it is now, a move included, as a temporary interruption; with no binding left, it takes the player's
+  removal (off the bar). Fallback promotion, the reserve rule with retirement, interrupted choices and off-bar
+  arrangements are unchanged.
+- *Migration writes the selected alias (R23-F3):* in `ReconcilePublicControlSlots` the alias at the effective slot
+  becomes the public control even while a canonical copy scheduled for removal is still on the bar. Migration and
+  deduplication use the same decision.
+- *Incoming world owns its first native report (R24-F2):* `ObserveInvalidatedPublicSlot` and `ApplySlotInvalidation`
+  sync placement ownership (`SyncPlacementWorld`) before they read or write the maps. A slot native recovers for the
+  incoming player before its archive restore or first update therefore survives. Outgoing reports stay confined to
+  the load scope.
+- *A missing player keeps the load fenced (R24-F3):* `MountedControlLoadFence.Accepts(null)` no longer releases the
+  fence. An abandoned load with its original player current again gets back its reserve slot, removal marker and
+  retirement. A distinct incoming player still releases it.
+- *Reserve riders' temporary facts are swept (R24-F1):* `RemoveAllManagedFacts`, used by the save scope, disable and
+  disposal, now includes current-world reserve and detached riders. An exact KMC fact never stays on them through
+  serialization or after disable; unrelated slots and the recorded arrangement are kept.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -765,6 +788,24 @@ One local Fast run, with PASS lines temporarily silenced (reverted), passed: com
 forget-when-not-interrupted rule, the reserve chosen-slot interruption, the effective-binding yield, the world-change
 release, and the recorded-bar alias rule. It failed exactly the five targeted regressions. All mutations were
 reverted. The controller gate on the round-23 commit is the result of record.
+
+Round 24 extended four tests:
+- `StaleThenCurrentCanonical`: native GetSlot(9) on the duplicate after the pet-absent update, save-first and
+  return-first;
+- `DepartedRiderReleasesCopies`: the rebound fallback keeps its live fact, with no edit, a move to 11 or a removal
+  (autofill on), each with a same-world return and a cold load. It asserts no KMC fact or slot inside serialization,
+  and adds a disable fixture;
+- `SurvivingAliasAfterCanonicalCleanup`: a moved current-data alias beside a canonical copy at 7, with repeated
+  updates;
+- `MainMenuNewGameReleasesRecords`: a no-player frame during a fenced load, then abandonment; and B's native
+  GetSlot(9) before its restore and first update.
+One local Fast run, with PASS lines temporarily silenced (reverted), passed: components 1505/0 and Validate-Source
+153/0. Two mutation runs followed, split so that no failure masks another:
+- the first reverted the off-bar yield and the null-world fence in the domain, and the alias migration and the live
+  reserve classification in the double;
+- the second reverted the reserve fact sweep and the report-path ownership sync in the double.
+Each run failed exactly its targeted regressions: four, then two. All mutations were reverted. The controller gate
+on the round-24 commit is the result of record.
 | components (`bin\Tests`) | 1505/0 | 85 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
