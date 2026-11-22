@@ -74,7 +74,7 @@ $mutations=@(
       Needle="            foreach (var unit in owners) Observe(unit);`n";Replace="            // mutation: no observation before the sweep`n"
       Expect=@('D1 a move or removal right before')},
     @{Campaign='lifecycle';Name='M1b pre-cleanup observation skipped before a native write is applied';File=$lifecycle
-      Needle="            Observe(unit, written.ToDictionary(entry => entry.Index, entry => new KeyValuePair<MountedToolbarSlot, object>(entry.Content, entry.Identity)));`n"
+      Needle="            Observe(unit, operation.Context.ToDictionary(entry => entry.Index, entry => new KeyValuePair<MountedToolbarSlot, object>(entry.Content, entry.Identity)));`n"
       Replace="            // mutation: no observation before the native write`n"
       Expect=@('D6 native invalidation returns the control once','AC-R22-F3')},
     @{Campaign='lifecycle';Name='M2a persistent pets omitted from the sanitation sweep';File=$lifecycle
@@ -96,6 +96,12 @@ $mutations=@(
     @{Campaign='lifecycle';Name='M3d a missing player during an open load is treated as disposal';File=$lifecycle
       Needle="            if (host.CurrentWorld == null && loadOwner != null) return;`n";Replace="            // mutation: no hold while the load is open`n"
       Expect=@('review R1-F2')},
+    @{Campaign='lifecycle';Name='M3e a thrown native write is dropped at a missing player during an open load';File=$lifecycle
+      Needle="            if (nativeOperation != null && host.CurrentWorld == null && loadOwner != null) return;`n";Replace="            // mutation: no hold for the open load`n"
+      Expect=@('review R2-F4')},
+    @{Campaign='lifecycle';Name='M2c a former instance in pair custody authors its actor''s arrangement';File=$lifecycle
+      Needle="            if (!Authors(unit, riders, reserve))`n";Replace="            if (!Authors(unit, riders, reserve) && unit == null)`n"
+      Expect=@('review R1-F10')},
     @{Campaign='lifecycle';Name='M4a a player removal after an aborted native operation is read as native emptying';File=$lifecycle
       Needle="                if (!returned && !rebound && !host.IsNativeEmptySlot(unit, entry.Index)) continue;`n";Replace="                // mutation: every change counts as native`n"
       Expect=@('D6 native operations that throw')},

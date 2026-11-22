@@ -23,8 +23,17 @@ namespace KingmakerMountedCombat.Domain
             public bool Pending;
             // The companion the arrangement was observed with; null until observed (an archive row).
             public string PetId;
-            // Other public bindings known on the bar: index -> slot object.
-            public readonly Dictionary<int, object> Copies = new Dictionary<int, object>();
+            // Other public bindings known on the bar: index -> slot object, held weakly (identity only; a slot object that
+            // left every bar is never kept alive by this record).
+            public readonly Dictionary<int, WeakReference> Copies = new Dictionary<int, WeakReference>();
+
+            public bool IsCopyObject(int index, object identity)
+            {
+                WeakReference copy;
+                return Copies.TryGetValue(index, out copy) && ReferenceEquals(copy.Target, identity);
+            }
+
+            public void RecordCopy(int index, object identity) => Copies[index] = new WeakReference(identity);
             // The bar has been observed since the arrangement was made (an archive row's arrangement has not).
             public bool Observed;
             // The pending slot was seeded from an older Mount / Dismount archive row (its restore is that row's migration).
@@ -74,6 +83,14 @@ namespace KingmakerMountedCombat.Domain
             return arrangement;
         }
 
+        // The actor owns no rider state at all (a positively identified pet): arrangement and placement record are dropped.
+        public void Forget(string id)
+        {
+            if (id == null) return;
+            arrangements.Remove(id);
+            placed.Remove(id);
+        }
+
         public void Retire(string id)
         {
             if (id == null) return;
@@ -83,12 +100,8 @@ namespace KingmakerMountedCombat.Domain
 
         public void Clear() { arrangements.Clear(); retired.Clear(); placed.Clear(); }
 
-        public static bool IsCopy(Arrangement arrangement, Binding binding)
-        {
-            object identity;
-            return binding.Index != arrangement.Slot && arrangement.Copies.TryGetValue(binding.Index, out identity) &&
-                ReferenceEquals(identity, binding.Identity);
-        }
+        public static bool IsCopy(Arrangement arrangement, Binding binding) =>
+            binding.Index != arrangement.Slot && arrangement.IsCopyObject(binding.Index, binding.Identity);
 
         // The evidence rule for an existing arrangement, from the bar as it stands (bindings in precedence order; occupied:
         // indices holding anything else that is not empty; slotCount: the bar's length):
@@ -103,11 +116,11 @@ namespace KingmakerMountedCombat.Domain
         public static void ApplyBar(Arrangement arrangement, IList<Binding> bindings, ICollection<int> occupied, int slotCount)
         {
             foreach (var copy in arrangement.Copies.ToArray())
-                if (!bindings.Any(binding => binding.Index == copy.Key && ReferenceEquals(binding.Identity, copy.Value)))
+                if (!bindings.Any(binding => binding.Index == copy.Key && ReferenceEquals(binding.Identity, copy.Value.Target)))
                     arrangement.Copies.Remove(copy.Key);
             if (!arrangement.Observed)
                 foreach (var binding in bindings)
-                    if (binding.Alias && binding.Index != arrangement.Slot) arrangement.Copies[binding.Index] = binding.Identity;
+                    if (binding.Alias && binding.Index != arrangement.Slot) arrangement.RecordCopy(binding.Index, binding.Identity);
             arrangement.Observed = true;
             var fresh = bindings.Where(binding => !IsCopy(arrangement, binding)).ToList();
             if (fresh.Count > 0)
@@ -126,7 +139,7 @@ namespace KingmakerMountedCombat.Domain
                 if (fallback.HasValue) arrangement.Copies.Remove(fallback.Value);
             }
             foreach (var binding in bindings)
-                if (binding.Index != arrangement.Slot) arrangement.Copies[binding.Index] = binding.Identity;
+                if (binding.Index != arrangement.Slot) arrangement.RecordCopy(binding.Index, binding.Identity);
             arrangement.Copies.Remove(arrangement.Slot);
         }
     }
