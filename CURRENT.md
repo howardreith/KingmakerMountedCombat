@@ -1,6 +1,19 @@
-# POST-COMBAT SAVE AND DOOR LOCK: DIAGNOSTIC CHECKPOINT (2026-11-22, BRANCH codex/mounted-save-and-door-lock)
+# RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.15, by owner order on 2026-11-22, from main after PR #59 (merged as `d409bffc`). Notes:
+  [docs/RELEASE-NOTES-0.2.15.md](docs/RELEASE-NOTES-0.2.15.md). The package identity is recorded on the GitHub release.
+- **Version:** 0.2.15 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0.
+- **Content:** X05's diagnostics and accurate save messages, plus records. Save format unchanged from 0.2.14.
+- **Open:**
+  - X05 itself (cause not established; needs an owner log with 0.2.15 or a disposable save);
+  - nothing in 0.2.15 was run in the game, startup included;
+  - the UMM 0.33.0/0.33.2 platform pin (owner decision).
+- **Previous release:** `v0.2.14`, merge `61519031`.
+- **Not done:** no install, staging or loader replacement.
+
+# POST-COMBAT SAVE AND DOOR LOCK: DIAGNOSTIC CHECKPOINT (2026-11-22, BRANCH codex/mounted-save-and-door-lock)
 
 - **Mission:** [docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md](docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md). Manual review
   procedure by owner direction (Claude develops; Howie takes the handoff to Pro). No controller enrollment.

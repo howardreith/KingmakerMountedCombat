@@ -120,6 +120,11 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
   and load through retained-intent version 2 (see [Rollback](#rollback-and-downgrade)).
 - **Unresolved:** a saving failure reported after the Ratnook door in 0.2.4 has no established cause (S01). Diagnostics
   were added on main; no save behaviour changed.
+- **Since 0.2.15 (offline-tested, not played):** a held save names what it waits for and why it stopped (a menu, dialog,
+  cutscene, loading screen, replaced world or the 30-second limit), and the log records each held save
+  (`Mounted save wait`). Opening a menu while a save waits ends that attempt; the previous complete save is unchanged.
+  New actions, doors included, are held only while a save waits. **Unresolved:** the post-combat save and door lock (X05)
+  has no established cause.
 
 ### Settings and diagnostics
 
@@ -256,6 +261,7 @@ Rollback means that pre-upgrade backup plus the matching older package and its d
 | A save holding retained intent (any version), to 0.2.0–0.2.2 | The member is ignored; the waiting pair loads dismounted | [0.2.3 notes](RELEASE-NOTES-0.2.3.md) |
 | A save written by 0.2.0 or later (schema 3), to a build before Chunk 7 (preview.211 or earlier) | Not supported. Such a reader classifies schema 3 as future data and restores no pair | [0.2.0 notes](RELEASE-NOTES-0.2.0.md), [Chunk 7 guide](CHUNK7-MIGRATION-ROLLBACK-REMOVAL.md) |
 | Between 0.2.0 and 0.2.12 otherwise | The `kmc-mounted-state` format is unchanged across these releases | Each release's notes |
+| 0.2.15 to 0.2.14 | The save format is unchanged; 0.2.14 reads 0.2.15 saves | [0.2.15 notes](RELEASE-NOTES-0.2.15.md) |
 
 A current reader that meets a newer `kmc-mounted-state` schema reports "Mounted metadata uses an unsupported schema;
 original data is preserved." and restores no pair from it (`MountedArchiveCodec`).
@@ -274,6 +280,9 @@ The same set as the [ledger](CURRENT-KNOWN-ISSUES.md#every-id):
 - **X02–X04 (after release 0.2.13):** released in 0.2.14 and not played in the game. X04's original report, a mounted
   ranged rider unable to attack a *prone* enemy, is unreproduced; only an explicit attack on an already-unconscious
   enemy is corrected ([ledger](CURRENT-KNOWN-ISSUES.md#after-release-0213)).
+- **X05 (after release 0.2.14):** the post-combat save and door lock. 0.2.15 adds its diagnostics and accurate save
+  messages; the cause is not established and nothing was played in the game
+  ([ledger](CURRENT-KNOWN-ISSUES.md#after-release-0214)).
 - **T04–T08:** stale developer test harnesses (open correction). **T09:** a harness that needs retained native
   evidence (open investigation). Neither affects play.
 
