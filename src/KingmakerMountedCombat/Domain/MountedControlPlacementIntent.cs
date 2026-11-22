@@ -38,6 +38,14 @@ namespace KingmakerMountedCombat.Domain
             public bool Observed;
             // The pending slot was seeded from an older Mount / Dismount archive row (its restore is that row's migration).
             public bool FromAliasRow;
+            // A fresh load's public archive rows (archive order), kept while the actor or its bar was unreadable when they
+            // were seeded: the choice among them is made once the bar's occupancy can be read. Null once chosen.
+            public List<MountedToolbarRow> Alternatives;
+            // The chosen binding was an older Mount / Dismount alias (an F2 leftover the player can no longer place), not the
+            // canonical control.
+            public bool ChoiceIsAlias;
+            // Made from an observation of the incoming world's bar before that world's archive rows were restored.
+            public bool ObservedBeforeRows;
         }
 
         // One public binding on a bar, in F2's precedence (canonical bindings by index, then older aliases by index).
@@ -55,8 +63,14 @@ namespace KingmakerMountedCombat.Domain
         private readonly HashSet<string> retired = new HashSet<string>(StringComparer.Ordinal);
         // Actors that had their one automatic placement, or any arrangement, in this world (archive kind 7).
         private readonly HashSet<string> placed = new HashSet<string>(StringComparer.Ordinal);
+        // Retired while their bar could not be read: whatever public binding that bar holds when it is next readable was
+        // there before the retirement (the player cannot edit an unreadable bar) and is cleared then.
+        private readonly HashSet<string> retiredUnread = new HashSet<string>(StringComparer.Ordinal);
 
         public MountedControlPlacementIntent(object world) { this.world = new WeakReference(world); }
+
+        // This world's own archive rows have been restored (a freshly loaded save's seeding ran).
+        public bool RowsSeeded;
 
         public bool BelongsTo(object currentWorld) => currentWorld != null && ReferenceEquals(world.Target, currentWorld);
 
@@ -98,7 +112,11 @@ namespace KingmakerMountedCombat.Domain
             retired.Add(id);
         }
 
-        public void Clear() { arrangements.Clear(); retired.Clear(); placed.Clear(); }
+        public void MarkRetiredUnread(string id) { if (id != null) retiredUnread.Add(id); }
+
+        public bool TakeRetiredUnread(string id) => id != null && retiredUnread.Remove(id);
+
+        public void Clear() { arrangements.Clear(); retired.Clear(); placed.Clear(); retiredUnread.Clear(); RowsSeeded = false; }
 
         public static bool IsCopy(Arrangement arrangement, Binding binding) =>
             binding.Index != arrangement.Slot && arrangement.IsCopyObject(binding.Index, binding.Identity);
@@ -128,15 +146,17 @@ namespace KingmakerMountedCombat.Domain
                 arrangement.Slot = fresh[0].Index;
                 arrangement.Pending = false;
                 arrangement.FromAliasRow = false;
+                arrangement.ChoiceIsAlias = fresh[0].Alias;
             }
             else if (!arrangement.Pending) arrangement.Slot = OffBar;
             else if (arrangement.Slot < 0 || arrangement.Slot >= slotCount || occupied.Contains(arrangement.Slot))
             {
-                var fallback = bindings.Where(binding => IsCopy(arrangement, binding)).Select(binding => (int?)binding.Index).FirstOrDefault();
-                arrangement.Slot = fallback ?? OffBar;
+                var fallback = bindings.Where(binding => IsCopy(arrangement, binding)).Select(binding => (Binding?)binding).FirstOrDefault();
+                arrangement.Slot = fallback?.Index ?? OffBar;
                 arrangement.Pending = false;
                 arrangement.FromAliasRow = false;
-                if (fallback.HasValue) arrangement.Copies.Remove(fallback.Value);
+                arrangement.ChoiceIsAlias = fallback?.Alias ?? false;
+                if (fallback.HasValue) arrangement.Copies.Remove(fallback.Value.Index);
             }
             foreach (var binding in bindings)
                 if (binding.Index != arrangement.Slot) arrangement.RecordCopy(binding.Index, binding.Identity);

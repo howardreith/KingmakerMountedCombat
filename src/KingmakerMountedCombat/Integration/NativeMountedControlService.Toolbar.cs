@@ -136,34 +136,28 @@ namespace KingmakerMountedCombat.Integration
         // The owning load scope ended without native completion (canceled, failed or superseded).
         internal void AbandonLoadedWorld(object loadOwner) => toolbar.AbandonSelectedLoad(loadOwner);
 
-        // Native UnitUISettings.GetSlot(index) / CleanupBadSlots begins (exact prefixes; slotIndex -1 for the whole bar).
-        internal void BeginNativeBadSlotCleanup(UnitUISettings settings, int slotIndex = -1)
+        // Native UnitUISettings.GetSlot(index, unit) / CleanupBadSlots begins (exact prefixes; slotIndex -1 for the whole bar,
+        // unit: GetSlot's own unit argument). Returns this invocation's operation for its own postfix (Harmony __state), or
+        // null when it opened none.
+        internal object BeginNativeBadSlotCleanup(UnitUISettings settings, int slotIndex = -1, UnitEntityData unit = null)
         {
-            var unit = disposed || !enabled || mountStateAbility == null ? null : ResolveBarUnit(settings, slotIndex);
-            toolbar.BeginNativeSlotOperation(unit, slotIndex);
+            var owner = disposed || !enabled || mountStateAbility == null ? null : ResolveBarUnit(settings, unit);
+            return toolbar.BeginNativeSlotOperation(owner, slotIndex);
         }
 
-        // The operation returned normally (exact postfixes). The unit is the lifecycle's own record of the open operation.
-        internal void EndNativeBadSlotCleanup(UnitUISettings settings)
-        {
-            var unit = toolbar.NativeOperationUnit;
-            toolbar.EndNativeSlotOperation(unit != null && ReferenceEquals(unit.UISettings, settings) ? unit : null);
-        }
+        // The operation returned normally (exact postfixes): only the operation its own prefix opened is completed.
+        internal void EndNativeBadSlotCleanup(object operation) => toolbar.EndNativeSlotOperation(operation);
 
-        // The unit whose bar a native slot operation reads: the owner of a public binding in its range (only those matter),
-        // whose own UISettings is this one. Null when the range holds no public binding.
-        private UnitEntityData ResolveBarUnit(UnitUISettings settings, int slotIndex)
+        // The unit whose bar a native slot operation reads, from the verified native relationship between the bar and its
+        // owner, never from a slot's contents (a stale slot can name a discarded rider object): GetSlot's unit argument when
+        // that unit's own bar is this one, else the settings' Owner (UnitUISettings.Owner, the descriptor CleanupBadSlots
+        // binds its writes to: installed contract), when its unit's bar is this one.
+        private static UnitEntityData ResolveBarUnit(UnitUISettings settings, UnitEntityData unit)
         {
-            var slots = settings?.Slots;
-            if (slots == null || slotIndex >= slots.Length) return null;
-            for (var index = slotIndex < 0 ? 0 : slotIndex; index < (slotIndex < 0 ? slots.Length : slotIndex + 1); index++)
-            {
-                var slot = slots[index] as MechanicActionBarSlotAbility;
-                if (!MountedControlSlotPolicy.IsPublicControlKind(ResolveKind(slot?.Ability?.Blueprint))) continue;
-                var unit = slot.Unit ?? slot.Ability?.Caster?.Unit;
-                return unit != null && ReferenceEquals(unit.UISettings, settings) ? unit : null;
-            }
-            return null;
+            if (settings == null) return null;
+            if (unit != null && ReferenceEquals(unit.UISettings, settings)) return unit;
+            var owner = settings.Owner?.Unit;
+            return owner != null && ReferenceEquals(owner.UISettings, settings) ? owner : null;
         }
 
         // Every update: the adapter's own per-rider work, called by the lifecycle after the rider's bar was observed.
@@ -222,18 +216,23 @@ namespace KingmakerMountedCombat.Integration
         {
             var result = new List<SavedMountedSlot>();
             if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();
-            CaptureOtherLiveSlots(result, legacySchema);
+            // The lifecycle prepares the capture (every placement bar observed now) and names the units that author rows,
+            // before either category of row is produced.
+            var authors = new List<UnitEntityData>();
+            var publicRows = toolbar.CaptureRows(includeAbsentIntent, authors);
+            CaptureOtherLiveSlots(result, legacySchema, authors);
             if (!legacySchema)
-                foreach (var row in toolbar.CaptureRows(includeAbsentIntent))
+                foreach (var row in publicRows)
                     result.Add(new SavedMountedSlot { ActorId = row.ActorId, Index = row.Index, Kind = row.Kind });
             return result.ToArray();
         }
 
         // The live callable rows of every exact KMC binding other than the public control (and, for the held legacy writer,
-        // the public control as its current shell).
-        private void CaptureOtherLiveSlots(List<SavedMountedSlot> result, bool legacySchema)
+        // the public control as its current shell), of the authoring units only: a former object kept by pair custody
+        // never writes a row for its character's current instance.
+        private void CaptureOtherLiveSlots(List<SavedMountedSlot> result, bool legacySchema, IEnumerable<UnitEntityData> authors)
         {
-            foreach (var unit in CollectCurrentCandidateUnits())
+            foreach (var unit in authors)
             {
                 var slots = unit?.UISettings?.Slots;
                 if (slots == null) continue;
@@ -454,11 +453,25 @@ namespace KingmakerMountedCombat.Integration
                 return empty != null && ReferenceEquals(empty.Unit, unit);
             }
 
+            // Only the public control or a supported Mount / Dismount alias: a callable Mounted Charge or another KMC command
+            // is never a public binding.
             public bool HoldsLiveBinding(UnitEntityData unit, int index)
             {
                 var slot = Slot(unit, index) as MechanicActionBarSlotAbility;
-                return service.IsCallableLiveBinding(unit, slot, service.ResolveKind(slot?.Ability?.Blueprint));
+                var kind = service.ResolveKind(slot?.Ability?.Blueprint);
+                return MountedControlSlotPolicy.IsPublicControlKind(kind) && service.IsCallableLiveBinding(unit, slot, kind);
             }
+
+            // What native CleanupBadSlots binds when it rebinds this slot: the active fact of the slot's blueprint from the
+            // bar owner's abilities (installed contract: a new MechanicActionBarSlotAbility with that fact's Data).
+            public object RebindData(UnitEntityData unit, int index)
+            {
+                var blueprint = (Slot(unit, index) as MechanicActionBarSlotAbility)?.Ability?.Blueprint;
+                if (blueprint == null) return null;
+                return unit?.Descriptor?.Abilities?.Enumerable.FirstOrDefault(fact => ReferenceEquals(fact.Blueprint, blueprint) && fact.Active)?.Data;
+            }
+
+            public object BoundData(UnitEntityData unit, int index) => (Slot(unit, index) as MechanicActionBarSlotAbility)?.Ability;
 
             public void BindControl(UnitEntityData unit, int index)
             {

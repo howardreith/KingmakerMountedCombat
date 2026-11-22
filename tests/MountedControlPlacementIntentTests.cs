@@ -70,6 +70,15 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: review R2-F4 a thrown native write survives a missing-player update during an open load", FencedThrownNativeWrite);
             runner.Run("toolbar: review R2-F5 a thrown cleanup keeps a rebound copy a copy and a later placement the player's", ThrownCleanupEdges);
             runner.Run("toolbar: review R2-F6 a reserve rider's known copies are released when cleared or unreachable", ReserveCopiesReleased);
+            runner.Run("toolbar: review R1-F10 (round 3) in-world captures before an update take only the current instance's fresh placement", FormerInstanceInWorldCapture);
+            runner.Run("toolbar: review R2-F1 (round 3) a toolbar readable only after seeding keeps an older archive's usable row", DelayedBarKeepsOlderRows);
+            runner.Run("toolbar: review R2-F2 (round 3) a native read of a lone leftover alias before or after seeding keeps the archived choice", LoneAliasBeforeOrAfterSeeding);
+            runner.Run("toolbar: review R2-F3 (round 3) a companion replaced while the same bar is hidden inherits nothing when it returns", HiddenBarCompanionRetirement);
+            runner.Run("toolbar: review R2-F4 (round 3) a complete GetSlot during the missing-player interval never consumes a held thrown write", HeldThrownWriteSurvivesCompleteRead);
+            runner.Run("toolbar: review R2-F5 (round 3) a thrown operation is settled from its own method's writes and the bar as it started", ThrownOperationEvidence);
+            runner.Run("toolbar: archived R17-F1 r19 an abandoned load keeps the alias fallback for an occupied choice through save and reload", ArchivedR17F1AbandonedLoadFallback);
+            runner.Run("toolbar: archived R17-F2 an aborted native call immediately followed by a successful GetSlot stays recoverable", ArchivedR17F2AbortedThenSuccessfulRead);
+            runner.Run("toolbar: archived R19-F3 a replacement companion's fresh placement invalidated before its first observation is kept", ArchivedR19F3ReplacementPlacementInvalidated);
         }
 
         // ---- thin fakes of the game -------------------------------------------------------------------------------
@@ -264,6 +273,32 @@ namespace KingmakerMountedCombat.Tests
                 return (slot.Kind == "Mount" || slot.Kind == "Dismount") && unit.AliasLive;
             }
 
+            // AbilityData identities: one object per fact generation (the public control), and one per alias slot's data.
+            private readonly Dictionary<int, object> dataObjects = new Dictionary<int, object>();
+            internal object DataObject(int generation)
+            {
+                object data;
+                if (!dataObjects.TryGetValue(generation, out data)) dataObjects[generation] = data = new object();
+                return data;
+            }
+
+            // What native CleanupBadSlots would rebind into the slot: the live fact of the slot's own kind.
+            public object RebindData(Unit unit, int index)
+            {
+                var slot = unit.Bar[index] as AbilitySlot;
+                if (slot == null) return null;
+                if (slot.Kind == "Control") return ControlLive(unit) ? DataObject(unit.ControlFact) : null;
+                return (slot.Kind == "Mount" || slot.Kind == "Dismount") && unit.AliasLive ? DataObject(-1) : null;
+            }
+
+            public object BoundData(Unit unit, int index)
+            {
+                var slot = unit.Bar[index] as AbilitySlot;
+                if (slot == null) return null;
+                if (slot.Kind == "Control") return DataObject(slot.Data);
+                return slot.Kind == "Mount" || slot.Kind == "Dismount" ? DataObject(-1 - slot.Data) : new object();
+            }
+
             public void BindControl(Unit unit, int index)
             {
                 if (!ControlLive(unit)) throw new InvalidOperationException("The fake refuses a public binding without a live fact.");
@@ -441,16 +476,16 @@ namespace KingmakerMountedCombat.Tests
         // the unit. throws: native threw after its write (no postfix).
         private static void NativeGetSlot(Game game, Unit unit, int index, bool throws = false)
         {
-            game.Toolbar.BeginNativeSlotOperation(unit, index);
+            var operation = game.Toolbar.BeginNativeSlotOperation(unit, index);
             if (IsBad(game, unit, index)) unit.Bar[index] = new EmptySlot(unit);
-            if (!throws) game.Toolbar.EndNativeSlotOperation(unit);
+            if (!throws) game.Toolbar.EndNativeSlotOperation(operation);
         }
 
         // Native CleanupBadSlots: every bad public binding is rebound to a live fact of its blueprint, or emptied, in index
         // order. throwAfter: native threw after that many writes.
         private static void NativeCleanup(Game game, Unit unit, int throwAfter = -1)
         {
-            game.Toolbar.BeginNativeSlotOperation(unit, -1);
+            var operation = game.Toolbar.BeginNativeSlotOperation(unit, -1);
             var writes = 0;
             for (var index = 0; index < unit.Bar.Length; index++)
             {
@@ -461,7 +496,7 @@ namespace KingmakerMountedCombat.Tests
                     ? new AbilitySlot("Control", unit.ControlFact) : (Slot)new EmptySlot(unit);
                 writes++;
             }
-            if (throwAfter < 0) game.Toolbar.EndNativeSlotOperation(unit);
+            if (throwAfter < 0) game.Toolbar.EndNativeSlotOperation(operation);
         }
 
         private static bool IsBad(Game game, Unit unit, int index)
@@ -1430,9 +1465,9 @@ namespace KingmakerMountedCombat.Tests
                 if (variant == "alias rebound")
                 {
                     // CleanupBadSlots rebinds the alias to a live shell fact: a new slot object of the same kind.
-                    game.Toolbar.BeginNativeSlotOperation(rider, -1);
+                    var rebind = game.Toolbar.BeginNativeSlotOperation(rider, -1);
                     rider.Bar[9] = new AbilitySlot("Mount", 2);
-                    game.Toolbar.EndNativeSlotOperation(rider);
+                    game.Toolbar.EndNativeSlotOperation(rebind);
                 }
                 if (variant == "save first") ExpectRows(Save(game).Rows, "A", new[] { 4 }, 1, variant);
                 Update(game);
@@ -2389,6 +2424,372 @@ namespace KingmakerMountedCombat.Tests
             game.Party.Add(rider);
             Update(game); Update(game);
             Equal(new[] { 3 }, Controls(rider), "the returning rider did not get 3 back once");
+        }
+
+        // Review R1-F10 (round 3): the former rider object stays in pair custody with its live shortcut at 9; its replacement
+        // (same actor id and companion) puts the live control at 11 in the party, or on the reserve roster. The in-world
+        // capture of an area transfer or a retained remount runs before any update: only 11, once, with one marker. Replayed
+        // as those paths replay it, the current instance has 11 and the former object no public binding. (The owned-save
+        // path is FormerInstanceKeepsReplacement; the adapter's other managed rows are the wiring check of the same finding.)
+        private static void FormerInstanceInWorldCapture()
+        {
+            foreach (var replacementInParty in new[] { true, false })
+            {
+                var label = "replacement in " + (replacementInParty ? "party" : "reserve");
+                var game = new Game();
+                var former = Arranged(game, "A", 9);
+                game.Party.Remove(former);
+                game.PairMembers.Add(former);
+                var current = new Unit("A", game.Current) { Desired = true, PetLink = former.PetLink };
+                current.Pet = new Unit(former.PetLink, game.Current) { IsPet = true, Master = current };
+                (replacementInParty ? game.Party : game.Remote).Add(current);
+                current.ControlFact = ++game.Generation; current.FactActive = true;
+                LiveControl(current, 11);
+                TestRunner.True(game.HoldsLiveBinding(former, 9), label + ": the fixture's former object lost its live binding.");
+                var rows = game.Toolbar.CaptureRows(false);
+                ExpectRows(rows, "A", new[] { 11 }, 1, label + ": in-world capture before an update");
+                // The area transfer / retained remount: suspension, then the captured rows replayed into the same world.
+                game.Toolbar.SuspendArea();
+                game.Toolbar.SeedFromRows(rows, false);
+                Update(game);
+                if (!replacementInParty) { LeaveCapital(game, current); Update(game); }
+                Equal(new[] { 11 }, Controls(current), label + ": the current instance after the replay");
+                TestRunner.True(!(former.Bar[9] is AbilitySlot) && !(former.Bar[11] is AbilitySlot), label + ": the former object kept a public binding.");
+                ExpectRows(Save(game).Rows, "A", new[] { 11 }, 1, label + ": the next save");
+            }
+        }
+
+        // Review R2-F1 (round 3): MixedArchiveRows with UnavailableBarDefersRestore. An older archive holds kind 6 at 3, a
+        // Dismount row at 9 and one marker; autofill is off; the loaded rider's bar cannot be read when the rows are seeded.
+        // A save while it is still unreadable carries both rows as read. Then the bar shows Fireball at 3 and an empty 9:
+        // Fireball stays and the one shortcut is 9, after repeated updates, a resave and a cold restore (of either save).
+        // Control: a marker-only archive restores nothing.
+        private static void DelayedBarKeepsOlderRows()
+        {
+            var game = new Game();
+            Arranged(game, "A", 9);
+            var file = Save(game);
+            file.Rows = new[]
+            {
+                new MountedToolbarRow { ActorId = "A", Index = 3, Kind = MountedControlSlotPolicy.SavedMountState },
+                new MountedToolbarRow { ActorId = "A", Index = 9, Kind = MountedControlSlotPolicy.SavedDismount },
+                new MountedToolbarRow { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
+            };
+            file.Bars["A"][3] = new AbilitySlot("Fireball", 1);
+            file.Bars["A"][9] = null;
+            game.Autofill = false;
+            Load(game, file, beforeRestore: g => Find(g, "A").HasBar = false);
+            var rider = Find(game, "A");
+            Update(game); Update(game);
+            var hiddenRows = game.Toolbar.CaptureRows(true);
+            TestRunner.True(hiddenRows.Count(row => row.ActorId == "A" && row.Index == 3 && row.Kind == MountedControlSlotPolicy.SavedMountState) == 1 &&
+                hiddenRows.Count(row => row.ActorId == "A" && row.Index == 9 && row.Kind == MountedControlSlotPolicy.SavedDismount) == 1 &&
+                Records(hiddenRows, "A") == 1, "A save while the bar is unreadable did not carry both rows as read.");
+            var hiddenSave = new SaveFile { Rows = hiddenRows, Party = file.Party, Remote = file.Remote, Detached = file.Detached };
+            foreach (var bar in file.Bars) hiddenSave.Bars[bar.Key] = bar.Value;
+            foreach (var pet in file.PetOf) hiddenSave.PetOf[pet.Key] = pet.Value;
+            rider.HasBar = true;
+            Update(game); Update(game); Update(game);
+            TestRunner.True((rider.Bar[3] as AbilitySlot)?.Kind == "Fireball", "Fireball at 3 was overwritten.");
+            Equal(new[] { 9 }, Controls(rider), "the usable older row at 9 after the bar became readable");
+            var resaved = Save(game);
+            ExpectRows(resaved.Rows, "A", new[] { 9 }, 1, "resave");
+            Load(game, resaved);
+            Update(game);
+            Equal(new[] { 9 }, Controls(Find(game, "A")), "cold restore of the resave");
+            TestRunner.True((Find(game, "A").Bar[3] as AbilitySlot)?.Kind == "Fireball", "Fireball at 3 was lost on the cold restore.");
+            Load(game, hiddenSave);
+            Update(game);
+            Equal(new[] { 9 }, Controls(Find(game, "A")), "cold restore of the save made while the bar was unreadable");
+            file.Rows = new[] { new MountedToolbarRow { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord } };
+            Load(game, file, beforeRestore: g => Find(g, "A").HasBar = false);
+            Find(game, "A").HasBar = true;
+            Update(game); Update(game);
+            Equal(new int[0], Controls(Find(game, "A")), "a marker-only archive restored a shortcut");
+        }
+
+        // Review R2-F2 (round 3): an incoming reserve rider's archive names 3 with its marker; its native bar has an empty 3
+        // and a lone stale older alias at 9, which native GetSlot(9) empties immediately before, or immediately after, the
+        // rows are seeded. Both orders keep only 3 and one marker on the immediate save, the party return and a cold
+        // restore. With a marker-only archive (the control off the bar when saved) the leftover alias is no placement either:
+        // off the bar in both orders. The genuine marker-only recovery of a canonical binding and the removal controls are
+        // IncomingObservationBeforeRestore and RemovalSurvivesReserveSaveLoad.
+        private static void LoneAliasBeforeOrAfterSeeding()
+        {
+            foreach (var markerOnly in new[] { false, true })
+                foreach (var nativeFirst in new[] { true, false })
+                {
+                    var label = (markerOnly ? "marker-only archive" : "archived 3") + ", native read " + (nativeFirst ? "before" : "after") + " seeding";
+                    var game = new Game();
+                    var rider = Arranged(game, "A", 9);
+                    EnterCapital(game, rider);
+                    Update(game);
+                    var file = Save(game);
+                    file.Rows = markerOnly
+                        ? new[] { new MountedToolbarRow { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord } }
+                        : new[]
+                        {
+                            new MountedToolbarRow { ActorId = "A", Index = 3, Kind = MountedControlSlotPolicy.SavedMountState },
+                            new MountedToolbarRow { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
+                        };
+                    file.Bars["A"][3] = null;
+                    file.Bars["A"][9] = new AbilitySlot("Mount", 1);
+                    Action<Game> read = g => NativeGetSlot(g, Find(g, "A"), 9);
+                    if (nativeFirst) Load(game, file, beforeRestore: read); else Load(game, file, afterSeed: read);
+                    rider = Find(game, "A");
+                    TestRunner.True(!(rider.Bar[9] is AbilitySlot), label + ": the fixture's native read did not empty the alias.");
+                    var expected = markerOnly ? new int[0] : new[] { 3 };
+                    var saved = Save(game);
+                    ExpectRows(saved.Rows, "A", expected, 1, label + ": immediate save");
+                    LeaveCapital(game, rider);
+                    Update(game);
+                    Equal(expected, Controls(rider), label + ": party return");
+                    Load(game, saved);
+                    rider = Find(game, "A");
+                    LeaveCapital(game, rider);
+                    Update(game);
+                    Equal(expected, Controls(rider), label + ": cold restore");
+                }
+        }
+
+        // Review R2-F3 (round 3). (a) The rider's bar becomes unreadable while the same underlying array keeps A's original
+        // slot object at 9; A is replaced by B and the retirement is observed during the outage; the same array is
+        // reattached. B inherits nothing: update, save, cold load. The same pet keeps 9 once. A fresh placement for B at 11
+        // survives once. (b) A's saved 9 is seeded while A is known and the bar is unreadable; A is replaced by B; an empty
+        // bar is revealed: no 9 (the same pet: 9 once).
+        private static void HiddenBarCompanionRetirement()
+        {
+            foreach (var replaced in new[] { true, false })
+            {
+                var label = "(a) " + (replaced ? "B replaces A" : "same pet");
+                var game = new Game();
+                var rider = Arranged(game, "A", 9);
+                var original = rider.Bar[9];
+                rider.HasBar = false;
+                if (replaced) ReplaceCompanion(game, rider, "pet-B");
+                Update(game);
+                TestRunner.True(game.Toolbar.IsRetired("A") == replaced, label + ": the retirement was not observed during the outage.");
+                rider.HasBar = true;
+                TestRunner.True(ReferenceEquals(rider.Bar[9], original), label + ": the fixture did not reattach the same array.");
+                Update(game); Update(game);
+                Equal(replaced ? new int[0] : new[] { 9 }, Controls(rider), label + ": after the bar returned");
+                var file = Save(game);
+                ExpectRows(file.Rows, "A", replaced ? new int[0] : new[] { 9 }, 1, label + ": save");
+                Load(game, file);
+                rider = Find(game, "A");
+                Update(game);
+                Equal(replaced ? new int[0] : new[] { 9 }, Controls(rider), label + ": cold load");
+                if (!replaced) continue;
+                LiveControl(rider, 11);
+                Update(game);
+                file = Save(game);
+                ExpectRows(file.Rows, "A", new[] { 11 }, 1, label + ": B's fresh placement saved");
+                Load(game, file);
+                Update(game);
+                Equal(new[] { 11 }, Controls(Find(game, "A")), label + ": B's fresh placement restored once");
+            }
+            foreach (var replaced in new[] { true, false })
+            {
+                var label = "(b) " + (replaced ? "B replaces A" : "same pet");
+                var game = new Game();
+                Arranged(game, "A", 9);
+                var file = Save(game);
+                TestRunner.True(!(file.Bars["A"][9] is AbilitySlot), label + ": the saved bar is not empty at 9.");
+                Load(game, file, beforeRestore: g => Find(g, "A").HasBar = false);
+                var rider = Find(game, "A");
+                if (replaced) ReplaceCompanion(game, rider, "pet-B");
+                Update(game);
+                rider.HasBar = true;
+                Update(game); Update(game);
+                Equal(replaced ? new int[0] : new[] { 9 }, Controls(rider), label + ": after an empty bar was revealed");
+                ExpectRows(Save(game).Rows, "A", replaced ? new int[0] : new[] { 9 }, 1, label + ": save");
+            }
+        }
+
+        private static void ReplaceCompanion(Game game, Unit rider, string petId)
+        {
+            rider.PetLink = petId;
+            rider.Pet = new Unit(petId, game.Current) { IsPet = true, Master = rider };
+        }
+
+        // Review R2-F4 (round 3): GetSlot writes its empty slot at 9 and throws; a selected load begins and the player world
+        // is missing; complete GetSlot calls (prefix and postfix) run on an ordinary slot and on an empty slot; an update
+        // runs; the load is abandoned back to the outgoing world: row 9, one marker, one recovered shortcut. Controls: a
+        // replacement and an unfenced disposal drop the held write (FencedThrownNativeWrite), and so does disable (here).
+        private static void HeldThrownWriteSurvivesCompleteRead()
+        {
+            var game = new Game();
+            var rider = Arranged(game, "A", 9);
+            Fill(rider, 2);
+            rider.FactActive = false;
+            NativeGetSlot(game, rider, 9, throws: true);
+            var world = game.Current;
+            var scope = new object();
+            game.Toolbar.BeginSelectedLoad(scope);
+            game.Current = null;
+            NativeGetSlot(game, rider, 2);
+            NativeGetSlot(game, rider, 5);
+            Update(game);
+            TestRunner.True(game.Toolbar.HasOpenNativeOperation, "A complete read during the missing-player interval consumed the held write.");
+            game.Current = world;
+            game.Toolbar.AbandonSelectedLoad(scope);
+            rider.FactActive = true;
+            ExpectRows(Save(game).Rows, "A", new[] { 9 }, 1, "the outgoing world's held native emptying");
+            Equal(new[] { 9 }, Controls(rider), "one recovered shortcut at 9");
+            TestRunner.True((rider.Bar[2] as AbilitySlot)?.Kind == "Fireball", "The ordinary slot changed.");
+            game = new Game();
+            rider = Arranged(game, "A", 9);
+            rider.FactActive = false;
+            NativeGetSlot(game, rider, 9, throws: true);
+            game.Toolbar.BeginSelectedLoad(new object());
+            game.Current = null;
+            Update(game);
+            TestRunner.True(game.Toolbar.HasOpenNativeOperation, "The fixture's write is not held.");
+            game.Toolbar.Disable();
+            TestRunner.True(!game.Toolbar.HasOpenNativeOperation && game.Toolbar.NativeOperationUnit == null, "Disable kept the held write.");
+        }
+
+        // Review R2-F5 (round 3). 3 is pending with a known stale copy at 9 (GetSlot emptied 3 first).
+        // (c) CleanupBadSlots genuinely rebinds 9 to the live fact and throws; the fact is deactivated before the operation
+        //     is settled: the rebind stays native's, the copy a copy, and the choice stays 3.
+        // (d) GetSlot(9) throws before writing; the player places a new live control at 9 before settlement: GetSlot can
+        //     only empty a slot, so the new binding is the player's choice, 9.
+        // (e) Fireball fills the pending 3; GetSlot empties the fallback copy at 9 and throws; Fireball moves to 5 before
+        //     settlement: the fallback earned while 3 was occupied, 9, is kept through save and reload.
+        private static void ThrownOperationEvidence()
+        {
+            var game = new Game();
+            var rider = PendingWithCopy(game);
+            NativeCleanup(game, rider, throwAfter: 1);
+            TestRunner.True(game.HoldsLiveBinding(rider, 9), "(c) the fixture's cleanup did not rebind 9.");
+            rider.FactActive = false;
+            ExpectRows(Save(game).Rows, "A", new[] { 3 }, 1, "(c) settlement after the fact was deactivated");
+            rider.FactActive = true;
+            Update(game);
+            Equal(new[] { 3 }, Controls(rider), "(c) only 3");
+            game = new Game();
+            rider = PendingWithCopy(game);
+            game.Toolbar.BeginNativeSlotOperation(rider, 9);
+            LiveControl(rider, 9);
+            ExpectRows(Save(game).Rows, "A", new[] { 9 }, 1, "(d) a placement after GetSlot threw before writing");
+            Update(game);
+            Equal(new[] { 9 }, Controls(rider), "(d) only 9");
+            game = new Game();
+            rider = PendingWithCopy(game);
+            Fill(rider, 3);
+            NativeGetSlot(game, rider, 9, throws: true);
+            Move(rider, 3, 5);
+            var saved = Save(game);
+            ExpectRows(saved.Rows, "A", new[] { 9 }, 1, "(e) the fallback earned while 3 was occupied");
+            Update(game);
+            Equal(new[] { 9 }, Controls(rider), "(e) live");
+            TestRunner.True((rider.Bar[5] as AbilitySlot)?.Kind == "Fireball", "(e) Fireball was not kept at 5.");
+            Load(game, saved);
+            Equal(new[] { 9 }, Controls(Find(game, "A")), "(e) reload");
+        }
+
+        // A never-observed party rider with a live fact whose stale bindings at 3 and 9 were read by GetSlot(3): 3 is
+        // pending and 9 is its known copy.
+        private static Unit PendingWithCopy(Game game)
+        {
+            var rider = Unobserved(game, "A");
+            StaleControl(rider, 3); StaleControl(rider, 9, 8);
+            NativeGetSlot(game, rider, 3);
+            int slot; bool pending;
+            TestRunner.True(game.Toolbar.TryGetArrangement("A", out slot, out pending) && slot == 3 && pending && game.Toolbar.KnownCopyCount("A") == 1,
+                "The fixture is not 3 pending with a known copy.");
+            return rider;
+        }
+
+        // Archived R17-F1 round 19 (docs/agent-reviews/pr-57/081-r19-review.md): the chosen 4 is interrupted (GetSlot empties
+        // it while an older alias at 9 is a known copy); Fireball occupies 4; a selected load begins; native empties alias 9;
+        // the load is abandoned; save and cold restore. Fireball stays at 4 and exactly one shortcut returns at 9.
+        private static void ArchivedR17F1AbandonedLoadFallback()
+        {
+            var game = new Game();
+            var rider = Arranged(game, "A", 4);
+            rider.FactActive = false;
+            rider.Bar[9] = new AbilitySlot("Mount", 1);
+            NativeGetSlot(game, rider, 4);
+            int slot; bool pending;
+            TestRunner.True(game.Toolbar.TryGetArrangement("A", out slot, out pending) && slot == 4 && pending && game.Toolbar.KnownCopyCount("A") == 1,
+                "The chosen 4 is not interrupted with the alias as its copy.");
+            Fill(rider, 4);
+            var scope = new object();
+            game.Toolbar.BeginSelectedLoad(scope);
+            NativeGetSlot(game, rider, 9);
+            TestRunner.True(!(rider.Bar[9] is AbilitySlot), "Native did not empty the alias.");
+            game.Toolbar.AbandonSelectedLoad(scope);
+            rider.FactActive = true;
+            var saved = Save(game);
+            ExpectRows(saved.Rows, "A", new[] { 9 }, 1, "save after abandonment");
+            TestRunner.True((rider.Bar[4] as AbilitySlot)?.Kind == "Fireball", "Fireball at 4 was overwritten.");
+            Equal(new[] { 9 }, Controls(rider), "one shortcut at 9 in the continuing world");
+            Load(game, saved);
+            rider = Find(game, "A");
+            TestRunner.True((rider.Bar[4] as AbilitySlot)?.Kind == "Fireball", "Fireball at 4 was lost on the cold restore.");
+            Equal(new[] { 9 }, Controls(rider), "exactly one shortcut at 9 after the cold restore");
+        }
+
+        // Archived R17-F2 (081-r19-review.md): an aborted native call (GetSlot or CleanupBadSlots, no write, no postfix) is
+        // immediately followed by a successful GetSlot(9) that empties the chosen slot, before any update: recoverable, by
+        // update first and by save first. Controls: a deliberate removal after the recovery stays removed; a read-only query
+        // followed by the player's removal stays a removal. (The aborted-then-removal and write-then-throw controls are
+        // NativeOperationEdges r18 and r19/r20.)
+        private static void ArchivedR17F2AbortedThenSuccessfulRead()
+        {
+            foreach (var aborted in new[] { "GetSlot", "CleanupBadSlots" })
+                foreach (var saveFirst in new[] { false, true })
+                {
+                    var label = "aborted " + aborted + (saveFirst ? ", save first" : ", update first");
+                    var game = new Game();
+                    var rider = Arranged(game, "A", 9);
+                    rider.FactActive = false;
+                    game.Toolbar.BeginNativeSlotOperation(rider, aborted == "GetSlot" ? 9 : -1);
+                    NativeGetSlot(game, rider, 9);
+                    TestRunner.True(rider.Bar[9] is EmptySlot, label + ": the successful GetSlot did not empty 9.");
+                    rider.FactActive = true;
+                    if (saveFirst) ExpectRows(Save(game).Rows, "A", new[] { 9 }, 1, label);
+                    Update(game); Update(game);
+                    Equal(new[] { 9 }, Controls(rider), label + ": recovered once");
+                    Remove(rider, 9);
+                    Update(game); Update(game);
+                    Equal(new int[0], Controls(rider), label + ": a deliberate removal after the recovery came back");
+                    ExpectRows(Save(game).Rows, "A", new int[0], 1, label + ": the removal is saved as a record only");
+                }
+            var control = new Game();
+            var reader = Arranged(control, "A", 9);
+            reader.FactActive = false;
+            TestRunner.True(IsBad(control, reader, 9), "The control fixture is not bad.");
+            Remove(reader, 9);
+            reader.FactActive = true;
+            Update(control);
+            Equal(new int[0], Controls(reader), "a read-only query turned the removal into intent");
+        }
+
+        // Archived R19-F3 (081-r19-review.md), the companion-retirement variant: A's arrangement at 3 is retired when the
+        // pet link changes to B; the player places B's fresh live control at 9; native invalidates it before its first
+        // ordinary observation. Save and cold restore keep B's 9, never A's retired 3. (The interrupted-3 variant is
+        // NativeOperationEdges R19-F3; the stale-batch rejection control is CompanionLoss R17-F3.)
+        private static void ArchivedR19F3ReplacementPlacementInvalidated()
+        {
+            var game = new Game();
+            var rider = Arranged(game, "A", 3);
+            ReplaceCompanion(game, rider, "pet-B");
+            Update(game);
+            TestRunner.True(game.Toolbar.IsRetired("A") && Controls(rider).Length == 0, "A's arrangement was not retired.");
+            LiveControl(rider, 9);
+            rider.FactActive = false;
+            NativeGetSlot(game, rider, 9);
+            TestRunner.True(rider.Bar[9] is EmptySlot, "Native did not invalidate B's placement.");
+            rider.FactActive = true;
+            var saved = Save(game);
+            ExpectRows(saved.Rows, "A", new[] { 9 }, 1, "B's invalidated fresh placement saved");
+            Equal(new[] { 9 }, Controls(rider), "B's placement in the continuing world");
+            Load(game, saved);
+            Update(game);
+            Equal(new[] { 9 }, Controls(Find(game, "A")), "cold restore: B's 9, not A's retired 3");
+            TestRunner.True(!game.Toolbar.IsRetired("A"), "The cold restore kept A's retirement.");
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

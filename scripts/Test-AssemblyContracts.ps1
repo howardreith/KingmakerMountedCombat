@@ -1614,6 +1614,33 @@ if($Target-eq'Kingmaker'){
             (Test-MethodIlContainsToken $indexSet $getSlotExact.MetadataToken)
     }
     Assert-Contract $removalShape 'toolbar: the action bar drag-off removal writes null through SetSlot before GetSlot rebuilds the slot'
+    # Round-3 native-operation evidence (MountedToolbarLifecycle.ApplyNativeOperation, NativeMountedControlService
+    # .ResolveBarUnit): the bar's owner is UnitUISettings.Owner, the descriptor CleanupBadSlots binds its writes to; the two
+    # bracketed methods never nest (CleanupBadSlots does not call GetSlot), so a prefix whose postfix never ran threw;
+    # GetSlot can only empty a slot (it constructs no ability slot), so a thrown GetSlot is never credited with a rebind;
+    # and GetSlot's unit argument is named 'unit', which the Harmony prefix binds by name.
+    $ownerGetter=$uiSettings.GetMethod('get_Owner',$cityFlags)
+    $ownerToken=if($null-eq$ownerGetter){0}else{$ownerGetter.MetadataToken}
+    Assert-Contract ($null-ne$ownerGetter-and-not$ownerGetter.IsStatic-and$ownerGetter.ReturnType.FullName-ceq'Kingmaker.UnitLogic.UnitDescriptor'-and
+        $ownerToken-eq0x06002FE9-and$null-ne$assembly.GetType('Kingmaker.UnitLogic.UnitDescriptor',$false).GetMethod('get_Unit',$cityFlags)) ('toolbar: UnitUISettings.Owner is the bar owner''s UnitDescriptor (with Unit), token '+$ownerToken.ToString('X8'))
+    Assert-Contract ($ownerToken-ne0-and(Test-MethodIlContainsToken $cleanupBad $ownerToken)-and-not(Test-MethodIlContainsToken $cleanupBad $getSlotToken)) 'toolbar: CleanupBadSlots binds through UnitUISettings.Owner and never calls GetSlot (the bracketed operations do not nest)'
+    Assert-Contract ($null-ne$abilitySlotCtor-and-not(Test-MethodIlContainsToken $getSlotExact $abilitySlotCtor.MetadataToken)) 'toolbar: GetSlot constructs no MechanicActionBarSlotAbility (it can only empty a bad slot)'
+    $getSlotParameters=if($null-eq$getSlotExact){@()}else{@($getSlotExact.GetParameters())}
+    Assert-Contract ($getSlotParameters.Count-eq2-and$getSlotParameters[0].Name-ceq'index'-and$getSlotParameters[1].Name-ceq'unit') 'toolbar: GetSlot''s parameters are named index and unit'
+    # The product's Harmony forwarders (MountedPatchController.PatchMethods), read from the built product: Harmony 1.2 binds
+    # prefix parameters by the native names, and each prefix hands its own operation to its own postfix through __state.
+    if($null-ne$ummProduct){
+        $patchMethods=$ummProduct.GetType('KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods',$false)
+        function Get-ForwarderShape([string]$Name){
+            $method=if($null-eq$patchMethods){$null}else{$patchMethods.GetMethod($Name,[Reflection.BindingFlags]'NonPublic,Public,Static')}
+            if($null-eq$method){return '(missing)'}
+            return (@($method.GetParameters()|ForEach-Object{$_.ParameterType.FullName+' '+$_.Name+$(if($_.IsOut){' out'}else{''})})-join', ')
+        }
+        $slotRead=Get-ForwarderShape 'SlotReadPrefix'; $cleanupPrefix=Get-ForwarderShape 'BadSlotCleanupPrefix'; $postfix=Get-ForwarderShape 'BadSlotCleanupPostfix'
+        Assert-Contract ($slotRead-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Int32 index, Kingmaker.EntitySystem.Entities.UnitEntityData unit, System.Object& __state out') ('toolbar: the GetSlot prefix binds __instance, index, unit and out __state: '+$slotRead)
+        Assert-Contract ($cleanupPrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Object& __state out') ('toolbar: the CleanupBadSlots prefix binds __instance and out __state: '+$cleanupPrefix)
+        Assert-Contract ($postfix-ceq'System.Object __state') ('toolbar: the shared postfix receives only its own prefix''s __state: '+$postfix)
+    }else{Write-Host "UNASSESSED $Target toolbar Harmony forwarder shapes: no $Configuration build of the product"}
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

@@ -12,6 +12,9 @@ param()
 # reruns and must make every named check fail. Classes: pre-cleanup observation skipped; a required actor omitted from a
 # sanitation or observation sweep; outgoing-world lifetime mishandled (abandon, replacement, unfenced disposal, a missing
 # player during a load); a player edit confused with native invalidation; a disconnected adapter boundary or roster input.
+# Round 3 (review of 6251885) adds one mutation per repaired boundary: capture authority and preparation (M5, W6), the
+# public-binding predicate (W7), per-invocation native operations and their method-specific evidence (M6), deferred
+# archive selection and alias provenance (M7), retirement of an unreadable bar (M8), and the bar owner (W8, W9).
 # Not native evidence.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -74,7 +77,7 @@ $mutations=@(
       Needle="            foreach (var unit in owners) Observe(unit);`n";Replace="            // mutation: no observation before the sweep`n"
       Expect=@('D1 a move or removal right before')},
     @{Campaign='lifecycle';Name='M1b pre-cleanup observation skipped before a native write is applied';File=$lifecycle
-      Needle="            Observe(unit, operation.Context.ToDictionary(entry => entry.Index, entry => new KeyValuePair<MountedToolbarSlot, object>(entry.Content, entry.Identity)));`n"
+      Needle="            Observe(unit, operation.View);`n"
       Replace="            // mutation: no observation before the native write`n"
       Expect=@('D6 native invalidation returns the control once','AC-R22-F3')},
     @{Campaign='lifecycle';Name='M2a persistent pets omitted from the sanitation sweep';File=$lifecycle
@@ -97,13 +100,13 @@ $mutations=@(
       Needle="            if (host.CurrentWorld == null && loadOwner != null) return;`n";Replace="            // mutation: no hold while the load is open`n"
       Expect=@('review R1-F2')},
     @{Campaign='lifecycle';Name='M3e a thrown native write is dropped at a missing player during an open load';File=$lifecycle
-      Needle="            if (nativeOperation != null && host.CurrentWorld == null && loadOwner != null) return;`n";Replace="            // mutation: no hold for the open load`n"
+      Needle="            if (host.CurrentWorld == null && loadOwner != null) return;  // held through the open load's missing player`n";Replace="            // mutation: no hold for the open load`n"
       Expect=@('review R2-F4')},
     @{Campaign='lifecycle';Name='M2c a former instance in pair custody authors its actor''s arrangement';File=$lifecycle
       Needle="            if (!Authors(unit, riders, reserve))`n";Replace="            if (!Authors(unit, riders, reserve) && unit == null)`n"
       Expect=@('review R1-F10')},
     @{Campaign='lifecycle';Name='M4a a player removal after an aborted native operation is read as native emptying';File=$lifecycle
-      Needle="                if (!returned && !rebound && !host.IsNativeEmptySlot(unit, entry.Index)) continue;`n";Replace="                // mutation: every change counts as native`n"
+      Needle="                else if (!bound) { if (host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }`n";Replace="                else if (!bound) emptied.Add(entry.Index);`n"
       Expect=@('D6 native operations that throw')},
     @{Campaign='lifecycle';Name='M4b a native emptying is read as the player''s removal (no pending slot)';File=$lifecycle
       Needle="                    else if (!arrangement.Pending) { arrangement.Pending = true; NativeInvalidationCount++; }`n"
@@ -119,7 +122,7 @@ $mutations=@(
       Needle="new[] { player.RemoteCompanions, player.DetachedPartyCharacters }";Replace="new[] { player.RemoteCompanions }"
       Expect=@('a remote owner in pair custody')},
     @{Campaign='wiring';Name='W3 the native slot prefix stops forwarding to the lifecycle';File=$adapter
-      Needle="            toolbar.BeginNativeSlotOperation(unit, slotIndex);`n";Replace="            // mutation: native prefix not forwarded`n"
+      Needle="            return toolbar.BeginNativeSlotOperation(owner, slotIndex);`n";Replace="            return null; // mutation: native prefix not forwarded`n"
       Expect=@('native GetSlot through the service brackets')},
     @{Campaign='wiring';Name='W4 the host returns no persistent pet';File=$adapter
       Needle="                return pet?.Descriptor != null && pet.Descriptor.IsPet && ReferenceEquals(pet.Descriptor.Master.Value, owner) ? pet : null;`n"
@@ -128,7 +131,56 @@ $mutations=@(
     @{Campaign='wiring';Name='W5 the host reports no reserve or detached owners';File=$adapter
       Needle="public IList<UnitEntityData> ReserveOwners() => ReserveRosterUnits(service.CollectCurrentCandidateUnits());"
       Replace="public IList<UnitEntityData> ReserveOwners() => new List<UnitEntityData>();"
-      Expect=@('a remote owner in pair custody')}
+      Expect=@('a remote owner in pair custody')},
+    # Round-3 repairs (review of 6251885): each mutation disconnects one repaired boundary.
+    @{Campaign='lifecycle';Name='M5a an in-world capture takes rows from a non-authoring former instance (R1-F10)';File=$lifecycle
+      Needle="                    if (unit != null && !host.IsPet(unit) && Authors(unit, riders, reserve)) CaptureLiveRows(unit, rows, written);`n"
+      Replace="                    if (unit != null && !host.IsPet(unit)) CaptureLiveRows(unit, rows, written);`n"
+      Expect=@('review R1-F10 (round 3)')},
+    @{Campaign='lifecycle';Name='M5b a capture writes rows from cached arrangements without preparing (R1-F10, R3-F1)';File=$lifecycle
+      Needle="            if (prepared)`n                foreach (var unit in PlacementUnits(riders)) Observe(unit);`n";Replace="            // mutation: no capture preparation`n"
+      Expect=@('review R1-F10 (round 3)')},
+    @{Campaign='lifecycle';Name='M6a a postfix that opened nothing consumes the held thrown write (R2-F4)';File=$lifecycle
+      Needle="            if (operation == null || !ReferenceEquals(operation, openOperation)) return;`n"
+      Replace="            if (operation == null || !ReferenceEquals(operation, openOperation)) { thrownOperations.Clear(); return; }`n"
+      Expect=@('review R2-F4 (round 3)')},
+    @{Campaign='lifecycle';Name='M6b a thrown GetSlot is credited with a rebind it cannot write (R2-F5)';File=$lifecycle
+      Needle="                else if (!operation.SingleSlot && entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
+      Replace="                else if (entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
+      Expect=@('review R2-F5 (round 3)')},
+    @{Campaign='lifecycle';Name='M6c a thrown cleanup''s rebind is judged by the fact''s later state (R2-F5)';File=$lifecycle
+      Needle="                else if (!operation.SingleSlot && entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
+      Replace="                else if (!operation.SingleSlot && host.HoldsLiveBinding(unit, entry.Index))`n"
+      Expect=@('review R2-F5 (round 3)')},
+    @{Campaign='lifecycle';Name='M6d a thrown operation is read against the occupancy at settlement (R2-F5)';File=$lifecycle
+      Needle="            return view.Occupied.Contains(index) ? MountedToolbarSlot.Ordinary : MountedToolbarSlot.Empty;`n"
+      Replace="            return IsPublic(host.ReadSlot(unit, index)) ? MountedToolbarSlot.Empty : host.ReadSlot(unit, index);`n"
+      Expect=@('review R2-F5 (round 3)')},
+    @{Campaign='lifecycle';Name='M7a a fresh load chooses among its rows while the bar is unreadable (R2-F1)';File=$lifecycle
+      Needle="                var unreadable = loadedWorld && publicRows.Count > 1 && (unit == null || host.SlotCount(unit) == 0);`n"
+      Replace="                var unreadable = loadedWorld && publicRows.Count > 1 && unit == null;`n"
+      Expect=@('review R2-F1 (round 3)')},
+    @{Campaign='lifecycle';Name='M7b a leftover alias read before seeding overrides the archive (R2-F2)';File=$lifecycle
+      Needle="                    if (loadedWorld && existing.ObservedBeforeRows && existing.ChoiceIsAlias)`n"
+      Replace="                    if (loadedWorld && existing.ObservedBeforeRows && existing.ChoiceIsAlias && unit == null)`n"
+      Expect=@('review R2-F2 (round 3)')},
+    @{Campaign='lifecycle';Name='M8a a bar unreadable at retirement is not sanitized when it returns (R2-F3)';File=$lifecycle
+      Needle="            if (records.TakeRetiredUnread(id)) ClearPublicBindings(unit, false);`n";Replace="            // mutation: no sanitation of a bar retired unread`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='wiring';Name='W6 other managed rows come from every candidate, not the authoring units (R1-F10)';File=$adapter
+      Needle="            CaptureOtherLiveSlots(result, legacySchema, authors);`n";Replace="            CaptureOtherLiveSlots(result, legacySchema, CollectCurrentCandidateUnits());`n"
+      Expect=@('review R1-F10 a former rider object')},
+    @{Campaign='wiring';Name='W7 the host''s public-binding predicate accepts any callable KMC command (R3-F1)';File=$adapter
+      Needle="                return MountedControlSlotPolicy.IsPublicControlKind(kind) && service.IsCallableLiveBinding(unit, slot, kind);`n"
+      Replace="                return service.IsCallableLiveBinding(unit, slot, kind);`n"
+      Expect=@('review R3-F1')},
+    @{Campaign='wiring';Name='W8 the bar owner is derived from a slot''s contents (R3-F2)';File=$adapter
+      Needle="            var owner = settings.Owner?.Unit;`n"
+      Replace="            var owner = settings.Slots.OfType<MechanicActionBarSlotAbility>().FirstOrDefault(slot => slot.Ability != null)?.Unit;`n"
+      Expect=@('review R3-F2')},
+    @{Campaign='wiring';Name='W9 native GetSlot''s unit argument is ignored (R3-F2)';File=$adapter
+      Needle="            if (unit != null && ReferenceEquals(unit.UISettings, settings)) return unit;`n";Replace="            // mutation: unit argument ignored`n"
+      Expect=@('review R3-F2')}
 )
 
 $problems=New-Object 'System.Collections.Generic.List[string]'

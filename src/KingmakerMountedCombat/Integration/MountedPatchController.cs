@@ -585,15 +585,19 @@ namespace KingmakerMountedCombat.Integration
                 CompanionNameService.Current?.Sheet.Refresh(__instance);
             }
 
-            internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
-                PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
+            // Each prefix hands its own operation (or null) to its own postfix through Harmony's per-invocation __state, so a
+            // postfix completes only its own invocation; a native method that throws runs no postfix, and the lifecycle settles
+            // its operation at the next entry.
+            internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, out object __state) =>
+                __state = PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
 
-            // GetSlot(int index, UnitEntityData unit): only that slot belongs to the operation.
-            internal static void SlotReadPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, int index) =>
-                PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance, index);
+            // GetSlot(int index, UnitEntityData unit): only that slot belongs to the operation; native's own unit argument
+            // identifies the bar's owner (parameter names pinned in Test-AssemblyContracts.ps1).
+            internal static void SlotReadPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, int index, UnitEntityData unit, out object __state) =>
+                __state = PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance, index, unit);
 
-            internal static void BadSlotCleanupPostfix(Kingmaker.UI.UnitSettings.UnitUISettings __instance) =>
-                PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__instance);
+            internal static void BadSlotCleanupPostfix(object __state) =>
+                PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__state);
 
             internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
             {
