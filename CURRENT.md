@@ -1,6 +1,24 @@
-# IN REVIEW — CITY TOOLBAR, CITY COMPANION ACCESS AND PRONE RANGED TARGET (2026-11-21, DRAFT PR #57)
+# RELEASE 0.2.14: TOOLBAR PLACEMENT, CAPITAL COMPANION SCREENS, DOWNED-TARGET ATTACK (2026-11-22)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.14, by owner order on 2026-11-22, from main after PR #57 (merged as `4e5c9c0c`). Notes:
+  [docs/RELEASE-NOTES-0.2.14.md](docs/RELEASE-NOTES-0.2.14.md). The package identity (zip and DLL SHA-256, MVID,
+  release-source commit, tagged merge) is recorded on the GitHub release.
+- **Version:** 0.2.14 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0.
+- **Content:** X02 (toolbar placement), X03 (capital companion screens) and X04 (explicit attack on an already-unconscious
+  enemy), plus records. Save format unchanged from 0.2.13.
+- **Open:**
+  - none of the three was played in the game;
+  - X04's original prone-target report is unreproduced;
+  - the owner playtest steps are in [the handoff](docs/CITY-AND-PRONE-HANDOFF.md), section 12;
+  - the UMM 0.33.0/0.33.2 platform pin (owner decision).
+- **Previous release:** `v0.2.13`, merge `dbf63702`.
+- **Not done:** no install, staging or loader replacement.
+
+# CITY TOOLBAR, CITY COMPANION ACCESS AND PRONE RANGED TARGET (2026-11-21, PR #57; MERGED AND RELEASED IN 0.2.14)
+
+Dated history: the state before the merge.
 
 - **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13). Development candidate only: no merge,
   release or install; native startup smoke only.

@@ -66,6 +66,12 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
   cost ([0.2.4](RELEASE-NOTES-0.2.4.md)).
 - World map: pairs travel across it and remount on arrival in the next area ([0.2.3](RELEASE-NOTES-0.2.3.md)).
   Capital and similar areas dismount companion pairs on arrival.
+- **Since 0.2.14 (offline-tested, not played):**
+  - The Mount / Dismount shortcut keeps the slot you chose through the capital, the reserve roster, saving and loading,
+    and temporary companion unavailability. Your moves and removals are kept, and other abilities are never overwritten
+    (X02).
+  - In the capital, each companion's own animal companion is listed in the Inventory, Character and Spellbook screens
+    (X03).
 - **Since 0.2.12:** entrance and exit orders, the gamepad follower pass and group pace use the horse as the mover
   (M01–M03); a gamepad stick drives a mounted pair's mount (M05); extra destination markers from the entrance carry,
   scene regroup, door approach and cannot-attack click approach are removed (M04); a mounted party crosses the
@@ -265,6 +271,9 @@ The same set as the [ledger](CURRENT-KNOWN-ISSUES.md#every-id):
   [Cutscenes](#cutscenes-dialogues-and-scene-staging)).
 - **X01 (after release 0.2.12):** fixed in 0.2.13; native verification beside 0.0.191, the reported save and
   gameplay remain open (see [Game, loader and dependencies](#game-loader-and-dependencies)).
+- **X02–X04 (after release 0.2.13):** released in 0.2.14 and not played in the game. X04's original report, a mounted
+  ranged rider unable to attack a *prone* enemy, is unreproduced; only an explicit attack on an already-unconscious
+  enemy is corrected ([ledger](CURRENT-KNOWN-ISSUES.md#after-release-0213)).
 - **T04–T08:** stale developer test harnesses (open correction). **T09:** a harness that needs retained native
   evidence (open investigation). Neither affects play.
 

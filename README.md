@@ -4,7 +4,8 @@ A Unity Mod Manager (UMM) mod for Pathfinder: Kingmaker (engine build 2.1.7b) th
 companion: a Horse or Riding Dog added by the mod, or a supported stock Mammoth. Rider and mount keep their own actions,
 health and defenses. No other mod is required.
 
-Release notes: [0.2.13](docs/RELEASE-NOTES-0.2.13.md) (current), [0.2.12](docs/RELEASE-NOTES-0.2.12.md),
+Release notes: [0.2.14](docs/RELEASE-NOTES-0.2.14.md) (current), [0.2.13](docs/RELEASE-NOTES-0.2.13.md),
+[0.2.12](docs/RELEASE-NOTES-0.2.12.md),
 [0.2.11](docs/RELEASE-NOTES-0.2.11.md),
 [0.2.10](docs/RELEASE-NOTES-0.2.10.md),
 [0.2.9](docs/RELEASE-NOTES-0.2.9.md), [0.2.8](docs/RELEASE-NOTES-0.2.8.md), [0.2.7](docs/RELEASE-NOTES-0.2.7.md),
@@ -14,9 +15,13 @@ and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 
 ## Current status
 
-- **Release:** 0.2.13 is the current release. It fixes 0.2.12 not loading beside Tabletop Rules Expansion (X01);
-  nothing else changes. Startup was checked in the game beside Tabletop Rules Expansion 0.0.140 only; 0.0.191, the
-  reported save and gameplay were not ([notes](docs/RELEASE-NOTES-0.2.13.md)).
+- **Release:** 0.2.14 is the current release. Changes since 0.2.13:
+  - the Mount / Dismount shortcut keeps its chosen slot (X02);
+  - companions' animals appear in the capital's Inventory and Character screens (X03);
+  - an explicit mounted attack on an already-unconscious enemy is no longer refused (X04).
+
+  Startup was checked in the game; none of the three changes was played there, and the original prone-target report
+  remains unreproduced ([notes](docs/RELEASE-NOTES-0.2.14.md)).
 - **What is supported, the retained limits, removal and rollback:** [docs/CURRENT-SUPPORT.md](docs/CURRENT-SUPPORT.md).
   It replaces the 0.2.0 notes' known-limits list for current status.
 - **Known issues:** [docs/CURRENT-KNOWN-ISSUES.md](docs/CURRENT-KNOWN-ISSUES.md), one current disposition per issue.
