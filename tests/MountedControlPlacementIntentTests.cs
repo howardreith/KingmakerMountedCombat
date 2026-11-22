@@ -1522,11 +1522,12 @@ namespace KingmakerMountedCombat.Tests
                     NativeCleanup(game, rider);
                     TestRunner.True(game.HoldsLiveBinding(rider, 9), variant + ": native did not rebind 9.");
                 }
-                if (variant.EndsWith("moved", StringComparison.Ordinal)) Move(rider, 9, 11);
-                if (variant.EndsWith("removed", StringComparison.Ordinal)) Remove(rider, 9);
+                var moved = variant == "rebound moved" || variant == "free rebound moved";
+                var removed = variant == "rebound removed";
+                if (moved) Move(rider, 9, 11);
+                if (removed) Remove(rider, 9);
                 file = Save(game);
-                var expected = variant.StartsWith("occupied", StringComparison.Ordinal) ? new[] { 9 } : variant.EndsWith("removed", StringComparison.Ordinal) ? new int[0] :
-                    variant.EndsWith("moved", StringComparison.Ordinal) ? new[] { 11 } : new[] { 3 };
+                var expected = variant.StartsWith("occupied", StringComparison.Ordinal) ? new[] { 9 } : removed ? new int[0] : moved ? new[] { 11 } : new[] { 3 };
                 ExpectRows(file.Rows, "A", expected, 1, "first reserve scan (" + variant + ")");
                 LeaveCapital(game, rider);
                 Update(game);
@@ -2319,6 +2320,8 @@ namespace KingmakerMountedCombat.Tests
                 NativeGetSlot(game, rider, 9, throws: true);
                 if (replacement) game.Toolbar.BeginSelectedLoad(new object());
                 game.Current = replacement ? new World("incoming") : null;
+                // A replaced world has its own roster; the outgoing objects are no longer the player's characters.
+                game.Party.Clear();
                 Update(game);
                 TestRunner.True(!game.Toolbar.HasOpenNativeOperation && game.Toolbar.ArrangementCount == 0,
                     (replacement ? "A replacement" : "The main menu") + " kept the thrown operation or the records.");
