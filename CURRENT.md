@@ -26,7 +26,10 @@ Start here. The sections below this one are dated history, newest first.
     1,024 states, 0 failures; persistence contracts 228/0.
   - The menu assertion fails on base `61519031` with the incident's text.
   - Three existing harnesses already fail on base, identically on the candidate.
-- **Native:** not run (no qualified fixture; incident save not here).
+- **Package (for the owner reproduction):** `KingmakerMountedCombat-0.2.14-save-door-lock-diagnostic-diagnostic.zip`, sha256
+  `8aebca4c…`, DLL `49b91e73…`, MVID `8ba02420…`, from clean `3cd7975d`. Pro approved this checkpoint at `079f4e9e`; its
+  non-blocking notes are fixed in `3cd7975d` (Fast PASS: components 1488/0, wait regression 16/0, 8/8 mutations).
+- **Native:** not run (no qualified fixture; incident save not here; no startup smoke of this DLL yet).
 - **Needed:** an owner log with this build (the `Mounted save wait` lines name the blocker) or a disposable copy of the save.
 - **Read:** [docs/SAVE-AND-DOOR-LOCK-HANDOFF.md](docs/SAVE-AND-DOOR-LOCK-HANDOFF.md).
 

@@ -275,9 +275,40 @@ native acceptance is the formerly failing sequence: save, door, cold load.
      selection.
   5. `fast-r1e.log` **passed**.
 
+### Review round 2 and the diagnostic package
+
+- **Pro review of `079f4e9e`: approved as a diagnostic checkpoint.** Round 1's F1–F4 are addressed. Two non-blocking
+  notes were addressed in `3cd7975d`:
+  1. A waiting operation disposed while its own cleanup throws reported `Cancelled`. `DeferredSaveEnumerator.Dispose`
+     now records that cleanup fault as `Failure` before the terminal reads it, so the wait ends `Faulted`. The exceptions
+     still propagate unchanged. The reviewer's probe is a harness case: `PASS=15 FAIL=1` against the round-2 enumerator,
+     passing now. A component case covers the writer-dispose and wait-release faults and a clean disposal that records
+     nothing.
+  2. Stale wording: the PR body was replaced, and this handoff now counts three recorded failures.
+
+  Pro's precision note stands: an unchanged owner's condition is sampled every 0.25 s of waiting, so a transient change
+  between samples is not seen. The end line dates its snapshot.
+- **Round 3 Fast PASS** (budget `save-door-lock`, 5.5 of 90 min):
+  - components 1488/0;
+  - Validate-Source 153/0;
+  - focused: wait regression 16/0 with 8/8 mutations killed; readiness equivalence 1,024/0; persistence contracts 228/0.
+
+  Log `artifacts\save-door-lock\fast-r3.log`.
+- **Diagnostic package**, built by `scripts\Package.ps1 -ArtifactQualifier save-door-lock-diagnostic` from clean
+  `3cd7975d`. That is the source the round-3 Fast run tested, unchanged after it. The Fast run did not record its DLL
+  hash, so byte equality with that build is not claimed.
+  - zip `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.2.14-save-door-lock-diagnostic-diagnostic.zip`,
+    sha256 `8aebca4c7b9c0bff5049de9a3843d9981cd51c23efc457009f8220591ddb7291`, with its `.manifest.json` beside it;
+  - **DLL sha256 `49b91e7319a3ae3477fccf3a8811aed538afc39ab1adeb409092d62f06bd67cd`**, MVID
+    `8ba02420-88ba-40e7-996a-5406be3abf97`;
+  - package validator 11/0. Log `artifacts\save-door-lock\package-3cd7975d.log`.
+
+  Its version label stays 0.2.14: identify it by hash. Not staged, installed or launched. No native startup smoke has run
+  for this DLL.
+
 ## 11. Owner reproduction with this build (play on a copy of the save)
 
-1. Install the candidate DLL from this commit's package (to be built after review), with the same mods as the incident
+1. Install the DLL from the diagnostic package above (DLL sha256 `49b91e73…`; the label still reads 0.2.14), with the same mods as the incident
    (TRE 0.0.194, Waking Rune 0.12.3, Last Azlanti Preserver 0.1.3, CotW and the rest of the incident's list).
 2. Load a save before the fight. With the mounted rider holding the Reliable Pistol +1 (automatic attacks on), fight until
    combat ends. If possible, let one target die mid-sequence and let an automatic attack reload and retarget.
