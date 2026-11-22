@@ -5,10 +5,11 @@ Missions: [original](MOUNTED-COMBAT-CITY-AND-PRONE-MISSION.md),
 and [the manual continuation](MOUNTED-COMBAT-CITY-AND-PRONE-MANUAL-CONTINUATION-MISSION.md) (current; it replaces the
 execution model and remaining work plan; the earlier acceptance criteria and safety rules still apply).
 Branch `codex/mounted-city-and-prone-fixes` from `main` `dbf63702` (0.2.13). Draft PR #57. Development candidate
-only: no merge, release, tag, install or native run.
+only: no merge, release, tag or install. Native: one guarded startup smoke of the reviewed DLL; no gameplay case ran
+(section 11).
 
-**Current status (manual round 7, 2026-11-22).** Source candidate **`36f95d53`**; this handoff is documentation on top of
-it. History of the manual rounds:
+**Current status (native assessment after the fourth Pro review, 2026-11-22).** Source candidate **`36f95d53`**,
+accepted for guarded native verification; this handoff is documentation on top of it. History of the manual rounds:
 - Manual round 4: Claude, in ordinary interactive development, answered the ten findings of the replacement
   enrollment's review round 3 (source `e429d290`, handoff `74fa9931`).
 - The owner's independent Pro review of `74fa9931` returned **changes_required**. At the source-review level it would
@@ -35,8 +36,18 @@ it. History of the manual rounds:
 - Manual round 7: Claude reproduced R6-F1 on `2d0bde62` by both routes, and through the adapter, then fixed it with one
   shared authority guard in `36f95d53`, where the focused Fast gate passes.
 
-The R6-F1 correction is **claimed by Claude** and awaits the next independent review (section 9). Native behavior remains
-NOT RUN for all three original issues (sections 11–13).
+- The fourth Pro review, of `fb8f7a34`, **closed R6-F1 in source**, found no new blocking defect, kept the earlier
+  closures, and accepted this source checkpoint for guarded native verification.
+- Native assessment (Claude):
+  - Candidate checks on `fb8f7a34`;
+  - the package, whose DLL is the gate's `8de5a104…ce29`;
+  - one guarded startup smoke, `pr57-city-prone-smoke-1`: game side PASS, restoration exact.
+
+  The supported route cannot reach the three gameplay outcomes on this machine. No qualified KMC fixture exists, and no
+  driver covers them (section 11).
+
+Native gameplay behavior remains NOT RUN for all three original issues. Only startup in the real game is verified
+(sections 10–13).
 
 **Enrollment history (kept visible as the addendum requires).**
 - First enrollment `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c`: 26 review rounds and 27 writer
@@ -346,8 +357,9 @@ Evidence types:
 - TRACE: source reading only, with no execution of that code path.
 - NATIVE: in-game structured evidence.
 
-Source identity: source candidate `36f95d53` (product DLL of its Release build sha256 `8de5a104…ce29`, built by the
-gate; no package was built). Results below are from the focused gate on that commit unless a row names another commit.
+Source identity: source candidate `36f95d53` (product DLL of its Release build sha256 `8de5a104…ce29`). The package built
+from `fb8f7a34`, documentation only on top of it, contains the same DLL (section 10). Results below are from the focused
+gate on `36f95d53` unless a row names another commit or run.
 
 | Area | Case | Result | Evidence |
 | --- | --- | --- | --- |
@@ -379,7 +391,10 @@ gate; no package was built). Results below are from the focused gate on that com
 | Negative controls | Blocked line of sight, unavailable actions, out-of-range approach, standing targets, unmounted ranged, mounted melee, mounted penalties | NOT RUN | NATIVE (paths unchanged in code; playtest 5) |
 | Shared regressions | Tabletop Rules Expansion click composition, both orders | PASS | COMPOSITION |
 | Shared regressions | Existing component suite | PASS | UNIT (1473/0 on `36f95d53`) |
-| Shared regressions | U02 presentation probe; F2 reader source guards | PASS on `56366c41` only | detached probe 239/0 and F2 guards ran on `56366c41` (first enrollment); not rerun on any later commit, so not evidence for `36f95d53` |
+| Shared regressions | U02 presentation probe | PASS | detached probe 239/0 on `fb8f7a34` (Candidate attempt 2, section 10) |
+| Shared regressions | F2 reader | source guards PASS; reader not completed | `fb8f7a34`: 72 source guards pass, then it stops at the absent retained r05 evidence (T09), as on `56366c41` |
+| Shared regressions | Runtime harness checks | 278/3, baseline-identical | `Test-Harness.ps1` on `fb8f7a34`. The three failures are those recorded for 0.2.13: two historical phase-3e package zips absent from `artifacts/`, and the composition-boundary source pin. The PR's target-liveness assertion passes. |
+| Native startup | The reviewed DLL loads in Kingmaker 2.1.7b beside the 16 installed mods; every exact-token patch installs, including the new `CleanupBadSlots` write transpiler, the `SetSlot` prefix, `GetSlot` and `GetGroup` | PASS (game side); harness verdict FAIL only on the UMM platform pin | NATIVE startup `pr57-city-prone-smoke-1` (section 10). No save, area, toolbar, interface or combat was exercised. |
 
 ## 7. R1–R26 regression map (addendum E)
 
@@ -625,7 +640,21 @@ no Kingmaker.
 - **Earlier dispositions retained:** R2-F2, R2-F5 and the seven earlier closures.
 - **Raised:** one new P2, R6-F1.
 
-**Manual round 7 (Claude; commit `36f95d53`).** Correction **claimed by Claude, not independently verified**.
+**Manual round 7 (Claude; commit `36f95d53`).** Correction claimed by Claude; closed by the fourth review below.
+
+**Fourth independent review (Pro, on `fb8f7a34`; source checkpoint accepted for guarded native verification).**
+Source-traced; the reviewer ran no Windows checks and no Kingmaker.
+- **R6-F1:** closed in source. The guard sits inside `PinUnreadRetirement`, before any identity is collected, so it covers
+  both the `SetSlot` prefix and the native slot-operation route. The revised fakes exercise the callback that let the
+  defect escape, and M8g is a useful negative control.
+- **Earlier closures and accepted corrections:** they stand, including the earlier hook-execution evidence.
+- **Recorded limitation:** `PinAuthority`'s same-world clause is not isolated by any test. This is not a blocker and stays
+  recorded.
+- **Evidence distinction:** the component regression asserts the cold restore. The adapter regression ends at the captured
+  row and marker.
+- **Next:** guarded native verification of the three gameplay outcomes, keeping any outcome the supported route cannot
+  reach as pending, with its concrete owner-playtest requirement. Merge, release and completion of the original issues
+  remain pending.
 
 | Finding | Pro's traced failure | Correction (claimed) | Test / subcase and asserted outcome | Evidence | Result |
 | --- | --- | --- | --- | --- | --- |
@@ -799,18 +828,103 @@ Not run: the U02 presentation probe and the F2 reader (results belong to `56366c
 a live game, and every native case.
 
 
+### Native verification assessment (Claude, 2026-11-22, after the fourth Pro review)
+
+Selected by the fourth Pro review. Budget `development`: 72.07 of 90 minutes spent at the start (entry 133). Every
+command ran from Windows PowerShell 5.1 except the first Candidate attempt.
+- **Candidate attempt 1, from PowerShell 7: FAIL, environment fault.** The focused gate plus the U02 probe and the F2
+  reader. `Test-MountedPresentationContracts.ps1` could not resolve `Get-FileHash`, because the PowerShell 7 parent's
+  module path leaks into the Windows PowerShell child. Every product check before it passed. Log
+  `artifacts\pr57-manual-round4-gates\gate-candidate-fb8f7a34.log` (sha256 `b3272852…`). Budget 0.95 min.
+- **Candidate attempt 2, from Windows PowerShell 5.1:**
+  - build, components 1473/0, Validate-Source 153/0, focused gate 8 of 8 children, U02 probe 239/0;
+  - then the F2 reader stopped at the absent r05 evidence (T09) after 72 source guards passed.
+
+  The tier stops at a failed step, so the Candidate-only checks did not run. Log `gate-candidate-fb8f7a34-ps51.log`
+  (`84e6ab31…`). 59 s; budget 0.96 min.
+- **Candidate attempt 3, without the F2 reader: FAIL, baseline-identical.** Build, components, Validate-Source and the
+  focused gate (8 of 8) passed. `Test-Harness.ps1` gave 278/3, the three failures recorded for 0.2.13. The tier stopped
+  there, so `Test-PairedActivationContracts.ps1` and `Test-RuntimeArtifactManifestContract.ps1` did **not run**. The
+  Candidate assembly contracts are covered by the focused child (837/0). Log `gate-candidate-fb8f7a34-final.log`
+  (`6dbc2b5e…`). 249 s; budget 4.15 min.
+- **Package:**
+  - built with `scripts\Package.ps1 -ArtifactQualifier pr57-city-prone-native` from clean `fb8f7a34`, on a local alias
+    branch `codex/mounted-combat-city-and-prone-native`. The launcher runs only `codex/mounted-combat-*` branches. The
+    alias is the same commit and was not pushed;
+  - zip `KingmakerMountedCombat-0.2.13-pr57-city-prone-native-diagnostic.zip`, sha256
+    `5033e156ad93bf9156216fa763f44f410fe7337d9e34fdbb014b3572ce7649f8`; manifest `ea7bc88d…`;
+  - **DLL `8de5a1040807b305f5edf3e92f89a24c718127f92e2df3b97247f467f1e5ce29`**, the gate's DLL (deterministic build).
+    MVID `4392428e-2cd6-4765-b1dc-ba2563db28fa`;
+  - package validator 11/0; 48 s.
+- **No-deployment window:** granted by the Tabletop Rules Expansion session, which shares this installation, and released
+  after restoration. No game process was running beforehand.
+- **WhatIf** (`mod-load-smoke`, run id `pr57-city-prone-smoke-whatif`): source 153/0, package 11/0, `Runtime WhatIf purity
+  PASS`. 26 s; budget 0.39 min. Log `smoke-whatif.log` (`c75c6c5b…`).
+- **Run `pr57-city-prone-smoke-1`** (`mod-load-smoke`, no save, live mod clone plus Mounted Combat):
+  - **Game side:** `runtime-game-result.json` `status=PASS`; Kingmaker 2.1.7b, Assembly-CSharp MVID `07fa1e4d…`, Harmony12
+    1.2.0.1, DLL `8de5a104…`. No relationship, control fact, hotbar slot or dispatch activity, as expected at the main menu.
+  - **Loader:** all 17 mods `active=true`, including Tabletop Rules Expansion 0.0.140.
+  - **Log:** `Installed exact-token Harmony12 active-pair guards…`, then `Active.` and `failure=none`. No Mounted Combat
+    exception and no patch failure. The only exceptions are four `ZFavoredClass` `KeyNotFoundException` lines, identical
+    to the 0.2.13 smoke's.
+  - **Log copy:** `analysis-cache\pr57-city-prone-native\smoke-1\output_log.txt` (sha256 `b428a095…`).
+  - **Harness verdict: FAIL**, solely `Runtime game-result platform identity is not exact.` The machine runs UMM 0.33.0;
+    the repository pins 0.33.2 (the owner's decision, not changed here). The 0.2.13 runs failed on the same pin.
+  - **Restoration:** `phase=restored`. Mods digest `51a2e474…` and save inventory digest `6a8a8ad1…` are identical before
+    and after, and match the 0.2.13 runs. Afterwards live Mods has no Mounted Combat folder, no game process remains and
+    no lock is left. 76 s wall; budget 1.11 min. Launcher log `smoke-1.log` (`0d06fb2e…`).
+- **Budget afterwards: 79.63 of 90 minutes** (entry 138); 10.37 remain.
+- **Not run:** any save-backed scenario and any gameplay case (section 11), the two Candidate checks named above, and
+  Tabletop Rules Expansion 0.0.191.
+
 ## 11. Native checks: what exists and what each case needs
 
-No native case ran, in either enrollment or in manual round 4. Under the manual continuation mission, native work comes
-**after** the owner's independent review of this source candidate: the next step is to assess the repository-approved
-package build and the guarded runner (`scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`), and use the smallest
-supported path. The headless enrollment's command allowlist is not proof that this is impossible. If native work stays
-unavailable or owner-run, the playtest below is the executable path. Status: **PENDING** (all native rows NOT RUN).
-Per-case prerequisites found so far (unchanged):
-- the capital route's reader (`Chunk7CapitalArrivalEvidence.ps1`) predates F2;
-- no driver selects a reserve pet portrait in the group panel;
-- an enemy made prone or unconscious before the click needs new diagnostic setup and reader rows;
-- the F2 chain's retained r05 evidence is absent (T09).
+Assessed after the fourth Pro review accepted the source checkpoint for guarded native verification (section 9). What
+ran is in section 10 ("Native verification assessment"): Candidate checks, the package, and one guarded startup smoke of
+the reviewed DLL. Every gameplay case below is still **NOT RUN**.
+
+**Verified natively (startup only).** The reviewed DLL (`8de5a104…ce29`) loads in Kingmaker 2.1.7b beside the 16 other
+installed mods (all 17 `active=true`), logs `Active.`, and installs every exact-token Harmony12 patch. The install log line
+comes after the last patch, and any failed patch unpatches everything and stops loading. That includes the new
+`CleanupBadSlots` write transpiler, which refuses unless it rewrites exactly three `SetSlot` calls, the `SetSlot` prefix,
+the `GetSlot` brackets and the `GetGroup` projection. This is NATIVE evidence that the patches apply. It says nothing about
+toolbar, interface or combat behavior: no save, area, unit, bar or click was exercised.
+
+**Why the supported route cannot reach the gameplay outcomes on this machine.**
+- **No qualified fixture.** The save root holds no `KMC_AUTOMATION_WORKING` or `KMC_AUTOMATION_BASELINE` save; the only
+  automation saves there belong to other projects (`KMG_…`, `KBP_…`). Every save-backed scenario requires
+  `-SaveAccessAllowed` against that exact Working fixture, so each would be refused before launch. Qualifying one needs an
+  owner-supplied disposable seed under the seed-provenance directive (`docs/VALIDATION-POLICY.md`, development
+  acceleration): owner provenance, archive validation and one isolated native cold load. The lab's run archives were
+  cleared before 2026-11-20; `runtime-evidence` holds only the three startup smokes and this one.
+- **Toolbar (playtests 1–2).** The closest existing route is `chunk7-persistence-load` with
+  `multi-exploration-capital-arrival-manual` and `-cold-manual`. It covers two owned pairs, capital arrival that retires
+  one pair, a save in the capital and a cold reload. Beyond the fixture, three more things are missing:
+  - its owned-pairs fixture chain and retained evidence (rows 58–59) are absent;
+  - its driver keeps the default slots, so it cannot show a nondefault placement surviving;
+  - its driver and reader assert the 0.2.13 capital contract: exactly the main rider's two controls in the capital
+    archive (`Chunk7PersistenceScenario.CapitalArrival.cs`, `Chunk7CapitalArrivalEvidence.ps1`). The candidate keeps a
+    reserve or temporarily absent rider's arrangement as rows by design, so those assertions would probably need revision
+    (TRACE, not run).
+
+  A native toolbar check therefore needs a qualified fixture chain plus a reviewed driver and reader change: place Mount /
+  Dismount at a nondefault slot, then assert the candidate's rows. That driver is diagnostic code compiled into the
+  product, so it changes the DLL identity and needs one independent review before live use. Not attempted.
+- **City companion access (playtest 3).** No driver opens Inventory or Character, selects a reserve pet's portrait, or
+  equips an item, and the fixture is missing too.
+- **Prone targeting (playtests 4–5).** No driver makes an enemy prone or unconscious before a click. A driver issuing the
+  attack command directly would skip hit testing, so the body-versus-footprint comparison needs a human click anyway.
+- **Manual visual review** (`Invoke-KingmakerManualReview.ps1`, scenario `manual-visual-review`). It loads the Working
+  fixture read-only, forbids every save write (`saveRequestCount` 0), and requires the Phase 2A mounted pair at its
+  fixture area. It cannot cover save/load, the capital or a prone setup, and it also needs the missing fixture.
+
+**What the owner playtest needs.** The candidate DLL must be in the owner's own installation. No guarded route stages a
+human session with saves allowed, and installing into the owner's installation is not part of this task. The reviewed
+package is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.2.13-pr57-city-prone-native-diagnostic.zip`
+(sha256 `5033e156…49f8`; DLL `8de5a104…ce29`). Its version label stays 0.2.13, so identify it by hash. Section 12 gives
+the exact steps. Play on a copy of a save, not on the only copy of a campaign.
+
+Status: **PENDING** for every gameplay row; startup **verified** (game side).
 
 ## 12. Owner playtest (exact steps)
 
@@ -892,12 +1006,13 @@ Per-case prerequisites found so far (unchanged):
      - Ammunition is checked as in setup S.
      - The unconscious enemy stays prone, and no extra attack is granted.
 
-Restoration: no native transaction ran (manual round 4 included: no package, staging, launch, lock or save was touched).
+Restoration: one native transaction ran, the startup smoke `pr57-city-prone-smoke-1` (section 10). Its restoration was
+exact. No playtest step has run.
 
-## 13. Status of each original issue (manual round 7)
+## 13. Status of each original issue (after the fourth Pro review and the native assessment)
 
 | Issue | Source | Offline evidence | Native behavior |
 | --- | --- | --- | --- |
-| 1. Mount / Dismount keeps the chosen toolbar slot (city, area, party/reserve, save/load, companion lifecycle; moves and removals respected) | Every earlier finding closed or accepted in source by Pro (R2-F3 (f)–(h) and the hook evidence in the third review); R6-F1 corrected as claimed by Claude in `36f95d53`, awaiting the next independent review | UNIT 53 toolbar tests, WIRING 12, COMPOSITION + EXECUTED hook check 10, CONTRACT, 41 mutations (section 10) | NOT RUN (playtests 1–2) |
-| 2. The owner's animal companion in the capital's Inventory and Character screens | Unchanged since the first enrollment (UI projection of the exact persistent, reciprocal pet) | UNIT `CityCompanionRosterProjectionTests`; CONTRACT | NOT RUN (playtest 3) |
-| 3. A mounted ranged character cannot attack a prone target | The identified rejection of an explicit mounted attack on a living target that was already unconscious is corrected in source. The original prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious remains unknown. | UNIT `MountedDownedTargetOrderTests` (executed predicates); conscious prone: TRACE only | NOT RUN (playtests 4–5). The report stays open until the behavior is verified or the owner explicitly accepts this unresolved status. |
+| 1. Mount / Dismount keeps the chosen toolbar slot (city, area, party/reserve, save/load, companion lifecycle; moves and removals respected) | Complete in source: every finding closed or accepted by Pro, R6-F1 closed by the fourth review (`36f95d53`) | UNIT 53 toolbar tests, WIRING 12, COMPOSITION + EXECUTED hook check 10, CONTRACT, 41 mutations (section 10) | Patches install in game (startup smoke). Behavior NOT RUN: no qualified fixture, and the capital driver keeps default slots and asserts the 0.2.13 contract (section 11). Owner playtests 1–2. |
+| 2. The owner's animal companion in the capital's Inventory and Character screens | Unchanged since the first enrollment (UI projection of the exact persistent, reciprocal pet) | UNIT `CityCompanionRosterProjectionTests`; CONTRACT | `GetGroup` patch installs in game (startup smoke). Behavior NOT RUN: no driver or fixture (section 11). Owner playtest 3. |
+| 3. A mounted ranged character cannot attack a prone target | The identified rejection of an explicit mounted attack on a living target that was already unconscious is corrected in source. The original prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious remains unknown. | UNIT `MountedDownedTargetOrderTests` (executed predicates); conscious prone: TRACE only | NOT RUN: no driver or fixture, and body versus footprint needs a human click (section 11). Owner playtests 4–5. The report stays open until the behavior is verified or the owner explicitly accepts this unresolved status. |

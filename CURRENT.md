@@ -3,7 +3,7 @@
 Start here. The sections below this one are dated history, newest first.
 
 - **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13). Development candidate only: no merge,
-  release, install or native run.
+  release or install; native startup smoke only.
 - **Mode (2026-11-22):** ordinary interactive Claude development under
   [the manual continuation mission](docs/MOUNTED-COMBAT-CITY-AND-PRONE-MANUAL-CONTINUATION-MISSION.md). The second
   controller enrollment stopped after its review round 3 (`changes_required`, ten findings). Its records are archived
@@ -12,9 +12,18 @@ Start here. The sections below this one are dated history, newest first.
   R2-F3, R2-F5). Claude corrected those three (`397fb226`). The second Pro review closed R2-F2, accepted the R2-F5
   correction in source and asked for an executed hook check, and kept R2-F3 open. Claude answered both (`2d0bde62`). The
   third Pro review accepted those in source and raised one new P2 (R6-F1, the pin's authority). Claude corrected it in
-  source candidate `36f95d53`, where the focused Fast gate passes (8 children). That correction is claimed, not yet
-  independently verified: the next step is the owner's independent review of that candidate. Native verification follows
-  that review.
+  source candidate `36f95d53`, where the focused Fast gate passes (8 children). The fourth Pro review (of `fb8f7a34`)
+  closed R6-F1 in source and accepted the checkpoint for guarded native verification.
+- **Native (2026-11-22):**
+  - Candidate checks on `fb8f7a34`: the focused gate passes; `Test-Harness` 278/3 is baseline-identical; the F2 reader
+    stops at T09.
+  - Package `KingmakerMountedCombat-0.2.13-pr57-city-prone-native-diagnostic.zip` (`5033e156…`), whose DLL is the gate's
+    `8de5a104…`.
+  - One guarded startup smoke, `pr57-city-prone-smoke-1`: game side PASS, all 17 mods active, every new patch installed;
+    harness FAIL only on the UMM 0.33.0/0.33.2 pin; restoration exact.
+  - No gameplay case ran. No qualified KMC Working fixture exists here, and no driver covers the three outcomes. They stay
+    owner-playtest PENDING.
+  - Budget `development` 79.63 of 90 minutes.
 - **Fixes:** Mount / Dismount keeps the player's toolbar arrangement through temporary absence (area changes, the
   capital's reserve roster, saves there). One production component, `MountedToolbarLifecycle`, owns every toolbar
   boundary; `NativeMountedControlService` is its narrow adapter. The capital's Inventory/Character/Spellbook roster
@@ -22,8 +31,8 @@ Start here. The sections below this one are dated history, newest first.
   explicit mounted attack on a living target that was already unconscious is corrected in source. The original
   prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious
   remains unknown. Save format unchanged.
-- **Read:** [the handoff and acceptance record](docs/CITY-AND-PRONE-HANDOFF.md). Native cases are deferred to owner
-  verification there, with the playtest steps.
+- **Read:** [the handoff and acceptance record](docs/CITY-AND-PRONE-HANDOFF.md). Gameplay cases are deferred to owner
+  verification there, with the playtest steps and the exact missing native prerequisites (section 11).
 
 # RELEASE 0.2.13: TABLETOP RULES EXPANSION STARTUP CONFLICT (X01) FIXED (2026-11-20)
 
