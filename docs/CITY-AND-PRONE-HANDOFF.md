@@ -525,6 +525,27 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   disposal, now includes current-world reserve and detached riders. An exact KMC fact never stays on them through
   serialization or after disable; unrelated slots and the recorded arrangement are kept.
 
+**Round 25 additions.**
+- *Area suspension classifies reserve bars first (R25-F1):* `SuspendAreaControls` runs `AdmitReserveBindings` before
+  `RemoveAllManagedFacts(true)` sweeps the reserve riders. A never-observed reserve rider's surviving binding is
+  therefore recorded before the sweep clears it. The component double now uses the production sweep membership.
+- *A move overrides an interrupted choice on a recorded bar (R22-F3):* in the first reserve scan, an interrupted choice
+  yields to an identifiable new binding: native recorded the bar, and the effective binding is none of its copies.
+  An untouched copy still yields to the free chosen slot, and with nothing recorded the interrupted choice wins.
+- *Moved alias recorded before inactive migration (R23-F3):* while the public control is not live,
+  `ReconcilePublicControlSlots` records the player's moved effective alias as the choice (a temporary absence) before
+  migration empties it. This requires the bar to be recorded, an arrangement that names a slot, and the same
+  companion; otherwise `RecoverLegacyAlias` applies.
+- *Copy identities survive a no-player interval (R24-F3):* with no current player, the copy registry is neither
+  cleared nor roster-pruned. An abandoned load therefore keeps the untouched duplicate yielding to the interrupted
+  choice. A distinct player world, disable and dispose still release it.
+- *Reserve auto-use cleanup (R25-F2):* the reserve sweep in `RemoveAllManagedFacts` clears an exact KMC
+  `AutoUseAbility` selection on reserve and detached riders (any identifiable KMC kind, with no fact or slot needed).
+  An ordinary selection is kept.
+- *Fresh bindings on already-scanned reserve bars (R25-F3):* a reserve bar that an earlier scan left empty, but that
+  now holds a KMC binding, is classified again (`ClassifyFreshReserveBinding`) and cleared. The new binding supersedes
+  the remembered slot. An empty bar keeps the remembered slot.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -806,7 +827,21 @@ One local Fast run, with PASS lines temporarily silenced (reverted), passed: com
 - the second reverted the reserve fact sweep and the report-path ownership sync in the double.
 Each run failed exactly its targeted regressions: four, then two. All mutations were reverted. The controller gate
 on the round-24 commit is the result of record.
-| components (`bin\Tests`) | 1505/0 | 85 toolbar, 6 city-roster and 3 downed-target tests |
+
+Round 25 extended three tests and added one:
+- `DepartedRiderReleasesCopies`: 3 left free, moved and untouched, each with a same-world return and a cold load;
+- `SurvivingAliasAfterCanonicalCleanup`: the moved alias while the fact is absent and the pet unresolved;
+- `MainMenuNewGameReleasesRecords`: copy identity across a no-player gap, and its release on a transition to B;
+- new: `ReserveBoundaryCoverage`, which covers area suspension, reserve auto-use, and fresh bindings after a scan.
+One local Fast run, with PASS lines temporarily silenced (reverted), passed: components 1506/0 and Validate-Source
+153/0. Three mutation runs on the double's lines that mirror production followed, split so that no failure masks
+another:
+- the first reverted the area classification, the recorded-bar move rule, the inactive alias recording and the
+  null-player registry guard; four regressions failed;
+- the second reverted the auto-use clear alone; it failed;
+- the third reverted the fresh-binding classification alone; it failed.
+All mutations were reverted. The controller gate on the round-25 commit is the result of record.
+| components (`bin\Tests`) | 1506/0 | 86 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

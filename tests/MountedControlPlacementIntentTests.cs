@@ -112,6 +112,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: a fresh load of several legacy public rows skips an occupied first row for the next restorable one", LegacyRowsSkipOccupiedFirst);
             runner.Run("toolbar: native reading a stale lower-priority copy never displaces the callable fallback", StaleCopyReadKeepsCallableFallback);
             runner.Run("toolbar: the main menu and a new game release the previous campaign's placement records", MainMenuNewGameReleasesRecords);
+            runner.Run("toolbar: area suspension, save and disable cover reserve bars, fresh reserve bindings and KMC auto-use selections", ReserveBoundaryCoverage);
         }
 
         private sealed class SavedRow { internal string Actor; internal int Index; internal int Kind; }
@@ -141,9 +142,18 @@ namespace KingmakerMountedCombat.Tests
                 if (!Enabled || !Accepts) return;
                 foreach (var reserve in Reserve.ToList())
                 {
-                    if (Observed.Contains(reserve) || !Scanned.Add(reserve)) continue;
-                    ClassifyFirstSeenReserveBar(reserve);
-                    if (reserve.KmcCount() == 0) { ForgetCopies(reserve.Id); continue; }
+                    if (Observed.Contains(reserve)) continue;
+                    if (!Scanned.Add(reserve))
+                    {
+                        // An already-scanned bar: a KMC binding there now was placed since and supersedes the remembered slot.
+                        if (reserve.KmcCount() == 0) continue;
+                        ClassifyFreshReserveBinding(reserve);
+                    }
+                    else
+                    {
+                        ClassifyFirstSeenReserveBar(reserve);
+                        if (reserve.KmcCount() == 0) { ForgetCopies(reserve.Id); continue; }
+                    }
                     var kinds = reserve.Slots.Select(KindOf).ToArray();
                     // Every KMC binding goes; an older Mounted Charge becomes the stock Charge when available and absent.
                     for (var i = 0; i < kinds.Length; i++)
@@ -171,9 +181,29 @@ namespace KingmakerMountedCombat.Tests
                 if (!Intent.Has(id) || Intent.IsRetired(id)) return;
                 if (string.IsNullOrEmpty(petId) || Intent.PetLinkChanged(id, petId)) { Intent.Retire(id); return; }
                 int chosen, interrupted;
-                if (!Intent.TryGetChosenSlot(id, out chosen) || Intent.TryGetInterruptedChoice(id, out interrupted)) return;
+                if (!Intent.TryGetChosenSlot(id, out chosen)) return;
+                if (Intent.TryGetInterruptedChoice(id, out interrupted))
+                {
+                    // An interrupted choice yields only to an identifiable new binding (the bar was recorded; not a copy).
+                    if (at >= 0 && CopiesOf(id) != null && !reserve.IsCopyAt(at))
+                    { Intent.ObserveBound(id, at, petId); Intent.ObserveAbsent(id, MountedControlAbsence.Temporary); Placed.Add(id); }
+                    return;
+                }
                 if (at >= 0) { Intent.ObserveBound(id, at, petId); Intent.ObserveAbsent(id, MountedControlAbsence.Temporary); Placed.Add(id); }
                 else if (!onlyYieldingCopies) { Intent.ObserveOffBar(id, petId); Placed.Add(id); }
+            }
+
+            // ClassifyFreshReserveBinding.
+            private void ClassifyFreshReserveBinding(Rider reserve)
+            {
+                var id = reserve.Id; var petId = reserve.PetId;
+                bool onlyYieldingCopies;
+                var at = reserve.Effective(out onlyYieldingCopies);
+                if (at < 0) return;
+                if (Intent.AdmitSurvivingBinding(id, at, petId)) { Placed.Add(id); return; }
+                if (!Intent.Has(id) || Intent.IsRetired(id)) return;
+                if (string.IsNullOrEmpty(petId) || Intent.PetLinkChanged(id, petId)) { Intent.Retire(id); return; }
+                Intent.ObserveBound(id, at, petId); Intent.ObserveAbsent(id, MountedControlAbsence.Temporary); Placed.Add(id);
             }
 
             // Slot strings: "KMC_MountState#n" the public control, "KMC_Mount#n" / "KMC_Dismount#n" older aliases,
@@ -185,6 +215,7 @@ namespace KingmakerMountedCombat.Tests
                 if (slot.StartsWith("KMC_Mount#", StringComparison.Ordinal)) return NativeMountedControlKind.MountCompanion;
                 if (slot.StartsWith("KMC_Dismount#", StringComparison.Ordinal)) return NativeMountedControlKind.Dismount;
                 if (slot.StartsWith("KMC_Charge#", StringComparison.Ordinal)) return NativeMountedControlKind.MountedCharge;
+                if (slot.StartsWith("KMC_RiderPrimary#", StringComparison.Ordinal)) return NativeMountedControlKind.RiderPrimary;
                 return NativeMountedControlKind.None;
             }
 
@@ -211,7 +242,7 @@ namespace KingmakerMountedCombat.Tests
             // A lookup never acquires a world; the registry names one only while it holds copies.
             internal List<KeyValuePair<int, string>> CopiesOf(string id)
             {
-                if (copiesWorld != null && !ReferenceEquals(Current, copiesWorld)) { copies.Clear(); copiesWorld = null; }
+                if (copiesWorld != null && Current != null && !ReferenceEquals(Current, copiesWorld)) { copies.Clear(); copiesWorld = null; }
                 List<KeyValuePair<int, string>> list;
                 return id != null && copies.TryGetValue(id, out list) ? list : null;
             }
@@ -375,6 +406,7 @@ namespace KingmakerMountedCombat.Tests
             internal void ReleaseDepartedCopies()
             {
                 CopiesOf(null);
+                if (Current == null) return;   // no roster to compare with between worlds
                 foreach (var id in copies.Keys.ToArray())
                     if (!CurrentWorld.Any(r => r.Id == id && (r.InParty || r.OnRoster))) ForgetCopies(id);
             }
@@ -433,7 +465,7 @@ namespace KingmakerMountedCombat.Tests
             internal void Disable()
             {
                 foreach (var reserve in Reserve.ToList()) reserve.ClearControlSlots();
-                foreach (var rider in Candidates.Concat(Observed).Concat(Reserve).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: true);
+                SweepManagedFacts(Candidates.Concat(Observed).Distinct().ToList(), clearSlots: true);
                 Observed.Clear(); Placed.Clear(); Intent.Clear(); Fence.Reset(); Scanned.Clear();
                 // DropNativeSlotObservations.
                 Scope.Close(); retiredInOperation.Clear(); copies.Clear(); copiesWorld = null;
@@ -522,7 +554,7 @@ namespace KingmakerMountedCombat.Tests
                 foreach (var rider in scoped.Concat(Reserve).Distinct().ToList()) rider.Lease();
                 SerializedKmcSlots = CurrentWorld.Sum(r => r.KmcCount());
                 // RemoveAllManagedFacts(false): current-world reserve riders lose their exact KMC facts too.
-                foreach (var rider in scoped.Concat(Reserve).Distinct().ToList()) rider.KmcRemove(clearSlots: false, interrupt: rider.World == Current);
+                SweepManagedFacts(scoped, clearSlots: false);
                 duringScope?.Invoke();
                 Frame();
                 foreach (var rider in scoped) rider.ReleaseLeases();
@@ -534,11 +566,23 @@ namespace KingmakerMountedCombat.Tests
             internal void SuspendArea()
             {
                 if (Scope.Open) CloseNative();
+                // Reserve bars are classified before the sweep clears them (AdmitReserveBindings).
+                AdmitReserve();
                 var candidates = Candidates;
                 foreach (var prior in Observed.Where(r => !candidates.Contains(r)).ToList()) ObserveDeparture(prior, candidates);
                 foreach (var rider in candidates) rider.ObserveBar();
-                foreach (var rider in candidates.Concat(Observed).Distinct().ToList()) rider.KmcRemove(clearSlots: true, interrupt: rider.World == Current);
+                // RemoveAllManagedFacts(true): candidates, still-observed units and current-world reserve riders.
+                SweepManagedFacts(candidates.Concat(Observed).Distinct().ToList(), clearSlots: true);
                 Observed.Clear();
+            }
+
+            // RemoveAllManagedFacts: facts (and slots when asked) of every swept rider; a reserve rider's exact KMC auto-use
+            // selection is cleared, an ordinary one kept.
+            internal void SweepManagedFacts(List<Rider> riders, bool clearSlots)
+            {
+                var reserve = Reserve.ToList();
+                foreach (var rider in riders.Concat(reserve).Distinct().ToList()) rider.KmcRemove(clearSlots, interrupt: rider.World == Current);
+                foreach (var rider in reserve) if (KindOf(rider.AutoUse) != NativeMountedControlKind.None) rider.AutoUse = null;
             }
 
             // BeginSelectedLoad(owner) at the native iterator's first step: records moved aside, the outgoing world fenced.
@@ -583,6 +627,8 @@ namespace KingmakerMountedCombat.Tests
             // The rider's own stock Charge fact is available.
             internal bool HasStockCharge = true;
             internal int DataVersion = 1;
+            // UnitEntityData.AutoUseAbility (serialized m_AutoUseAbility): the ability string, or null.
+            internal string AutoUse;
             private readonly List<KeyValuePair<int, NativeMountedControlKind>> leases = new List<KeyValuePair<int, NativeMountedControlKind>>();
 
             internal Rider(string id, Service service, World world) { Id = id; S = service; World = world; S.Riders.Add(this); }
@@ -711,7 +757,15 @@ namespace KingmakerMountedCombat.Tests
                 {
                     // A fallback copy (chosen slot occupied) becomes the choice before KMC's own migration clears it;
                     // otherwise an older alias is recorded (its index) before it is emptied.
+                    int arranged;
                     if (effective >= 0 && copies.Contains(effective) && S.Accepts) { Intent.PromoteFallback(Id, effective, PetId); S.Placed.Add(Id); }
+                    else if (effective >= 0 && S.Accepts && Service.KindOf(Slots[effective]) != NativeMountedControlKind.MountState &&
+                        S.CopiesOf(Id) != null && Intent.TryGetChosenSlot(Id, out arranged) && !Intent.IsRetired(Id) &&
+                        !string.IsNullOrEmpty(PetId) && !Intent.PetLinkChanged(Id, PetId))
+                    {
+                        // The player's moved alias is recorded before migration empties it while the control is not live.
+                        Intent.ObserveBound(Id, effective, PetId); Intent.ObserveAbsent(Id, MountedControlAbsence.Temporary); S.Placed.Add(Id);
+                    }
                     else RecoverAlias();
                 }
                 for (var i = 0; i < Slots.Length; i++)
@@ -2680,6 +2734,28 @@ namespace KingmakerMountedCombat.Tests
                 copyLoaded.Frame(); copyLoaded.Frame();
                 TestRunner.True(copyLoaded.Find() == 11 && copyLoaded.Count() == 1, "The cold restore did not give one shortcut at 11" + label + ".");
             }
+            // The same moved alias beside canonical copy 7, but the canonical fact is absent and the same linked pet stays
+            // unresolved through the first update (or a save), so KMC's own inactive migration would empty 11.
+            foreach (var saveFirst in new[] { false, true })
+            {
+                var inactive = new Service();
+                var waiting = MixedOlderBar(inactive);
+                waiting.Slots[7] = Control + "#0";
+                waiting.Slots[9] = "KMC_Mount#" + waiting.DataVersion;
+                waiting.NativeInvalidateAt(4);
+                waiting.Slots[11] = waiting.Slots[9]; waiting.Slots[9] = null;
+                var label = " (moved alias while unavailable, saveFirst=" + saveFirst + ")";
+                List<SavedRow> waitingRows = null;
+                if (saveFirst) waitingRows = inactive.Save(); else inactive.Frame();
+                waiting.PetResolves = true;
+                inactive.Frame(); inactive.Frame();
+                if (!saveFirst) waitingRows = inactive.Save();
+                TestRunner.True(waiting.Find() == 11 && waiting.Count() == 1 && waiting.KmcCount() == 1, "The moved alias was not restored once at 11" + label + ".");
+                TestRunner.Equal(11, PublicRowIndex(waitingRows), "The save did not carry 11" + label + ".");
+                var waitingLoaded = waiting.Load(waitingRows);
+                waitingLoaded.Frame(); waitingLoaded.Frame();
+                TestRunner.True(waitingLoaded.Find() == 11 && waitingLoaded.Count() == 1, "The cold restore did not give one shortcut at 11" + label + ".");
+            }
             // Control: an alias-only bar still migrates in place.
             var aliasOnly = new Service();
             var only = new Rider("rider", aliasOnly, aliasOnly.Current) { PetResolves = false, Autofill = false };
@@ -3247,6 +3323,31 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(back.Find() == expected && back.Count() == (expected >= 0 ? 1 : 0) && back.Slots[3] == "Fireball",
                     "The same pet's return did not match the latest edit beside Fireball" + label + ".");
             }
+            // The same rebound case with 3 left free (the old choice stays interrupted after native rebinds the known copy at 9);
+            // the player moves 9 to 11, or leaves it untouched.
+            foreach (var moved in new[] { true, false })
+            foreach (var coldLoad in new[] { false, true })
+            {
+                var freeCapital = new Service();
+                var freeReserve = new Rider("rider", freeCapital, freeCapital.Current) { InParty = false, Autofill = false };
+                freeReserve.Slots[0] = "Attack";
+                freeReserve.Slots[3] = Control + "#0";
+                freeReserve.Slots[9] = Control + "#1";
+                freeReserve.NativeInvalidateAt(3);
+                freeReserve.FactLive = true; freeReserve.DataVersion++;
+                freeReserve.NativeCleanupBadSlots();
+                TestRunner.True(freeReserve.Slots[9] == freeReserve.Data && freeReserve.Slots[3] == null, "The fixture did not rebind 9 with 3 free.");
+                if (moved) { freeReserve.Slots[11] = freeReserve.Slots[9]; freeReserve.Slots[9] = null; }
+                var expected = moved ? 11 : 3;
+                var label = " (3 free, moved=" + moved + ", coldLoad=" + coldLoad + ")";
+                var freeRows = freeCapital.Save();
+                TestRunner.True(PublicRowIndex(freeRows) == expected && freeRows.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1,
+                    "The capital save did not carry " + expected + " and one marker" + label + ".");
+                var back = coldLoad ? freeReserve.Load(freeRows) : freeReserve;
+                back.ToParty();
+                freeCapital.Frame(); freeCapital.Frame();
+                TestRunner.True(back.Find() == expected && back.Count() == 1 && back.Slots[0] == "Attack", "The same pet did not get one shortcut at " + expected + label + ".");
+            }
             // Disable removes a reserve rider's exact KMC fact and binding; unrelated slots stay.
             var disabling = new Service();
             var factReserve = new Rider("rider", disabling, disabling.Current) { InParty = false, Autofill = false, FactLive = true };
@@ -3557,6 +3658,93 @@ namespace KingmakerMountedCombat.Tests
             bReserve.ToParty();
             incoming.Frame(); incoming.Frame();
             TestRunner.True(bReserve.Find() == 9 && bReserve.Count() == 1 && bReserve.Slots[0] == "Attack", "The party return did not restore one shortcut at 9.");
+            // In A, GetSlot empties 3 while a known canonical copy survives at 9; a load begins, an update runs with no
+            // player, A is reinstated and the load abandoned: the copy still yields to 3.
+            var copyGap = new Service();
+            var copyRider = new Rider("rider", copyGap, copyGap.Current) { FactLive = true, Autofill = false };
+            copyGap.Placed.Add("rider");
+            copyRider.Slots[3] = Control + "#0";
+            copyRider.Slots[9] = copyRider.Data;
+            copyRider.NativeInvalidateAt(3);
+            var copyWorld = copyGap.Current;
+            var copyOwner = new object();
+            copyGap.BeginLoad(copyOwner);
+            copyGap.Current = null;
+            copyGap.Frame();
+            copyGap.Current = copyWorld;
+            TestRunner.True(copyGap.AbandonLoad(copyOwner) && copyGap.RecordedCopyCount("rider") == 1, "The no-player frame released the copy identity.");
+            var copyRows = copyGap.Save();
+            TestRunner.Equal(3, PublicRowIndex(copyRows), "The immediate save after abandonment did not carry 3.");
+            var copyLoaded = copyRider.Load(copyRows);
+            copyLoaded.Frame(); copyLoaded.Frame();
+            TestRunner.True(copyLoaded.Find() == 3 && copyLoaded.Count() == 1, "The cold restore did not give one shortcut at 3.");
+            // A genuine transition to B releases A's copy objects.
+            var transition = new Service();
+            var transitionRider = new Rider("rider", transition, transition.Current) { FactLive = true, Autofill = false };
+            transition.Placed.Add("rider");
+            transitionRider.Slots[3] = Control + "#0";
+            transitionRider.Slots[9] = transitionRider.Data;
+            transitionRider.NativeInvalidateAt(3);
+            transition.BeginLoad(new object());
+            transition.Current = new World();
+            transition.Frame();
+            TestRunner.True(transition.RecordedCopyCount("rider") == 0 && !transition.HoldsCopiesWorld, "The transition to B kept A's copy objects.");
+        }
+
+        private static void ReserveBoundaryCoverage()
+        {
+            // Area capture and suspension (triggered by another mounted pair) before any reserve update: a never-observed
+            // reserve rider's surviving shortcut at 9 (no owned row, no fact) is classified before the sweep clears it.
+            var area = new Service();
+            PlacedAt(5, "pair", area);
+            var reserve = new Rider("reserve", area, area.Current) { InParty = false, Autofill = false };
+            reserve.Slots[3] = "Fireball";
+            reserve.Slots[9] = Control + "#0";
+            area.CaptureTransfer();
+            area.SuspendArea();
+            area.Frame(); area.Frame();
+            TestRunner.True(reserve.KmcCount() == 0 && reserve.Slots[3] == "Fireball", "Area suspension did not clear only the KMC binding.");
+            var areaRows = area.Save();
+            TestRunner.True(areaRows.Count(r => r.Actor == "reserve" && r.Index == 9 && r.Kind == MountedControlSlotPolicy.SavedMountState) == 1 &&
+                areaRows.Count(r => r.Actor == "reserve" && r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1,
+                "The save after area suspension lost the reserve rider's 9.");
+            reserve.ToParty();
+            area.Frame(); area.Frame();
+            TestRunner.True(reserve.Find() == 9 && reserve.Count() == 1 && reserve.Slots[3] == "Fireball", "The party return did not restore 9 once beside Fireball.");
+            // A stale KMC auto-use selection (Rider Primary, no fact or slot) on a never-observed reserve rider is cleared
+            // inside serialization and on disable; another reserve rider's ordinary auto-use survives.
+            var autoUse = new Service();
+            var stale = new Rider("stale", autoUse, autoUse.Current) { InParty = false, Autofill = false, AutoUse = "KMC_RiderPrimary#0" };
+            var ordinary = new Rider("ordinary", autoUse, autoUse.Current) { InParty = false, Autofill = false, AutoUse = "Fireball" };
+            string staleInScope = "unset", ordinaryInScope = "unset";
+            autoUse.Save(() => { staleInScope = stale.AutoUse; ordinaryInScope = ordinary.AutoUse; });
+            TestRunner.True(staleInScope == null && ordinaryInScope == "Fireball", "Serialization saw the KMC auto-use selection, or lost the ordinary one.");
+            stale.AutoUse = "KMC_RiderPrimary#0";
+            autoUse.Disable();
+            TestRunner.True(stale.AutoUse == null && ordinary.AutoUse == "Fireball", "Disable left the KMC auto-use selection or cleared the ordinary one.");
+            foreach (var placedLater in new[] { true, false })
+            {
+                // A reserve rider with a live fact and its shortcut at 9 is scanned by a normal update; then (placedLater)
+                // the live control is placed at 11 on the same reserve bar before a save.
+                var scanned = new Service();
+                var rider = new Rider("rider", scanned, scanned.Current) { InParty = false, Autofill = false, FactLive = true };
+                rider.Slots[0] = "Attack";
+                rider.Slots[9] = rider.Data;
+                scanned.Frame();
+                TestRunner.True(rider.KmcCount() == 0, "The reserve scan did not clear 9.");
+                if (placedLater) rider.Slots[11] = rider.Data;
+                var expected = placedLater ? 11 : 9;
+                var label = " (placedLater=" + placedLater + ")";
+                var factInScope = true; var slotsInScope = -1;
+                var rows = scanned.Save(() => { factInScope = rider.FactLive; slotsInScope = rider.KmcCount(); });
+                TestRunner.True(!factInScope && slotsInScope == 0, "Serialization saw a KMC fact or slot on the reserve rider" + label + ".");
+                TestRunner.True(PublicRowIndex(rows) == expected && rows.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1,
+                    "The save did not carry " + expected + " and one marker" + label + ".");
+                var loaded = rider.Load(rows);
+                loaded.ToParty();
+                scanned.Frame(); scanned.Frame();
+                TestRunner.True(loaded.Find() == expected && loaded.Count() == 1 && loaded.Slots[0] == "Attack", "The cold restore did not give one shortcut at " + expected + label + ".");
+            }
         }
 
         private static void LegacyRowsSkipOccupiedFirst()

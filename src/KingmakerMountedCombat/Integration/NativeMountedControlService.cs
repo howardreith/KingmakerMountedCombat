@@ -931,6 +931,9 @@ namespace KingmakerMountedCombat.Integration
             if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
             areaSuspended = true;
             SettleAbortedNativeOperation();
+            // Reserve and detached riders' bars are classified (their surviving binding recorded as intent) before the sweep
+            // below clears them, exactly as at a save.
+            AdmitReserveBindings();
             // RemoveAllManagedFacts(true) below empties still-observed former candidates as well: their departure is
             // classified first, from their bar as the player last left it (the save header's rule).
             ObserveDepartedRiders(CollectCurrentCandidateUnits());
@@ -1932,6 +1935,15 @@ namespace KingmakerMountedCombat.Integration
                     placementIntent.PromoteFallback(unit.UniqueId, effective, unit.Descriptor?.PetUniqueId);
                     placementRecorded.Add(unit.UniqueId);
                 }
+                else if (effective >= 0 && ArrangementsAccepted && unit.UniqueId != null && IsLegacyAliasSlot(slots[effective]) &&
+                    PlayerAliasOverridesArrangement(unit))
+                {
+                    // The player's own alias (moved since native recorded the bar) is about to be emptied by migration while
+                    // the control is not live: its index is the choice now, as a temporary absence.
+                    placementIntent.ObserveBound(unit.UniqueId, effective, unit.Descriptor?.PetUniqueId);
+                    placementIntent.ObserveAbsent(unit.UniqueId, MountedControlAbsence.Temporary);
+                    placementRecorded.Add(unit.UniqueId);
+                }
                 else RecoverLegacyAlias(unit, slots);
             }
             var boundIndex = -1;
@@ -2202,7 +2214,10 @@ namespace KingmakerMountedCombat.Integration
         // both once another world is current. An empty registry (for example during a disabled save) references nothing.
         private List<KeyValuePair<int, MechanicActionBarSlot>> CopiesOf(string actorId)
         {
-            if (recordedCopiesWorld != null && !ReferenceEquals(Game.Instance?.Player, recordedCopiesWorld))
+            // No current player (an interval between worlds, for example inside a load that may be abandoned) keeps the copies
+            // with the placement records; a distinct player world releases them.
+            var current = Game.Instance?.Player;
+            if (recordedCopiesWorld != null && current != null && !ReferenceEquals(current, recordedCopiesWorld))
             {
                 recordedCopies.Clear();
                 recordedCopiesWorld = null;
@@ -2390,12 +2405,24 @@ namespace KingmakerMountedCombat.Integration
             if (player == null) return;
             foreach (var unit in reserveUnits)
             {
-                if (observedUnits.Contains(unit) || !reserveScan.MarkFirst(unit)) continue;
+                if (observedUnits.Contains(unit)) continue;
+                var first = reserveScan.MarkFirst(unit);
                 var slots = unit.UISettings?.Slots;
-                if (slots == null) { ForgetCopies(unit.UniqueId); continue; }
-                // The bar as the player last left it is classified before it is cleared (also when no binding is left).
-                ClassifyFirstSeenReserveBar(unit, slots);
-                if (CountManagedHotbarSlots(unit) == 0) { ForgetCopies(unit.UniqueId); continue; }
+                if (!first)
+                {
+                    // An already-scanned bar was left without KMC bindings by that scan: one present now was placed since
+                    // (for example the live control dragged to 11), and it supersedes the remembered slot. An empty bar keeps
+                    // the remembered slot.
+                    if (slots == null || CountManagedHotbarSlots(unit) == 0) continue;
+                    ClassifyFreshReserveBinding(unit, slots);
+                }
+                else
+                {
+                    if (slots == null) { ForgetCopies(unit.UniqueId); continue; }
+                    // The bar as the player last left it is classified before it is cleared (also when no binding is left).
+                    ClassifyFirstSeenReserveBar(unit, slots);
+                    if (CountManagedHotbarSlots(unit) == 0) { ForgetCopies(unit.UniqueId); continue; }
+                }
                 var kinds = slots.Select(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint)).ToArray();
                 // Every KMC binding goes; an older Mounted Charge becomes the rider's own stock Charge in the same slot
                 // (the existing migration: only when that Charge is available and not already on the bar).
@@ -2449,8 +2476,22 @@ namespace KingmakerMountedCombat.Integration
             // The reserve rule for an existing arrangement: a changed companion, or a cleared link, retires it.
             if (string.IsNullOrEmpty(petId) || placementIntent.PetLinkChanged(id, petId)) { placementIntent.Retire(id); return; }
             int chosen, interrupted;
-            var live = placementIntent.TryGetChosenSlot(id, out chosen) && !placementIntent.TryGetInterruptedChoice(id, out interrupted);
-            if (!live) return;
+            // An off-bar arrangement (no chosen slot) stays as it is.
+            if (!placementIntent.TryGetChosenSlot(id, out chosen)) return;
+            var live = !placementIntent.TryGetInterruptedChoice(id, out interrupted);
+            if (!live)
+            {
+                // An interrupted choice yields only to an identifiable new binding: native recorded this bar, and the
+                // effective binding is none of its copies (a move or a new placement since). An untouched copy keeps
+                // yielding to the free chosen slot; with nothing recorded, the interrupted choice wins.
+                if (bound >= 0 && HasRecordedCopies(id) && !IsPublicCopyAt(unit, slots, bound))
+                {
+                    placementIntent.ObserveBound(id, bound, petId);
+                    placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+                    placementRecorded.Add(id);
+                }
+                return;
+            }
             if (bound >= 0)
             {
                 placementIntent.ObserveBound(id, bound, petId);
@@ -2464,13 +2505,32 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // A public binding found on an already-scanned reserve bar was placed after that scan cleared it: it is the player's
+        // latest choice (recorded as a temporary absence, since the scan clears it again). The reserve rule still governs a
+        // rider with no arrangement, a retired arrangement, and a changed or cleared companion link.
+        private void ClassifyFreshReserveBinding(UnitEntityData unit, MechanicActionBarSlot[] slots)
+        {
+            var id = unit.UniqueId;
+            var petId = unit.Descriptor?.PetUniqueId;
+            bool onlyYieldingCopies;
+            var bound = EffectivePublicIndex(unit, slots, out onlyYieldingCopies);
+            if (bound < 0) return;
+            if (placementIntent.AdmitSurvivingBinding(id, bound, petId)) { placementRecorded.Add(id); return; }
+            if (!placementIntent.Has(id) || placementIntent.IsRetired(id)) return;
+            if (string.IsNullOrEmpty(petId) || placementIntent.PetLinkChanged(id, petId)) { placementIntent.Retire(id); return; }
+            placementIntent.ObserveBound(id, bound, petId);
+            placementIntent.ObserveAbsent(id, MountedControlAbsence.Temporary);
+            placementRecorded.Add(id);
+        }
+
         // A rider with recorded copies that is no longer one of the current world's player characters (for example removed
         // from the roster before its first reserve scan, so no cleanup path reaches its bar) has its slot objects released.
         // A temporarily absent rider still on the roster keeps them (the identity checks need them).
         private void ReleaseCopiesOfDepartedRiders()
         {
             CopiesOf(null);
-            if (recordedCopies.Count == 0) return;
+            // Without a current player there is no roster to compare with: nothing is pruned in that interval.
+            if (recordedCopies.Count == 0 || Game.Instance?.Player == null) return;
             var present = new HashSet<string>(StringComparer.Ordinal);
             var candidates = CollectCurrentCandidateUnits();
             foreach (var unit in candidates.Concat(ReserveRosterUnits(candidates)))
@@ -2524,6 +2584,24 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private bool HasRecordedCopies(string actorId) => CopiesOf(actorId) != null;
+
+        private bool IsLegacyAliasSlot(MechanicActionBarSlot slot)
+        {
+            var kind = ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
+            return MountedControlSlotPolicy.IsPublicControlKind(kind) && kind != NativeMountedControlKind.MountState;
+        }
+
+        // An effective (non-copy) alias overrides the rider's known arrangement only when native recorded this bar (so the
+        // alias is identifiably the player's, not an older save's), the arrangement names a slot (never an off-bar removal),
+        // and the companion is the same one.
+        private bool PlayerAliasOverridesArrangement(UnitEntityData unit)
+        {
+            var id = unit.UniqueId;
+            var petId = unit.Descriptor?.PetUniqueId;
+            int chosen;
+            return HasRecordedCopies(id) && placementIntent.TryGetChosenSlot(id, out chosen) && !placementIntent.IsRetired(id) &&
+                !string.IsNullOrEmpty(petId) && !placementIntent.PetLinkChanged(id, petId);
+        }
 
         // The bar's effective public binding (MountedControlSlotPolicy.EffectiveBindingIndex): the player's own binding
         // wins wherever it is; copies yield to a free chosen slot (onlyYieldingCopies) or the first is the fallback while
@@ -2848,11 +2926,16 @@ namespace KingmakerMountedCombat.Integration
             // Current-world reserve and detached riders too: an exact temporary KMC fact never stays on any of the player's
             // characters through save serialization, disable or disposal (unrelated facts are untouched).
             var units = CollectCandidateUnits();
-            foreach (var reserve in ReserveRosterUnits(CollectCurrentCandidateUnits())) AddUnique(units, reserve);
+            var reserveUnits = ReserveRosterUnits(CollectCurrentCandidateUnits());
+            foreach (var reserve in reserveUnits) AddUnique(units, reserve);
             foreach (var unit in units)
             {
                 RemoveManagedFacts(unit, cleanupSlots);
             }
+            // A never-reconciled reserve or detached rider can still name an exact KMC ability as its auto-use selection (an
+            // older save, no fact or slot behind it): that reference is cleared; an ordinary selection is kept.
+            foreach (var reserve in reserveUnits)
+                if (reserve != null && ResolveKind(reserve.AutoUseAbility?.Blueprint) != NativeMountedControlKind.None) reserve.AutoUseAbility = null;
             if (cleanupSlots)
             {
                 observedUnits.Clear();
