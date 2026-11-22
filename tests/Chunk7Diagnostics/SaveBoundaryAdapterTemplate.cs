@@ -1,4 +1,4 @@
-using System;using System.Collections;using System.Collections.Generic;using System.Linq;using System.IO;using System.Reflection;using System.Diagnostics;using Newtonsoft.Json.Linq;using KingmakerMountedCombat.Domain;
+using System;using System.Collections;using System.Collections.Generic;using System.Linq;using System.IO;using System.Reflection;using System.Diagnostics;using System.Runtime.CompilerServices;using Newtonsoft.Json.Linq;using KingmakerMountedCombat.Domain;
 namespace Kingmaker.GameModes{enum GameModeType{Default,Pause,Saving,Loading}}
 namespace KingmakerMountedCombat.Diagnostics{
 using Kingmaker.GameModes;
@@ -53,10 +53,17 @@ static class NativeDeferredSave{
  private static bool RetireFailedSave(object q,DeferredSaveEnumerator<object> op,Exception e){return false;}
 __START_SCREEN__
 }
-class SaveWaitFault{internal bool Active;}class SaveScope{internal bool Began;}
+class SaveWaitFault{internal bool Active;}class SaveScope{internal bool Began;internal SaveInfo Requested;}
+class WaitLogger{internal List<string> Lines=new List<string>();internal void Info(string s){Lines.Add(s);}}
 class DeferredAdapter{
- internal int DeferredSaveCount,Fences,Released;internal bool Ready;
- private bool AcquireWorldSaveFence(SaveScope s){Fences++;return true;}private bool SaveEffectsReady(){return Ready;}private void NotifySaveStatus(string s){}private void ReleaseUnstartedSaveFence(SaveScope s){Released++;}
+ internal int DeferredSaveCount,Fences,Released;internal bool Ready;internal readonly WaitLogger logger=new WaitLogger();private long saveWaitSequence;
+ private bool AcquireWorldSaveFence(SaveScope s){Fences++;return true;}private void NotifySaveStatus(string s){}private void ReleaseUnstartedSaveFence(SaveScope s){Released++;}
+ private SaveReadiness EvaluateSaveEffects(){return Ready?default(SaveReadiness):new SaveReadiness{Kind=SaveWaitBlockerKind.Command,Subject=this};}
+ private string SummarizeReadiness(SaveReadiness r){return "fake "+r.Kind;}private string DescribeReadiness(SaveReadiness r){return r.Kind.ToString();}
+__READINESS_TYPE__
+__OBSERVE_METHOD__
+__END_METHOD__
+__OUTCOME_PROPERTY__
 __DEFER_METHOD__
  internal DeferredSaveEnumerator<object> Wrap(IEnumerator<object> inner){return (DeferredSaveEnumerator<object>)DeferNativeSave(inner,null,new SaveScope());}
 }

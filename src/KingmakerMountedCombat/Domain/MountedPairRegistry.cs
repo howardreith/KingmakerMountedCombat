@@ -300,7 +300,9 @@ namespace KingmakerMountedCombat.Domain
             // Release is explicit, after every cleanup postcondition has been observed.
         }
 
-        internal bool AllSaveReady() => Owners.All(o => o.SaveReady());
+        internal bool AllSaveReady() => FirstUnreadySaveOwner() == null;
+        // The save barrier's diagnostics name the exact owner that refused, from the same predicate.
+        internal MountedPairOwner<TActor, TBoundary> FirstUnreadySaveOwner() => Owners.FirstOrDefault(o => !o.SaveReady());
         internal bool AllTeardownReady() => Owners.All(o => o.TeardownReady());
 
         // Each release is attempted even if a different owner throws. A failure cannot

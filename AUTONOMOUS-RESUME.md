@@ -1,3 +1,13 @@
+# Post-combat save and door lock (2026-11-22, branch codex/mounted-save-and-door-lock)
+
+Diagnostic checkpoint, awaiting Pro review through Howie (manual procedure). Read CURRENT.md (its first section) and
+docs/SAVE-AND-DOOR-LOCK-HANDOFF.md.
+
+- **Rules:**
+  - Do not change save readiness or the hold until a game log names the blocking owner.
+  - The existing 30 s timeout is a fallback, not a repair.
+- **Not authorized:** merge, release, install.
+
 # Release 0.2.14 (owner order, 2026-11-22)
 
 0.2.14 releases PR #57 (merged as `4e5c9c0c`): X02 toolbar placement, X03 capital companion screens, X04 explicit attack

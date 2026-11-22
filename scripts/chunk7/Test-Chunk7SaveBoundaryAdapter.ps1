@@ -17,6 +17,9 @@ $deferSource=Join-Path $repo 'src/KingmakerMountedCombat/Integration/MountedDefe
 $patchText=[IO.File]::ReadAllText($patchSource)
 $patchMethods=(Get-ActualBoundaryMethod $patchText 'internal static bool SaveCommandStartPrefix(')+[Environment]::NewLine+(Get-ActualBoundaryMethod $patchText 'internal static void DeferredSaveLoadingPostfix(')
 $adapter=[IO.File]::ReadAllText((Join-Path $chunk7TestSource 'SaveBoundaryAdapterTemplate.cs')).Replace('__METHODS__',$methods).Replace('__PROBE_METHODS__',$probeMethods).Replace('__PATCH_METHODS__',$patchMethods).Replace('__START_SCREEN__',(Get-ActualBoundaryMethod ([IO.File]::ReadAllText($nativeSource)) 'internal static void StartScreen(')).Replace('__DEFER_METHOD__',(Get-ActualBoundaryMethod ([IO.File]::ReadAllText($deferSource)) 'private IEnumerator<object> DeferNativeSave('))
+# The deferred wait's readiness result and observers (incident 2026-11-22) are spliced from production as well.
+$deferText=[IO.File]::ReadAllText($deferSource)
+$adapter=$adapter.Replace('__READINESS_TYPE__',(Get-ActualBoundaryMethod $deferText 'internal struct SaveReadiness')).Replace('__OBSERVE_METHOD__',(Get-ActualBoundaryMethod $deferText 'private void ObserveSaveWait(')).Replace('__END_METHOD__',(Get-ActualBoundaryMethod $deferText 'private void ReportSaveWaitEnd(')).Replace('__OUTCOME_PROPERTY__',(Get-ActualBoundaryMethod $deferText 'internal SaveWaitOutcome? LastSaveWaitOutcome'))
 $workerSource=Join-Path (Split-Path $ScenarioSource -Parent) 'Chunk7PersistenceScenario.WorkerCancel.cs'
 $workerText=[IO.File]::ReadAllText($workerSource)
 $workerMethods=''
@@ -33,7 +36,7 @@ $managed=$paths.SelectSingleNode('//*[local-name()="KingmakerManagedDir"]').Inne
 $json=Join-Path $managed 'Newtonsoft.Json.dll'
 if(-not(Test-Path -LiteralPath $json)){throw 'Installed JSON contract absent'}
 $exe=Join-Path $probe 'SaveBoundaryAdapter.exe'
-& $compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 /reference:Microsoft.CSharp.dll "/reference:$json" "/out:$exe" (Join-Path $probe 'SaveBoundaryAdapter.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Domain/DeferredSaveEnumerator.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Domain/ScopedEnumerator.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Integration/NativeSaveCommitOutcome.cs')
+& $compiler /nologo /target:exe /langversion:7.3 /nowarn:0649 /reference:Microsoft.CSharp.dll "/reference:$json" "/out:$exe" (Join-Path $probe 'SaveBoundaryAdapter.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Domain/DeferredSaveEnumerator.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Domain/SaveWaitObservation.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Domain/ScopedEnumerator.cs') (Join-Path $repo 'src/KingmakerMountedCombat/Integration/NativeSaveCommitOutcome.cs')
 if($LASTEXITCODE-ne0){throw 'Actual save-boundary adapter compilation failed.'}
 Copy-Item -LiteralPath $json -Destination $probe
 & $exe

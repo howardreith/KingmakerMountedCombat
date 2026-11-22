@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat.Integration
         internal GameMountedRelationshipService(MountedPairRegistry<UnitEntityData, GameMountedRelationshipService> registry)
         {
             Ownership = registry;
-            BindOwnershipReadiness((r, m) => Retained, () => false, () => SaveReady, () => TeardownReady);
+            BindOwnershipReadiness((r, m) => Retained, () => false, () => SaveReady ? null : "fixture save refusal", () => TeardownReady);
         }
         internal bool Begin(UnitEntityData rider, UnitEntityData mount)
         {

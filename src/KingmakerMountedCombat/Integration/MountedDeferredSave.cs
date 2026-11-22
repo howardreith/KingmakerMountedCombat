@@ -2,10 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
@@ -47,30 +50,141 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        internal bool SaveEffectsReady()
+        // One production readiness result. SaveEffectsReady, the header barrier
+        // (PinWorldSaveScope) and the deferred wait's diagnostics all read it; the
+        // diagnostics never re-derive a term. Subject is read in the same frame
+        // only and never stored.
+        internal struct SaveReadiness
+        {
+            internal SaveWaitBlockerKind Kind;
+            internal object Subject;
+            internal UnitEntityData Unit;
+            internal bool Queued;
+            internal string Reason;
+            internal bool Ready => Kind == SaveWaitBlockerKind.None;
+        }
+
+        internal bool SaveEffectsReady() => EvaluateSaveEffects().Ready;
+
+        // Movement/approach intent is transient; its position and accrued
+        // native debt are captured at the real header barrier. A running
+        // action or undelivered projectile must first resolve natively.
+        //
+        // The two relationship-transition terms are exact queries, not an
+        // argument from game-thread atomicity: an unsettled Mount/Dismount shell
+        // defers the save even while it is only queued, and the transition
+        // ledger's own admit-to-settle window defers it as well. Together they
+        // make the documented claim true by construction rather than by
+        // reasoning about when a frame boundary can be observed.
+        //
+        // The terms and their order are those of the former single expression;
+        // the first refusing term is returned with the object that refused.
+        internal SaveReadiness EvaluateSaveEffects()
         {
             var game = Game.Instance;
             if (game?.Player == null || game.State == null)
                 throw new InvalidOperationException("Native save has no active world.");
-            // Movement/approach intent is transient; its position and accrued
-            // native debt are captured at the real header barrier. A running
-            // action or undelivered projectile must first resolve natively.
-            //
-            // The two relationship-transition terms are exact queries, not an
-            // argument from game-thread atomicity: an unsettled Mount/Dismount shell
-            // defers the save even while it is only queued, and the transition
-            // ledger's own admit-to-settle window defers it as well. Together they
-            // make the documented claim true by construction rather than by
-            // reasoning about when a frame boundary can be observed.
-            return relationship.AllSaveOwnersReady && !unifiedTurn.HasUnsettledPreparation &&
-                !controls.HasUnsettledRelationshipTransition &&
-                !WorldRelationships.Any(controls.HasUnsettledShellFor) &&
-                !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
-                    .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&
-                !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
-                    .Any(controls.OwnsUnsettledRelationshipShell)) &&
-                !NativeSaveEffectBoundary.HasUnresolvedProjectiles() &&
-                !NativeSaveEffectBoundary.HasUnresolvedAbilities();
+            var unready = relationship.FirstUnreadySaveOwner;
+            if (unready != null)
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.PairOwnership, Subject = unready, Reason = unready.Boundary?.PairSaveRefusal };
+            if (unifiedTurn.HasUnsettledPreparation)
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.NativePreparation };
+            var transitionSettled = !controls.HasUnsettledRelationshipTransition;
+            if (!transitionSettled)
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.RelationshipTransition };
+            var shellsSettled = !WorldRelationships.Any(controls.HasUnsettledShellFor);
+            if (!shellsSettled)
+                return new SaveReadiness
+                {
+                    Kind = SaveWaitBlockerKind.RelationshipShell, Subject = WorldRelationships.FirstOrDefault(controls.HasUnsettledShellFor)
+                };
+            foreach (var unit in game.State.Units)
+            {
+                var command = unit.Commands.Raw.Concat(unit.Commands.Queue).FirstOrDefault(NativeSaveEffectBoundary.CommandNeedsSettlement);
+                if (command != null)
+                    return new SaveReadiness { Kind = SaveWaitBlockerKind.Command, Subject = command, Unit = unit, Queued = unit.Commands.Queue.Contains(command) };
+            }
+            foreach (var unit in game.State.Units)
+            {
+                if (!unit.Commands.Raw.Concat(unit.Commands.Queue).Any(controls.OwnsUnsettledRelationshipShell)) continue;
+                var shell = unit.Commands.Raw.Concat(unit.Commands.Queue).First(controls.OwnsUnsettledRelationshipShell);
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.RelationshipShellCommand, Subject = shell, Unit = unit, Queued = unit.Commands.Queue.Contains(shell) };
+            }
+            var projectile = NativeSaveEffectBoundary.FirstUnresolvedProjectile(out var pending);
+            if (projectile != null)
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.Projectile, Subject = projectile, Queued = pending };
+            var process = NativeSaveEffectBoundary.FirstUnresolvedAbility();
+            if (process != null)
+                return new SaveReadiness { Kind = SaveWaitBlockerKind.Ability, Subject = process };
+            return default(SaveReadiness);
+        }
+
+        // Player-facing short name and full log detail of one readiness result.
+        // Called only when the observed blocker changes, in the frame it was read.
+        private string SummarizeReadiness(SaveReadiness readiness)
+        {
+            switch (readiness.Kind)
+            {
+                case SaveWaitBlockerKind.AdmissionFence: return "Mounted Charge cleanup";
+                case SaveWaitBlockerKind.DiagnosticFault: return "a diagnostic wait fault";
+                case SaveWaitBlockerKind.PairOwnership:
+                    var owner = readiness.Subject as MountedPairOwner<UnitEntityData, GameMountedRelationshipService>;
+                    return (owner?.Rider?.CharacterName ?? "a rider") + "'s mounted pair to settle";
+                case SaveWaitBlockerKind.NativePreparation: return "native turn preparation";
+                case SaveWaitBlockerKind.RelationshipTransition: return "a Mount or Dismount to finish";
+                case SaveWaitBlockerKind.RelationshipShell: return "a Mount or Dismount command to settle";
+                case SaveWaitBlockerKind.Command:
+                case SaveWaitBlockerKind.RelationshipShellCommand:
+                    return NativeSaveEffectBoundary.SummarizeCommand((UnitCommand)readiness.Subject);
+                case SaveWaitBlockerKind.Projectile:
+                    return NativeSaveEffectBoundary.SummarizeProjectile((Kingmaker.Controllers.Projectiles.Projectile)readiness.Subject);
+                case SaveWaitBlockerKind.Ability:
+                    return NativeSaveEffectBoundary.SummarizeAbility((Kingmaker.Controllers.AbilityExecutionProcess)readiness.Subject);
+                default: return "current actions";
+            }
+        }
+
+        private string DescribeReadiness(SaveReadiness readiness)
+        {
+            switch (readiness.Kind)
+            {
+                case SaveWaitBlockerKind.AdmissionFence:
+                    return string.Join(" | ", WorldCombats.Select((c, i) => "owner" + i + ": chargeOwnership=" + c.HasChargeOwnership +
+                        "; nativeBoundaryPending=" + c.ChargeNativeBoundaryPending + "; fenced=" + c.ChargeAdmissionFenced).ToArray());
+                case SaveWaitBlockerKind.PairOwnership:
+                    var owner = readiness.Subject as MountedPairOwner<UnitEntityData, GameMountedRelationshipService>;
+                    return owner == null ? "owner=<none>" : "pair=" + owner.Id.ToString("N") + "; generation=" + owner.Generation +
+                        "; state=" + owner.State + "; rider=" + NativeSaveEffectBoundary.NameOf(owner.Rider) + "; mount=" +
+                        NativeSaveEffectBoundary.NameOf(owner.Mount) + "; refusal=" + (readiness.Reason ?? "<unnamed>");
+                case SaveWaitBlockerKind.NativePreparation:
+                    return "unifiedTurn.HasUnsettledPreparation=True";
+                case SaveWaitBlockerKind.RelationshipTransition:
+                    return "controls.HasUnsettledRelationshipTransition=True";
+                case SaveWaitBlockerKind.RelationshipShell:
+                    var shellOwner = readiness.Subject as GameMountedRelationshipService;
+                    return "rider=" + NativeSaveEffectBoundary.NameOf(shellOwner?.Rider) + "; mount=" + NativeSaveEffectBoundary.NameOf(shellOwner?.Mount);
+                case SaveWaitBlockerKind.Command:
+                case SaveWaitBlockerKind.RelationshipShellCommand:
+                    return NativeSaveEffectBoundary.DescribeCommand(readiness.Unit, (UnitCommand)readiness.Subject, readiness.Queued);
+                case SaveWaitBlockerKind.Projectile:
+                    return NativeSaveEffectBoundary.DescribeProjectile((Kingmaker.Controllers.Projectiles.Projectile)readiness.Subject, readiness.Queued);
+                case SaveWaitBlockerKind.Ability:
+                    return NativeSaveEffectBoundary.DescribeAbility((Kingmaker.Controllers.AbilityExecutionProcess)readiness.Subject);
+                default: return readiness.Kind.ToString();
+            }
+        }
+
+        // Diagnostics must never change the save's outcome: every failure here is contained.
+        private void ObserveSaveWait(SaveWaitObservation observation, SaveReadiness readiness, double now)
+        {
+            try
+            {
+                var line = observation.Observe(readiness.Kind,
+                    readiness.Subject == null ? 0 : RuntimeHelpers.GetHashCode(readiness.Subject),
+                    () => SummarizeReadiness(readiness), () => DescribeReadiness(readiness), now);
+                if (line != null) logger.Info(line);
+            }
+            catch { /* An unloggable observation leaves the save decision untouched. */ }
         }
 
         private void RequireChargeSaveBarrier(SaveScope scope)
@@ -84,27 +198,63 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Save deferred: charge cleanup ownership is unresolved.");
         }
 
+        private long saveWaitSequence;
+
         private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault, SaveScope scope)
         {
             var timer = Stopwatch.StartNew();
             Player world = null;
             var restorePause = false;
+            var observation = new SaveWaitObservation(++saveWaitSequence,
+                (scope.Requested?.Type.ToString() ?? "none") + ":" + (scope.Requested?.Name ?? "none"), 0d);
+            SaveWaitOutcome? refused = null;
+            string refusedReason = null;
+            DeferredSaveEnumerator<object> operation = null;
             Action tick = () =>
             {
                 var game = Game.Instance;
-                if (world == null || !ReferenceEquals(game.Player, world) ||
-                    LoadingProcess.Instance.IsManualLoadingScreenActive ||
-                    (game.CurrentMode != GameModeType.Default && game.CurrentMode != GameModeType.Pause))
-                    throw new InvalidOperationException("Save was not written: the native world changed while its effects were finishing.");
+                var mode = game.CurrentMode;
+                var manualScreen = LoadingProcess.Instance.IsManualLoadingScreenActive;
+                // The same refusal as before (world replaced, manual loading screen,
+                // or any mode but Default/Pause); only its reason is now named.
+                var state = SaveWaitWorldPolicy.Decide(world != null, ReferenceEquals(game.Player, world), manualScreen,
+                    mode == GameModeType.Default || mode == GameModeType.Pause);
+                if (state != SaveWaitWorldState.Unchanged)
+                {
+                    refused = SaveWaitWorldPolicy.Outcome(state);
+                    refusedReason = "mode=" + mode + "; manualLoadingScreen=" + manualScreen + "; worldBound=" + (world != null);
+                    throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(state, mode.ToString(), observation.WaitingFor));
+                }
                 if (game.IsPaused) { restorePause = true; game.IsPaused = false; }
             };
             Func<bool> ready = () =>
             {
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
-                    throw new InvalidOperationException("Save was not written: its native world was replaced.");
-                return AcquireWorldSaveFence(scope) && fault?.Active != true && SaveEffectsReady();
+                {
+                    refused = SaveWaitOutcome.WorldReplaced;
+                    refusedReason = "player replaced";
+                    throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(
+                        SaveWaitWorldState.WorldReplaced, null, observation.WaitingFor));
+                }
+                SaveReadiness readiness;
+                try
+                {
+                    // Same order and short-circuit as before: the admission fence, then
+                    // the diagnostic fault, then the effect terms.
+                    readiness = !AcquireWorldSaveFence(scope) ? new SaveReadiness { Kind = SaveWaitBlockerKind.AdmissionFence } :
+                        fault?.Active == true ? new SaveReadiness { Kind = SaveWaitBlockerKind.DiagnosticFault } :
+                        EvaluateSaveEffects();
+                }
+                catch (Exception exception)
+                {
+                    refused = refused ?? SaveWaitOutcome.Faulted;
+                    refusedReason = refusedReason ?? exception.GetType().Name + ": " + exception.Message;
+                    throw;
+                }
+                ObserveSaveWait(observation, readiness, timer.Elapsed.TotalSeconds);
+                return readiness.Ready;
             };
-            return new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
+            operation = new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
                 () =>
                 {
                     world = Game.Instance.Player;
@@ -113,16 +263,39 @@ namespace KingmakerMountedCombat.Integration
                     tick();
                 }, tick, () =>
                 {
+                    ReportSaveWaitEnd(observation, operation, refused, refusedReason, timer.Elapsed.TotalSeconds);
                     if (restorePause && ReferenceEquals(Game.Instance?.Player, world)) Game.Instance.IsPaused = true;
                     world = null;
-                }, 30d, () =>
+                }, SaveWaitWorldPolicy.MaximumWaitSeconds, () =>
                 {
                     // ready() precedes the inner scope's begin. Cancellation/timeout there
                     // still releases this exact operation's fence. A started worker retains it
                     // through ReleaseSaveScope/the existing deferred-worker drain.
                     if (!scope.Began) ReleaseUnstartedSaveFence(scope);
-                });
+                }, () => SaveWaitWorldPolicy.TimeoutMessage(SaveWaitWorldPolicy.MaximumWaitSeconds, observation.WaitingFor));
+            return operation;
         }
+
+        // endWait runs from StartSerialization (not disposed: the wait settled) or
+        // from Dispose (a refusal recorded above, the bounded timeout, or a native
+        // cancellation such as StopAll). Contained: a logging failure cannot skip
+        // the pause restoration and world release that follow it.
+        private void ReportSaveWaitEnd(SaveWaitObservation observation, DeferredSaveEnumerator<object> operation,
+            SaveWaitOutcome? refused, string refusedReason, double now)
+        {
+            try
+            {
+                var outcome = operation == null || !operation.Disposed ? SaveWaitOutcome.Serialized :
+                    refused ?? (operation.TimedOut ? SaveWaitOutcome.TimedOut : SaveWaitOutcome.Cancelled);
+                LastSaveWaitOutcome = outcome;
+                var line = observation.End(outcome, outcome == SaveWaitOutcome.Serialized || outcome == SaveWaitOutcome.TimedOut ||
+                    outcome == SaveWaitOutcome.Cancelled ? null : refusedReason, now);
+                if (line != null) logger.Info(line);
+            }
+            catch { /* The wait's cleanup continues regardless. */ }
+        }
+
+        internal SaveWaitOutcome? LastSaveWaitOutcome { get; private set; }
 
         // The ordinary completion path's failure report. What is said depends on
         // what happened to THIS operation's archive, decided at the commit

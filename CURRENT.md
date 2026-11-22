@@ -1,6 +1,29 @@
-# RELEASE 0.2.14: TOOLBAR PLACEMENT, CAPITAL COMPANION SCREENS, DOWNED-TARGET ATTACK (2026-11-22)
+# POST-COMBAT SAVE AND DOOR LOCK: DIAGNOSTIC CHECKPOINT (2026-11-22, BRANCH codex/mounted-save-and-door-lock)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Mission:** [docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md](docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md). Manual review
+  procedure by owner direction (Claude develops; Howie takes the handoff to Pro). No controller enrollment.
+- **Status:** diagnostic checkpoint plus accurate failure reasons. **Not a repair**, because the persistent blocker is
+  not identified. The incident log proves that every quicksave found the world not ready from activation, which held all
+  four requests. The three "native world changed" refusals came from a mode change or loading screen (most likely a menu
+  opened during the wait), not a world change. Doors were refused because the save hold refuses every ordinary
+  `UnitCommand.Start` while a request waits.
+- **Changed:**
+  - `SaveEffectsReady` is now a single evaluation returning the first refusing term and its owner (same terms, order and
+    short-circuit);
+  - each wait reports its blocker changes (bounded) and its real outcome;
+  - refusals name a menu/dialog/cutscene, a loading screen or a replaced world, and the blocker.
+
+  No readiness, hold, timeout, ordering or save-format change.
+- **Offline:** Fast PASS (components 1483/0, Validate-Source 153/0, focused `Test-SaveDoorLockFocused.ps1`: wait regression
+  10/0 with 6/6 mutations, persistence contracts 228/0). The menu assertion fails on base `61519031` with the incident's
+  text. Three existing harnesses already fail on base, identically on the candidate.
+- **Native:** not run (no qualified fixture; incident save not here).
+- **Needed:** an owner log with this build (the `Mounted save wait` lines name the blocker) or a disposable copy of the save.
+- **Read:** [docs/SAVE-AND-DOOR-LOCK-HANDOFF.md](docs/SAVE-AND-DOOR-LOCK-HANDOFF.md).
+
+# RELEASE 0.2.14: TOOLBAR PLACEMENT, CAPITAL COMPANION SCREENS, DOWNED-TARGET ATTACK (2026-11-22)
 
 - **Release:** 0.2.14, by owner order on 2026-11-22, from main after PR #57 (merged as `4e5c9c0c`). Notes:
   [docs/RELEASE-NOTES-0.2.14.md](docs/RELEASE-NOTES-0.2.14.md). The package identity (zip and DLL SHA-256, MVID,
