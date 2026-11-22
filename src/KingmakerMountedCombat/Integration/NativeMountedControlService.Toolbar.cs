@@ -17,10 +17,86 @@ namespace KingmakerMountedCombat.Integration
     internal sealed partial class NativeMountedControlService
     {
         private MountedToolbarLifecycle<UnitEntityData> toolbar;
-        private UnitEntityData nativeOperationUnit;
+        private bool areaSuspended;
 
         private void CreateToolbarLifecycle() =>
             toolbar = new MountedToolbarLifecycle<UnitEntityData>(new ToolbarHost(this));
+
+        // The open native slot operation's unit, owned by the lifecycle alone (released when it settles or is discarded).
+        internal bool HoldsNativeOperationUnit => toolbar.NativeOperationUnit != null;
+
+        internal void SuspendAreaControls()
+        {
+            if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
+            areaSuspended = true;
+            ClearTargetingPresentation("area-unloading");
+            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
+            // Every bar is observed before the sweep empties it; the public slots stay pending for the resume.
+            toolbar.SuspendArea();
+        }
+
+        internal void ResumeAreaControls()
+        {
+            areaSuspended = false;
+            if (!disposed && enabled) Update();
+        }
+
+        internal bool BeginSaveSerializationScope()
+        {
+            if (disposed || serializationSuspended) return false;
+            serializationSuspended = true;
+            hotbarSerializationLeases.Clear();
+            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
+            // Every bar is observed, then every swept unit loses its KMC bindings (public slots pending, the others leased),
+            // its exact KMC auto-use selection and its KMC facts (MountedToolbarLifecycle.BeginSave).
+            toolbar.BeginSave();
+            logger.Info("Native mounted control facts and exact KMC hotbar bindings suspended before save serialization.");
+            return true;
+        }
+
+        internal void EndSaveSerializationScope()
+        {
+            if (!serializationSuspended) return;
+            serializationSuspended = false;
+            try
+            {
+                if (enabled && !disposed) Update();
+            }
+            finally
+            {
+                ClearSerializationHotbarLeases(true);
+            }
+            logger.Info("Native mounted control save-serialization suspension ended; current runtime facts were rebuilt without saved residue.");
+        }
+
+        // Party characters, their pets and every current pair member.
+        private List<UnitEntityData> CollectCurrentCandidateUnits()
+        {
+            var result = new List<UnitEntityData>();
+            var player = Game.Instance?.Player;
+            if (player?.PartyCharacters != null)
+            {
+                foreach (var reference in player.PartyCharacters)
+                {
+                    var unit = reference.Value;
+                    AddUnique(result, unit);
+                    AddUnique(result, unit?.Descriptor?.Pet);
+                }
+            }
+            foreach (var owner in relationship.Ownership.Owners)
+            {
+                AddUnique(result, owner.Rider); AddUnique(result, owner.Mount);
+            }
+            return result;
+        }
+
+        // Current riders and the previously reconciled units whose departure cleanup has not run yet.
+        private List<UnitEntityData> CollectCandidateUnits()
+        {
+            var result = CollectCurrentCandidateUnits();
+            foreach (var unit in toolbar.ObservedUnits) AddUnique(result, unit);
+            return result;
+        }
 
         internal long InitialPlacementCount => toolbar.InitialPlacementCount;
 
@@ -63,16 +139,15 @@ namespace KingmakerMountedCombat.Integration
         // Native UnitUISettings.GetSlot(index) / CleanupBadSlots begins (exact prefixes; slotIndex -1 for the whole bar).
         internal void BeginNativeBadSlotCleanup(UnitUISettings settings, int slotIndex = -1)
         {
-            nativeOperationUnit = disposed || !enabled || mountStateAbility == null ? null : ResolveBarUnit(settings, slotIndex);
-            toolbar.BeginNativeSlotOperation(nativeOperationUnit, slotIndex);
+            var unit = disposed || !enabled || mountStateAbility == null ? null : ResolveBarUnit(settings, slotIndex);
+            toolbar.BeginNativeSlotOperation(unit, slotIndex);
         }
 
-        // The operation returned normally (exact postfixes).
+        // The operation returned normally (exact postfixes). The unit is the lifecycle's own record of the open operation.
         internal void EndNativeBadSlotCleanup(UnitUISettings settings)
         {
-            var unit = nativeOperationUnit != null && ReferenceEquals(nativeOperationUnit.UISettings, settings) ? nativeOperationUnit : null;
-            nativeOperationUnit = null;
-            toolbar.EndNativeSlotOperation(unit);
+            var unit = toolbar.NativeOperationUnit;
+            toolbar.EndNativeSlotOperation(unit != null && ReferenceEquals(unit.UISettings, settings) ? unit : null);
         }
 
         // The unit whose bar a native slot operation reads: the owner of a public binding in its range (only those matter),
@@ -410,6 +485,18 @@ namespace KingmakerMountedCombat.Integration
                     var blueprint = (slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint;
                     var kind = service.ResolveKind(blueprint);
                     if (kind == NativeMountedControlKind.None || MountedControlSlotPolicy.IsPublicControlKind(kind)) continue;
+                    // An older Mounted Charge becomes the unit's own stock Charge in its slot before any sweep destroys it (the
+                    // established F2 migration: only when that Charge is available and not already on the bar), so a save
+                    // first keeps it as an update first would.
+                    var stock = MountedControlSlotPolicy.RepairLiveSlot(kind) == MountedControlSlotRepair.StockCharge && unit.Descriptor?.Abilities != null
+                        ? ResolveStockChargeForSlot(unit, slots) : null;
+                    if (stock != null)
+                    {
+                        unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = stock }, index);
+                        service.chargeSlotRepairCount++;
+                        changed = true;
+                        continue;
+                    }
                     var placeholder = new MechanicActionBarSlotEmpty { Unit = unit };
                     // A save scope leases the binding back afterwards; every other boundary clears it.
                     if (boundary == MountedToolbarBoundary.Save)

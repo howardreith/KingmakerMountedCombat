@@ -161,11 +161,11 @@ internal static class ArchiveControlRowBoundTests
             ExpectPublicBindings(decoded, 9);
             True(!decoded.Any(r => r.Index == 3 && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The alias slot 3 was written as a binding.");
         });
-        Check("the player's two canonical bindings (3 and 9) write two slot rows and one record with unique archive keys", () =>
+        Check("canonical bindings at 3 and 9 write one slot row (3, the copy at 9 yields) and one record through the production codec", () =>
         {
             var rows = One(rider => { rider.Bar[3] = MountedToolbarSlot.PublicControl; rider.Bar[9] = MountedToolbarSlot.PublicControl; });
             var decoded = RoundTrip(rows);
-            ExpectPublicBindings(decoded, 3, 9);
+            ExpectPublicBindings(decoded, 3);
         });
         Check("a pending shortcut at 9 occupied by an older Mounted Charge is saved off the bar beside the Charge row", () =>
         {

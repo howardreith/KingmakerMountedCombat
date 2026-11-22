@@ -97,11 +97,12 @@ namespace KingmakerMountedCombat.Domain
     // host only reads and writes native state.
     //
     // The model (MountedControlPlacementIntent): a rider's arrangement is the set of toolbar slots where the player keeps
-    // the public control, plus the subset that is pending: emptied by native bad-slot cleanup or by KMC's own sweeps, not by
-    // the player, and therefore owed back. Everything follows from one rule applied at every boundary before anything
-    // destroys the evidence: observe the bar, then mark what the boundary empties as pending (ApplyBar holds the evidence
-    // rule). Pending slots return, each once, into empty slots when the control is live again. KMC never writes the public
-    // control into a slot outside the arrangement except the one automatic placement.
+    // the public control (one chosen slot or off the bar), whether that slot is pending (emptied by native bad-slot cleanup
+    // or by a KMC sweep, not by the player, and therefore owed back), and the known copies of it on the bar (by slot
+    // object), which never count as a new placement. Everything follows from one rule applied at every boundary before
+    // anything destroys the evidence: observe the bar, then mark what the boundary empties as pending (ApplyBar holds the
+    // evidence rule). A pending slot returns once into its empty slot when the control is live again; a live control keeps
+    // exactly one shortcut. KMC never writes the public control outside the arrangement except the one automatic placement.
     //
     // Records are kept per player world (held weakly) and identify actors by id: a selected load that is abandoned keeps its
     // world and so its records unchanged; a replaced world, or one disposed without an open selected load, releases them.
@@ -152,16 +153,19 @@ namespace KingmakerMountedCombat.Domain
         public bool HoldsWorld => records != null;
         public bool HoldsLoad => loadOwner != null;
         public bool HasOpenNativeOperation => nativeOperation != null;
+        // The one owner of the open native slot operation's unit: the adapter reads it to close the operation and keeps no
+        // reference of its own, so settling or discarding the operation releases the unit.
+        public TUnit NativeOperationUnit => nativeOperation?.Unit;
         public int ObservedCount => observed.Count;
         public IList<TUnit> ObservedUnits => observed.Select(item => item.Unit).ToList();
         public bool IsPlaced(string actorId) => records != null && records.IsPlaced(actorId);
         public bool IsRetired(string actorId) => records != null && records.IsRetired(actorId);
 
-        public bool TryGetArrangement(string actorId, out int[] slots, out int[] pending)
+        public bool TryGetArrangement(string actorId, out int slot, out bool pending)
         {
             var arrangement = records?.Get(actorId);
-            slots = arrangement?.Slots.ToArray();
-            pending = arrangement?.Pending.ToArray();
+            slot = arrangement?.Slot ?? MountedControlPlacementIntent.OffBar;
+            pending = arrangement != null && arrangement.Pending;
             return arrangement != null;
         }
 
@@ -251,6 +255,10 @@ namespace KingmakerMountedCombat.Domain
         {
             Housekeeping();
             if (!Enabled) return;
+            // No player world while a selected load is open: the outcome (abandonment with the outgoing world current again,
+            // or a new world) is not known yet, so nothing is observed, cleared or released, and the outgoing bars and
+            // observed units stay exactly as they are. Without an open load the departures below release them (disposal).
+            if (host.CurrentWorld == null && loadOwner != null) return;
             var riders = host.CurrentRiders() ?? new List<TUnit>();
             foreach (var rider in riders) ReconcileRider(rider);
             ProcessDepartures(riders);
@@ -275,64 +283,60 @@ namespace KingmakerMountedCombat.Domain
             host.ClearManagedAutoUse(unit, MountedToolbarBoundary.Update);
         }
 
-        // A stale canonical binding is rebound to the live data. An older alias inside the arrangement becomes the public
-        // control in place while the control is live; otherwise it is cleared (its slot pending when it is the arrangement).
-        // An alias outside the arrangement is a leftover of F2's one-control migration and is cleared.
+        // One shortcut. While the control is live: the chosen slot's stale canonical binding is rebound to the live data, an
+        // older alias at the chosen slot becomes the public control in place, and every other public binding (a copy, or an
+        // F2 leftover alias) is removed. While it is not live: an older alias is cleared (the chosen slot pending when it is
+        // the alias), and canonical bindings stay as they are for native to judge.
         private void RepairBar(TUnit unit, bool live)
         {
             var count = host.SlotCount(unit);
             if (count == 0) return;
             var arrangement = Get(unit);
+            var chosen = arrangement?.Slot ?? MountedControlPlacementIntent.OffBar;
             var changed = false;
             for (var index = 0; index < count; index++)
             {
                 var content = host.ReadSlot(unit, index);
-                if (content == MountedToolbarSlot.PublicControl)
+                if (content != MountedToolbarSlot.PublicControl && content != MountedToolbarSlot.LegacyAlias) continue;
+                var atChoice = index == chosen;
+                if (live && atChoice)
                 {
-                    if (!live || host.HoldsLiveBinding(unit, index)) continue;
+                    if (content == MountedToolbarSlot.PublicControl && host.HoldsLiveBinding(unit, index)) continue;
                     host.BindControl(unit, index);
-                    changed = true;
-                    continue;
+                    if (content == MountedToolbarSlot.LegacyAlias) AliasMigrationCount++;
                 }
-                if (content != MountedToolbarSlot.LegacyAlias) continue;
-                var inArrangement = arrangement != null && arrangement.Slots.Contains(index);
-                if (live && inArrangement)
-                {
-                    host.BindControl(unit, index);
-                    AliasMigrationCount++;
-                }
-                else
+                else if (live || content == MountedToolbarSlot.LegacyAlias)
                 {
                     host.ClearSlot(unit, index);
-                    if (inArrangement) arrangement.Pending.Add(index);
+                    if (atChoice) arrangement.Pending = true;
                 }
+                else continue;
                 changed = true;
             }
             if (changed) host.BarChanged(unit);
         }
 
+        // The pending chosen slot returns once into its empty slot. An unavailable bar defers it; only a bar that cannot
+        // hold the index gives it up.
         private void RestorePending(TUnit unit)
         {
             var arrangement = Get(unit);
-            if (arrangement == null || arrangement.Pending.Count == 0) return;
+            if (arrangement == null || !arrangement.Pending || arrangement.Slot < 0) return;
             var count = host.SlotCount(unit);
-            var changed = false;
-            foreach (var index in arrangement.Pending.ToArray())
+            if (count == 0) return;
+            if (arrangement.Slot >= count)
             {
-                if (index >= count)
-                {
-                    arrangement.Pending.Remove(index);
-                    arrangement.Slots.Remove(index);
-                    continue;
-                }
-                if (host.ReadSlot(unit, index) != MountedToolbarSlot.Empty) continue;
-                host.BindControl(unit, index);
-                arrangement.Pending.Remove(index);
-                RestoreCount++;
-                if (arrangement.FromAliasRow.Remove(index)) AliasMigrationCount++;
-                changed = true;
+                arrangement.Slot = MountedControlPlacementIntent.OffBar;
+                arrangement.Pending = false;
+                return;
             }
-            if (changed) host.BarChanged(unit);
+            if (host.ReadSlot(unit, arrangement.Slot) != MountedToolbarSlot.Empty) return;
+            host.BindControl(unit, arrangement.Slot);
+            arrangement.Pending = false;
+            RestoreCount++;
+            if (arrangement.FromAliasRow) AliasMigrationCount++;
+            arrangement.FromAliasRow = false;
+            host.BarChanged(unit);
         }
 
         // The native new-ability placement, once per actor and world, into the first empty main-bar slot; a full main bar
@@ -343,26 +347,28 @@ namespace KingmakerMountedCombat.Domain
             if (id == null || records == null || host.IsPet(unit) || records.Get(id) != null || records.IsPlaced(id)) return;
             if (BarHoldsPublicBinding(unit) || !host.InitialPlacementAllowed(unit)) return;
             var arrangement = records.Create(id, host.PetLink(unit));
-            arrangement.KnownAliases = new HashSet<int>();
+            arrangement.Observed = true;
             var index = host.SelectInitialPlacementSlot(unit);
             if (index < 0) { InitialPlacementFullBarCount++; return; }
             host.BindControl(unit, index);
-            arrangement.Slots.Add(index);
+            arrangement.Slot = index;
             host.BarChanged(unit);
             InitialPlacementCount++;
         }
 
         // A previously reconciled unit that is no longer a current rider. Its bar is observed first; still on the player's
         // roster it is a temporary absence (its public slots pending), otherwise permanent loss (retired). Its KMC bindings
-        // and facts go either way. An earlier world's object, or a character present now under another object, is only
-        // cleaned up: it never authors anything in the current world.
+        // facts and exact KMC auto-use selection go either way (this is the last sweep that reaches a unit leaving every
+        // roster). An earlier world's object, or a character present now under another object, is only cleaned up: it never
+        // authors anything in the current world.
         private void ProcessDepartures(IList<TUnit> riders)
         {
+            var reserve = host.ReserveOwners() ?? new List<TUnit>();
             foreach (var item in observed.ToArray())
             {
                 if (riders.Contains(item.Unit)) continue;
                 var unit = item.Unit;
-                if (OwnsRecords(item, riders))
+                if (OwnsRecords(item, riders, reserve))
                 {
                     Observe(unit);
                     if (host.OnPlayerRoster(unit)) ClearPublicBindings(unit, true);
@@ -370,6 +376,7 @@ namespace KingmakerMountedCombat.Domain
                 }
                 else ClearPublicBindings(unit, false);
                 host.SanitizeOtherBindings(unit, MountedToolbarBoundary.Departure);
+                host.ClearManagedAutoUse(unit, MountedToolbarBoundary.Departure);
                 host.RemoveManagedFacts(unit);
                 observed.Remove(item);
             }
@@ -448,9 +455,12 @@ namespace KingmakerMountedCombat.Domain
             if (operation != null) ApplyNativeOperation(operation, false);
         }
 
-        // Native emptied these slots: the bar as it stood just before is observed (the player's latest arrangement), then
-        // the emptied slots of the arrangement are pending. Only in the world that produced the operation and only for a
-        // unit on its roster.
+        // Native wrote these slots. The bar as it stood just before is observed (the player's latest arrangement, every other
+        // public binding a known copy), then each written slot is applied in index order: an emptied chosen slot is pending;
+        // a rebound chosen slot is live (a later removal is the player's); a rebound copy stays a copy under its new slot
+        // object; an emptied copy is gone, except that the last surviving copy of a pending choice whose slot the player
+        // filled becomes that choice (the fallback). Only in the world that produced the operation and only for a unit on
+        // its roster.
         private void ApplyNativeOperation(NativeOperation operation, bool returned)
         {
             if (!Enabled) return;
@@ -459,26 +469,52 @@ namespace KingmakerMountedCombat.Domain
             if (world == null || !ReferenceEquals(operation.World.Target, world) || !host.OnPlayerRoster(unit)) return;
             SyncWorld();
             var count = host.SlotCount(unit);
-            var before = new Dictionary<int, MountedToolbarSlot>();
+            var written = new List<NativeEntry>();
             foreach (var entry in operation.Entries)
             {
                 if (entry.Index >= count || ReferenceEquals(host.SlotIdentity(unit, entry.Index), entry.Identity)) continue;
                 var now = host.ReadSlot(unit, entry.Index);
-                if (now == MountedToolbarSlot.PublicControl || now == MountedToolbarSlot.LegacyAlias) continue;
-                if (!returned && !host.IsNativeEmptySlot(unit, entry.Index)) continue;
-                before[entry.Index] = entry.Content;
+                var rebound = now == MountedToolbarSlot.PublicControl || now == MountedToolbarSlot.LegacyAlias;
+                if (!returned && !rebound && !host.IsNativeEmptySlot(unit, entry.Index)) continue;
+                if (!returned && rebound) continue;
+                written.Add(entry);
             }
-            if (before.Count == 0) return;
-            Observe(unit, before);
+            if (written.Count == 0) return;
+            Observe(unit, written.ToDictionary(entry => entry.Index, entry => new KeyValuePair<MountedToolbarSlot, object>(entry.Content, entry.Identity)));
             var arrangement = Get(unit);
             if (arrangement == null) return;
-            foreach (var index in before.Keys)
+            foreach (var entry in written.OrderBy(item => item.Index))
             {
-                if (!arrangement.Slots.Contains(index)) continue;
-                arrangement.Pending.Add(index);
-                NativeInvalidationCount++;
+                var now = host.ReadSlot(unit, entry.Index);
+                var rebound = now == MountedToolbarSlot.PublicControl || now == MountedToolbarSlot.LegacyAlias;
+                object copy;
+                if (entry.Index == arrangement.Slot)
+                {
+                    if (rebound) arrangement.Pending = false;
+                    else if (!arrangement.Pending) { arrangement.Pending = true; NativeInvalidationCount++; }
+                }
+                else if (arrangement.Copies.TryGetValue(entry.Index, out copy) && ReferenceEquals(copy, entry.Identity))
+                {
+                    if (rebound) { arrangement.Copies[entry.Index] = host.SlotIdentity(unit, entry.Index); continue; }
+                    arrangement.Copies.Remove(entry.Index);
+                    if (arrangement.Pending && ChoiceOccupied(unit, arrangement, count) && !CopyOnBar(unit, arrangement, count))
+                    {
+                        arrangement.Slot = entry.Index;
+                        NativeInvalidationCount++;
+                    }
+                }
             }
         }
+
+        private bool ChoiceOccupied(TUnit unit, MountedControlPlacementIntent.Arrangement arrangement, int count)
+        {
+            if (arrangement.Slot < 0 || arrangement.Slot >= count) return true;
+            var content = host.ReadSlot(unit, arrangement.Slot);
+            return content != MountedToolbarSlot.Empty && content != MountedToolbarSlot.PublicControl && content != MountedToolbarSlot.LegacyAlias;
+        }
+
+        private bool CopyOnBar(TUnit unit, MountedControlPlacementIntent.Arrangement arrangement, int count) =>
+            arrangement.Copies.Any(copy => copy.Key < count && ReferenceEquals(host.SlotIdentity(unit, copy.Key), copy.Value));
 
         // ---- save ----------------------------------------------------------------------------------------------------
 
@@ -503,12 +539,12 @@ namespace KingmakerMountedCombat.Domain
             var ids = new SortedSet<string>(records.ActorIds.Concat(records.PlacedIds), StringComparer.Ordinal);
             foreach (var id in ids)
             {
-                if (host.ResolveCharacter(id) == null) continue;
+                // Rider eligibility: an archive row may name only a resolvable player character that is not a pet.
+                var unit = host.ResolveCharacter(id);
+                if (unit == null || host.IsPet(unit)) continue;
                 var arrangement = records.Get(id);
-                if (arrangement != null)
-                    foreach (var index in arrangement.Slots)
-                        if (MountedControlSlotPolicy.IsValidSavedRow(index, MountedControlSlotPolicy.SavedMountState))
-                            rows.Add(new MountedToolbarRow { ActorId = id, Index = index, Kind = MountedControlSlotPolicy.SavedMountState });
+                if (arrangement != null && MountedControlSlotPolicy.IsValidSavedRow(arrangement.Slot, MountedControlSlotPolicy.SavedMountState))
+                    rows.Add(new MountedToolbarRow { ActorId = id, Index = arrangement.Slot, Kind = MountedControlSlotPolicy.SavedMountState });
                 if (records.IsPlaced(id))
                     rows.Add(new MountedToolbarRow { ActorId = id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
             }
@@ -521,13 +557,15 @@ namespace KingmakerMountedCombat.Domain
             if (id == null || host.IsPet(unit)) return;
             var live = host.ControlLive(unit);
             var wrote = false;
-            if (live)
-                foreach (var index in PublicIndices(unit))
-                {
-                    if (!MountedControlSlotPolicy.IsValidSavedRow(index, MountedControlSlotPolicy.SavedMountState) || !host.HoldsLiveBinding(unit, index)) continue;
-                    rows.Add(new MountedToolbarRow { ActorId = id, Index = index, Kind = MountedControlSlotPolicy.SavedMountState });
-                    wrote = true;
-                }
+            // The arrangement's chosen slot when it holds callable live data; for a unit not yet observed, F2's choice (the
+            // first canonical binding, else the first alias).
+            var arrangement = records.Get(id);
+            var index = arrangement != null ? arrangement.Slot : PublicIndices(unit).DefaultIfEmpty(MountedControlPlacementIntent.OffBar).First();
+            if (live && MountedControlSlotPolicy.IsValidSavedRow(index, MountedControlSlotPolicy.SavedMountState) && host.HoldsLiveBinding(unit, index))
+            {
+                rows.Add(new MountedToolbarRow { ActorId = id, Index = index, Kind = MountedControlSlotPolicy.SavedMountState });
+                wrote = true;
+            }
             if (records.IsPlaced(id) && (live || wrote))
                 rows.Add(new MountedToolbarRow { ActorId = id, Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord });
         }
@@ -569,10 +607,11 @@ namespace KingmakerMountedCombat.Domain
         // ---- load ----------------------------------------------------------------------------------------------------
 
         // Archive rows restored into the current world. loadedWorld: a freshly loaded save initialises each named actor's
-        // arrangement (every saved slot pending until the control is live). Otherwise the rows replay a capture made
-        // earlier in this world (area transfer, retained remount) and seed only an actor with no arrangement that was not
-        // retired since. Several older Mount / Dismount rows collapse to one (F2's migration): the first whose slot can
-        // hold the control on a fresh load.
+        // arrangement (its saved slot pending until the control is live). Otherwise the rows replay a capture made earlier
+        // in this world (area transfer, retained remount) and seed only an actor with no arrangement that was not retired
+        // since. With several public rows (an older archive), the first kind-6 row whose slot can hold the control on a
+        // fresh load is the choice; with none, the older Mount / Dismount rows collapse to one the same way (F2). Rows
+        // naming a resolvable pet own no arrangement (rider eligibility); an unresolved actor keeps its rows.
         public void SeedFromRows(IEnumerable<MountedToolbarRow> rows, bool loadedWorld)
         {
             Housekeeping();
@@ -580,26 +619,23 @@ namespace KingmakerMountedCombat.Domain
             foreach (var group in rows.Where(row => row.ActorId != null).GroupBy(row => row.ActorId, StringComparer.Ordinal))
             {
                 var id = group.Key;
+                var unit = host.ResolveCharacter(id);
+                if (unit != null && host.IsPet(unit)) continue;
                 var placed = group.Any(row => row.Kind == MountedControlSlotPolicy.SavedPlacementRecord);
-                var slots = group.Where(row => row.Kind == MountedControlSlotPolicy.SavedMountState).Select(row => row.Index).Distinct().ToList();
+                var canonical = group.Where(row => row.Kind == MountedControlSlotPolicy.SavedMountState).Select(row => row.Index).Distinct().ToList();
                 var aliases = group.Where(row => row.Kind != MountedControlSlotPolicy.SavedMountState &&
                     MountedControlSlotPolicy.IsPublicBindingRow(row.Kind)).Select(row => row.Index).ToList();
-                var fromAlias = slots.Count == 0 && aliases.Count > 0;
-                if (fromAlias)
-                {
-                    var unit = host.ResolveCharacter(id);
-                    slots.Add(MountedControlSlotPolicy.SelectSeededPublicRow(aliases, index => Restorable(unit, index), loadedWorld));
-                }
-                if (slots.Count == 0 && !placed) continue;
+                var fromAlias = canonical.Count == 0 && aliases.Count > 0;
+                var choices = fromAlias ? aliases : canonical;
+                var slot = choices.Count == 0 ? MountedControlPlacementIntent.OffBar :
+                    MountedControlSlotPolicy.SelectSeededPublicRow(choices, index => Restorable(unit, index), loadedWorld);
+                if (slot < 0 && !placed) continue;
                 if (placed) records.MarkPlaced(id);
                 if (!loadedWorld && (records.Get(id) != null || records.IsRetired(id))) continue;
                 var arrangement = records.Create(id, null);
-                foreach (var index in slots.Where(index => index >= 0))
-                {
-                    arrangement.Slots.Add(index);
-                    arrangement.Pending.Add(index);
-                    if (fromAlias) arrangement.FromAliasRow.Add(index);
-                }
+                arrangement.Slot = slot;
+                arrangement.Pending = slot >= 0;
+                arrangement.FromAliasRow = fromAlias && slot >= 0;
             }
         }
 
@@ -613,10 +649,12 @@ namespace KingmakerMountedCombat.Domain
         // ---- observation ---------------------------------------------------------------------------------------------
 
         // The rider's bar now is the evidence of the player's arrangement. nativeBefore: slots a native operation has just
-        // emptied, read as they were before (the bar the player last left). The companion identity is checked first: a pet
-        // link naming another companion, or cleared while the rider does not get the control, retires the arrangement and
-        // clears the rider's public bindings, so a later companion never inherits them. Pets own no arrangement.
-        private void Observe(TUnit unit, IDictionary<int, MountedToolbarSlot> nativeBefore = null)
+        // written, read as they were before (content and slot object: the bar the player last left). The companion identity
+        // is checked first: a pet link naming another companion, or cleared while the rider does not get the control,
+        // retires the arrangement and clears the rider's public bindings, so a later companion never inherits them. A new
+        // arrangement takes F2's choice (the first canonical binding, else the first alias), and every other public binding
+        // on the bar is its known copy. Pets own no arrangement.
+        private void Observe(TUnit unit, IDictionary<int, KeyValuePair<MountedToolbarSlot, object>> nativeBefore = null)
         {
             if (!Enabled || records == null || unit == null || host.IsPet(unit)) return;
             var id = host.ActorId(unit);
@@ -624,37 +662,41 @@ namespace KingmakerMountedCombat.Domain
             if (id == null || count == 0) return;
             // The common per-frame case, a unit with no arrangement and no public binding, is decided without allocating.
             if (nativeBefore == null && records.Get(id) == null && !BarHoldsPublicBinding(unit)) return;
-            var canonical = new SortedSet<int>();
-            var aliases = new SortedSet<int>();
+            var canonical = new List<MountedControlPlacementIntent.Binding>();
+            var aliases = new List<MountedControlPlacementIntent.Binding>();
             var occupied = new HashSet<int>();
             for (var index = 0; index < count; index++)
             {
-                MountedToolbarSlot content;
-                if (nativeBefore == null || !nativeBefore.TryGetValue(index, out content)) content = host.ReadSlot(unit, index);
-                if (content == MountedToolbarSlot.PublicControl) canonical.Add(index);
-                else if (content == MountedToolbarSlot.LegacyAlias) aliases.Add(index);
+                var before = default(KeyValuePair<MountedToolbarSlot, object>);
+                var native = nativeBefore != null && nativeBefore.TryGetValue(index, out before);
+                if (!native) before = new KeyValuePair<MountedToolbarSlot, object>(host.ReadSlot(unit, index), null);
+                var content = before.Key;
+                if (content == MountedToolbarSlot.PublicControl || content == MountedToolbarSlot.LegacyAlias)
+                {
+                    var binding = new MountedControlPlacementIntent.Binding
+                        { Index = index, Identity = native ? before.Value : host.SlotIdentity(unit, index), Alias = content == MountedToolbarSlot.LegacyAlias };
+                    (binding.Alias ? aliases : canonical).Add(binding);
+                }
                 else if (content != MountedToolbarSlot.Empty) occupied.Add(index);
             }
+            var bindings = canonical.Concat(aliases).ToList();
             var arrangement = records.Get(id);
             var link = host.PetLink(unit);
             if (arrangement != null ? CompanionLost(unit, arrangement) :
-                canonical.Count + aliases.Count > 0 && string.IsNullOrEmpty(link) && !host.ControlDesired(unit))
+                bindings.Count > 0 && string.IsNullOrEmpty(link) && !host.ControlDesired(unit))
             {
                 RetireAndClear(unit);
                 return;
             }
             if (arrangement == null)
             {
-                // Older aliases stand for the control only on a bar without a canonical binding: the first one (F2).
-                var evidence = canonical.Count > 0 ? canonical.ToList() : aliases.Take(1).ToList();
-                if (evidence.Count == 0) return;
+                if (bindings.Count == 0) return;
                 arrangement = records.Create(id, link);
-                arrangement.Slots.UnionWith(evidence);
-                arrangement.KnownAliases = new HashSet<int>(aliases.Where(index => !arrangement.Slots.Contains(index)));
-                return;
+                arrangement.Slot = bindings[0].Index;
+                arrangement.Observed = true;
             }
             if (arrangement.PetId == null && !string.IsNullOrEmpty(link)) arrangement.PetId = link;
-            MountedControlPlacementIntent.ApplyBar(arrangement, canonical, aliases, occupied, count);
+            MountedControlPlacementIntent.ApplyBar(arrangement, bindings, occupied, count);
             records.MarkPlaced(id);
         }
 
@@ -694,7 +736,7 @@ namespace KingmakerMountedCombat.Domain
                 if (content != MountedToolbarSlot.PublicControl && content != MountedToolbarSlot.LegacyAlias) continue;
                 host.ClearSlot(unit, index);
                 changed = true;
-                if (arrangement != null && arrangement.Slots.Contains(index)) arrangement.Pending.Add(index);
+                if (arrangement != null && arrangement.Slot == index) arrangement.Pending = true;
             }
             if (changed) host.BarChanged(unit);
         }
@@ -706,46 +748,46 @@ namespace KingmakerMountedCombat.Domain
         // Observe itself skips pets.
         private List<TUnit> PlacementUnits(IList<TUnit> riders)
         {
+            var reserve = host.ReserveOwners() ?? new List<TUnit>();
             var result = new List<TUnit>();
             foreach (var unit in riders) AddUnique(result, unit);
             foreach (var item in observed)
-                if (OwnsRecords(item, riders)) AddUnique(result, item.Unit);
-            foreach (var unit in host.ReserveOwners() ?? new List<TUnit>()) AddUnique(result, unit);
+                if (OwnsRecords(item, riders, reserve)) AddUnique(result, item.Unit);
+            foreach (var unit in reserve) AddUnique(result, unit);
             return result;
         }
 
         // Sanitation coverage: units whose managed references a cleanup boundary clears. Current riders (a rider that
         // rejoined before the next update included), every observed former rider (an earlier world's object too), reserve
-        // and detached owners, and those owners' exact persistent pets.
+        // and detached owners, and the exact persistent pet of every one of them: a reserve owner that also sits in a pair's
+        // custody is a current rider, and its pet is reached from it, not from the party.
         private List<TUnit> SanitationUnits(IList<TUnit> riders)
         {
             var result = new List<TUnit>();
             foreach (var unit in riders) AddUnique(result, unit);
             foreach (var item in observed) AddUnique(result, item.Unit);
-            foreach (var owner in host.ReserveOwners() ?? new List<TUnit>())
-            {
-                AddUnique(result, owner);
-                if (owner != null) AddUnique(result, host.PersistentPet(owner));
-            }
+            foreach (var owner in host.ReserveOwners() ?? new List<TUnit>()) AddUnique(result, owner);
+            foreach (var owner in result.ToArray()) AddUnique(result, host.PersistentPet(owner));
             return result;
         }
 
         // A former rider of this world that is no longer on the player's roster has lost eligibility for good.
         private void RetireDepartedFormerRiders(IList<TUnit> riders)
         {
+            var reserve = host.ReserveOwners() ?? new List<TUnit>();
             foreach (var item in observed)
-                if (!riders.Contains(item.Unit) && OwnsRecords(item, riders) && !host.OnPlayerRoster(item.Unit)) RetireAndClear(item.Unit);
+                if (!riders.Contains(item.Unit) && OwnsRecords(item, riders, reserve) && !host.OnPlayerRoster(item.Unit)) RetireAndClear(item.Unit);
         }
 
         // An observed unit authors records only in the world it was first reconciled in, and only while no other object of
-        // the same character is a current rider.
-        private bool OwnsRecords(ObservedUnit item, IList<TUnit> riders)
+        // the same character is a current rider or a current reserve or detached owner (the current instance authors).
+        private bool OwnsRecords(ObservedUnit item, IList<TUnit> riders, IList<TUnit> reserve)
         {
             var world = host.CurrentWorld;
             if (world == null || !ReferenceEquals(item.World.Target, world)) return false;
             if (riders.Contains(item.Unit)) return true;
             var id = host.ActorId(item.Unit);
-            return id == null || !riders.Any(other => other != null && !ReferenceEquals(other, item.Unit) &&
+            return id == null || !riders.Concat(reserve).Any(other => other != null && !ReferenceEquals(other, item.Unit) &&
                 string.Equals(host.ActorId(other), id, StringComparison.Ordinal));
         }
 

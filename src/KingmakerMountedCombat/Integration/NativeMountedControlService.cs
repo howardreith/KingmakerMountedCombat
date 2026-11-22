@@ -876,21 +876,6 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private bool areaSuspended;
-        internal void SuspendAreaControls()
-        {
-            if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
-            areaSuspended = true;
-            ClearTargetingPresentation("area-unloading");
-            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
-            // Every bar is observed before the sweep empties it; the public slots stay pending for the resume.
-            toolbar.SuspendArea();
-        }
-        internal void ResumeAreaControls()
-        {
-            areaSuspended = false;
-            if (!disposed && enabled) Update();
-        }
 
         internal void Update()
         {
@@ -1201,22 +1186,6 @@ namespace KingmakerMountedCombat.Integration
             return accepted;
         }
 
-        internal bool BeginSaveSerializationScope()
-        {
-            if (disposed || serializationSuspended)
-            {
-                return false;
-            }
-
-            serializationSuspended = true;
-            hotbarSerializationLeases.Clear();
-            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
-            // Every bar is observed, then every swept unit loses its KMC bindings (public slots pending, the others leased),
-            // its exact KMC auto-use selection and its KMC facts (MountedToolbarLifecycle.BeginSave).
-            toolbar.BeginSave();
-            logger.Info("Native mounted control facts and exact KMC hotbar bindings suspended before save serialization.");
-            return true;
-        }
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> inner)
         {
@@ -1748,37 +1717,6 @@ namespace KingmakerMountedCombat.Integration
                 RetiredPrimaryHelpersSelected);
         }
 
-        private List<UnitEntityData> CollectCurrentCandidateUnits()
-        {
-            var result = new List<UnitEntityData>();
-            var player = Game.Instance?.Player;
-            if (player?.PartyCharacters != null)
-            {
-                foreach (var reference in player.PartyCharacters)
-                {
-                    var unit = reference.Value;
-                    AddUnique(result, unit);
-                    AddUnique(result, unit?.Descriptor?.Pet);
-                }
-            }
-            foreach (var owner in relationship.Ownership.Owners)
-            {
-                AddUnique(result, owner.Rider); AddUnique(result, owner.Mount);
-            }
-            return result;
-        }
-
-        // Current riders and the previously reconciled units whose departure cleanup has not run yet.
-        private List<UnitEntityData> CollectCandidateUnits()
-        {
-            var result = CollectCurrentCandidateUnits();
-            foreach (var unit in toolbar.ObservedUnits)
-            {
-                AddUnique(result, unit);
-            }
-            return result;
-        }
-
         private void CancelPendingNativeControls(CleanupTrigger trigger) => CancelPairControls(null, trigger);
 
         private void CancelPairControls(GameMountedRelationshipService owner, CleanupTrigger trigger)
@@ -1795,24 +1733,6 @@ namespace KingmakerMountedCombat.Integration
                         command.Interrupt();
                 }
             }
-        }
-
-        internal void EndSaveSerializationScope()
-        {
-            if (!serializationSuspended)
-            {
-                return;
-            }
-            serializationSuspended = false;
-            try
-            {
-                if (enabled && !disposed) Update();
-            }
-            finally
-            {
-                ClearSerializationHotbarLeases(true);
-            }
-            logger.Info("Native mounted control save-serialization suspension ended; current runtime facts were rebuilt without saved residue.");
         }
 
         private PendingNativeActivation StartActivation(

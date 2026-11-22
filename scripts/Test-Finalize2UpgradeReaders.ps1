@@ -196,8 +196,12 @@ $isolation=Src 'src/KingmakerMountedCombat/Diagnostics/PersistenceIsolationBoots
 $gameResult=Src 'scripts/runtime/Test-RuntimeGameResult.ps1'
 $requestValidator=Src 'scripts/runtime/Test-RuntimeRequest.ps1'
 $runner=Src 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'
-$capture=$controls.Substring($controls.IndexOf('internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false'))
-Check ($capture.Substring(0,400).Contains('if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();')) 'removal safeguard: the slot capture emits no control or placement row while suppressed, before any row is built'
+# The capture implementation lives in the service's toolbar partial since the toolbar lifecycle was extracted.
+$controlsToolbar=Src 'src/KingmakerMountedCombat/Integration/NativeMountedControlService.Toolbar.cs'
+$captureAt=$controlsToolbar.IndexOf('internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false')
+Check ($captureAt-ge0) 'removal safeguard: the slot capture implementation is found'
+$capture=if($captureAt-ge0){$controlsToolbar.Substring($captureAt)}else{''}
+Check ($capture.Length-ge400-and$capture.Substring(0,400).Contains('if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();')) 'removal safeguard: the slot capture emits no control or placement row while suppressed, before any row is built'
 Check ($composition.Contains('nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;')) 'removal safeguard: suppression is bound to the removal cleanup save'
 Check ($removal.Contains('internal bool CleanupSaveInFlight => State == RemovalPreparationState.Saving && pendingSave != null &&') -and $removal.Contains('ReferenceEquals(persistence.ActiveSaveRequested, pendingSave);')) 'removal safeguard: only the exact cleanup save in flight suppresses rows'
 Check ($protocol.Contains('if (Finalize2Controls.HasValue && (Finalize2Controls != true || UpgradeChain != true))') -and $protocol.Contains('else if (IsFinalize2UpgradeConsumer)')) 'the compiled request admits F2 only beside the upgrade chain, with its consumer''s second archive'

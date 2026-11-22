@@ -5,23 +5,38 @@ using System.Linq;
 namespace KingmakerMountedCombat.Domain
 {
     // The player's arrangements of the public Mount / Dismount control in one player world: the state that
-    // MountedToolbarLifecycle owns and sequences. Actor ids, slot indices and pet ids only; the world is held weakly, never
-    // a native reference.
+    // MountedToolbarLifecycle owns and sequences. Actor ids, slot indices, pet ids and the identities of slot objects on
+    // the current world's bars; the world is held weakly.
     //
-    // An arrangement is the set of toolbar slots where the player keeps the control and the subset that is pending (owed
-    // back after native or KMC cleanup emptied it). An empty set is "off the bar".
+    // An arrangement is one chosen slot (or "off the bar"), whether that slot is pending (owed back after native or KMC
+    // cleanup emptied it), and the known copies: every other public binding seen on the bar, by index and slot object. A
+    // copy is never the player's new placement; a binding that is not a known copy is.
     public sealed class MountedControlPlacementIntent
     {
+        public const int OffBar = -1;
+
         public sealed class Arrangement
         {
-            public readonly SortedSet<int> Slots = new SortedSet<int>();
-            public readonly SortedSet<int> Pending = new SortedSet<int>();
+            // The chosen slot, or OffBar.
+            public int Slot = OffBar;
+            // The chosen slot was emptied by native cleanup or a KMC sweep and is owed back.
+            public bool Pending;
             // The companion the arrangement was observed with; null until observed (an archive row).
             public string PetId;
-            // Older aliases on the bar outside the arrangement at the last observation; null until observed.
-            public HashSet<int> KnownAliases;
-            // Pending slots seeded from an older Mount / Dismount archive row (their restore is that row's migration).
-            public readonly HashSet<int> FromAliasRow = new HashSet<int>();
+            // Other public bindings known on the bar: index -> slot object.
+            public readonly Dictionary<int, object> Copies = new Dictionary<int, object>();
+            // The bar has been observed since the arrangement was made (an archive row's arrangement has not).
+            public bool Observed;
+            // The pending slot was seeded from an older Mount / Dismount archive row (its restore is that row's migration).
+            public bool FromAliasRow;
+        }
+
+        // One public binding on a bar, in F2's precedence (canonical bindings by index, then older aliases by index).
+        public struct Binding
+        {
+            public int Index;
+            public object Identity;
+            public bool Alias;
         }
 
         private readonly WeakReference world;
@@ -68,38 +83,51 @@ namespace KingmakerMountedCombat.Domain
 
         public void Clear() { arrangements.Clear(); retired.Clear(); placed.Clear(); }
 
-        // The evidence rule for an existing arrangement, from the bar as it stands (slotCount slots; canonical and alias
-        // public bindings; occupied: anything else that is not empty):
-        // - a slot of the arrangement no longer on the bar and not pending was removed by the player;
-        // - a public binding at a slot outside the arrangement, back at a pending slot, or a new older alias, was placed by
-        //   the player: the bar is the arrangement from now on and earlier pending slots are superseded;
-        // - a pending slot the player filled with something else, or beyond the bar, is given up.
-        // An alias inside the arrangement stands for the control; one outside it is a leftover unless it is new.
-        public static void ApplyBar(Arrangement arrangement, ICollection<int> canonical, ICollection<int> aliases, ICollection<int> occupied, int slotCount)
+        public static bool IsCopy(Arrangement arrangement, Binding binding)
         {
-            var present = new SortedSet<int>(canonical);
-            present.UnionWith(aliases.Where(arrangement.Slots.Contains));
-            var placedNow = new SortedSet<int>(present.Where(index => !arrangement.Slots.Contains(index) || arrangement.Pending.Contains(index)));
-            if (arrangement.KnownAliases != null)
-                placedNow.UnionWith(aliases.Where(index => !arrangement.Slots.Contains(index) && !arrangement.KnownAliases.Contains(index)));
-            var kept = arrangement.Slots.Where(index => !arrangement.Pending.Contains(index) && present.Contains(index)).ToList();
-            var pending = arrangement.Pending.ToArray();
-            arrangement.Slots.Clear();
-            arrangement.Slots.UnionWith(kept);
-            if (placedNow.Count > 0)
+            object identity;
+            return binding.Index != arrangement.Slot && arrangement.Copies.TryGetValue(binding.Index, out identity) &&
+                ReferenceEquals(identity, binding.Identity);
+        }
+
+        // The evidence rule for an existing arrangement, from the bar as it stands (bindings in precedence order; occupied:
+        // indices holding anything else that is not empty; slotCount: the bar's length):
+        // - copies that left the bar (removed, replaced or moved) are forgotten; an unobserved arrangement first takes the
+        //   older aliases on its bar as copies (F2 leftovers, never the player's placement);
+        // - the first binding that is not a known copy is the player's: it is the chosen slot from now on (a move, a fresh
+        //   placement, a re-placement at a pending slot), live;
+        // - with none, a live arrangement was removed by the player (off the bar; its copies yield); a pending one keeps
+        //   waiting while its slot is free, and when the player filled its slot the first surviving copy becomes the
+        //   choice (the fallback), or the shortcut is off the bar;
+        // - every other public binding on the bar is a known copy afterwards.
+        public static void ApplyBar(Arrangement arrangement, IList<Binding> bindings, ICollection<int> occupied, int slotCount)
+        {
+            foreach (var copy in arrangement.Copies.ToArray())
+                if (!bindings.Any(binding => binding.Index == copy.Key && ReferenceEquals(binding.Identity, copy.Value)))
+                    arrangement.Copies.Remove(copy.Key);
+            if (!arrangement.Observed)
+                foreach (var binding in bindings)
+                    if (binding.Alias && binding.Index != arrangement.Slot) arrangement.Copies[binding.Index] = binding.Identity;
+            arrangement.Observed = true;
+            var fresh = bindings.Where(binding => !IsCopy(arrangement, binding)).ToList();
+            if (fresh.Count > 0)
             {
-                arrangement.Pending.Clear();
-                arrangement.Slots.UnionWith(placedNow);
+                arrangement.Slot = fresh[0].Index;
+                arrangement.Pending = false;
+                arrangement.FromAliasRow = false;
             }
-            else arrangement.Slots.UnionWith(pending);
-            foreach (var index in arrangement.Pending.ToArray())
+            else if (!arrangement.Pending) arrangement.Slot = OffBar;
+            else if (arrangement.Slot < 0 || arrangement.Slot >= slotCount || occupied.Contains(arrangement.Slot))
             {
-                if (index < slotCount && !occupied.Contains(index)) continue;
-                arrangement.Pending.Remove(index);
-                arrangement.Slots.Remove(index);
+                var fallback = bindings.Where(binding => IsCopy(arrangement, binding)).Select(binding => (int?)binding.Index).FirstOrDefault();
+                arrangement.Slot = fallback ?? OffBar;
+                arrangement.Pending = false;
+                arrangement.FromAliasRow = false;
+                if (fallback.HasValue) arrangement.Copies.Remove(fallback.Value);
             }
-            arrangement.FromAliasRow.IntersectWith(arrangement.Pending);
-            arrangement.KnownAliases = new HashSet<int>(aliases.Where(index => !arrangement.Slots.Contains(index)));
+            foreach (var binding in bindings)
+                if (binding.Index != arrangement.Slot) arrangement.Copies[binding.Index] = binding.Identity;
+            arrangement.Copies.Remove(arrangement.Slot);
         }
     }
 }

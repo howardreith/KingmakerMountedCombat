@@ -5,7 +5,8 @@ param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 # -Focused script name, so this wrapper declares exactly seven checks and nothing broader (docs/VALIDATION-POLICY.md 3: no
 # silent broadening):
 #   7. Test-ToolbarLifecycleMutations.ps1: the toolbar lifecycle's behavioural tests against the unmutated production
-#      component and against ten single-line production mutations, compiled in a temp directory (the worktree is not written).
+#      component, and the actual adapter file (NativeMountedControlService.Toolbar.cs) through its offline wiring fixture,
+#      then single-line production mutations of both, compiled in a temp directory (the worktree is not written).
 #   5. Test-CityAreaAdapterBaseline.ps1: the area-restore adapter's own compile step on base dbf63702 and on the committed
 #      candidate, with normalized diagnostics compared (the candidate may add none).
 #   3. Test-CityArchiveRowBound.ps1: the production archive DTO, validator and codec compiled from this worktree

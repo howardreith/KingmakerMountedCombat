@@ -1,25 +1,32 @@
 [CmdletBinding()]
 param()
-# Production mutation check of the toolbar lifecycle (docs/MOUNTED-COMBAT-CITY-AND-PRONE-MISSION-WITH-TOOLBAR-REPAIR-ADDENDUM.md
-# section E). The production component (src/.../Domain/MountedToolbarLifecycle.cs and MountedControlPlacementIntent.cs) and
-# its behavioural tests (tests/MountedControlPlacementIntentTests.cs, with tests/TestRunner.cs) are copied into a fresh temp
-# directory and compiled with a generated entry point. The unmutated copy must pass every test. Each mutation then edits
-# ONE production line in the temp copy only (the worktree is never written), recompiles, runs the same tests and must make
-# every named test fail. Mutation classes: pre-cleanup observation skipped; a required actor omitted from a sanitation or
-# observation sweep; outgoing-world lifetime mishandled (abandon, replacement, unfenced disposal); a player edit confused with
-# native invalidation. Not native evidence.
+# Production mutation check of the toolbar lifecycle and its adapter wiring
+# (docs/MOUNTED-COMBAT-CITY-AND-PRONE-MISSION-WITH-TOOLBAR-REPAIR-ADDENDUM.md section E; review R1-F14). Two campaigns, each
+# copied into a fresh temp directory and compiled there (the worktree is never written):
+# - lifecycle: the production component (src/.../Domain/MountedToolbarLifecycle.cs, MountedControlPlacementIntent.cs) with
+#   its behavioural tests (tests/MountedControlPlacementIntentTests.cs, tests/TestRunner.cs) and a generated entry point;
+# - wiring: the actual adapter file src/.../Integration/NativeMountedControlService.Toolbar.cs with the same component and
+#   tests/Chunk7Diagnostics/ToolbarAdapterWiringFixture.cs (labeled Kingmaker facades and the service's main-file members),
+#   driving the service's own entry points.
+# Each unmutated copy must pass every check. Each mutation then edits ONE production line in the temp copy, recompiles,
+# reruns and must make every named check fail. Classes: pre-cleanup observation skipped; a required actor omitted from a
+# sanitation or observation sweep; outgoing-world lifetime mishandled (abandon, replacement, unfenced disposal, a missing
+# player during a load); a player edit confused with native invalidation; a disconnected adapter boundary or roster input.
+# Not native evidence.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
 $framework='C:/Program Files (x86)/Reference Assemblies/Microsoft/Framework/.NETFramework/v4.7'
 $lifecycle='src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs'
 $intent='src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs'
-$sources=@($lifecycle,$intent,'src/KingmakerMountedCombat/Domain/MountedControlSlotPolicy.cs','src/KingmakerMountedCombat/Domain/NativeMountedControl.cs',
-    'tests/MountedControlPlacementIntentTests.cs','tests/TestRunner.cs')
+$adapter='src/KingmakerMountedCombat/Integration/NativeMountedControlService.Toolbar.cs'
+$domain=@($lifecycle,$intent,'src/KingmakerMountedCombat/Domain/MountedControlSlotPolicy.cs','src/KingmakerMountedCombat/Domain/NativeMountedControl.cs')
+$all=@($domain+@($adapter,'src/KingmakerMountedCombat/Domain/CleanupTrigger.cs','tests/MountedControlPlacementIntentTests.cs','tests/TestRunner.cs',
+    'tests/Chunk7Diagnostics/ToolbarAdapterWiringFixture.cs'))
 $root=Join-Path ([IO.Path]::GetTempPath()) ('kmc-toolbar-mutations-'+[Guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($root)
 $original=@{}
-foreach($path in $sources){
+foreach($path in $all){
     $full=Join-Path $repo $path
     if(-not(Test-Path -LiteralPath $full -PathType Leaf)){throw "Mutation input is missing: $path"}
     $original[$path]=[IO.File]::ReadAllText($full).Replace("`r`n","`n")
@@ -39,82 +46,115 @@ namespace KingmakerMountedCombat.Tests
     }
 }
 '@
+$campaigns=@(
+    @{Name='lifecycle';Prefix='FAIL toolbar: ';Minimum=30;Entry=$main
+      Sources=@($domain+@('tests/MountedControlPlacementIntentTests.cs','tests/TestRunner.cs'))},
+    @{Name='wiring';Prefix='FAIL wiring: ';Minimum=5;Entry=$null
+      Sources=@($domain+@($adapter,'src/KingmakerMountedCombat/Domain/CleanupTrigger.cs','tests/Chunk7Diagnostics/ToolbarAdapterWiringFixture.cs'))}
+)
 
-function Invoke-Variant([string]$Label,[hashtable]$Texts){
-    $dir=Join-Path $root $Label;[void][IO.Directory]::CreateDirectory($dir)
+function Invoke-Variant([hashtable]$Campaign,[string]$Label,[hashtable]$Texts){
+    $dir=Join-Path $root ($Campaign.Name+'-'+$Label);[void][IO.Directory]::CreateDirectory($dir)
     $files=@()
-    foreach($path in $sources){$target=Join-Path $dir ([IO.Path]::GetFileName($path));[IO.File]::WriteAllText($target,$Texts[$path],[Text.UTF8Encoding]::new($false));$files+=$target}
-    $entry=Join-Path $dir 'ToolbarMutationMain.cs';[IO.File]::WriteAllText($entry,$main,[Text.UTF8Encoding]::new($false));$files+=$entry
+    foreach($path in $Campaign.Sources){$target=Join-Path $dir ([IO.Path]::GetFileName($path));[IO.File]::WriteAllText($target,$Texts[$path],[Text.UTF8Encoding]::new($false));$files+=$target}
+    if($null-ne$Campaign.Entry){$entry=Join-Path $dir 'ToolbarMutationMain.cs';[IO.File]::WriteAllText($entry,$Campaign.Entry,[Text.UTF8Encoding]::new($false));$files+=$entry}
     $exe=Join-Path $dir 'ToolbarMutation.exe'
     $references=@('mscorlib.dll','System.dll','System.Core.dll'|ForEach-Object{'/reference:'+(Join-Path $framework $_)})
     $compile=@(& $compiler /noconfig /nologo /target:exe /langversion:7.3 /nostdlib+ /warnaserror+ ('/out:'+$exe) @references @files 2>&1)
-    if($LASTEXITCODE-ne0){$compile|ForEach-Object{Write-Output ('  '+$_)};throw "$Label did not compile."}
+    if($LASTEXITCODE-ne0){$compile|ForEach-Object{Write-Output ('  '+$_)};throw ($Campaign.Name+' '+$Label+' did not compile.')}
     $output=@(& $exe 2>&1);$exit=$LASTEXITCODE
     $failed=@($output|ForEach-Object{[string]$_}|Where-Object{$_-cmatch'^FAIL '})
     $passed=@($output|ForEach-Object{[string]$_}|Where-Object{$_-cmatch'^PASS '})
     [pscustomobject]@{Exit=$exit;Failed=$failed;Passed=$passed.Count;Output=$output}
 }
 
-$baseline=Invoke-Variant 'baseline' $original
-Write-Output ('BASELINE exit='+$baseline.Exit+' pass='+$baseline.Passed+' fail='+$baseline.Failed.Count)
-$baseline.Failed|ForEach-Object{Write-Output ('  '+$_)}
-$problems=New-Object 'System.Collections.Generic.List[string]'
-if($baseline.Exit-ne0-or$baseline.Failed.Count-ne0-or$baseline.Passed-lt20){$problems.Add('the unmutated production copy does not pass every test')}
-
-# Name; file; exact production text (must occur once); its replacement; tests that must fail.
+# Campaign; name; file; exact production text (must occur once); its replacement; checks that must fail.
 $mutations=@(
-    @{Name='M1a pre-cleanup observation skipped at a sweep boundary (area unload, save scope)';File=$lifecycle
+    @{Campaign='lifecycle';Name='M1a pre-cleanup observation skipped at a sweep boundary (area unload, save scope)';File=$lifecycle
       Needle="            foreach (var unit in owners) Observe(unit);`n";Replace="            // mutation: no observation before the sweep`n"
       Expect=@('D1 a move or removal right before')},
-    @{Name='M1b pre-cleanup observation skipped before native invalidation is recorded';File=$lifecycle
-      Needle="            Observe(unit, before);`n";Replace="            // mutation: no observation before the native emptying`n"
+    @{Campaign='lifecycle';Name='M1b pre-cleanup observation skipped before a native write is applied';File=$lifecycle
+      Needle="            Observe(unit, written.ToDictionary(entry => entry.Index, entry => new KeyValuePair<MountedToolbarSlot, object>(entry.Content, entry.Identity)));`n"
+      Replace="            // mutation: no observation before the native write`n"
       Expect=@('D6 native invalidation returns the control once','AC-R22-F3')},
-    @{Name='M2a reserve owners'' persistent pets omitted from the sanitation sweep';File=$lifecycle
-      Needle="                if (owner != null) AddUnique(result, host.PersistentPet(owner));`n";Replace="                // mutation: pets omitted`n"
-      Expect=@('AC-R26-F4')},
-    @{Name='M2b reserve owners omitted from the observation (placement) sweep';File=$lifecycle
-      Needle="            foreach (var unit in host.ReserveOwners() ?? new List<TUnit>()) AddUnique(result, unit);`n            return result;`n        }`n`n        // Sanitation coverage";
+    @{Campaign='lifecycle';Name='M2a persistent pets omitted from the sanitation sweep';File=$lifecycle
+      Needle="            foreach (var owner in result.ToArray()) AddUnique(result, host.PersistentPet(owner));`n";Replace="            // mutation: pets omitted`n"
+      Expect=@('AC-R26-F4','review R1-F5')},
+    @{Campaign='lifecycle';Name='M2b reserve owners omitted from the observation (placement) sweep';File=$lifecycle
+      Needle="            foreach (var unit in reserve) AddUnique(result, unit);`n            return result;`n        }`n`n        // Sanitation coverage"
       Replace="            return result;`n        }`n`n        // Sanitation coverage"
       Expect=@('reserve bars of older saves','AC-R22-F3')},
-    @{Name='M3a an abandoned load releases the outgoing world''s records';File=$lifecycle
+    @{Campaign='lifecycle';Name='M3a an abandoned load releases the outgoing world''s records';File=$lifecycle
       Needle="            loadOwner = null;`n            SyncWorld();`n";Replace="            loadOwner = null;`n            records = null;`n            SyncWorld();`n"
       Expect=@('D4/D5 an abandoned load','AC-R26-F1','AC-R26-F2')},
-    @{Name='M3b a replaced world keeps the outgoing world''s records';File=$lifecycle
+    @{Campaign='lifecycle';Name='M3b a replaced world keeps the outgoing world''s records';File=$lifecycle
       Needle="            if (records != null && records.BelongsTo(world)) return;`n";Replace="            if (records != null) return;`n"
       Expect=@('AC-R26-F2')},
-    @{Name='M3c an unfenced disposal (main menu) keeps the records';File=$lifecycle
+    @{Campaign='lifecycle';Name='M3c an unfenced disposal (main menu) keeps the records';File=$lifecycle
       Needle="                if (loadOwner == null) ReleaseRecords();`n";Replace="                // mutation: nothing released without a world`n"
       Expect=@('AC-R26-F2','disable, disabled saves and world changes')},
-    @{Name='M4a a player removal after an aborted native operation is read as native emptying';File=$lifecycle
-      Needle="                if (!returned && !host.IsNativeEmptySlot(unit, entry.Index)) continue;`n";Replace="                // mutation: every change counts as native`n"
+    @{Campaign='lifecycle';Name='M3d a missing player during an open load is treated as disposal';File=$lifecycle
+      Needle="            if (host.CurrentWorld == null && loadOwner != null) return;`n";Replace="            // mutation: no hold while the load is open`n"
+      Expect=@('review R1-F2')},
+    @{Campaign='lifecycle';Name='M4a a player removal after an aborted native operation is read as native emptying';File=$lifecycle
+      Needle="                if (!returned && !rebound && !host.IsNativeEmptySlot(unit, entry.Index)) continue;`n";Replace="                // mutation: every change counts as native`n"
       Expect=@('D6 native operations that throw')},
-    @{Name='M4b a native emptying is read as the player''s removal (no pending slot)';File=$lifecycle
-      Needle="                arrangement.Pending.Add(index);`n                NativeInvalidationCount++;`n";Replace="                NativeInvalidationCount++;`n"
+    @{Campaign='lifecycle';Name='M4b a native emptying is read as the player''s removal (no pending slot)';File=$lifecycle
+      Needle="                    else if (!arrangement.Pending) { arrangement.Pending = true; NativeInvalidationCount++; }`n"
+      Replace="                    else if (!arrangement.Pending) { NativeInvalidationCount++; }`n"
       Expect=@('D6 native invalidation returns the control once','AC-R22-F3','a save header during an interruption')},
-    @{Name='M4c a player removal is kept as if native had emptied the slot';File=$intent
-      Needle="            var kept = arrangement.Slots.Where(index => !arrangement.Pending.Contains(index) && present.Contains(index)).ToList();`n";
-      Replace="            var kept = arrangement.Slots.ToList();`n"
-      Expect=@('a deliberate removal survives','D6 native invalidation returns the control once')}
+    @{Campaign='lifecycle';Name='M4c a player removal is kept as if native had emptied the slot';File=$intent
+      Needle="            else if (!arrangement.Pending) arrangement.Slot = OffBar;`n";Replace="            else if (!arrangement.Pending) arrangement.Pending = true;`n"
+      Expect=@('a deliberate removal survives','D6 native invalidation returns the control once')},
+    @{Campaign='wiring';Name='W1 the service stops forwarding the save scope to the lifecycle';File=$adapter
+      Needle="            toolbar.BeginSave();`n";Replace="            // mutation: save scope not forwarded`n"
+      Expect=@('a remote owner in pair custody')},
+    @{Campaign='wiring';Name='W2 the roster adapter omits the detached roster';File=$adapter
+      Needle="new[] { player.RemoteCompanions, player.DetachedPartyCharacters }";Replace="new[] { player.RemoteCompanions }"
+      Expect=@('a remote owner in pair custody')},
+    @{Campaign='wiring';Name='W3 the native slot prefix stops forwarding to the lifecycle';File=$adapter
+      Needle="            toolbar.BeginNativeSlotOperation(unit, slotIndex);`n";Replace="            // mutation: native prefix not forwarded`n"
+      Expect=@('native GetSlot through the service brackets')},
+    @{Campaign='wiring';Name='W4 the host returns no persistent pet';File=$adapter
+      Needle="                return pet?.Descriptor != null && pet.Descriptor.IsPet && ReferenceEquals(pet.Descriptor.Master.Value, owner) ? pet : null;`n"
+      Replace="                return pet?.Descriptor != null && pet.Descriptor.IsPet && pet.Descriptor.Master.Value == null ? pet : null;`n"
+      Expect=@('a remote owner in pair custody')},
+    @{Campaign='wiring';Name='W5 the host reports no reserve or detached owners';File=$adapter
+      Needle="public IList<UnitEntityData> ReserveOwners() => ReserveRosterUnits(service.CollectCurrentCandidateUnits());"
+      Replace="public IList<UnitEntityData> ReserveOwners() => new List<UnitEntityData>();"
+      Expect=@('a remote owner in pair custody')}
 )
 
+$problems=New-Object 'System.Collections.Generic.List[string]'
+$baselines=@{}
+foreach($campaign in $campaigns){
+    $result=Invoke-Variant $campaign 'baseline' $original
+    $baselines[$campaign.Name]=$result.Passed
+    Write-Output ('BASELINE '+$campaign.Name+' exit='+$result.Exit+' pass='+$result.Passed+' fail='+$result.Failed.Count)
+    $result.Failed|ForEach-Object{Write-Output ('  '+$_)}
+    if($result.Exit-ne0-or$result.Failed.Count-ne0-or$result.Passed-lt$campaign.Minimum){$problems.Add('the unmutated '+$campaign.Name+' copy does not pass every check')}
+}
+$index=0
 foreach($mutation in $mutations){
+    $index++
+    $campaign=$campaigns|Where-Object{$_.Name-ceq$mutation.Campaign}
     $text=$original[$mutation.File]
     $first=$text.IndexOf($mutation.Needle,[StringComparison]::Ordinal)
     if($first-lt0-or$first-ne$text.LastIndexOf($mutation.Needle,[StringComparison]::Ordinal)){$problems.Add($mutation.Name+': production text absent or not unique');Write-Output ('MUTATION '+$mutation.Name+' NOT APPLIED (text absent or not unique)');continue}
-    $texts=@{};foreach($path in $sources){$texts[$path]=$original[$path]}
+    $texts=@{};foreach($path in $all){$texts[$path]=$original[$path]}
     $texts[$mutation.File]=$text.Substring(0,$first)+$mutation.Replace+$text.Substring($first+$mutation.Needle.Length)
-    $label='m'+([array]::IndexOf($mutations,$mutation)+1)
-    $result=Invoke-Variant $label $texts
-    $missing=@($mutation.Expect|Where-Object{$expected=$_;-not($result.Failed|Where-Object{$_-clike('FAIL toolbar: '+$expected+'*')})})
+    $result=Invoke-Variant $campaign ('m'+$index) $texts
+    $missing=@($mutation.Expect|Where-Object{$expected=$_;-not($result.Failed|Where-Object{$_-clike($campaign.Prefix+$expected+'*')})})
     $verdict=if($result.Exit-ne0-and$missing.Count-eq0){'KILLED'}else{'SURVIVED'}
-    Write-Output ('MUTATION '+$mutation.Name+' -> '+$verdict+' (exit='+$result.Exit+', failing tests='+$result.Failed.Count+')')
+    Write-Output ('MUTATION '+$mutation.Name+' -> '+$verdict+' (exit='+$result.Exit+', failing checks='+$result.Failed.Count+')')
     $result.Failed|ForEach-Object{Write-Output ('  '+($_ -replace '^(FAIL [^:]+:[^:]+):.*$','$1'))}
     if($verdict-ne'KILLED'){$problems.Add($mutation.Name+': expected failures missing: '+($missing-join'; '))}
 }
 # The worktree's production files are unchanged (the mutations lived in the temp copies only).
-foreach($path in $sources){
+foreach($path in $all){
     if([IO.File]::ReadAllText((Join-Path $repo $path)).Replace("`r`n","`n")-cne$original[$path]){$problems.Add('worktree source changed during the run: '+$path)}
 }
 Remove-Item -LiteralPath $root -Recurse -Force
 if($problems.Count-ne0){$problems|ForEach-Object{Write-Output ('PROBLEM '+$_)};Write-Output 'TOOLBAR MUTATIONS FAIL';exit 1}
-Write-Output ('TOOLBAR MUTATIONS PASS: baseline '+$baseline.Passed+' tests pass; '+$mutations.Count+' production mutations each killed by their named tests; worktree sources unchanged; not native evidence')
+Write-Output ('TOOLBAR MUTATIONS PASS: baselines lifecycle '+$baselines['lifecycle']+' and wiring '+$baselines['wiring']+' checks pass; '+$mutations.Count+
+    ' production mutations each killed by their named checks; worktree sources unchanged; not native evidence')
