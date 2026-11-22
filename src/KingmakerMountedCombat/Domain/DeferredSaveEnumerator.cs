@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Domain
         private readonly double maximumWait;
         private readonly Action terminal;
         private readonly Func<string> timeoutMessage;
+        private readonly Action serializationStarted;
         private Action startSerialization;
         private double beganAt;
         private bool activated;
@@ -38,12 +39,16 @@ namespace KingmakerMountedCombat.Domain
         // observer can tell a timeout from a cancellation or a world refusal.
         internal bool TimedOut { get; private set; }
         internal bool Disposed => disposed;
+        // The exception that ended this operation, recorded before its disposal
+        // (review of 0b4b8fa4, F2): a wait ended by a fault is not a cancellation.
+        internal Exception Failure { get; private set; }
 
         internal DeferredSaveEnumerator(IEnumerator<T> inner, Func<bool> ready, Func<double> elapsed,
             Action beginWait, Action tickWait, Action endWait, double maximumWait, Action terminal = null,
-            Func<string> timeoutMessage = null)
+            Func<string> timeoutMessage = null, Action serializationStarted = null)
         {
             this.timeoutMessage = timeoutMessage;
+            this.serializationStarted = serializationStarted;
             this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
             this.ready = ready ?? throw new ArgumentNullException(nameof(ready));
             this.elapsed = elapsed ?? throw new ArgumentNullException(nameof(elapsed));
@@ -124,6 +129,9 @@ namespace KingmakerMountedCombat.Domain
             startSerialization();
             startSerialization = null;
             SerializationStarted = true;
+            // Diagnostic only, after native serialization really started; it can
+            // never turn a started save into a failure (review of 0b4b8fa4, F2).
+            try { serializationStarted?.Invoke(); } catch { }
         }
 
         private const string GenericTimeout =
@@ -169,6 +177,7 @@ namespace KingmakerMountedCombat.Domain
 
         private void Fail(Exception original)
         {
+            if (Failure == null) Failure = original;
             try { Dispose(); }
             catch (Exception cleanup) { throw new AggregateException(original, cleanup); }
             // Only a pre-snapshot failure or a completed worker's explicit

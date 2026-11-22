@@ -1,10 +1,12 @@
 # Post-combat save and door lock (2026-11-22, branch codex/mounted-save-and-door-lock)
 
-Diagnostic checkpoint, awaiting Pro review through Howie (manual procedure). Read CURRENT.md (its first section) and
+Diagnostic checkpoint, revised after the first Pro review (`0b4b8fa4`); awaiting the next Pro review through Howie (manual
+procedure). Read CURRENT.md (its first section) and
 docs/SAVE-AND-DOOR-LOCK-HANDOFF.md.
 
 - **Rules:**
-  - Do not change save readiness or the hold until a game log names the blocking owner.
+  - Change save readiness or the hold only on supported causal evidence: an instrumented game trace naming the blocking
+    owner, or a faithful baseline reproduction of a source-proven defect.
   - The existing 30 s timeout is a fallback, not a repair.
 - **Not authorized:** merge, release, install.
 

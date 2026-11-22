@@ -54,13 +54,16 @@ namespace KingmakerMountedCombat.Integration
 
     // Writer stands in for the native SaveRoutine wrapped by the scope; its
     // first step marks the scope begun exactly as the production scope does.
+    static class Clock { internal static double Now; }
+
     class Writer : IEnumerator<object>
     {
         private readonly SaveScope scope;
         internal int Moves, Disposals;
+        internal bool ThrowOnMove;
         internal Writer(SaveScope scope) { this.scope = scope; }
         public object Current => null;
-        public bool MoveNext() { scope.Began = true; return ++Moves < 2; }
+        public bool MoveNext() { if (ThrowOnMove) throw new InvalidOperationException("native writer step failed"); scope.Began = true; return ++Moves < 2; }
         public void Reset() { throw new NotSupportedException(); }
         public void Dispose() { Disposals++; }
     }
@@ -73,19 +76,23 @@ namespace KingmakerMountedCombat.Integration
         internal SaveWaitBlockerKind Blocker;
         internal object Subject;
         internal string Summary = "current actions";
-        internal bool ThrowReadiness;
+        internal string Condition = "condition";
+        internal bool ThrowReadiness, ThrowNotice;
         private long saveWaitSequence;
 
+        // The production clock is a Stopwatch per request; this one is deterministic.
+        private Func<double> SaveWaitClock() => () => Clock.Now;
         private bool AcquireWorldSaveFence(SaveScope scope) { Fences++; return true; }
         private void ReleaseUnstartedSaveFence(SaveScope scope) { Released++; }
-        private void NotifySaveStatus(string message) { Notices.Add(message); }
+        private void NotifySaveStatus(string message) { if (ThrowNotice) throw new InvalidOperationException("notice failed"); Notices.Add(message); }
         private SaveReadiness EvaluateSaveEffects()
         {
             if (ThrowReadiness) throw new InvalidOperationException("readiness probe failed");
             return Blocker == SaveWaitBlockerKind.None ? default(SaveReadiness) : new SaveReadiness { Kind = Blocker, Subject = Subject };
         }
         private string SummarizeReadiness(SaveReadiness readiness) => Summary;
-        private string DescribeReadiness(SaveReadiness readiness) => "fake=" + readiness.Kind;
+        private string DescribeReadiness(SaveReadiness readiness) => "fake=" + readiness.Kind + "; at=" + Clock.Now.ToString("0.00");
+        private string ConditionOfReadiness(SaveReadiness readiness) => Condition;
 
         internal DeferredSaveEnumerator<object> Wrap(out Writer writer)
         {
@@ -130,10 +137,11 @@ __PATCH_METHODS__
     static class NativeDeferredSave
     {
         internal static int Screens;
+        internal static bool ThrowScreen;
         internal static readonly List<string> Retired = new List<string>();
         private static readonly FieldInfo Current = typeof(LoadingProcess).GetField("CurrentProcess", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo ShowScreen = typeof(NativeDeferredSave).GetMethod("Screen", BindingFlags.Static | BindingFlags.NonPublic);
-        private static void Screen(ILoadingScreen screen) { Screens++; }
+        private static void Screen(ILoadingScreen screen) { if (ThrowScreen) throw new InvalidOperationException("loading screen start failed"); Screens++; }
         private static IEnumerator Enumerator(object queued) => queued as IEnumerator;
         private static bool RetireFailedSave(object record, DeferredSaveEnumerator<object> operation, Exception exception)
         {
@@ -155,6 +163,8 @@ __NATIVE_METHODS__
             LoadingProcess.Instance = new LoadingProcess();
             PatchBridge.Persistence = new BridgePersistence();
             NativeDeferredSave.Screens = 0;
+            NativeDeferredSave.ThrowScreen = false;
+            Clock.Now = 0;
             NativeDeferredSave.Retired.Clear();
             MountedPatchController.NativeLoadingFailures.Clear();
             try { test(); pass++; Console.WriteLine("PASS " + name); }
@@ -193,7 +203,8 @@ __NATIVE_METHODS__
                     "idle save waited, notified or logged a wait: " + Lines(persistence));
                 True(DoorAdmitted(), "a door command was held although no save waits");
                 while (Tick(operation)) { }
-                True(writer.Disposals == 1 && persistence.Released == 0 && persistence.LastSaveWaitOutcome == null, "idle save cleanup changed");
+                True(writer.Disposals == 1 && persistence.Released == 0 && persistence.LastSaveWaitOutcome == SaveWaitOutcome.ReadyToSerialize &&
+                    persistence.logger.Lines.Count == 0, "idle save cleanup changed or a settled-at-once wait logged");
             });
 
             Check("a menu opened during the wait refuses before serialization and names the menu and the blocker", () =>
@@ -290,8 +301,8 @@ __NATIVE_METHODS__
                 True(Tick(operation) && operation.SerializationStarted && NativeDeferredSave.Screens == 1 && Game.Instance.IsPaused,
                     "a settled wait did not serialize with the player's pause restored");
                 while (Tick(operation)) { }
-                True(persistence.logger.Lines.Count == 3 && persistence.logger.Lines[2].Contains("outcome=Serialized") &&
-                    persistence.logger.Lines[2].Contains("blockerChanges=2") && persistence.LastSaveWaitOutcome == SaveWaitOutcome.Serialized &&
+                True(persistence.logger.Lines.Count == 3 && persistence.logger.Lines[2].Contains("outcome=ReadyToSerialize") &&
+                    persistence.logger.Lines[2].Contains("blockerChanges=2") && persistence.LastSaveWaitOutcome == SaveWaitOutcome.ReadyToSerialize &&
                     writer.Disposals == 1 && persistence.Released == 0, "settled wait end: " + Lines(persistence));
                 True(DoorAdmitted(), "a door command stayed held after serialization finished");
             });
@@ -352,6 +363,84 @@ __NATIVE_METHODS__
                 GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
                 True(operation.Waiting && !weak.IsAlive, "the waiting save retained a blocking object it no longer reads");
                 operation.Dispose();
+            });
+
+            // Review of 0b4b8fa4 (F2), the reviewer's three outcome probes.
+            Check("a loading screen that fails to start after the wait settles is Faulted, never ReadyToSerialize", () =>
+            {
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.Command, Subject = new object(), Summary = "Akasa's UnitAttack" };
+                var operation = persistence.Wrap(out var writer);
+                Activate(operation);
+                persistence.Blocker = SaveWaitBlockerKind.None;
+                NativeDeferredSave.ThrowScreen = true;
+                True(!Tick(operation) && !operation.SerializationStarted && operation.FailedBeforeSerialization && writer.Moves == 0,
+                    "a failed screen start reached serialization");
+                True(persistence.LastSaveWaitOutcome == SaveWaitOutcome.Faulted && persistence.logger.Lines.Count(l => l.Contains("ended")) == 1 &&
+                    persistence.logger.Lines.Last().Contains("outcome=Faulted") && persistence.logger.Lines.Last().Contains("loading screen start failed") &&
+                    !persistence.logger.Lines.Any(l => l.Contains("ReadyToSerialize")) && persistence.Released == 1, "screen fault: " + Lines(persistence));
+            });
+
+            Check("a first native writer step that throws after the wait settled leaves exactly one ReadyToSerialize report", () =>
+            {
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.Projectile, Subject = new object(), Summary = "a projectile" };
+                var operation = persistence.Wrap(out var writer);
+                writer.ThrowOnMove = true;
+                Activate(operation);
+                persistence.Blocker = SaveWaitBlockerKind.None;
+                var threw = false;
+                try { Tick(operation); } catch (InvalidOperationException) { threw = true; }
+                True(threw && operation.SerializationStarted && writer.Moves == 0, "the writer fault was not native flow after serialization started");
+                True(persistence.logger.Lines.Count(l => l.Contains("ended")) == 1 && persistence.logger.Lines.Last().Contains("outcome=ReadyToSerialize") &&
+                    persistence.LastSaveWaitOutcome == SaveWaitOutcome.ReadyToSerialize, "writer fault: " + Lines(persistence));
+            });
+
+            Check("a begin-wait notification that throws is Faulted, not Cancelled", () =>
+            {
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.Command, Subject = new object(), Summary = "Akasa's UnitAttack", ThrowNotice = true };
+                var operation = persistence.Wrap(out var writer);
+                Activate(operation);
+                True(NativeDeferredSave.Retired.Count == 1 && !operation.SerializationStarted && persistence.Released == 1, "notice fault reached serialization");
+                True(persistence.LastSaveWaitOutcome == SaveWaitOutcome.Faulted && persistence.logger.Lines.Last().Contains("outcome=Faulted") &&
+                    persistence.logger.Lines.Last().Contains("notice failed") && !persistence.logger.Lines.Any(l => l.Contains("Cancelled")),
+                    "notice fault: " + Lines(persistence));
+            });
+
+            // Review of 0b4b8fa4 (F3), the reviewer's deterministic-clock probe, through the real timeout.
+            Check("a request queued 20 s then waiting 30.01 s times out with active-wait times and its blocker named", () =>
+            {
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.Projectile, Subject = new object(), Summary = "Leinna's AcidSplash projectile" };
+                var operation = persistence.Wrap(out var writer);
+                Clock.Now = 20;
+                Activate(operation);
+                Clock.Now = 30; True(Tick(operation), "the wait ended before its bound");
+                Clock.Now = 50.01;
+                True(!Tick(operation) && operation.TimedOut && NativeDeferredSave.Retired.Count == 1 && writer.Moves == 0 && persistence.Released == 1,
+                    "the bounded wait did not time out before serialization");
+                True(NativeDeferredSave.Retired[0] == "Save was not written: Leinna's AcidSplash projectile did not finish within 30 seconds.",
+                    "timeout text: " + NativeDeferredSave.Retired[0]);
+                True(persistence.logger.Lines[0].Contains("t=0.00s; queuedFor=20.00s") && persistence.logger.Lines.Last().Contains("outcome=TimedOut") &&
+                    persistence.logger.Lines.Last().Contains("waited=30.01s; queuedFor=20.00s") && persistence.LastSaveWaitOutcome == SaveWaitOutcome.TimedOut,
+                    "timing: " + Lines(persistence));
+            });
+
+            // Review of 0b4b8fa4 (F1), through the production observer.
+            Check("the same blocking owner changing its refusing condition is reported and the end carries the latest snapshot", () =>
+            {
+                var subject = new object();
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.PairOwnership, Subject = subject, Summary = "Akasa's mounted pair to settle",
+                    Condition = "refusal=native paired preparation is unsettled" };
+                var operation = persistence.Wrap(out var writer);
+                Activate(operation);
+                Clock.Now = 0.1; Tick(operation);
+                Clock.Now = 1; persistence.Condition = "refusal=a voluntary Mount/Dismount is in flight"; Tick(operation);
+                Clock.Now = 2; Tick(operation);
+                Clock.Now = 30.01; Tick(operation);
+                True(persistence.logger.Lines.Count == 3 && persistence.logger.Lines[1].Contains("sameOwnerConditionChanged") &&
+                    persistence.logger.Lines[1].Contains("refusal=a voluntary Mount/Dismount is in flight"), "condition change: " + Lines(persistence));
+                var end = persistence.logger.Lines[2];
+                True(end.Contains("outcome=TimedOut") && end.Contains("condition=[refusal=a voluntary Mount/Dismount is in flight]") &&
+                    end.Contains("detail=[fake=PairOwnership; at=30.01]") && end.Contains("snapshotAt=30.01s") &&
+                    end.IndexOf("native paired preparation", StringComparison.Ordinal) < 0, "stale end: " + end);
             });
 
             Console.WriteLine("DEFERRED SAVE WAIT ACTUAL METHODS PASS=" + pass + " FAIL=" + fail +

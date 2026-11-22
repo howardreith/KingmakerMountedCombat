@@ -29,9 +29,14 @@ namespace KingmakerMountedCombat.Domain
         ModeChanged
     }
 
+    // How one request's pre-serialization wait ended. ReadyToSerialize means the
+    // wait settled and native serialization actually started; it says nothing
+    // about the archive, whose outcome the existing commit machinery reports.
+    // Faulted is any exception that ended the wait; Cancelled is only a disposal
+    // that no exception, refusal or timeout caused (a native StopAll, disable).
     internal enum SaveWaitOutcome
     {
-        Serialized,
+        ReadyToSerialize,
         TimedOut,
         ModeChanged,
         LoadingScreen,
@@ -111,29 +116,45 @@ namespace KingmakerMountedCombat.Domain
     }
 
     // One deferred save request's wait, observed from the production readiness
-    // result. Holds strings and an identity number only, never the blocking
-    // object, so the observer cannot keep a finished command or projectile
-    // alive. Reports only transitions and the end, with a bounded count.
+    // result. Holds strings, an identity number and times only, never the
+    // blocking object, so the observer cannot keep a finished command or
+    // projectile alive.
+    //
+    // Review of 0b4b8fa4 (F1, F3): logging and state are separate. A line is
+    // written when the blocking owner changes or when the same owner's refusing
+    // condition changes (bounded). The detail snapshot is refreshed on its own
+    // interval without a line, so the end line carries the latest snapshot and
+    // the wait time at which it was taken. All wait times are measured from the
+    // request's activation by the native queue; time spent queued behind an
+    // earlier request is reported separately.
     internal sealed class SaveWaitObservation
     {
         internal const int MaximumTransitionReports = 12;
+        // Wait-clock seconds between snapshot refreshes of an unchanged owner.
+        internal const double RefreshSeconds = 0.25;
 
         private readonly long request;
         private readonly string label;
-        private readonly double began;
+        private readonly double activated;
+        private readonly double queued;
         private SaveWaitBlockerKind kind;
         private int identity;
         private string summary;
+        private string condition;
         private string detail;
+        private double snapshotAt = double.NaN;
         private int changes;
         private int suppressed;
         private bool ended;
 
-        internal SaveWaitObservation(long request, string label, double now)
+        // activatedAt and wrappedAt are on the same clock; the difference is the
+        // time the request spent queued before the native queue activated it.
+        internal SaveWaitObservation(long request, string label, double wrappedAt, double activatedAt)
         {
             this.request = request;
             this.label = string.IsNullOrEmpty(label) ? "<unnamed>" : label;
-            began = now;
+            activated = activatedAt;
+            queued = activatedAt - wrappedAt;
         }
 
         internal long Request => request;
@@ -145,26 +166,34 @@ namespace KingmakerMountedCombat.Domain
         // The short player-facing name of what the save is waiting for.
         internal string WaitingFor => summary;
 
-        // Returns a report line when the blocker differs from the last one seen,
-        // otherwise null. A settled (None) result changes nothing: the end line
-        // names the last blocker, and a later blocker is a new transition.
-        internal string Observe(SaveWaitBlockerKind observed, int observedIdentity,
-            Func<string> describeSummary, Func<string> describeDetail, double now)
+        // Returns a report line when the blocking owner or its refusing condition
+        // changed, otherwise null. An unchanged owner is described again only
+        // once per RefreshSeconds. A settled (None) result changes nothing: the
+        // end line names the last blocker, and a later blocker is a transition.
+        internal string Observe(SaveWaitBlockerKind observed, int observedIdentity, Func<string> describeSummary,
+            Func<string> describeCondition, Func<string> describeDetail, double now)
         {
             if (ended || observed == SaveWaitBlockerKind.None) return null;
-            if (observed == kind && observedIdentity == identity) return null;
+            var sameOwner = changes != 0 && observed == kind && observedIdentity == identity;
+            if (sameOwner && !(now - snapshotAt >= RefreshSeconds)) return null;
+            var nextSummary = Safe(describeSummary);
+            var nextCondition = Safe(describeCondition);
+            detail = Safe(describeDetail);
+            snapshotAt = now;
+            if (sameOwner && nextCondition == condition && nextSummary == summary) return null;
             kind = observed;
             identity = observedIdentity;
-            summary = Safe(describeSummary);
-            detail = Safe(describeDetail);
+            summary = nextSummary;
+            condition = nextCondition;
             changes++;
             if (changes > MaximumTransitionReports)
             {
                 suppressed++;
                 return null;
             }
-            return "Mounted save wait: request=" + request + "; name=" + label + "; t=" + Seconds(now - began) +
-                "s; blocker=" + kind + "; waitingFor=" + summary + "; detail=[" + detail + "]; change=" + changes +
+            return "Mounted save wait: request=" + request + "; name=" + label + "; t=" + Seconds(now - activated) +
+                "s; queuedFor=" + Seconds(queued) + "s; blocker=" + kind + "; " + (sameOwner ? "sameOwnerConditionChanged" : "newOwner") +
+                "; waitingFor=" + summary + "; condition=[" + condition + "]; detail=[" + detail + "]; change=" + changes +
                 (changes == MaximumTransitionReports ? "; further changes are counted, not reported" : string.Empty) + ".";
         }
 
@@ -176,8 +205,9 @@ namespace KingmakerMountedCombat.Domain
             ended = true;
             if (changes == 0) return null;
             return "Mounted save wait ended: request=" + request + "; name=" + label + "; outcome=" + outcome +
-                (string.IsNullOrEmpty(reason) ? string.Empty : "; reason=" + reason) + "; elapsed=" + Seconds(now - began) +
-                "s; lastBlocker=" + kind + "; waitingFor=" + summary + "; detail=[" + detail + "]; blockerChanges=" + changes +
+                (string.IsNullOrEmpty(reason) ? string.Empty : "; reason=" + reason) + "; waited=" + Seconds(now - activated) +
+                "s; queuedFor=" + Seconds(queued) + "s; lastBlocker=" + kind + "; waitingFor=" + summary + "; condition=[" + condition +
+                "]; detail=[" + detail + "]; snapshotAt=" + Seconds(snapshotAt - activated) + "s; blockerChanges=" + changes +
                 "; unreported=" + suppressed + ".";
         }
 

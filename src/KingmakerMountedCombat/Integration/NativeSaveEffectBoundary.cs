@@ -133,6 +133,16 @@ namespace KingmakerMountedCombat.Integration
             completed.TryGetValue(projectile, out var marker) + "; passedTime=" + projectile.PassedTime.ToString("0.00") +
             "; timeAfterHit=" + projectile.TimeAfterHit.ToString("0.00");
 
+        // The refusing condition without timing (see ConditionOfReadiness).
+        internal static string ConditionOfProjectile(Projectile projectile, bool pending) =>
+            "membership=" + (pending ? "pending" : "active") + "; isHit=" + projectile.IsHit + "; cleared=" + projectile.Cleared +
+            "; hitObserved=" + completed.TryGetValue(projectile, out var marker);
+
+        internal static string ConditionOfCommand(UnitCommand command, bool queued) =>
+            "ownership=" + (queued ? "queue" : "raw") + "; started=" + command.IsStarted + "; running=" + command.IsRunning +
+            "; acted=" + command.IsActed + "; finished=" + command.IsFinished + "; result=" + command.Result +
+            (command is MountedPairAttackCommand mounted ? "; mountedNativeSequence=" + mounted.NativeSequenceStarted : string.Empty);
+
         internal static string SummarizeAbility(AbilityExecutionProcess process)
         {
             var context = process.Context;

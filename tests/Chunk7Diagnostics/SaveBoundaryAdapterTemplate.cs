@@ -59,7 +59,7 @@ class DeferredAdapter{
  internal int DeferredSaveCount,Fences,Released;internal bool Ready;internal readonly WaitLogger logger=new WaitLogger();private long saveWaitSequence;
  private bool AcquireWorldSaveFence(SaveScope s){Fences++;return true;}private void NotifySaveStatus(string s){}private void ReleaseUnstartedSaveFence(SaveScope s){Released++;}
  private SaveReadiness EvaluateSaveEffects(){return Ready?default(SaveReadiness):new SaveReadiness{Kind=SaveWaitBlockerKind.Command,Subject=this};}
- private string SummarizeReadiness(SaveReadiness r){return "fake "+r.Kind;}private string DescribeReadiness(SaveReadiness r){return r.Kind.ToString();}
+ private string SummarizeReadiness(SaveReadiness r){return "fake "+r.Kind;}private string DescribeReadiness(SaveReadiness r){return r.Kind.ToString();}private string ConditionOfReadiness(SaveReadiness r){return r.Kind.ToString();}private static Func<double> SaveWaitClock(){var t=Stopwatch.StartNew();return ()=>t.Elapsed.TotalSeconds;}
 __READINESS_TYPE__
 __OBSERVE_METHOD__
 __END_METHOD__

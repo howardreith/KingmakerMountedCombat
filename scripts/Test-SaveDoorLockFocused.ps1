@@ -3,9 +3,10 @@ param()
 # Focused selection for the post-combat save and door lock incident (docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md). It declares
 # exactly two checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
 #   1. Test-DeferredSaveWait.ps1: the production deferred wait, its readiness result and observers, the native loading-queue
-#      adapter and the command hold, spliced verbatim; ten lifecycle cases (menu/loading/world refusals named, queued
-#      requests, door hold released, pause, cancellation, fault, contained logging, no retention), then six one-line
-#      production mutations in generated copies.
+#      adapter and the command hold, spliced verbatim; fifteen lifecycle cases (menu/loading/world refusals named, queued
+#      requests, door hold released, pause, cancellation, faults, timing from activation, same-owner condition changes,
+#      contained logging, no retention) and eight one-line production mutations in generated copies; then the production
+#      readiness evaluation against the baseline 61519031 predicate over 1,024 term combinations.
 #   2. Test-PersistenceContracts.ps1: the installed Kingmaker 2.1.7b persistence contracts, including the first-offender
 #      projectile/ability/command queries and their read-only describers against real native types.
 # Not selected, because each already fails on base 61519031 with the identical result on this candidate (logs under

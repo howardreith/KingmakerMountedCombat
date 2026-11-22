@@ -86,26 +86,30 @@ function Invoke-Harness([hashtable]$Text, [string]$Label, [switch]$Echo) {
 }
 
 $baseline = Invoke-Harness $production 'unmutated' -Echo
-if (@($baseline.Values | Where-Object { $_ -ne 'PASS' }).Count -ne 0 -or $baseline.Count -lt 10) {
+if (@($baseline.Values | Where-Object { $_ -ne 'PASS' }).Count -ne 0 -or $baseline.Count -lt 15) {
     throw 'Deferred-save wait regression failed.'
 }
 
 # One production line per mutation, in the generated copy only. Each must fail every named case.
 $mutations = @(
-    @{ id = 'D1-generic-world-text'; file = 'defer'; old = 'throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(state, mode.ToString(), observation.WaitingFor));'
+    @{ id = 'D1-generic-world-text'; file = 'defer'; old = 'throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(state, mode.ToString(), observation?.WaitingFor));'
        new = 'throw new InvalidOperationException("Save was not written: the native world changed while its effects were finishing.");'
        cases = @('a menu opened during the wait refuses before serialization and names the menu and the blocker', 'a loading screen during the wait is named') }
-    @{ id = 'D2-outcome-ignores-refusal'; file = 'defer'; old = 'refused ?? (operation.TimedOut ? SaveWaitOutcome.TimedOut : SaveWaitOutcome.Cancelled)'
-       new = '(operation.TimedOut ? SaveWaitOutcome.TimedOut : SaveWaitOutcome.Cancelled)'
-       cases = @('a menu opened during the wait refuses before serialization and names the menu and the blocker', 'a readiness fault refuses before serialization and is reported as Faulted') }
-    @{ id = 'D3-blocker-not-observed'; file = 'defer'; old = 'ObserveSaveWait(observation, readiness, timer.Elapsed.TotalSeconds);'; new = ';'
+    @{ id = 'D2-fault-reported-as-cancellation'; file = 'defer'; old = 'else if (operation.Failure != null)'; new = 'else if (operation.Failure == operation.Failure && false)'
+       cases = @('a begin-wait notification that throws is Faulted, not Cancelled', 'a loading screen that fails to start after the wait settles is Faulted, never ReadyToSerialize',
+           'a readiness fault refuses before serialization and is reported as Faulted') }
+    @{ id = 'D3-blocker-not-observed'; file = 'defer'; old = 'ObserveSaveWait(observation, readiness, now);'; new = ';'
        cases = @('a menu opened during the wait refuses before serialization and names the menu and the blocker', 'each blocker change is reported once and a settled wait serializes with its pause restored') }
-    @{ id = 'D4-end-not-reported'; file = 'defer'; old = 'ReportSaveWaitEnd(observation, operation, refused, refusedReason, timer.Elapsed.TotalSeconds);'; new = ';'
+    @{ id = 'D4-end-not-reported'; file = 'defer'; old = '                    ReportSaveWaitEnd(observation, operation, refused, refusedReason, clock());'; new = '                    ;'
        cases = @('queued requests during the menu each retire with their own named refusal and nothing holds afterwards', 'native cancellation while waiting reports Cancelled and releases the fence, pause and hold') }
     @{ id = 'D5-observer-not-contained'; file = 'defer'; old = 'catch { /* An unloggable observation leaves the save decision untouched. */ }'; new = 'catch { throw; }'
        cases = @('a failing logger changes no refusal, outcome, fence or pause') }
     @{ id = 'D6-hold-ignores-wait'; file = 'patch'; old = '!NativeDeferredSave.Waiting(LoadingProcess.Instance)) &&'; new = 'true) &&'
        cases = @('a menu opened during the wait refuses before serialization and names the menu and the blocker') }
+    @{ id = 'D7-queue-time-counted-as-waiting'; file = 'defer'; old = 'new SaveWaitObservation(request, label, wrappedAt, now)'; new = 'new SaveWaitObservation(request, label, wrappedAt, wrappedAt)'
+       cases = @('a request queued 20 s then waiting 30.01 s times out with active-wait times and its blocker named') }
+    @{ id = 'D8-condition-not-observed'; file = 'defer'; old = '() => ConditionOfReadiness(readiness)'; new = '() => string.Empty'
+       cases = @('the same blocking owner changing its refusing condition is reported and the end carries the latest snapshot') }
 )
 $killed = 0
 foreach ($mutation in $mutations) {
@@ -121,3 +125,25 @@ foreach ($mutation in $mutations) {
     Write-Output ('KILLED ' + $mutation.id + ' (' + $mutation.cases.Count + ' named case(s) failed)')
 }
 Write-Output ('DEFERRED SAVE WAIT MUTATIONS KILLED=' + $killed + ' OF ' + $mutations.Count + '; generated copies only, worktree unchanged')
+
+# Review of 0b4b8fa4: the production readiness evaluation against the v0.2.14 predicate it replaced.
+$baselineCommit = '6151903116d418d5c96d4862a3fb9a68c843b377'
+$baselineDefer = (& git -C $repo show ($baselineCommit + ':src/KingmakerMountedCombat/Integration/MountedDeferredSave.cs')) -join "`n"
+if ($LASTEXITCODE -ne 0 -or -not $baselineDefer) { throw 'Baseline 61519031 MountedDeferredSave.cs is unavailable.' }
+$baselineMember = (Get-ActualMember $baselineDefer 'internal bool SaveEffectsReady()').Replace('internal bool SaveEffectsReady()', 'internal bool BaselineSaveEffectsReady()')
+$equivalenceTemplate = Join-Path $repo 'tests/DeferredSaveWait/SaveReadinessEquivalenceTemplate.cs'
+$equivalence = [IO.File]::ReadAllText($equivalenceTemplate).
+    Replace('__READINESS_TYPE__', (Get-ActualMember $production.defer 'internal struct SaveReadiness')).
+    Replace('__READY_METHOD__', (Get-ActualMember $production.defer 'internal bool SaveEffectsReady()')).
+    Replace('__EVALUATE_METHOD__', (Get-ActualMember $production.defer 'internal SaveReadiness EvaluateSaveEffects()')).
+    Replace('__BASELINE_METHOD__', $baselineMember)
+if ($equivalence -match '__[A-Z_]+__') { throw 'An unspliced placeholder remains in the readiness equivalence harness.' }
+$equivalenceDirectory = Join-Path $probe 'equivalence'
+[void][IO.Directory]::CreateDirectory($equivalenceDirectory)
+$equivalencePath = Join-Path $equivalenceDirectory 'SaveReadinessEquivalence.cs'
+[IO.File]::WriteAllText($equivalencePath, $equivalence)
+$equivalenceExe = Join-Path $equivalenceDirectory 'SaveReadinessEquivalence.exe'
+$compile = & $compiler /nologo /target:exe /langversion:7.3 /nowarn:0649,0169,0414 "/out:$equivalenceExe" $equivalencePath @domain 2>&1
+if ($LASTEXITCODE -ne 0) { $compile | Out-Host; throw 'Readiness equivalence harness compilation failed.' }
+& $equivalenceExe | Write-Output
+if ($LASTEXITCODE -ne 0) { throw 'Readiness equivalence against the baseline failed.' }

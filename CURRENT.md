@@ -4,21 +4,28 @@ Start here. The sections below this one are dated history, newest first.
 
 - **Mission:** [docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md](docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md). Manual review
   procedure by owner direction (Claude develops; Howie takes the handoff to Pro). No controller enrollment.
-- **Status:** diagnostic checkpoint plus accurate failure reasons. **Not a repair**, because the persistent blocker is
-  not identified. The incident log proves that every quicksave found the world not ready from activation, which held all
-  four requests. The three "native world changed" refusals came from a mode change or loading screen (most likely a menu
-  opened during the wait), not a world change. Doors were refused because the save hold refuses every ordinary
-  `UnitCommand.Start` while a request waits.
+- **Status:** diagnostic checkpoint plus accurate failure reasons, revised after the first Pro review (`0b4b8fa4`, four P2
+  findings, all addressed). **Not a repair**, because the blocking condition is not identified.
+  - All four quicksave requests entered the deferred wait, so readiness was false at each activation. The log does not
+    identify the blocking condition, establish that it was the same across requests, or measure any wait.
+  - Three requests then failed the wait's world/mode/loading check. On the ordinary path that is a disallowed mode or a
+    manual loading screen, not a world change; which one is unknown. The fourth was still waiting when the log ends.
+  - The save wait refuses ordinary command starts, door commands included: a source-supported explanation for the door
+    symptom. Recovery after the wait is not yet verified in the game.
 - **Changed:**
   - `SaveEffectsReady` is now a single evaluation returning the first refusing term and its owner (same terms, order and
     short-circuit);
-  - each wait reports its blocker changes (bounded) and its real outcome;
+  - each wait, timed from activation, reports changes of its blocking owner or refusing condition (bounded), and ends with
+    the latest snapshot and its outcome (`ReadyToSerialize` only once native serialization started; faults are `Faulted`);
   - refusals name a menu/dialog/cutscene, a loading screen or a replaced world, and the blocker.
 
   No readiness, hold, timeout, ordering or save-format change.
-- **Offline:** Fast PASS (components 1483/0, Validate-Source 153/0, focused `Test-SaveDoorLockFocused.ps1`: wait regression
-  10/0 with 6/6 mutations, persistence contracts 228/0). The menu assertion fails on base `61519031` with the incident's
-  text. Three existing harnesses already fail on base, identically on the candidate.
+- **Offline (round 2):**
+  - Fast PASS: components 1487/0, Validate-Source 153/0.
+  - Focused `Test-SaveDoorLockFocused.ps1`: wait regression 15/0 with 8/8 mutations; readiness equivalence against base
+    1,024 states, 0 failures; persistence contracts 228/0.
+  - The menu assertion fails on base `61519031` with the incident's text.
+  - Three existing harnesses already fail on base, identically on the candidate.
 - **Native:** not run (no qualified fixture; incident save not here).
 - **Needed:** an owner log with this build (the `Mounted save wait` lines name the blocker) or a disposable copy of the save.
 - **Read:** [docs/SAVE-AND-DOOR-LOCK-HANDOFF.md](docs/SAVE-AND-DOOR-LOCK-HANDOFF.md).

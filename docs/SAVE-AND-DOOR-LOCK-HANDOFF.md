@@ -10,15 +10,17 @@ takes this handoff and the commit to Pro. No agent-review controller enrollment 
 **Diagnostic checkpoint, plus one implemented correction (accurate failure reasons). The persistent blocker is NOT yet
 identified and the incident is NOT fixed.**
 
-- The incident log proves that every quicksave request found the world not ready from the moment it was activated and that
-  this lasted across all four requests. It does not say which readiness term refused: the baseline logs nothing per term.
-  No source reading established the term either (section 4). This round adds a single-authority, bounded observation that
-  names the exact blocking owner (command, projectile, ability process, pair owner, preparation, transition, shell or charge
-  fence) and how each wait ended. A repair of the blocking lifecycle needs that evidence from the game.
-- The three "the native world changed while its effects were finishing" failures were, by the native contract, a mode change
-  or manual loading screen, most probably the player opening a menu during the wait (section 3). That text misnamed them.
+- All four quicksave requests entered the deferred wait, which establishes that readiness was false at each activation.
+  The log does not identify the blocking condition, does not establish that it was the same across requests, and does not
+  measure any wait's duration. No source reading established the condition either (section 4). This checkpoint adds a
+  single-authority, bounded observation that names the blocking owner (command, projectile, ability process, pair owner,
+  preparation, transition, shell or charge fence), its refusing condition, and how each wait ended.
+- Three requests then failed the wait's world/mode/loading check. The baseline checks player replacement separately in the
+  readiness read and binds the player before the first tick, so on the ordinary path those three failures were a disallowed
+  game mode or a manual loading screen. The log does not say which mode or screen. "The native world changed" misnamed them.
   The refusal decision is unchanged; the reason is now named ("the game menu opened while it waited for X"). This removes a
   misleading message only. It does not release any lock, shorten the wait or change readiness.
+- The fourth request was still waiting when the log ends.
 - No native run: there is no qualified KMC Working fixture on this machine, and the owner's save is not available here
   (section 9).
 
@@ -32,30 +34,29 @@ Input: `C:\Dev\KingmakerMountedCombatLab\output_log(20261122-180838).txt`, 2,326
 | 10783 | Request 1 (Quick, `Quicksave1`), `saveFence=False`, nothing queued. |
 | 10784 | "Saving after current actions and projectiles finish": request 1 activated and was **not ready** at activation. |
 | 10785, 10789 | Requests 2 and 3 queued behind it (`saveFence=True`; 10789 names `DeferredSaveEnumerator`1`). |
-| 10786–10790 | Exploration observations show the party mostly standing (`stillFraction=0.83`) and new move orders barely progressing. They cover about 16 s of request 1's wait. |
+| 10786–10790 | Exploration observations show the party mostly standing (`stillFraction=0.83`) and new move orders barely progressing. These are movement-observation durations, not measurements of the save wait; the log has no timestamps that measure it. |
 | 10791 | Request 1 refused: "the native world changed while its effects were finishing". |
-| 10792–10795 | Requests 2 and 3 each activated ("Saving after…"), were not ready, and were refused **immediately** with the same text. |
+| 10792–10795 | Requests 2 and 3 each activated ("Saving after…"), were not ready, and were refused with the same text. The adjacent lines fit a refusal inside activation but do not prove it. |
 | 10796–10797 | Request 4, logged with `mode=Default`, nothing queued: activated, not ready again. The log ends there. |
 
-Readings, each tied to source:
+Readings, each tied to source (corrected after the Pro review of `0b4b8fa4`, finding 4):
 
 1. A save that is ready at activation serializes at once and never prints "Saving after…" (`DeferredSaveEnumerator.Activate`:
-   `Waiting = !ready(); if (!Waiting) { StartSerialization(); return; }`). All four requests printed it, so **readiness was
-   false at each activation**. Request 4 came after requests 1–3 had retired, so the blocker persisted for at least the
-   whole sequence. This is not a single leaked fence: each request released its own (terminal → `ReleaseUnstartedSaveFence`).
-2. The 30-second timeout says "did not finish within the bounded wait". None of the four failures used it. "The native world
+   `Waiting = !ready(); if (!Waiting) { StartSerialization(); return; }`). All four requests printed it, so readiness was
+   false at each activation. That does not establish that the same condition or object blocked every request, or that it
+   stayed unresolved between them. Each request released its own fence (terminal → `ReleaseUnstartedSaveFence`); the log
+   proves repeated deferral, not one leaked fence.
+2. None of the four failures used the 30-second timeout text ("did not finish within the bounded wait"). "The native world
    changed" came only from the per-tick world check (`tick` in `DeferNativeSave`), which refused for
-   `world == null || Player replaced || IsManualLoadingScreenActive || mode ∉ {Default, Pause}`.
-3. Requests 2 and 3 were refused inside their own activation, so the condition held for at least two consecutive native
-   loading ticks after request 1 failed. That is a mode or loading-screen state, not a one-frame event. Request 4 was
-   logged in `mode=Default`. A player opening the game menu (`EscMode`) or a full-screen window during a long wait and
-   closing it later fits every line. A dialog or cutscene would fit as well. The log cannot tell which.
-4. Doors: while any request waits, `SaveCommandStartPrefix` refuses `UnitCommand.Start` for every ordinary command of every
-   actor (`NativeDeferredSave.Waiting`). A door interaction is an ordinary command. The owner was saving repeatedly, so
-   doors were refused through most of that interval. This mechanism is source-certain. No door attempt is in the log, and
-   the native door path under a wait was not run.
-5. Out of the wait, the game is not locked. The hold exists only while a request waits. "Permanently forbidden" was a
-   sequence of requests, each held by the same persistent not-ready condition and each refused by a menu or after it.
+   `world == null || Player replaced || IsManualLoadingScreenActive || mode ∉ {Default, Pause}`. The baseline binds `world`
+   in `beginWait` before the first tick and checks player replacement separately in `ready()` (with its own message), so on
+   the ordinary path the three failures were a disallowed mode or a manual loading screen. Which menu, dialog, cutscene or
+   screen is unknown. The wait lengths are unknown.
+3. Doors: while any request waits, `SaveCommandStartPrefix` refuses `UnitCommand.Start` for every ordinary command of every
+   actor (`NativeDeferredSave.Waiting`). A door interaction is an ordinary command, so the wait provides a source-supported
+   explanation for that symptom. The incident log contains no door attempt and no observed recovery. Retiring the wait
+   removes this particular hold; other command-admission conditions still exist, and recovery after the wait remains to be
+   verified in the game.
 
 ## 3. Native contracts verified (Kingmaker 2.1.7b, `Assembly-CSharp.dll`, read-only IL via the installed UMM `dnlib`)
 
@@ -119,11 +120,11 @@ Evidence gaps: which term held, and its owner. The Kingmaker native log for the 
 
 | File | Change |
 |---|---|
-| `Domain/SaveWaitObservation.cs` (new) | `SaveWaitBlockerKind`; `SaveWaitWorldPolicy` (the world/mode/loading decision, unchanged in effect, plus named reasons, player text and the unchanged 30 s limit); `SaveWaitObservation` (per request: report each blocker change once, at most 12 lines, then count; one end line with outcome, reason, elapsed, last blocker and change count; holds strings and an identity number only). |
-| `Integration/MountedDeferredSave.cs` | `SaveEffectsReady()` is now `EvaluateSaveEffects().Ready`. `EvaluateSaveEffects` evaluates the same terms in the same order and returns the first refusing term with its owner. `PinWorldSaveScope` and the combat save gate keep calling `SaveEffectsReady`. `DeferNativeSave`: same fence → fault → effects order; observes every readiness read; the tick names world replacement / loading screen / mode (with the mode) and the blocker being waited for; timeout text names the blocker; one end report per wait (Serialized, TimedOut, ModeChanged, LoadingScreen, WorldReplaced, Cancelled, Faulted). Every observation and report is contained: a failing logger or description cannot change the save, its fence, pause restoration or world release. |
+| `Domain/SaveWaitObservation.cs` (new) | `SaveWaitBlockerKind`; `SaveWaitWorldPolicy` (the world/mode/loading decision, unchanged in effect, plus named reasons, player text and the unchanged 30 s limit); `SaveWaitObservation` (per request, timed from activation: a line when the blocking owner or its refusing condition changes, at most 12 lines, then counted; the timed detail refreshed every 0.25 s of waiting without a line; one end line with outcome, reason, waited and queued time, the latest condition and detail and the time of that snapshot; holds strings, an identity number and times only). |
+| `Integration/MountedDeferredSave.cs` | `SaveEffectsReady()` is now `EvaluateSaveEffects().Ready`. `EvaluateSaveEffects` evaluates the same terms in the same order and returns the first refusing term with its owner. `PinWorldSaveScope` and the combat save gate keep calling `SaveEffectsReady`. `DeferNativeSave`: same fence → fault → effects order; observes every readiness read; the tick names world replacement / loading screen / mode (with the mode) and the blocker being waited for; timeout text names the blocker; one end report per wait: ReadyToSerialize (the wait settled and native serialization actually started; the archive's own outcome stays with the existing commit machinery), TimedOut, ModeChanged, LoadingScreen, WorldReplaced, Faulted (any exception that ended the wait) or Cancelled (a disposal no fault, refusal or timeout caused). Wait times are measured from activation; queued time is reported separately. Every observation and report is contained: a failing logger or description cannot change the save, its fence, pause restoration or world release. |
 | `Integration/NativeSaveEffectBoundary.cs` | `FirstUnresolvedProjectile` / `FirstUnresolvedAbility` are the single predicates (`HasUnresolved*` derive from them). Read-only describers: field reads only, no native tick, iterator or retained reference. Unity asset names are read only for a real asset, never inlined. |
 | `Domain/MountedPairRegistry.cs`, `GameMountedRelationshipService.Ownership.cs`, `MountedWorldService.cs` | `AllSaveReady()` = `FirstUnreadySaveOwner() == null`. A pair's save readiness is its named refusal being absent (the same five terms, same order). |
-| `Domain/DeferredSaveEnumerator.cs` | `TimedOut` and `Disposed` read-outs; optional timeout description (a failing one falls back to the old text). No behavior change. |
+| `Domain/DeferredSaveEnumerator.cs` | `TimedOut`, `Disposed` and `Failure` (the exception that ended the operation, recorded before its disposal) read-outs; optional timeout description (a failing one falls back to the old text); optional serialization-started notification, invoked only after native serialization started and contained. No behavior change. |
 
 Not changed: readiness itself, the hold and its exceptions, the 30 s timeout, request ordering, Manual/Quick/Auto semantics,
 pause handling, fences, the archive worker drain, save format. No coalescing or cancellation of queued requests.
@@ -131,8 +132,8 @@ pause handling, fences, the archive worker drain, save format. No coalescing or 
 Example of the new log for the incident's shape (fakes; names illustrative):
 
 ```
-Mounted save wait: request=1; name=Quick:Quicksave1; t=0.00s; blocker=Projectile; waitingFor=Leinna's AcidSplash projectile; detail=[blueprint=…; launcher=…; target=…; membership=active; isHit=True; cleared=False; hitObserved=False; …]; change=1.
-Mounted save wait ended: request=1; name=Quick:Quicksave1; outcome=ModeChanged; reason=mode=EscMode; manualLoadingScreen=False; worldBound=True; elapsed=16.10s; lastBlocker=Projectile; …
+Mounted save wait: request=1; name=Quick:Quicksave1; t=0.00s; queuedFor=0.00s; blocker=Projectile; newOwner; waitingFor=Leinna's AcidSplash projectile; condition=[membership=active; isHit=True; cleared=False; hitObserved=False]; detail=[blueprint=…; launcher=…; target=…; passedTime=…]; change=1.
+Mounted save wait ended: request=1; name=Quick:Quicksave1; outcome=ModeChanged; reason=mode=EscMode; manualLoadingScreen=False; worldBound=True; waited=16.10s; queuedFor=0.00s; lastBlocker=Projectile; …; snapshotAt=16.00s; …
 Save did not complete; the previous complete save is unchanged. Save was not written: the game menu opened while it waited for Leinna's AcidSplash projectile.
 ```
 
@@ -199,8 +200,19 @@ Budget `save-door-lock` (a new record for this incident; the shared `development
   DLL `bin\Release\KingmakerMountedCombat.dll` sha256 `20d15ef555ba3cfd275ed0f3d6f7d23d4fb00af9b746b8a47ead216a052731dd`.
   This is a development build, not packaged or staged.
 
-Not covered offline: the real 30 s timeout through `DeferNativeSave` (its wiring uses a real `Stopwatch`; the enumerator's
-timeout identity and text are covered at component level), and every native behavior.
+- **Round 2 (after the Pro review of `0b4b8fa4`).** Fast PASS in the same budget (4.53 of 90 min spent in total):
+  - components 1487/0 (4 new review regressions);
+  - Validate-Source 153/0;
+  - focused `Test-SaveDoorLockFocused.ps1`: wait regression 15/0 with 8/8 production mutations killed; readiness
+    equivalence against baseline 1,024 states, 0 failures; persistence contracts 228/0.
+
+  Log `artifacts\save-door-lock\fast-r2.log` (sha256 `b9b70c35…`). DLL sha256
+  `fc271c96db847b5b6b67cf76a819a8c455ca5dd796ab16bd68f3717ad9a7fdbe`. The chunk7 save-boundary adapter, updated only with
+  the new members' fakes, keeps per-case verdicts identical to the pristine baseline (PASS=35 FAIL=47), log
+  `candidate-r2-chunk7-adapter.log`.
+
+Not covered offline: every native behavior. (Round 2 covers the real timeout path through `DeferNativeSave` with a
+deterministic clock.)
 
 ## 7. Compatibility and safety
 
@@ -209,17 +221,31 @@ read-only, bounded (12 transition lines per request plus one end line, nothing p
 API is used (`m_Projectiles` / `m_NewProjectiles` / `m_Abilities` read by field, as before). No reference outlives the frame.
 No save-format, action, preparation, resource or projectile mutation. TRE untouched. No cross-mod dependency.
 
-## 8. Questions for the reviewer
+## 8. Review round 1 (Pro, of `0b4b8fa4`): findings and dispositions
 
-1. Is an observation-only checkpoint the right step before any readiness change, given the evidence (section 4)? Or is
-   there a source-provable blocker I missed? Candidates worth challenging:
-   - started `UnitMoveTo` and NPC commands counted by `CommandNeedsSettlement`, despite the comment that movement intent is
-     transient;
-   - a committed touch delivery queued behind a held command;
-   - a never-arriving projectile.
-2. Is aborting on a menu or dialog (unchanged) the right behavior, or should the wait suspend while the world is not
-   ticking? The mission permits "correct continuation or safe failure"; this round keeps the safe failure and only names it.
-3. Is `EvaluateSaveEffects` exactly equivalent to the former expression (terms, order, short-circuit, null behavior)?
+Verdict: request changes before using this as the diagnostic checkpoint. Pro found no change to save eligibility or the
+command hold, and agreed the evidence does not identify the blocker. All four findings are accepted and corrected in the
+round-2 candidate (commit after `0b4b8fa4`; section 10).
+
+| Finding | Disposition | Correction and evidence |
+|---|---|---|
+| F1 [P2] the end report can repeat a stale snapshot of an unchanged owner | Accepted, fixed | `SaveWaitObservation` separates logging from state. A line is written when the owner **or its refusing condition** changes (`newOwner` / `sameOwnerConditionChanged`). The condition is the refusal reason, projectile membership/hit/cleared/observed, command state, or ability `ended`, without timing. The timed detail is refreshed every 0.25 s of waiting without a line. The end line carries the latest condition and detail with `snapshotAt`. Bounded output, containment and no retained native reference are unchanged. Regressions: component "same-owner condition change…" (same pair identity, new refusal; the end shows the new one and not the old) and "refreshes an unchanged owner's detail…" (same projectile goes pending→active and hit; timing alone never logs; the end shows the latest snapshot and its time); harness "the same blocking owner changing its refusing condition…" through the production observer. Mutation D8 (condition not observed) is killed. |
+| F2 [P2] `Serialized` reported before serialization started; faults reported as cancellation | Accepted, fixed | The outcome is renamed `ReadyToSerialize` and reported only from a contained notification the enumerator invokes **after** native serialization actually started. Every other end is reported once from the operation's terminal, after `DeferredSaveEnumerator.Fail` has recorded `Failure`. Precedence: recorded refusal, timeout, fault (`Faulted`, reflected screen exceptions unwrapped), and only then `Cancelled`. The archive's outcome stays with the existing commit machinery. Pro's three probes are harness cases: screen start throws → `Faulted`, never `ReadyToSerialize`; first writer step throws after the wait settled → exactly one `ReadyToSerialize` and no second end line; begin-wait notification throws → `Faulted`, not `Cancelled`. Component case "records the fault… reports serialization only once started". Mutation D2 (fault reported as cancellation) is killed. |
+| F3 [P2] queued time reported as waiting time | Accepted, fixed | The observation is created at activation (first readiness read inside `Activate`); lines report `t` and `waited` from activation and `queuedFor` separately. `DeferNativeSave` takes its clock from `SaveWaitClock()` (a `Stopwatch` per request in production), so the harness substitutes a deterministic clock. Pro's probe is a harness case through the real timeout: wrapped at 0, activated at 20, timed out at 50.01 → first line `t=0.00s; queuedFor=20.00s`, end `waited=30.01s; queuedFor=20.00s`, blocker named in the refusal. Mutation D7 is killed. |
+| F4 [P2] handoff and records stated plausible explanations as facts | Accepted, fixed | Sections 1–2, CURRENT.md and AUTONOMOUS-RESUME.md now say only what the evidence supports. All four requests entered the wait. Three failed the world/mode/loading check (a disallowed mode or manual loading screen on the ordinary path, which one unknown). The fourth was still waiting. The blocker, its sameness across requests and the wait lengths are unknown. Door recovery after the wait is unverified. The resume rule now requires supported causal evidence (an instrumented trace or a faithful baseline reproduction of a source-proven defect), not specifically a game log. |
+
+Pro's answers to the round-1 questions, recorded:
+- Naming the blocker first is the right next step. The command gate remains worth investigating, but a dependency cycle
+  is a hypothesis until shown reachable and reproduced.
+- Keeping the menu/dialog refusal (not suspending the wait) is appropriate for this PR. Suspension would be a functional
+  change needing explicit timeout, pause, queue and hold-release behavior.
+- No counterexample to the evaluator's equivalence was found, but the earlier evidence only tested how the wait consumes a
+  faked readiness result. **Added in round 2:** the harness now also splices the production `EvaluateSaveEffects` and
+  `SaveEffectsReady` with the baseline `61519031` `SaveEffectsReady` (read with `git show`). Both read the same fake world
+  for all 2^8 term combinations × raw/queued command × active/pending projectile (1,024 states) plus the no-world refusal.
+  Readiness is identical; the reported kind is the first refusing term in the baseline order; the reported subject, unit,
+  queue and pending flags are the exact objects. A one-off mutant that drops the preparation term fails 256 states, so the
+  check discriminates.
 
 ## 9. Next reproduction and required inputs
 
@@ -257,4 +283,6 @@ native acceptance is the formerly failing sequence: save, door, cold load.
    combat ends. If possible, let one target die mid-sequence and let an automatic attack reload and retarget.
 3. Right after combat, press quicksave **once** and wait at least 35 s without opening any menu.
 4. Click a door while the "Saving after…" notice is shown, then again after the save completes or fails.
-5. Send `output_log.txt`. The lines that matter start with `Mounted save wait:` and `Mounted save wait ended:`.
+5. Send `output_log.txt`. The lines that matter start with `Mounted save wait:` and `Mounted save wait ended:`. The end line
+   says how the wait ended (for example `ReadyToSerialize`); whether the save was written is reported by the existing save
+   messages.

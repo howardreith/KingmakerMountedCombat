@@ -129,7 +129,7 @@ namespace KingmakerMountedCombat.Integration
                 case SaveWaitBlockerKind.DiagnosticFault: return "a diagnostic wait fault";
                 case SaveWaitBlockerKind.PairOwnership:
                     var owner = readiness.Subject as MountedPairOwner<UnitEntityData, GameMountedRelationshipService>;
-                    return (owner?.Rider?.CharacterName ?? "a rider") + "'s mounted pair to settle";
+                    return (owner?.Rider?.CharacterName ?? "a rider") + "'s mounted pair to settle (" + (readiness.Reason ?? "unnamed refusal") + ")";
                 case SaveWaitBlockerKind.NativePreparation: return "native turn preparation";
                 case SaveWaitBlockerKind.RelationshipTransition: return "a Mount or Dismount to finish";
                 case SaveWaitBlockerKind.RelationshipShell: return "a Mount or Dismount command to settle";
@@ -174,6 +174,31 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // The refusing condition of one owner, without timing: a change here is a
+        // reported transition even when the owner object stays the same (review of
+        // 0b4b8fa4, F1); the timed detail is refreshed without a line.
+        private string ConditionOfReadiness(SaveReadiness readiness)
+        {
+            switch (readiness.Kind)
+            {
+                case SaveWaitBlockerKind.PairOwnership: return "refusal=" + (readiness.Reason ?? "<unnamed>");
+                case SaveWaitBlockerKind.AdmissionFence:
+                    return string.Join(" | ", WorldCombats.Select((c, i) => "owner" + i + ": " + c.HasChargeOwnership + "/" +
+                        c.ChargeNativeBoundaryPending).ToArray());
+                case SaveWaitBlockerKind.RelationshipShell:
+                    var shellOwner = readiness.Subject as GameMountedRelationshipService;
+                    return "pairState=" + (shellOwner?.State.ToString() ?? "<none>");
+                case SaveWaitBlockerKind.Command:
+                case SaveWaitBlockerKind.RelationshipShellCommand:
+                    return NativeSaveEffectBoundary.ConditionOfCommand((UnitCommand)readiness.Subject, readiness.Queued);
+                case SaveWaitBlockerKind.Projectile:
+                    return NativeSaveEffectBoundary.ConditionOfProjectile((Kingmaker.Controllers.Projectiles.Projectile)readiness.Subject, readiness.Queued);
+                case SaveWaitBlockerKind.Ability:
+                    return "ended=" + ((Kingmaker.Controllers.AbilityExecutionProcess)readiness.Subject).IsEnded;
+                default: return readiness.Kind.ToString();
+            }
+        }
+
         // Diagnostics must never change the save's outcome: every failure here is contained.
         private void ObserveSaveWait(SaveWaitObservation observation, SaveReadiness readiness, double now)
         {
@@ -181,7 +206,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var line = observation.Observe(readiness.Kind,
                     readiness.Subject == null ? 0 : RuntimeHelpers.GetHashCode(readiness.Subject),
-                    () => SummarizeReadiness(readiness), () => DescribeReadiness(readiness), now);
+                    () => SummarizeReadiness(readiness), () => ConditionOfReadiness(readiness), () => DescribeReadiness(readiness), now);
                 if (line != null) logger.Info(line);
             }
             catch { /* An unloggable observation leaves the save decision untouched. */ }
@@ -200,13 +225,26 @@ namespace KingmakerMountedCombat.Integration
 
         private long saveWaitSequence;
 
-        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault, SaveScope scope)
+        // Seconds on one monotonic clock per request, started when it is wrapped.
+        // The deferred-save regression substitutes a deterministic clock here.
+        private static Func<double> SaveWaitClock()
         {
             var timer = Stopwatch.StartNew();
+            return () => timer.Elapsed.TotalSeconds;
+        }
+
+        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault, SaveScope scope)
+        {
+            var clock = SaveWaitClock();
+            var wrappedAt = clock();
             Player world = null;
             var restorePause = false;
-            var observation = new SaveWaitObservation(++saveWaitSequence,
-                (scope.Requested?.Type.ToString() ?? "none") + ":" + (scope.Requested?.Name ?? "none"), 0d);
+            var request = ++saveWaitSequence;
+            var label = (scope.Requested?.Type.ToString() ?? "none") + ":" + (scope.Requested?.Name ?? "none");
+            // Created at activation (the first readiness read, inside Activate), so
+            // every wait time is measured as the timeout measures it, not from the
+            // time this request spent queued behind another (review of 0b4b8fa4, F3).
+            SaveWaitObservation observation = null;
             SaveWaitOutcome? refused = null;
             string refusedReason = null;
             DeferredSaveEnumerator<object> operation = null;
@@ -223,12 +261,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     refused = SaveWaitWorldPolicy.Outcome(state);
                     refusedReason = "mode=" + mode + "; manualLoadingScreen=" + manualScreen + "; worldBound=" + (world != null);
-                    throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(state, mode.ToString(), observation.WaitingFor));
+                    throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(state, mode.ToString(), observation?.WaitingFor));
                 }
                 if (game.IsPaused) { restorePause = true; game.IsPaused = false; }
             };
             Func<bool> ready = () =>
             {
+                var now = clock();
+                if (observation == null) observation = new SaveWaitObservation(request, label, wrappedAt, now);
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
                 {
                     refused = SaveWaitOutcome.WorldReplaced;
@@ -236,25 +276,16 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException(SaveWaitWorldPolicy.FailureMessage(
                         SaveWaitWorldState.WorldReplaced, null, observation.WaitingFor));
                 }
-                SaveReadiness readiness;
-                try
-                {
-                    // Same order and short-circuit as before: the admission fence, then
-                    // the diagnostic fault, then the effect terms.
-                    readiness = !AcquireWorldSaveFence(scope) ? new SaveReadiness { Kind = SaveWaitBlockerKind.AdmissionFence } :
-                        fault?.Active == true ? new SaveReadiness { Kind = SaveWaitBlockerKind.DiagnosticFault } :
-                        EvaluateSaveEffects();
-                }
-                catch (Exception exception)
-                {
-                    refused = refused ?? SaveWaitOutcome.Faulted;
-                    refusedReason = refusedReason ?? exception.GetType().Name + ": " + exception.Message;
-                    throw;
-                }
-                ObserveSaveWait(observation, readiness, timer.Elapsed.TotalSeconds);
+                // Same order and short-circuit as before: the admission fence, then
+                // the diagnostic fault, then the effect terms. An exception here ends
+                // the wait as Faulted through the operation's recorded Failure.
+                var readiness = !AcquireWorldSaveFence(scope) ? new SaveReadiness { Kind = SaveWaitBlockerKind.AdmissionFence } :
+                    fault?.Active == true ? new SaveReadiness { Kind = SaveWaitBlockerKind.DiagnosticFault } :
+                    EvaluateSaveEffects();
+                ObserveSaveWait(observation, readiness, now);
                 return readiness.Ready;
             };
-            operation = new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
+            operation = new DeferredSaveEnumerator<object>(routine, ready, clock,
                 () =>
                 {
                     world = Game.Instance.Player;
@@ -263,33 +294,51 @@ namespace KingmakerMountedCombat.Integration
                     tick();
                 }, tick, () =>
                 {
-                    ReportSaveWaitEnd(observation, operation, refused, refusedReason, timer.Elapsed.TotalSeconds);
                     if (restorePause && ReferenceEquals(Game.Instance?.Player, world)) Game.Instance.IsPaused = true;
                     world = null;
                 }, SaveWaitWorldPolicy.MaximumWaitSeconds, () =>
                 {
+                    // Every disposal reaches here once, after a fault has been recorded
+                    // on the operation. A wait that reached serialization was already
+                    // reported as ReadyToSerialize, so this reports only the other ends.
+                    ReportSaveWaitEnd(observation, operation, refused, refusedReason, clock());
                     // ready() precedes the inner scope's begin. Cancellation/timeout there
                     // still releases this exact operation's fence. A started worker retains it
                     // through ReleaseSaveScope/the existing deferred-worker drain.
                     if (!scope.Began) ReleaseUnstartedSaveFence(scope);
-                }, () => SaveWaitWorldPolicy.TimeoutMessage(SaveWaitWorldPolicy.MaximumWaitSeconds, observation.WaitingFor));
+                }, () => SaveWaitWorldPolicy.TimeoutMessage(SaveWaitWorldPolicy.MaximumWaitSeconds, observation?.WaitingFor),
+                () => ReportSaveWaitEnd(observation, operation, refused, refusedReason, clock()));
             return operation;
         }
 
-        // endWait runs from StartSerialization (not disposed: the wait settled) or
-        // from Dispose (a refusal recorded above, the bounded timeout, or a native
-        // cancellation such as StopAll). Contained: a logging failure cannot skip
-        // the pause restoration and world release that follow it.
+        // Called after native serialization actually started (ReadyToSerialize) and
+        // from the operation's terminal (every other end). The outcome describes the
+        // wait only; the archive's outcome stays with the existing commit machinery.
+        // Precedence: a recorded refusal, the bounded timeout, a recorded fault, and
+        // only then a cancellation nobody faulted. Contained: a logging failure
+        // cannot skip the fence release that follows it.
         private void ReportSaveWaitEnd(SaveWaitObservation observation, DeferredSaveEnumerator<object> operation,
             SaveWaitOutcome? refused, string refusedReason, double now)
         {
             try
             {
-                var outcome = operation == null || !operation.Disposed ? SaveWaitOutcome.Serialized :
-                    refused ?? (operation.TimedOut ? SaveWaitOutcome.TimedOut : SaveWaitOutcome.Cancelled);
+                if (observation == null || observation.Ended || operation == null) return;
+                SaveWaitOutcome outcome;
+                string reason = null;
+                if (operation.SerializationStarted && !operation.Disposed) outcome = SaveWaitOutcome.ReadyToSerialize;
+                else if (refused != null) { outcome = refused.Value; reason = refusedReason; }
+                else if (operation.TimedOut) outcome = SaveWaitOutcome.TimedOut;
+                else if (operation.Failure != null)
+                {
+                    outcome = SaveWaitOutcome.Faulted;
+                    // The native screen start is a reflected call: name what actually failed.
+                    var failure = operation.Failure;
+                    while (failure is System.Reflection.TargetInvocationException && failure.InnerException != null) failure = failure.InnerException;
+                    reason = failure.GetType().Name + ": " + failure.Message;
+                }
+                else outcome = SaveWaitOutcome.Cancelled;
                 LastSaveWaitOutcome = outcome;
-                var line = observation.End(outcome, outcome == SaveWaitOutcome.Serialized || outcome == SaveWaitOutcome.TimedOut ||
-                    outcome == SaveWaitOutcome.Cancelled ? null : refusedReason, now);
+                var line = observation.End(outcome, reason, now);
                 if (line != null) logger.Info(line);
             }
             catch { /* The wait's cleanup continues regardless. */ }
