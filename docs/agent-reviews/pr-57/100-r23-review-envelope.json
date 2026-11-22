@@ -1,0 +1,264 @@
+{
+  "B": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "H": "dd7b6efa1935ebf6257ee2dd02661d3665e7a361",
+  "M": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "invocation": {
+    "completed": true,
+    "duration_s": 1121.6,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 7302784,
+        "input_tokens": 7673028,
+        "output_tokens": 35136,
+        "reasoning_output_tokens": 20983,
+        "total_tokens": 7708164
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a2007d-49aa-75a3-b1a6-4d56478fd2cb",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "mounted-combat-city-and-prone-mission",
+    "sha256": "4d7161071bc463e581f0f555296112d58ec4737c33b2b3859e435b982489664a"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c\\rounds\\r23\\envelope-1.json",
+  "pr": 57,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r23-review",
+  "published": [
+    {
+      "comment_id": 7071252750,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/57#issuecomment-7071252750"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r23-07ce80",
+  "response_sha256": "8c10d1048b775ce16f3af25654499e8fba44159afd759caffd2fb80856bee60c",
+  "result": {
+    "candidate_commit": "dd7b6efa1935ebf6257ee2dd02661d3665e7a361",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The focused gate passed on the exact candidate. Four prior fixes hold. Two remain incomplete: temporary pet loss can revive a shortcut the player removed, and the first reserve scan can erase a shortcut that native cleanup just rebound. Source inspection also identified two ways to lose a toolbar move or fallback and a world-disposal path that retains placement records.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The CLI transcript records the guarded push of dd7b6efa and the subsequent focused verification. The controller receipt names the full candidate hash, exit 0, an unchanged worktree and a duration of 27.8 seconds. I verified the receipt's log SHA-256.",
+        "Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed all four Fast steps and all six focused children. The log reports 1,503 component checks, 153 source checks and 825 Kingmaker assembly-contract checks passing.",
+        "The gate ran 21 click-composition checks with the real transpilers in both patch orders, nine archive-codec checks, 22 six-pair archive-adapter checks and three target-liveness source checks. The recorded product DLL SHA-256 is 3a6a93a0f1ac074304ed9bba51a9815bcdeb73a6d11b8cee8ee239e71397c28f."
+      ],
+      "inspected": [
+        "The controller inputs, mission hash, repository instructions, validation policy, current handoff, X01 compatibility notes, full feature diff, six pending ledger entries, developer transcript and gate artifacts.",
+        "The production toolbar reconciliation, native slot observers, reserve migration, archive capture and restore, world lifecycle, capital roster projection, mounted attack admission and pair-command validation, together with their focused tests."
+      ],
+      "limitations": [
+        "The toolbar tests use production domain decisions and a double that mirrors service orchestration. Four developer mutation checks changed the double. The area-adapter comparison found the same 63 compilation errors on base and candidate, so its in-world assertion did not execute.",
+        "No native game transaction ran on this candidate. The handoff identifies the missing commit-bound package, capital reader update, reserve-pet equipment driver and enemy-posture fixture. The mission permits those native cases to be deferred to owner verification. Runtime restoration was inapplicable."
+      ],
+      "required_gaps": [
+        "Preserve deliberate removal through fact withdrawal and preserve a live reserve binding through the first scan and archive capture.",
+        "Keep the surviving callable shortcut when native reads a secondary stale copy, and honor a player move of a legacy Mount or Dismount shortcut.",
+        "Discard placement records when the player world is disposed outside a selected save load. Cover the reported event sequences in focused verification on the corrected candidate."
+      ],
+      "source_inspection_only": [
+        "The findings below follow production event order and archive predicates. Their specific event sequences were absent from the recorded gate.",
+        "The capital projection uses the existing reciprocal pet instance. The mounted attack change carries an explicit order on an already-unconscious enemy through admission. Actual inventory interaction, conscious-prone targeting and attack resolution remain unobserved on this binary."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "\u00a74 deliberate removal",
+          "\u00a74 temporary mount unavailability",
+          "\u00a74 save/load"
+        ],
+        "actual": "Before withdrawing the fact, ObserveArrangementOnBar correctly records the removal. ReconcilePublicControlSlots then leaves the inactive canonical copy at 9 and calls ForgetCopies because an off-bar arrangement has no interrupted slot index. The next save or same-pet return sees 9 as the player's binding and adopts it.",
+        "blocking_rationale": "A temporary loss of mount availability can reverse an explicit removal in both the continuing game and its save.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The rider keeps the shortcut off the bar. A save carries only the placement marker, and Attack stays at 0.",
+        "id": "R18-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1967
+        },
+        "priority": "P2",
+        "requested_correction": "Remove the identified duplicate or retain its identity until it leaves the bar when the public fact is withdrawn.",
+        "requested_evidence": "Extend StaleThenCurrentCanonical by making the same pet temporarily unresolved immediately after removing 3. Run one update, then check a save while absent and a same-pet return. Both paths should preserve the removal through cold restore.",
+        "title": "Temporary pet loss can revive a duplicate after deliberate removal",
+        "trigger": "Native cleanup rebinds stale slot 3 while slot 9 holds a current duplicate. The player removes 3. Before repair, the dismounted rider's pet stops resolving but retains the same persistent ID."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 older city saves",
+          "\u00a74 occupied slots",
+          "\u00a74 temporary absence"
+        ],
+        "actual": "The successful native rebind records 9 as live. At the first reserve scan, 9 therefore fails the fallback-copy test, and AdmitSurvivingBinding declines it because the rider already has an entry. The scan clears 9 without marking that live entry interrupted. CaptureLiveSlots skips the reserve rider and TryGetArrangement skips its live entry, so neither the slot nor its marker reaches the archive.",
+        "blocking_rationale": "The capital save can lose the rider's only usable shortcut position during the cleanup intended to preserve it.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The scan clears native KMC bindings, preserves Fireball at 3 and carries slot 9 plus one placement marker into the save. The same pet restores one shortcut at 9.",
+        "id": "R22-F3",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2373
+        },
+        "priority": "P2",
+        "requested_correction": "When the reserve scan clears the rider's effective live binding, record that clearing as a temporary interruption. Preserve deliberate removals and companion retirement.",
+        "requested_evidence": "Add a native rebind of 9 before the first scan in the occupied DepartedRiderReleasesCopies case. Check the archive rows, released slot objects, Fireball, and one shortcut at 9 after both a same-world return and a cold load.",
+        "title": "The first reserve scan loses a fallback that native cleanup already rebound",
+        "trigger": "For a rider KMC has yet to reconcile, native empties 3, Fireball takes 3 and native CleanupBadSlots rebinds the surviving shortcut at 9. The rider is in reserve when the capital save first scans its bar."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 chosen toolbar slot",
+          "\u00a74 occupied slots",
+          "\u00a74 save/load"
+        ],
+        "actual": "ChosenFree considers slot 3 and unrecorded player bindings. It overlooks the effective fallback at 7 because 7 is a recorded copy. The report for 9 therefore makes 9 the interrupted choice. Repair discards 7 and restores 9, and an immediate save also selects 9.",
+        "blocking_rationale": "Reading a stale secondary slot moves the sole callable shortcut even though the player left it in place.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The callable fallback at 7 survives. Native can empty stale slot 9 without changing which shortcut is saved.",
+        "id": "R23-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2049
+        },
+        "priority": "P2",
+        "requested_correction": "Use the effective fallback when attributing a native report while the chosen slot is occupied. A report for a lower-priority copy should update that copy's bookkeeping.",
+        "requested_evidence": "Use the occupied 3/7/9 fixture with current data at 7 and stale data at 9. Call GetSlot(9) before repair. Check update-first and save-first order, one restored shortcut at 7 and Fireball at 3.",
+        "title": "Reading a stale copy can displace the callable fallback",
+        "trigger": "GetSlot empties 3 and records the other public bindings at 7 and 9. Fireball takes 3. While 7 still holds callable data, native reads and empties stale slot 9 before KMC's next update."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 world disposal",
+          "\u00a77 affected lifecycle paths"
+        ],
+        "actual": "ResetToMainMenu only checks whether a save worker requires deferral. The placement maps are cleared by selected-load handling or service shutdown. When the player changes through the main menu and LoadNewGame, RevalidateAbsentArrangements passes unresolved old actors to Revalidate, which preserves them. The long-lived service also retains the old placement and retirement sets.",
+        "blocking_rationale": "Toolbar state from a disposed campaign survives in the next world. Unresolved entries continue to be scanned, and a matching actor ID can inherit the earlier world's placement history.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Once the outgoing player world is disposed, its chosen slots, off-bar records and retirements are released. A new campaign starts with its own placement state.",
+        "id": "R23-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1852
+        },
+        "priority": "P2",
+        "requested_correction": "Scope placement records to the player world on the main-menu and new-game path as well as the selected-load path. Keep the existing restoration of records when a selected load is abandoned in the same world.",
+        "requested_evidence": "Exercise the ResetToMainMenu followed by LoadNewGame sequence represented in RuntimePersistenceCampaignBScenario. Seed a reserve placement and a removal in world A, then verify that world B starts without either record. Retain the abandoned-load control.",
+        "title": "Returning to the main menu can retain the previous campaign's placement records",
+        "trigger": "Leave a campaign with remembered toolbar arrangements through ResetToMainMenu, then start a new game without selecting a saved game or disabling the mod."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 player moves",
+          "\u00a74 existing save compatibility",
+          "\u00a74 save/load"
+        ],
+        "actual": "The move changes the index, so the binding at 11 no longer matches the recorded copy at 9. IsPublicCopyAt nevertheless classifies every legacy alias away from an interrupted slot as secondary. With 4 free, repair removes the moved alias and restores 4. Capture also selects 4.",
+        "blocking_rationale": "A player can move a usable shortcut on an older bar and lose that edit during migration.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The moved alias migrates to one public Mount / Dismount shortcut at 11, and the save preserves 11.",
+        "id": "R23-F3",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2453
+        },
+        "priority": "P2",
+        "requested_correction": "Distinguish a surviving legacy alias at its recorded position from one the player has moved. Apply that distinction to repair and capture.",
+        "requested_evidence": "Extend the callable-alias case in SurvivingAliasAfterCanonicalCleanup. Move the live alias from 9 to 11 after native empties 4, then verify update-first, save-first and cold restore at 11. Keep the untouched-alias control that restores 4.",
+        "title": "Moving a live legacy shortcut can be mistaken for leaving a duplicate",
+        "trigger": "On a mixed older bar, native empties stale canonical slot 4 while a callable Mount alias survives at 9. The player drags that alias to 11 before reconciliation, leaving 4 empty."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R18-F1",
+        "rationale": "TrackCopies now records slot 9 when native rebinds 3, and the immediate-removal regression passes while the fact stays live. Withdrawal on the next update forgets the copy while its slot still exists and revives the same duplicate."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R19-F2",
+        "rationale": "The observer now consults EffectivePublicIndex on the records that own the bar. MoveBeyondSurvivingCopy covers native emptying of the moved slot at 11 with the lower copy at 7, including save-first, update-first and cold restore."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R20-F1",
+        "rationale": "Update releases recorded slot objects for riders absent from both candidate and reserve rosters before its early returns. The focused case removes an unobserved reserve rider before its first scan and checks that the last copy and its world reference are released."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R22-F1",
+        "rationale": "TryGetChosenSlot recognizes a fallback adopted as live. Repeated reads during the immediate save preserve slot 7, and the regression checks one slot row, one marker, Fireball and cold restore."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R22-F2",
+        "rationale": "Fresh-load seeding checks the rider's actual bar for the first restorable saved position. LegacyRowsSkipOccupiedFirst covers Fireball at 3, an available legacy row at 9, resaving and subsequent deliberate removal."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R22-F3",
+        "rationale": "The tested surviving copy now becomes interrupted intent at 9. If native rebinds that same fallback first, the reserve scan takes the existing-entry branch and clears the bar while its placement is still classified as live."
+      }
+    ],
+    "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r23-07ce80",
+    "round": 23,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "The candidate adds recoverable toolbar placement using existing archive row kinds, projects eligible owners' persistent pets into the capital UI roster, and admits explicit mounted orders on enemies already unconscious when clicked. The two city reports share a capital roster transition. The toolbar failure involves KMC fact and slot persistence, while the inspection failure comes from the native roster's in-game pet filter.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "After correction, verify nondefault toolbar slots, moves and removals for two riders through capital travel, interior transitions and city and field saves.",
+        "Select a reserve owner's pet in the capital Inventory and Character screens. Check its identity, equipment change and rename through panel reopening and reload.",
+        "Compare actual longbow rolls for mounted and dismounted attacks on standing, conscious-prone and already-unconscious enemies at near and normal range in real time and turn based. Check blocked sight, spent actions and native attack costs."
+      ],
+      "scope_reviewed": "The complete mission and all 34 feature files from dbf637021db42cdc9bf27f3d79fc255d4569c788 through the fixed candidate on codex/mounted-city-and-prone-fixes. [Draft PR #57](https://github.com/howardreith/KingmakerMountedCombat/pull/57)",
+      "unresolved_questions": [
+        "The original ranged weapon and the reported enemy's consciousness state remain unidentified. The source trace found a mounted admission failure for an already-unconscious enemy and found no mounted-specific divergence for a conscious tripped enemy."
+      ]
+    }
+  },
+  "round": 23,
+  "validated_at": "2026-11-22T00:00:53Z",
+  "workflow_fingerprint": "17b66fac3294f0767f9a8a49358d6dd889a8f406363c14243509acac5086b2c7"
+}

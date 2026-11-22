@@ -1,0 +1,363 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c key=r02-review part=1/1 sha256=df975279465ff3e7abc6cecdc313dc60525d3142dba54ebdbdd95d20abc0ca4c -->
+### Codex GPT-6.2 Astra — review — round 2 — candidate `7f6146c043`
+
+**Decision:** `changes_required` — The focused gate passed on the exact candidate. The toolbar can still lose a chosen slot when a save precedes reconciliation or when a pet link temporarily stops resolving. It can also undo a player edit at roster departure or immediately after save restoration. These are source-level failures in the requested behavior. The documented native deferrals are acceptable for this development checkpoint.
+
+#### Findings
+
+**R1-F3** · P1 · defect · blocks readiness — A fact restored between updates still makes native cleanup look like player removal
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:1731`; acceptance: §4 temporary unavailability, §4 deliberate removal, §7 toolbar transitions
+- Trigger: The fact turns off, native bad-slot cleanup runs, and the fact returns before the next KMC update.
+- Expected: A slot emptied by native bad-slot cleanup remains recoverable. Removing a continuously live shortcut stays authoritative.
+- Actual: ReconcileFacts flags replacement only when it finds a missing, inactive or duplicated fact and performs the repair itself. If native cleanup blanks the slot and the fact is active again before that pass, ResolveUnbound sees an uninterrupted entry and changes it to OffBar. The handoff explicitly records this remaining loss.
+- Why it blocks / does not: A temporary fact interruption can still permanently erase the chosen slot.
+- Requested correction: Preserve evidence that native cleanup invalidated the binding even when the fact has already returned by the next service update. Keep the observation scoped to the public control.
+- Requested evidence: Start with slot 9 bound, deactivate the fact, clear the bad slot and reactivate it before one reconciliation. Verify one binding at 9. Repeat with a manual removal on a continuously active fact and verify the bar stays empty.
+
+**R1-F7** · P2 · evidence_gap · blocks readiness — The archive limit fix still lacks the requested round-trip evidence
+- Location: `tests/MountedControlPlacementIntentTests.cs:336`; acceptance: §4 archive compatibility, §7 affected save paths
+- Trigger: Live and remembered arrangements reach or exceed the archive's row limit.
+- Expected: A representable 128-row archive round-trips every required row. Adding an absent rider's two rows to 127 existing rows produces an explicit archive failure.
+- Actual: The silent break is gone and CaptureArchive calls Validate. The executed boundary test only evaluates FitsArchive on two integers. It never encodes or decodes the exact-fit rows or observes the archive writer refusing overflow.
+- Why it blocks / does not: The previously requested boundary round-trip and writer-failure evidence remain outstanding and can be obtained offline.
+- Requested correction: Exercise the production archive validator and codec with actual slot and placement rows. The current-removal archive test infrastructure already compiles these components separately from the six-pair adapter.
+- Requested evidence: Show the decoded actor IDs, kinds and indices surviving at exactly 128 rows, and the production validation error for the 129-row input.
+
+**R2-F1** · P1 · defect · blocks readiness — Saving before the next update can omit a temporarily invalidated binding
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2119`; acceptance: §4 save/load, §4 temporary fact absence, §7 toolbar persistence
+- Trigger: Native cleanup empties a chosen slot after the last control update, then the native save reaches its header.
+- Expected: The archive captures the last chosen slot and placement record when the fact is temporarily unavailable at the header barrier.
+- Actual: BeforeNativeHeader calls CaptureArchive before BeginSaveSerializationScope observes the bar. CaptureLiveSlots skips an inactive fact. CaptureAbsentIntent then calls TryGetArrangement, which refuses a previously bound slot until Interrupted has been set. The header can therefore omit both rows even though the later save-scope cleanup remembers the slot in memory.
+- Why it blocks / does not: The live session can recover after saving while a cold load of that same save loses the player's arrangement.
+- Requested correction: Classify the current binding and fact state before constructing the archive rows. Preserve the distinction between a missing fact and a live fact whose shortcut the player removed.
+- Requested evidence: Use production header ordering. Invalidate a bound fact, save before another control update, decode the archive and cold-restore. Verify kind 6 at the original slot and one kind 7. A live manual removal must yield only kind 7.
+
+**R2-F2** · P1 · defect · blocks readiness — Roster departure clears the bar before recording a recent edit
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:1765`; acceptance: §4 moves and removals, §4 dismounted city arrival
+- Trigger: The rider leaves the travelling roster between a player edit and the next reconciliation.
+- Expected: The last live arrangement on the departing rider is the one preserved in reserve.
+- Actual: The departure loop marks the previously sampled arrangement interrupted and clears the departing unit's KMC slots without observing its live bar. With no mounted or retained pair, BeginAreaTransition returns before creating a transfer, so SuspendAreaControls does not provide an earlier observation. Moving 9 to 3, or removing it, can leave 9 as the remembered choice.
+- Why it blocks / does not: A dismounted city visit can undo the toolbar edit the mission requires the mod to respect.
+- Requested correction: Observe the departing rider's actual bar while its public fact is still live, before marking the absence and clearing its slots. Preserve the replacement-object and permanent-removal guards.
+- Requested evidence: With the rider dismounted, move 9 to 3 and transfer the rider to reserve without an intervening update. Repeat with removal. Check the reserve save and the bar after return.
+
+**R2-F3** · P1 · defect · blocks readiness — A temporarily unresolved pet is treated as permanent loss for a party rider
+- Location: `src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs:115`; acceptance: §4 temporary mount unavailability, §4 permanent companion removal
+- Trigger: The owner remains a candidate while its persistent pet link exists but the pet object or reciprocal link is temporarily unavailable.
+- Expected: A rider with the same persistent pet link keeps the chosen arrangement while the pet cannot resolve. Confirmed permanent loss retires it.
+- Actual: For a dismounted candidate, ShouldLease requires a resolved supported Pet with a reciprocal master. A temporarily unresolved Pet makes controlDesired false. Reconcile immediately records Permanent, even when PetUniqueId still identifies the same companion. After native cleanup empties the slot, the returning pet has no remembered index and the placement marker prevents initial placement.
+- Why it blocks / does not: The active-roster path equates inability to lease a fact now with permanent loss of the arrangement.
+- Requested correction: Classify arrangement retention independently of current fact leaseability, using the available roster and persistent pet identity evidence for candidates as well as reserve riders.
+- Requested evidence: Keep a dismounted rider in the party with the same PetUniqueId, temporarily make Pet unresolved, clear the bad slot, then restore the reciprocal pet. Verify the original slot returns exactly once. Compare with a confirmed permanent pet loss.
+
+**R2-F4** · P2 · defect · blocks readiness — Lease release leaves a restored shortcut marked interrupted
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2300`; acceptance: §4 deliberate removal, §7 affected save paths
+- Trigger: The player removes the live shortcut after the save scope returns and before the next regular control update.
+- Expected: Restoring the public shortcut from its serialization lease immediately establishes that the binding is live again.
+- Actual: EndSaveSerializationScope reconciles while the lease is pending, then ClearSerializationHotbarLeases writes the live ability back without calling ObserveBound. The intent remains Interrupted. If the player removes the restored control before the next update, ResolveUnbound restores it again. The test double calls an extra Frame immediately after clearing its leases, closing this window in the test.
+- Why it blocks / does not: A successful save can cause the next deliberate removal to be reversed.
+- Requested correction: Record the successful public-control rebind when the exact placeholder is replaced. Preserve the lease's existing ownership and occupied-slot checks.
+- Requested evidence: End a save scope, remove the restored shortcut before the first subsequent control update, then reconcile and save/load. Verify it stays off the bar.
+
+**R2-F5** · P2 · required_gap · blocks readiness — The persistence adapter facades still implement the old call signatures
+- Location: `tests/Chunk7Diagnostics/SixPairArchiveAdapterTemplate.cs:97`; acceptance: §7 affected save/lifecycle regressions, validation policy §8
+- Trigger: The actual-method checks compile CaptureArchive, RestoreArchivePresentation or RestoreAreaPair from this candidate.
+- Expected: The affected adapters accept and verify the candidate's capture and restore modes. Any remaining baseline failure is distinguished under matched conditions.
+- Actual: The six-pair facade exposes CapturePersistentSlots() and RestorePersistentSlots(slots), while the extracted candidate methods pass includeAbsentIntent and loadedWorld. The area preflight facade also accepts only one restore argument. These signature mismatches are introduced by this branch, independently of older missing facade members. Both checks were excluded, and the handoff classified their failures as pre-existing without a matched main run.
+- Why it blocks / does not: The candidate adds compile failures to the checks that exercise its changed persistence call sites and leaves their failure attribution inaccurate.
+- Requested correction: Update the two facades for the changed calls and assert the expected archive, cold-load and in-world modes. Compare remaining failures once against the base and record the actual diagnostics and disposition.
+- Requested evidence: Provide focused adapter results or matched base/candidate diagnostics showing that the changed signatures are covered and no candidate-specific compile errors remain.
+
+#### Prior finding assessments
+
+- **R1-F1** — `fix_verified` — An observed removal now creates OffBar. A reserve save emits a single kind-7 marker, and cold restore seeds that decision before initial placement.
+- **R1-F2** — `fix_verified` — For the reported pre-save move or removal on a live fact, capture reads the edited bar, suspension samples it before clearing, and pending leases suppress a competing intent restore. R2-F4 concerns a later edit after lease release.
+- **R1-F3** — `fix_rejected` — The service now preserves the slot when it performs the fact replacement itself. A native off/on cycle completed before sampling still produces the same loss, as acknowledged in the handoff.
+- **R1-F4** — `fix_verified` — In-world area and retained-remount callers pass false. Both seeding and the final slot write honor an already observed move or OffBar arrangement.
+- **R1-F5** — `fix_verified` — The reserve path revalidates a resolved owner's stored pet ID and roster membership during updates and before capture. A cleared or changed pet link retires the old reserve slot.
+- **R1-F6** — `fix_verified` — The postfix passes the service's enabled/disposed state, and the disabled adapter returns the original list. The gate includes the enabled, disabled and re-enabled projection case.
+- **R1-F7** — `still_open` — Source inspection confirms removal of silent truncation and retention of the 128-row validator. The requested exact-fit round-trip and overflow through the archive writer have only a predicate-level test.
+- **R1-F8** — `fix_verified` — The handoff corrects the Oleg's reserve fixture description, preserves the historical binary identity, and identifies the current package, lineage, reader and panel-driver prerequisites for each deferred native case.
+- **R1-F9** — `fix_verified` — The handoff now traces conscious trip separately from unconscious-target rejection, identifies representative longbow controls and the missing enemy-posture setup, and gives matched near/far RT/TB owner steps. Native resolution remains explicitly unverified.
+
+#### Evidence assessment
+
+- **Inspected:** Mission, repository instructions, validation policy, current handoff, full feature diff, developer report, tool transcript, gate evidence and all nine prior findings.; Toolbar fact leasing, current and reserve roster selection, save-header ordering, serialization leases, archive validation, area transfer, retained remount and cold restore.; Capital UI projection, stock-click admission, pair attack execution and continuation, component doubles, actual-method adapter templates and the historical capital reader.
+- **Executed verification:** Verified the snapshot HEAD and controller mission hash. The tracked mission matches the controller copy when line endings are ignored. The feature diff passed git diff --check.; Verified the controller receipt and its log SHA-256. Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed on 7f6146c0432f8c399a037bc1363015db2e283f34 in 18.7 seconds with the worktree unchanged.; The gate log records 1,429 component checks, 153 source checks, 819 Kingmaker assembly contract checks and 21 click-composition checks passing, including both Tabletop Rules Expansion patch orders. The tested product DLL SHA-256 was 10c493a3758aa7561d32cb312b65e4a25453aeddc0fc4a10a930731ceac2d159 and its MVID was ba9e8563-ad45-4913-85aa-fc3a2e0e7dbe.; The CLI transcript confirms the guarded push of the candidate to codex/mounted-city-and-prone-fixes and a clean status after verification.
+- **Source inspection only:** The city postfix returns the native roster when disabled and projects exact reciprocal owner/pet instances when enabled in the capital.; The combat changes carry the explicit downed-target allowance through intent, admission and pair-command checks. The conscious-trip analysis and its proposed click-collider explanation remain source traces.; The capital reader still expects two historical control rows. The handoff identifies the prior reserve fixture, current package and lineage prerequisites, and missing panel and enemy-posture drivers.
+- **Required gaps:** Cover toolbar state changes at the actual save, lease-release and roster-departure boundaries, including a temporarily unresolved pet.; Verify the 128-row archive boundary through the codec and account for the candidate's changes to the affected adapter contracts.
+- **Limitations:** Review commands were read-only. No build, game launch or installation transaction ran during this review.; The gate exercised offline components, reflection contracts and composed click-handler slices. It did not exercise native portrait selection, equipment changes, toolbar transitions or an attack roll.; The two adapter failures are reported in the handoff. The supplied transcript does not contain their compiler diagnostics or a matched baseline run.
+
+#### Summary
+
+- **Delivered behavior:** The candidate preserves observed reserve-rider placement choices in the existing archive format, projects eligible owners' persistent pets into the capital roster, and admits explicit mounted orders on enemies already unconscious. The two city issues share a roster transition but have distinct causes. Several toolbar timing paths still lose or reverse player intent.
+- **Scope reviewed:** Complete final-checkpoint mission for draft PR #57, branch codex/mounted-city-and-prone-fixes, from dbf637021db42cdc9bf27f3d79fc255d4569c788 through 7f6146c0432f8c399a037bc1363015db2e283f34.
+- **Pending later-phase work:** none
+- **Unresolved questions:** The owner's reported weapon and the target's consciousness at the failed click remain unknown.; Native city UI and combat outcomes on this candidate remain NOT RUN. No runtime transaction required restoration.
+- **Remaining owner review:** After corrections, verify the visible shortcut and actual reserve-pet character and equipment interactions across capital visits and cold loads.; Compare mounted and dismounted longbow attacks against standing, conscious-tripped and already-unconscious enemies at near and ordinary range in RT and TB, observing the attack roll and action expenditure.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `high` | `high` (turns ['high']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Codex CLI `0.170.0`, thread `01a1fe19-ecc4-79a0-8022-d6682dfcb9d9`, duration 352.1s, response sha256 `d09357b895bee50aad8d00edbb037dbcac3228ab601bec3b8045c077bf4a6529`, request `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r02-136328`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "7f6146c0432f8c399a037bc1363015db2e283f34",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed on the exact candidate. The toolbar can still lose a chosen slot when a save precedes reconciliation or when a pet link temporarily stops resolving. It can also undo a player edit at roster departure or immediately after save restoration. These are source-level failures in the requested behavior. The documented native deferrals are acceptable for this development checkpoint.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Verified the snapshot HEAD and controller mission hash. The tracked mission matches the controller copy when line endings are ignored. The feature diff passed git diff --check.",
+      "Verified the controller receipt and its log SHA-256. Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed on 7f6146c0432f8c399a037bc1363015db2e283f34 in 18.7 seconds with the worktree unchanged.",
+      "The gate log records 1,429 component checks, 153 source checks, 819 Kingmaker assembly contract checks and 21 click-composition checks passing, including both Tabletop Rules Expansion patch orders. The tested product DLL SHA-256 was 10c493a3758aa7561d32cb312b65e4a25453aeddc0fc4a10a930731ceac2d159 and its MVID was ba9e8563-ad45-4913-85aa-fc3a2e0e7dbe.",
+      "The CLI transcript confirms the guarded push of the candidate to codex/mounted-city-and-prone-fixes and a clean status after verification."
+    ],
+    "inspected": [
+      "Mission, repository instructions, validation policy, current handoff, full feature diff, developer report, tool transcript, gate evidence and all nine prior findings.",
+      "Toolbar fact leasing, current and reserve roster selection, save-header ordering, serialization leases, archive validation, area transfer, retained remount and cold restore.",
+      "Capital UI projection, stock-click admission, pair attack execution and continuation, component doubles, actual-method adapter templates and the historical capital reader."
+    ],
+    "limitations": [
+      "Review commands were read-only. No build, game launch or installation transaction ran during this review.",
+      "The gate exercised offline components, reflection contracts and composed click-handler slices. It did not exercise native portrait selection, equipment changes, toolbar transitions or an attack roll.",
+      "The two adapter failures are reported in the handoff. The supplied transcript does not contain their compiler diagnostics or a matched baseline run."
+    ],
+    "required_gaps": [
+      "Cover toolbar state changes at the actual save, lease-release and roster-departure boundaries, including a temporarily unresolved pet.",
+      "Verify the 128-row archive boundary through the codec and account for the candidate's changes to the affected adapter contracts."
+    ],
+    "source_inspection_only": [
+      "The city postfix returns the native roster when disabled and projects exact reciprocal owner/pet instances when enabled in the capital.",
+      "The combat changes carry the explicit downed-target allowance through intent, admission and pair-command checks. The conscious-trip analysis and its proposed click-collider explanation remain source traces.",
+      "The capital reader still expects two historical control rows. The handoff identifies the prior reserve fixture, current package and lineage prerequisites, and missing panel and enemy-posture drivers."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "\u00a74 temporary unavailability",
+        "\u00a74 deliberate removal",
+        "\u00a77 toolbar transitions"
+      ],
+      "actual": "ReconcileFacts flags replacement only when it finds a missing, inactive or duplicated fact and performs the repair itself. If native cleanup blanks the slot and the fact is active again before that pass, ResolveUnbound sees an uninterrupted entry and changes it to OffBar. The handoff explicitly records this remaining loss.",
+      "blocking_rationale": "A temporary fact interruption can still permanently erase the chosen slot.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A slot emptied by native bad-slot cleanup remains recoverable. Removing a continuously live shortcut stays authoritative.",
+      "id": "R1-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 1731
+      },
+      "priority": "P1",
+      "requested_correction": "Preserve evidence that native cleanup invalidated the binding even when the fact has already returned by the next service update. Keep the observation scoped to the public control.",
+      "requested_evidence": "Start with slot 9 bound, deactivate the fact, clear the bad slot and reactivate it before one reconciliation. Verify one binding at 9. Repeat with a manual removal on a continuously active fact and verify the bar stays empty.",
+      "title": "A fact restored between updates still makes native cleanup look like player removal",
+      "trigger": "The fact turns off, native bad-slot cleanup runs, and the fact returns before the next KMC update."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 archive compatibility",
+        "\u00a77 affected save paths"
+      ],
+      "actual": "The silent break is gone and CaptureArchive calls Validate. The executed boundary test only evaluates FitsArchive on two integers. It never encodes or decodes the exact-fit rows or observes the archive writer refusing overflow.",
+      "blocking_rationale": "The previously requested boundary round-trip and writer-failure evidence remain outstanding and can be obtained offline.",
+      "blocks_readiness": true,
+      "category": "evidence_gap",
+      "expected": "A representable 128-row archive round-trips every required row. Adding an absent rider's two rows to 127 existing rows produces an explicit archive failure.",
+      "id": "R1-F7",
+      "location": {
+        "file": "tests/MountedControlPlacementIntentTests.cs",
+        "line": 336
+      },
+      "priority": "P2",
+      "requested_correction": "Exercise the production archive validator and codec with actual slot and placement rows. The current-removal archive test infrastructure already compiles these components separately from the six-pair adapter.",
+      "requested_evidence": "Show the decoded actor IDs, kinds and indices surviving at exactly 128 rows, and the production validation error for the 129-row input.",
+      "title": "The archive limit fix still lacks the requested round-trip evidence",
+      "trigger": "Live and remembered arrangements reach or exceed the archive's row limit."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 save/load",
+        "\u00a74 temporary fact absence",
+        "\u00a77 toolbar persistence"
+      ],
+      "actual": "BeforeNativeHeader calls CaptureArchive before BeginSaveSerializationScope observes the bar. CaptureLiveSlots skips an inactive fact. CaptureAbsentIntent then calls TryGetArrangement, which refuses a previously bound slot until Interrupted has been set. The header can therefore omit both rows even though the later save-scope cleanup remembers the slot in memory.",
+      "blocking_rationale": "The live session can recover after saving while a cold load of that same save loses the player's arrangement.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The archive captures the last chosen slot and placement record when the fact is temporarily unavailable at the header barrier.",
+      "id": "R2-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2119
+      },
+      "priority": "P1",
+      "requested_correction": "Classify the current binding and fact state before constructing the archive rows. Preserve the distinction between a missing fact and a live fact whose shortcut the player removed.",
+      "requested_evidence": "Use production header ordering. Invalidate a bound fact, save before another control update, decode the archive and cold-restore. Verify kind 6 at the original slot and one kind 7. A live manual removal must yield only kind 7.",
+      "title": "Saving before the next update can omit a temporarily invalidated binding",
+      "trigger": "Native cleanup empties a chosen slot after the last control update, then the native save reaches its header."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 moves and removals",
+        "\u00a74 dismounted city arrival"
+      ],
+      "actual": "The departure loop marks the previously sampled arrangement interrupted and clears the departing unit's KMC slots without observing its live bar. With no mounted or retained pair, BeginAreaTransition returns before creating a transfer, so SuspendAreaControls does not provide an earlier observation. Moving 9 to 3, or removing it, can leave 9 as the remembered choice.",
+      "blocking_rationale": "A dismounted city visit can undo the toolbar edit the mission requires the mod to respect.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The last live arrangement on the departing rider is the one preserved in reserve.",
+      "id": "R2-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 1765
+      },
+      "priority": "P1",
+      "requested_correction": "Observe the departing rider's actual bar while its public fact is still live, before marking the absence and clearing its slots. Preserve the replacement-object and permanent-removal guards.",
+      "requested_evidence": "With the rider dismounted, move 9 to 3 and transfer the rider to reserve without an intervening update. Repeat with removal. Check the reserve save and the bar after return.",
+      "title": "Roster departure clears the bar before recording a recent edit",
+      "trigger": "The rider leaves the travelling roster between a player edit and the next reconciliation."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 temporary mount unavailability",
+        "\u00a74 permanent companion removal"
+      ],
+      "actual": "For a dismounted candidate, ShouldLease requires a resolved supported Pet with a reciprocal master. A temporarily unresolved Pet makes controlDesired false. Reconcile immediately records Permanent, even when PetUniqueId still identifies the same companion. After native cleanup empties the slot, the returning pet has no remembered index and the placement marker prevents initial placement.",
+      "blocking_rationale": "The active-roster path equates inability to lease a fact now with permanent loss of the arrangement.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A rider with the same persistent pet link keeps the chosen arrangement while the pet cannot resolve. Confirmed permanent loss retires it.",
+      "id": "R2-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs",
+        "line": 115
+      },
+      "priority": "P1",
+      "requested_correction": "Classify arrangement retention independently of current fact leaseability, using the available roster and persistent pet identity evidence for candidates as well as reserve riders.",
+      "requested_evidence": "Keep a dismounted rider in the party with the same PetUniqueId, temporarily make Pet unresolved, clear the bad slot, then restore the reciprocal pet. Verify the original slot returns exactly once. Compare with a confirmed permanent pet loss.",
+      "title": "A temporarily unresolved pet is treated as permanent loss for a party rider",
+      "trigger": "The owner remains a candidate while its persistent pet link exists but the pet object or reciprocal link is temporarily unavailable."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 deliberate removal",
+        "\u00a77 affected save paths"
+      ],
+      "actual": "EndSaveSerializationScope reconciles while the lease is pending, then ClearSerializationHotbarLeases writes the live ability back without calling ObserveBound. The intent remains Interrupted. If the player removes the restored control before the next update, ResolveUnbound restores it again. The test double calls an extra Frame immediately after clearing its leases, closing this window in the test.",
+      "blocking_rationale": "A successful save can cause the next deliberate removal to be reversed.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Restoring the public shortcut from its serialization lease immediately establishes that the binding is live again.",
+      "id": "R2-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2300
+      },
+      "priority": "P2",
+      "requested_correction": "Record the successful public-control rebind when the exact placeholder is replaced. Preserve the lease's existing ownership and occupied-slot checks.",
+      "requested_evidence": "End a save scope, remove the restored shortcut before the first subsequent control update, then reconcile and save/load. Verify it stays off the bar.",
+      "title": "Lease release leaves a restored shortcut marked interrupted",
+      "trigger": "The player removes the live shortcut after the save scope returns and before the next regular control update."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a77 affected save/lifecycle regressions",
+        "validation policy \u00a78"
+      ],
+      "actual": "The six-pair facade exposes CapturePersistentSlots() and RestorePersistentSlots(slots), while the extracted candidate methods pass includeAbsentIntent and loadedWorld. The area preflight facade also accepts only one restore argument. These signature mismatches are introduced by this branch, independently of older missing facade members. Both checks were excluded, and the handoff classified their failures as pre-existing without a matched main run.",
+      "blocking_rationale": "The candidate adds compile failures to the checks that exercise its changed persistence call sites and leaves their failure attribution inaccurate.",
+      "blocks_readiness": true,
+      "category": "required_gap",
+      "expected": "The affected adapters accept and verify the candidate's capture and restore modes. Any remaining baseline failure is distinguished under matched conditions.",
+      "id": "R2-F5",
+      "location": {
+        "file": "tests/Chunk7Diagnostics/SixPairArchiveAdapterTemplate.cs",
+        "line": 97
+      },
+      "priority": "P2",
+      "requested_correction": "Update the two facades for the changed calls and assert the expected archive, cold-load and in-world modes. Compare remaining failures once against the base and record the actual diagnostics and disposition.",
+      "requested_evidence": "Provide focused adapter results or matched base/candidate diagnostics showing that the changed signatures are covered and no candidate-specific compile errors remain.",
+      "title": "The persistence adapter facades still implement the old call signatures",
+      "trigger": "The actual-method checks compile CaptureArchive, RestoreArchivePresentation or RestoreAreaPair from this candidate."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F1",
+      "rationale": "An observed removal now creates OffBar. A reserve save emits a single kind-7 marker, and cold restore seeds that decision before initial placement."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F2",
+      "rationale": "For the reported pre-save move or removal on a live fact, capture reads the edited bar, suspension samples it before clearing, and pending leases suppress a competing intent restore. R2-F4 concerns a later edit after lease release."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R1-F3",
+      "rationale": "The service now preserves the slot when it performs the fact replacement itself. A native off/on cycle completed before sampling still produces the same loss, as acknowledged in the handoff."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F4",
+      "rationale": "In-world area and retained-remount callers pass false. Both seeding and the final slot write honor an already observed move or OffBar arrangement."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F5",
+      "rationale": "The reserve path revalidates a resolved owner's stored pet ID and roster membership during updates and before capture. A cleared or changed pet link retires the old reserve slot."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F6",
+      "rationale": "The postfix passes the service's enabled/disposed state, and the disabled adapter returns the original list. The gate includes the enabled, disabled and re-enabled projection case."
+    },
+    {
+      "assessment": "still_open",
+      "finding_id": "R1-F7",
+      "rationale": "Source inspection confirms removal of silent truncation and retention of the 128-row validator. The requested exact-fit round-trip and overflow through the archive writer have only a predicate-level test."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F8",
+      "rationale": "The handoff corrects the Oleg's reserve fixture description, preserves the historical binary identity, and identifies the current package, lineage, reader and panel-driver prerequisites for each deferred native case."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F9",
+      "rationale": "The handoff now traces conscious trip separately from unconscious-target rejection, identifies representative longbow controls and the missing enemy-posture setup, and gives matched near/far RT/TB owner steps. Native resolution remains explicitly unverified."
+    }
+  ],
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r02-136328",
+  "round": 2,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The candidate preserves observed reserve-rider placement choices in the existing archive format, projects eligible owners' persistent pets into the capital roster, and admits explicit mounted orders on enemies already unconscious. The two city issues share a roster transition but have distinct causes. Several toolbar timing paths still lose or reverse player intent.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "After corrections, verify the visible shortcut and actual reserve-pet character and equipment interactions across capital visits and cold loads.",
+      "Compare mounted and dismounted longbow attacks against standing, conscious-tripped and already-unconscious enemies at near and ordinary range in RT and TB, observing the attack roll and action expenditure."
+    ],
+    "scope_reviewed": "Complete final-checkpoint mission for draft PR #57, branch codex/mounted-city-and-prone-fixes, from dbf637021db42cdc9bf27f3d79fc255d4569c788 through 7f6146c0432f8c399a037bc1363015db2e283f34.",
+    "unresolved_questions": [
+      "The owner's reported weapon and the target's consciousness at the failed click remain unknown.",
+      "Native city UI and combat outcomes on this candidate remain NOT RUN. No runtime transaction required restoration."
+    ]
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

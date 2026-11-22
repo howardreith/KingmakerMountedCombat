@@ -1,0 +1,371 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c key=r01-review part=1/1 sha256=9a53af58d56e031f43ab40465a96309e7e4968b7ce43eb77a803409006a706b6 -->
+### Codex GPT-6.2 Astra — review — round 1 — candidate `78a0964e37`
+
+**Decision:** `changes_required` — The focused gate passed on the submitted commit, including both Tabletop Rules Expansion patch orders. The toolbar implementation still loses deliberate removals across city saves and can restore an obsolete slot after a move. The city roster projection also remains active after mod disable. The combat change addresses an explicitly ordered unconscious target, but the investigation has not established what happens to a shot at a conscious, tripped enemy. The stated reason for deferring all city checks conflicts with the repository’s recorded capital fixture.
+
+#### Findings
+
+**R1-F1** · P1 · defect · blocks readiness — A city save forgets a reserve rider’s deliberate shortcut removal
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2067`; acceptance: §4 deliberate removal, §4 city save/load, §7 toolbar persistence and intent
+- Trigger: Remove the shortcut, enter the capital with that rider moved to reserve, save, reload, then take the rider adventuring again.
+- Expected: A rider who already had their one placement keeps the existing kind-7 marker through temporary absence, including when the player chose to leave the control off the bar.
+- Actual: Removing the live shortcut drops its placementIntent entry. Only placementRecorded retains the decision. CaptureLiveSlots skips the reserve rider, and CaptureAbsentIntent enumerates only placementIntent.ActorIds. The save therefore contains neither a slot nor a placement marker. BeginLoadedWorld clears the in-memory marker, allowing TryInitialPlacement to insert the control on return.
+- Why it blocks / does not: An ordinary city save and reload can reverse an explicit toolbar edit.
+- Requested correction: Persist marker-only decisions for still-eligible absent riders through the existing archive path. Preserve disable and removal cleanup and keep marker-only records free of a slot binding.
+- Requested evidence: With autofill enabled, place and remove the control, move the rider to reserve, capture and decode the archive, cold-restore and return the rider to the party. Assert one kind-7 row, no kind-6 row and no automatic insertion.
+
+**R1-F2** · P1 · defect · blocks readiness — Saving between a toolbar edit and the next update can undo the edit
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2032`; acceptance: §4 moves and removals, §4 no duplicates, §7 affected save paths
+- Trigger: The service last observed the control in slot 9. The player moves or removes it before save suspension samples the toolbar.
+- Expected: The arrangement at the serialization boundary is authoritative, including a move or removal since the last frame.
+- Actual: BeginSaveSerializationScope leases the actual slots and empties them. RemoveManagedFacts then marks the previously sampled index interrupted. On release, Update can reconstruct the old slot before ClearSerializationHotbarLeases restores the new one. Moving from slot 9 to slot 3 can therefore leave both occupied by the control. Removing it just before the barrier can resurrect slot 9. The added tests always reconcile after the user edit.
+- Why it blocks / does not: Two restore paths can act on different versions of the same toolbar during a normal save.
+- Requested correction: Reconcile the actual live placement before clearing slots at a suspension boundary, and coordinate intent restoration with the existing serialization leases so only the current choice is restored.
+- Requested evidence: Exercise move-then-save and remove-then-save with no intervening control update. Check both the bar after the save returns and the bar after loading it.
+
+**R1-F3** · P1 · defect · blocks readiness — Re-leasing an inactive fact can erase the evidence of temporary absence
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:1724`; acceptance: §4 temporary unavailability, §4 stale ability data, §7 toolbar transitions
+- Trigger: The rider stays in the candidate roster while the public fact becomes inactive or disappears and native toolbar cleanup runs first.
+- Expected: When a still-eligible rider loses the leased fact temporarily, the replacement fact returns to the chosen empty slot.
+- Actual: ReconcileFacts replaces a missing or inactive desired fact before ReconcileChosenSlot sees it. If native bad-slot cleanup already emptied the slot, ReconcileChosenSlot sees a newly active fact and an empty toolbar. The previous entry still has Interrupted=false, so ResolveUnbound forgets it as a deliberate removal. The new unit test calls ObserveAbsent explicitly, which bypasses this production ordering.
+- Why it blocks / does not: One of the native bad-slot paths identified as the cause still loses the chosen slot.
+- Requested correction: Observe loss or replacement of the public fact before re-leasing it. Preserve the distinction between a missing fact and a missing binding on a continuously live fact.
+- Requested evidence: Start with a bound control, invalidate its fact and let bad-slot cleanup empty the slot while the rider stays a candidate. Run the production reconciliation order and verify the slot binds the replacement AbilityData exactly once. Include deliberate removal with a continuously active fact as the control.
+
+**R1-F4** · P2 · defect · blocks readiness — Delayed remount can restore a shortcut the player removed while dismounted
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2133`; acceptance: §4 forced dismount, §4 deliberate removal, §7 lifecycle regressions
+- Trigger: A pair retains its remount intent through a forced dismount, and the player edits the toolbar before the in-area retry succeeds.
+- Expected: A later player edit takes precedence over the toolbar snapshot taken when a pair was suspended.
+- Actual: RestorePersistentSlots unconditionally seeds the saved index as interrupted. It is used for both a freshly loaded archive and older in-world custody rows. MountedRetainedIntent calls it on delayed remount using the slots captured at suspension. Even if reconciliation has already observed the player removing the live control, that old row seeds the slot again and restores it.
+- Why it blocks / does not: A delayed remount can reverse a deliberate removal even when the service observed the edit before restoration.
+- Requested correction: Distinguish archive initialization from replay of carried slots in the same world. Make an observed subsequent removal authoritative for both the seeding step and the slot-writing loop.
+- Requested evidence: Capture a retained pair with a bound control, remove the still-live control while dismounted, reconcile, then complete the retained remount. The old index must remain empty.
+
+**R1-F5** · P2 · defect · blocks readiness — Permanent pet loss in reserve is never reconciled
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2070`; acceptance: §4 permanent companion removal, §4 cleanup, §7 lifecycle regressions
+- Trigger: A rider first leaves the candidate roster temporarily, then loses the companion while still in reserve.
+- Expected: Temporary reserve status preserves placement. Genuine loss of the supported companion or owner eligibility retires it, including while the owner is outside the travelling party.
+- Actual: The first departure is classified once, then observedUnits.Remove(prior) stops further checks on the reserve rider. CaptureAbsentIntent later checks only that the actor ID occurs once in AllCharacters. A reserve owner who permanently loses their pet can continue writing the old MountState row. If the owner later acquires another supported pet, the earlier slot intent can be reused.
+- Why it blocks / does not: The persistent intent can outlive the eligibility that justified retaining it.
+- Requested correction: Revalidate interrupted entries against current roster and ownership evidence when eligibility changes or before persisting or restoring them. Use positive evidence of permanent loss so a transient unresolved link does not erase a valid arrangement.
+- Requested evidence: Compare a reserve rider retaining their reciprocal pet with a reserve rider permanently losing it. Verify the former round-trips and the latter leaves no restorable slot row.
+
+**R1-F6** · P2 · defect · blocks readiness — City companion projection remains active after UMM disable
+- Location: `src/KingmakerMountedCombat/Integration/MountedPatchController.cs:579`; acceptance: §3 lifecycle compatibility, §5 bounded city UI projection
+- Trigger: Disable KMC through UMM, then reopen Inventory or Character in the capital.
+- Expected: Opening the city inventory or character screen after disabling KMC uses the native roster.
+- Actual: The GetGroup postfix always invokes CityCompanionRosterAdapter.Project. CompositionRoot.SetEnabled(false) switches off the services but leaves Harmony patches installed until disposal. The adapter checks area and flags without checking whether KMC is enabled.
+- Why it blocks / does not: The new feature keeps changing the player’s UI after a successful mod disable.
+- Requested correction: Gate the projection on the mod’s active service state. Preserve the native result on disabled calls and resume projection on re-enable.
+- Requested evidence: Exercise enabled, disabled and re-enabled calls with the same eligible reserve pet. Verify the disabled call returns the original list and the re-enabled call includes the pet once.
+
+**R1-F7** · P2 · defect · blocks readiness — The archive silently discards absent riders’ placements at the row limit
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2075`; acceptance: §4 supported toolbar placement, §7 archive bounds and honest results
+- Trigger: Live and remembered control rows together exceed the archive’s 128-row limit.
+- Expected: The owned archive either represents all required placement rows within its existing bound or reports precisely that the requested state cannot be represented.
+- Actual: When two more rows would exceed 128, CaptureAbsentIntent silently breaks. The resulting shortened archive can pass validation and the omitted rider loses their arrangement on load.
+- Why it blocks / does not: The writer reports an ordinary successful snapshot after knowingly dropping required player state.
+- Requested correction: Account for the actual required rows and use the existing bounded archive failure path when they cannot all fit. Keep the current format and validator bound.
+- Requested evidence: Check an exact-fit archive and one with 127 existing rows plus an absent rider requiring two rows. Verify complete round-trip at the boundary and an explicit failure on overflow.
+
+**R1-F8** · P1 · evidence_gap · blocks readiness — The blanket city-test deferral overlooks an existing reserve owner and pet fixture
+- Location: `docs/CITY-AND-PRONE-HANDOFF.md:142`; acceptance: §4 city save/load, §5 reserve companion inspection, §7 focused native checks and deferrals
+- Trigger: Evaluating whether city arrival, save/load and companion selection can be checked before owner review.
+- Expected: Select feasible checks from the existing capital and toolbar infrastructure. Identify separately any missing current fixture lineage, UI driver, reader or runtime permission.
+- Actual: The handoff says companions stay in the party at Oleg’s and there is no reserve owner/pet fixture. The batch197 arrival roster records the hired Small Ranger moving to RemoteCompanions with its Horse out of game. Batch199 records successful capital arrival and cold load with that pair. The existing row-58 reader also expects exactly two main-rider rows, which conflicts with saving recoverable bindings for the absent rider if present. These are concrete facts to assess before deferral.
+- Why it blocks / does not: The reason given for skipping every city case is contradicted by existing native records, and an affected reader still describes the old archive expectation.
+- Requested correction: Correct the fixture description. Assess the capital arrival/cold pair and the existing F2 moved/removed shortcut scenarios against the current guards and budget. Where the intended archive semantics have changed, distinguish live slots from remembered rows in the affected checks while preserving exact actor, slot and cleanup assertions.
+- Requested evidence: After independent review of corrections, provide candidate-bound results for feasible cases or the exact current prerequisite preventing each run. For city inspection, identify what observes selection of the reserve pet and an equipment interaction. Preserve historical verdicts under their original identities.
+
+**R1-F9** · P1 · evidence_gap · blocks readiness — The conscious-prone report has not been distinguished from an unconscious-target refusal
+- Location: `tests/MountedDownedTargetOrderTests.cs:23`; acceptance: §6 precise failure stage, §6 representative ranged fixture, §7 matched prone/standing controls
+- Trigger: A mounted archer clicks a living enemy knocked prone by a trip while the enemy remains conscious.
+- Expected: Trace the conscious-prone case separately from an unconscious enemy and start from an existing representative ranged fixture when the reported weapon is unknown.
+- Actual: The candidate changes unconscious-target admission. Its test for a conscious tripped enemy supplies exactly the same conscious boolean as for a standing enemy. No representative weapon, click, target posture, distance or attack resolution participates in that test. The handoff identifies mouse targeting and firing presentation as unresolved possibilities. Its missing scenario concerns downing an enemy, which does not establish the prerequisite for testing a conscious trip.
+- Why it blocks / does not: The code identifies a plausible second case but leaves the reported prone-target behavior unresolved without the requested matched investigation or a case-specific deferral.
+- Requested correction: Use the existing ordinary ranged input and longbow fixture as the starting point. Compare matched standing, conscious-prone and separately unconscious targets through click classification, admission and firing. Correct any demonstrated mounted divergence. If a guarded prone leg cannot run, document the exact missing setup and which existing control legs can run.
+- Requested evidence: For feasible native legs, record posture and consciousness at the click, attacker, weapon, target, distance, line of sight, action availability and attack roll or cancellation stage in RT and TB. For deferred legs, give reproducible owner steps at near and ordinary firing distance with matched unmounted controls, and retain the NOT RUN verdict.
+
+#### Evidence assessment
+
+- **Inspected:** Mission sections 3–8, AGENTS.md, validation policy, current project guidance, X01 repair notes, the full feature diff, developer transcript, focused evidence, handoff and empty prior-findings ledger.; Toolbar reconciliation, one-time placement, save serialization leases, archive capture and restore, area suspension, delayed remount and mod disable.; City roster projection and patch lifetime, capital arrival and cold-load fixtures and readers, stock click routing, intent admission, pair attack validation, and existing ranged controls.
+- **Executed verification:** Confirmed the detached HEAD and ran git diff --check over the supplied merge-base-to-candidate range. It passed.; Verified the controller receipt against the CLI transcript and the supplied gate log. The log SHA-256 matched 236a99082713083d7b0dba3b7e71f4552671d279ba7b233a4083c061712615c7.; The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 on 78a0964e. It exited 0 in 19.6 seconds with the worktree unchanged. The log records a successful build, components 1427/0, Validate-Source 153/0, Kingmaker assembly contracts 819/0 and click composition 21/0. The inspected product DLL had MVID 07d18753-8024-45d6-bd35-ae76b3cdfc28.
+- **Source inspection only:** The two city reports have distinct code paths. Temporary control-fact loss affects toolbar persistence. The native UI roster’s pet source affects which reserve owners’ pets are shown.; The city adapter projects an existing reciprocal pet reference into a returned list. Actual selection, equipment changes and selection fallback were not exercised.; The combat changes carry an already-unconscious flag from player intent into pair-command validation. The new tests exercise life-state and dispatch decisions without issuing a player click or resolving an attack.
+- **Required gaps:** Cover removal, moves, temporary fact loss and permanent loss through the cooperating placement, save and restore paths.; Correct the city fixture assessment and determine which focused city, toolbar and panel observations are feasible on reviewed bytes.; Trace a representative ranged order for a conscious prone target and distinguish it from the unconscious-target case.
+- **Limitations:** Review was read-only. The confirmed build and tests were executed by the developer’s controller. No candidate game transaction ran, so there is no candidate runtime or restoration verdict.; The assembly contracts establish method identities and calls. The composition test uses the real transpilers with substituted execution boundaries. Neither observes a city panel or an attack roll.; Historical capital runs establish the fixture’s roster shape. Their PASS results belong to older binaries.
+
+#### Summary
+
+- **Delivered behavior:** The candidate adds per-rider slot intent using the existing archive kinds, projects reciprocal pets into the capital UI roster, and carries an explicit unconscious-target order through mounted attack admission. The exact-candidate offline gate and X01 composition regression passed.
+- **Scope reviewed:** Final checkpoint for draft PR #57, branch codex/mounted-city-and-prone-fixes, enrollment kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c. Reviewed the feature range dbf63702..78a0964e. The controller owns subsequent publication.
+- **Pending later-phase work:** none
+- **Unresolved questions:** Which toolbar transition caused the owner’s original loss?; Was the reported prone enemy conscious, unconscious, or transitioning between states?; Which existing native cases are admitted by the current fixture, identity and budget guards, and which panel or posture observations still need owner verification?
+- **Remaining owner review:** After corrections and re-review, judge the toolbar arrangement and pet inventory experience in the owner’s home-city save.; Confirm the original weapon and target condition if available, and assess any precisely deferred gameplay cases.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `high` | `high` (turns ['high']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Codex CLI `0.170.0`, thread `01a1fdfb-1f78-7163-8c2b-dfd230217c81`, duration 460.4s, response sha256 `bd10d28da6ddcd6914d2470467bb0e1b0f3656caf309f4897d402dcd646d0471`, request `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r01-5cd705`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "78a0964e376a690e4b42ff81e5dd110cba5e6b61",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed on the submitted commit, including both Tabletop Rules Expansion patch orders. The toolbar implementation still loses deliberate removals across city saves and can restore an obsolete slot after a move. The city roster projection also remains active after mod disable. The combat change addresses an explicitly ordered unconscious target, but the investigation has not established what happens to a shot at a conscious, tripped enemy. The stated reason for deferring all city checks conflicts with the repository\u2019s recorded capital fixture.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Confirmed the detached HEAD and ran git diff --check over the supplied merge-base-to-candidate range. It passed.",
+      "Verified the controller receipt against the CLI transcript and the supplied gate log. The log SHA-256 matched 236a99082713083d7b0dba3b7e71f4552671d279ba7b233a4083c061712615c7.",
+      "The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 on 78a0964e. It exited 0 in 19.6 seconds with the worktree unchanged. The log records a successful build, components 1427/0, Validate-Source 153/0, Kingmaker assembly contracts 819/0 and click composition 21/0. The inspected product DLL had MVID 07d18753-8024-45d6-bd35-ae76b3cdfc28."
+    ],
+    "inspected": [
+      "Mission sections 3\u20138, AGENTS.md, validation policy, current project guidance, X01 repair notes, the full feature diff, developer transcript, focused evidence, handoff and empty prior-findings ledger.",
+      "Toolbar reconciliation, one-time placement, save serialization leases, archive capture and restore, area suspension, delayed remount and mod disable.",
+      "City roster projection and patch lifetime, capital arrival and cold-load fixtures and readers, stock click routing, intent admission, pair attack validation, and existing ranged controls."
+    ],
+    "limitations": [
+      "Review was read-only. The confirmed build and tests were executed by the developer\u2019s controller. No candidate game transaction ran, so there is no candidate runtime or restoration verdict.",
+      "The assembly contracts establish method identities and calls. The composition test uses the real transpilers with substituted execution boundaries. Neither observes a city panel or an attack roll.",
+      "Historical capital runs establish the fixture\u2019s roster shape. Their PASS results belong to older binaries."
+    ],
+    "required_gaps": [
+      "Cover removal, moves, temporary fact loss and permanent loss through the cooperating placement, save and restore paths.",
+      "Correct the city fixture assessment and determine which focused city, toolbar and panel observations are feasible on reviewed bytes.",
+      "Trace a representative ranged order for a conscious prone target and distinguish it from the unconscious-target case."
+    ],
+    "source_inspection_only": [
+      "The two city reports have distinct code paths. Temporary control-fact loss affects toolbar persistence. The native UI roster\u2019s pet source affects which reserve owners\u2019 pets are shown.",
+      "The city adapter projects an existing reciprocal pet reference into a returned list. Actual selection, equipment changes and selection fallback were not exercised.",
+      "The combat changes carry an already-unconscious flag from player intent into pair-command validation. The new tests exercise life-state and dispatch decisions without issuing a player click or resolving an attack."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "\u00a74 deliberate removal",
+        "\u00a74 city save/load",
+        "\u00a77 toolbar persistence and intent"
+      ],
+      "actual": "Removing the live shortcut drops its placementIntent entry. Only placementRecorded retains the decision. CaptureLiveSlots skips the reserve rider, and CaptureAbsentIntent enumerates only placementIntent.ActorIds. The save therefore contains neither a slot nor a placement marker. BeginLoadedWorld clears the in-memory marker, allowing TryInitialPlacement to insert the control on return.",
+      "blocking_rationale": "An ordinary city save and reload can reverse an explicit toolbar edit.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A rider who already had their one placement keeps the existing kind-7 marker through temporary absence, including when the player chose to leave the control off the bar.",
+      "id": "R1-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2067
+      },
+      "priority": "P1",
+      "requested_correction": "Persist marker-only decisions for still-eligible absent riders through the existing archive path. Preserve disable and removal cleanup and keep marker-only records free of a slot binding.",
+      "requested_evidence": "With autofill enabled, place and remove the control, move the rider to reserve, capture and decode the archive, cold-restore and return the rider to the party. Assert one kind-7 row, no kind-6 row and no automatic insertion.",
+      "title": "A city save forgets a reserve rider\u2019s deliberate shortcut removal",
+      "trigger": "Remove the shortcut, enter the capital with that rider moved to reserve, save, reload, then take the rider adventuring again."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 moves and removals",
+        "\u00a74 no duplicates",
+        "\u00a77 affected save paths"
+      ],
+      "actual": "BeginSaveSerializationScope leases the actual slots and empties them. RemoveManagedFacts then marks the previously sampled index interrupted. On release, Update can reconstruct the old slot before ClearSerializationHotbarLeases restores the new one. Moving from slot 9 to slot 3 can therefore leave both occupied by the control. Removing it just before the barrier can resurrect slot 9. The added tests always reconcile after the user edit.",
+      "blocking_rationale": "Two restore paths can act on different versions of the same toolbar during a normal save.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The arrangement at the serialization boundary is authoritative, including a move or removal since the last frame.",
+      "id": "R1-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2032
+      },
+      "priority": "P1",
+      "requested_correction": "Reconcile the actual live placement before clearing slots at a suspension boundary, and coordinate intent restoration with the existing serialization leases so only the current choice is restored.",
+      "requested_evidence": "Exercise move-then-save and remove-then-save with no intervening control update. Check both the bar after the save returns and the bar after loading it.",
+      "title": "Saving between a toolbar edit and the next update can undo the edit",
+      "trigger": "The service last observed the control in slot 9. The player moves or removes it before save suspension samples the toolbar."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 temporary unavailability",
+        "\u00a74 stale ability data",
+        "\u00a77 toolbar transitions"
+      ],
+      "actual": "ReconcileFacts replaces a missing or inactive desired fact before ReconcileChosenSlot sees it. If native bad-slot cleanup already emptied the slot, ReconcileChosenSlot sees a newly active fact and an empty toolbar. The previous entry still has Interrupted=false, so ResolveUnbound forgets it as a deliberate removal. The new unit test calls ObserveAbsent explicitly, which bypasses this production ordering.",
+      "blocking_rationale": "One of the native bad-slot paths identified as the cause still loses the chosen slot.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "When a still-eligible rider loses the leased fact temporarily, the replacement fact returns to the chosen empty slot.",
+      "id": "R1-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 1724
+      },
+      "priority": "P1",
+      "requested_correction": "Observe loss or replacement of the public fact before re-leasing it. Preserve the distinction between a missing fact and a missing binding on a continuously live fact.",
+      "requested_evidence": "Start with a bound control, invalidate its fact and let bad-slot cleanup empty the slot while the rider stays a candidate. Run the production reconciliation order and verify the slot binds the replacement AbilityData exactly once. Include deliberate removal with a continuously active fact as the control.",
+      "title": "Re-leasing an inactive fact can erase the evidence of temporary absence",
+      "trigger": "The rider stays in the candidate roster while the public fact becomes inactive or disappears and native toolbar cleanup runs first."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 forced dismount",
+        "\u00a74 deliberate removal",
+        "\u00a77 lifecycle regressions"
+      ],
+      "actual": "RestorePersistentSlots unconditionally seeds the saved index as interrupted. It is used for both a freshly loaded archive and older in-world custody rows. MountedRetainedIntent calls it on delayed remount using the slots captured at suspension. Even if reconciliation has already observed the player removing the live control, that old row seeds the slot again and restores it.",
+      "blocking_rationale": "A delayed remount can reverse a deliberate removal even when the service observed the edit before restoration.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A later player edit takes precedence over the toolbar snapshot taken when a pair was suspended.",
+      "id": "R1-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2133
+      },
+      "priority": "P2",
+      "requested_correction": "Distinguish archive initialization from replay of carried slots in the same world. Make an observed subsequent removal authoritative for both the seeding step and the slot-writing loop.",
+      "requested_evidence": "Capture a retained pair with a bound control, remove the still-live control while dismounted, reconcile, then complete the retained remount. The old index must remain empty.",
+      "title": "Delayed remount can restore a shortcut the player removed while dismounted",
+      "trigger": "A pair retains its remount intent through a forced dismount, and the player edits the toolbar before the in-area retry succeeds."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 permanent companion removal",
+        "\u00a74 cleanup",
+        "\u00a77 lifecycle regressions"
+      ],
+      "actual": "The first departure is classified once, then observedUnits.Remove(prior) stops further checks on the reserve rider. CaptureAbsentIntent later checks only that the actor ID occurs once in AllCharacters. A reserve owner who permanently loses their pet can continue writing the old MountState row. If the owner later acquires another supported pet, the earlier slot intent can be reused.",
+      "blocking_rationale": "The persistent intent can outlive the eligibility that justified retaining it.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Temporary reserve status preserves placement. Genuine loss of the supported companion or owner eligibility retires it, including while the owner is outside the travelling party.",
+      "id": "R1-F5",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2070
+      },
+      "priority": "P2",
+      "requested_correction": "Revalidate interrupted entries against current roster and ownership evidence when eligibility changes or before persisting or restoring them. Use positive evidence of permanent loss so a transient unresolved link does not erase a valid arrangement.",
+      "requested_evidence": "Compare a reserve rider retaining their reciprocal pet with a reserve rider permanently losing it. Verify the former round-trips and the latter leaves no restorable slot row.",
+      "title": "Permanent pet loss in reserve is never reconciled",
+      "trigger": "A rider first leaves the candidate roster temporarily, then loses the companion while still in reserve."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a73 lifecycle compatibility",
+        "\u00a75 bounded city UI projection"
+      ],
+      "actual": "The GetGroup postfix always invokes CityCompanionRosterAdapter.Project. CompositionRoot.SetEnabled(false) switches off the services but leaves Harmony patches installed until disposal. The adapter checks area and flags without checking whether KMC is enabled.",
+      "blocking_rationale": "The new feature keeps changing the player\u2019s UI after a successful mod disable.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Opening the city inventory or character screen after disabling KMC uses the native roster.",
+      "id": "R1-F6",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedPatchController.cs",
+        "line": 579
+      },
+      "priority": "P2",
+      "requested_correction": "Gate the projection on the mod\u2019s active service state. Preserve the native result on disabled calls and resume projection on re-enable.",
+      "requested_evidence": "Exercise enabled, disabled and re-enabled calls with the same eligible reserve pet. Verify the disabled call returns the original list and the re-enabled call includes the pet once.",
+      "title": "City companion projection remains active after UMM disable",
+      "trigger": "Disable KMC through UMM, then reopen Inventory or Character in the capital."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 supported toolbar placement",
+        "\u00a77 archive bounds and honest results"
+      ],
+      "actual": "When two more rows would exceed 128, CaptureAbsentIntent silently breaks. The resulting shortened archive can pass validation and the omitted rider loses their arrangement on load.",
+      "blocking_rationale": "The writer reports an ordinary successful snapshot after knowingly dropping required player state.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The owned archive either represents all required placement rows within its existing bound or reports precisely that the requested state cannot be represented.",
+      "id": "R1-F7",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2075
+      },
+      "priority": "P2",
+      "requested_correction": "Account for the actual required rows and use the existing bounded archive failure path when they cannot all fit. Keep the current format and validator bound.",
+      "requested_evidence": "Check an exact-fit archive and one with 127 existing rows plus an absent rider requiring two rows. Verify complete round-trip at the boundary and an explicit failure on overflow.",
+      "title": "The archive silently discards absent riders\u2019 placements at the row limit",
+      "trigger": "Live and remembered control rows together exceed the archive\u2019s 128-row limit."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 city save/load",
+        "\u00a75 reserve companion inspection",
+        "\u00a77 focused native checks and deferrals"
+      ],
+      "actual": "The handoff says companions stay in the party at Oleg\u2019s and there is no reserve owner/pet fixture. The batch197 arrival roster records the hired Small Ranger moving to RemoteCompanions with its Horse out of game. Batch199 records successful capital arrival and cold load with that pair. The existing row-58 reader also expects exactly two main-rider rows, which conflicts with saving recoverable bindings for the absent rider if present. These are concrete facts to assess before deferral.",
+      "blocking_rationale": "The reason given for skipping every city case is contradicted by existing native records, and an affected reader still describes the old archive expectation.",
+      "blocks_readiness": true,
+      "category": "evidence_gap",
+      "expected": "Select feasible checks from the existing capital and toolbar infrastructure. Identify separately any missing current fixture lineage, UI driver, reader or runtime permission.",
+      "id": "R1-F8",
+      "location": {
+        "file": "docs/CITY-AND-PRONE-HANDOFF.md",
+        "line": 142
+      },
+      "priority": "P1",
+      "requested_correction": "Correct the fixture description. Assess the capital arrival/cold pair and the existing F2 moved/removed shortcut scenarios against the current guards and budget. Where the intended archive semantics have changed, distinguish live slots from remembered rows in the affected checks while preserving exact actor, slot and cleanup assertions.",
+      "requested_evidence": "After independent review of corrections, provide candidate-bound results for feasible cases or the exact current prerequisite preventing each run. For city inspection, identify what observes selection of the reserve pet and an equipment interaction. Preserve historical verdicts under their original identities.",
+      "title": "The blanket city-test deferral overlooks an existing reserve owner and pet fixture",
+      "trigger": "Evaluating whether city arrival, save/load and companion selection can be checked before owner review."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a76 precise failure stage",
+        "\u00a76 representative ranged fixture",
+        "\u00a77 matched prone/standing controls"
+      ],
+      "actual": "The candidate changes unconscious-target admission. Its test for a conscious tripped enemy supplies exactly the same conscious boolean as for a standing enemy. No representative weapon, click, target posture, distance or attack resolution participates in that test. The handoff identifies mouse targeting and firing presentation as unresolved possibilities. Its missing scenario concerns downing an enemy, which does not establish the prerequisite for testing a conscious trip.",
+      "blocking_rationale": "The code identifies a plausible second case but leaves the reported prone-target behavior unresolved without the requested matched investigation or a case-specific deferral.",
+      "blocks_readiness": true,
+      "category": "evidence_gap",
+      "expected": "Trace the conscious-prone case separately from an unconscious enemy and start from an existing representative ranged fixture when the reported weapon is unknown.",
+      "id": "R1-F9",
+      "location": {
+        "file": "tests/MountedDownedTargetOrderTests.cs",
+        "line": 23
+      },
+      "priority": "P1",
+      "requested_correction": "Use the existing ordinary ranged input and longbow fixture as the starting point. Compare matched standing, conscious-prone and separately unconscious targets through click classification, admission and firing. Correct any demonstrated mounted divergence. If a guarded prone leg cannot run, document the exact missing setup and which existing control legs can run.",
+      "requested_evidence": "For feasible native legs, record posture and consciousness at the click, attacker, weapon, target, distance, line of sight, action availability and attack roll or cancellation stage in RT and TB. For deferred legs, give reproducible owner steps at near and ordinary firing distance with matched unmounted controls, and retain the NOT RUN verdict.",
+      "title": "The conscious-prone report has not been distinguished from an unconscious-target refusal",
+      "trigger": "A mounted archer clicks a living enemy knocked prone by a trip while the enemy remains conscious."
+    }
+  ],
+  "prior_finding_assessments": [],
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r01-5cd705",
+  "round": 1,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The candidate adds per-rider slot intent using the existing archive kinds, projects reciprocal pets into the capital UI roster, and carries an explicit unconscious-target order through mounted attack admission. The exact-candidate offline gate and X01 composition regression passed.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "After corrections and re-review, judge the toolbar arrangement and pet inventory experience in the owner\u2019s home-city save.",
+      "Confirm the original weapon and target condition if available, and assess any precisely deferred gameplay cases."
+    ],
+    "scope_reviewed": "Final checkpoint for draft PR #57, branch codex/mounted-city-and-prone-fixes, enrollment kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c. Reviewed the feature range dbf63702..78a0964e. The controller owns subsequent publication.",
+    "unresolved_questions": [
+      "Which toolbar transition caused the owner\u2019s original loss?",
+      "Was the reported prone enemy conscious, unconscious, or transitioning between states?",
+      "Which existing native cases are admitted by the current fixture, identity and budget guards, and which panel or posture observations still need owner verification?"
+    ]
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

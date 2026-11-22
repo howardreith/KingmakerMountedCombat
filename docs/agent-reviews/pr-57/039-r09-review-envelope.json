@@ -1,0 +1,220 @@
+{
+  "B": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "H": "a3462521bd66c4f414a14a387b7b7fdebecbbe56",
+  "M": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "invocation": {
+    "completed": true,
+    "duration_s": 462.6,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "high",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "high"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 3180544,
+        "input_tokens": 3321749,
+        "output_tokens": 11799,
+        "reasoning_output_tokens": 5296,
+        "total_tokens": 3333548
+      }
+    },
+    "requested": {
+      "effort": "high",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a1fef7-429a-7573-a403-78de4c4ed89e",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "mounted-combat-city-and-prone-mission",
+    "sha256": "4d7161071bc463e581f0f555296112d58ec4737c33b2b3859e435b982489664a"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c\\rounds\\r09\\envelope-1.json",
+  "pr": 57,
+  "project_sha256": "1200c7bc10f2a33f60084a3bf8e8fd93d0417ee87f7bfeacaf9671f328864cce",
+  "protocol": "agent-review.v1",
+  "publication": "r09-review",
+  "published": [
+    {
+      "comment_id": 7065871325,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/57#issuecomment-7065871325"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r09-2146f9",
+  "response_sha256": "fb2d9b8583de44ab5a18fdd548b7928d5a32ba2db06ff670e92b8824b118db5e",
+  "result": {
+    "candidate_commit": "a3462521bd66c4f414a14a387b7b7fdebecbbe56",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "Both round-eight fixes are verified, and the focused gate passed on the requested commit. Four toolbar lifecycle defects remain. The most consequential is that reserve cleanup can erase unrelated shortcuts when control registration is incomplete.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The controller receipt and CLI transcript confirm that Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed on a3462521 in 24.8 seconds, with exit code 0 and an unchanged worktree.",
+        "The candidate gate log records 1454 component checks, 153 source checks, 820 assembly contracts, 21 click-composition checks, 3 archive-bound checks and 22 six-pair archive-adapter checks passing. It names both new round-eight regressions as passing.",
+        "The gate inspected product DLL SHA-256 81e2ddef82255669c175594b557730bdd2c060c54aade332fec4361bdc651762, MVID 31ec49f8-534f-4874-b468-d1f8e33d3bbf. The area-adapter comparison found the same 63 compiler diagnostics on base and candidate.",
+        "Read-only Git checks confirmed HEAD and the merge base. The feature diff passed git diff --check."
+      ],
+      "inspected": [
+        "The mission, repository instructions, validation policy, current handoffs, feature diff, prior findings, developer transcript, focused gate receipt and log.",
+        "The city roster projection and GetGroup hook, mounted stock-click and attack-command paths, toolbar reconciliation, archive capture and replay, save-scope leases, reserve scanning, disable and disposal.",
+        "The focused wrapper, changed adapters and component regressions, including their substitutions for native units, slots and rosters."
+      ],
+      "limitations": [
+        "Native gameplay was not run on this candidate. The handoff identifies the missing candidate package, current capital reader and native UI/combat driver coverage, and gives owner playtest steps. No runtime transaction required restoration.",
+        "The area-restore adapter's behavioral assertion remains unexecuted because its facade fails to compile on both trees.",
+        "The mutation run exited 1, but its transcript is truncated before the failing assertions. The candidate gate independently records the passing assertions."
+      ],
+      "required_gaps": [
+        "Correct and cover unregistered cleanup, companion replacement during a save lease, reserve-cache lifetime, and legacy alias recovery for a temporarily ineligible party rider. Obtain the focused receipt on the corrected commit."
+      ],
+      "source_inspection_only": [
+        "The four findings below follow from production control flow. They were not reproduced in the game.",
+        "The city issues share a capital roster transition. Toolbar loss follows temporary control-fact withdrawal, while missing portraits follow the native roster's in-game pet filter.",
+        "The combat change handles explicit orders on already-unconscious living enemies. The conscious-trip case has a source trace, and the owner's original weapon and target state remain unknown."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "\u00a74 ordinary abilities and unrelated slots",
+          "\u00a74 mod disable/removal and world disposal"
+        ],
+        "actual": "ClearReserveBindings calls CountManagedHotbarSlots and ClearManagedHotbarSlots without a registration guard. Both pass a null blueprint to ResolveKind for a non-ability slot. ResolveKind compares by ReferenceEquals, so null matches an uninitialized control field. Cleanup then writes an empty slot over the unrelated shortcut. CaptureAndClearManagedHotbarSlots uses the same classification when scanning reserve bars for serialization.",
+        "blocking_rationale": "The expanded cleanup can erase player-authored reserve toolbar contents, which a subsequent save can make permanent.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Only a slot with an identifiable KMC blueprint is eligible for cleanup.",
+        "id": "R9-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2047
+        },
+        "priority": "P1",
+        "requested_correction": "Make ResolveKind return None for a missing input blueprint before comparing it with registered controls. Apply that identity rule to both cleanup and serialization.",
+        "requested_evidence": "Exercise reserve disable/disposal and save-scope capture before full registration with an occupied non-ability slot and an ordinary ability. Verify both original slot objects survive. Include a positive control for an exact registered KMC binding.",
+        "title": "Reserve cleanup can erase unrelated shortcuts before control registration completes",
+        "trigger": "Disable or dispose the service with a populated reserve roster before TryRegister succeeds, or after partial registration. A reserve bar contains an item or another non-ability shortcut."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 genuine companion removal",
+          "\u00a74 save/load and placement intent"
+        ],
+        "actual": "EndSaveSerializationScope runs Update, which retires A's arrangement and can lease a fresh public fact for B. ClearSerializationHotbarLeases then checks only the old placeholder and the currently active blueprint fact. It restores B's data at A's index and calls ObserveBound, undoing the retirement.",
+        "blocking_rationale": "A save-scope lease can recreate a shortcut that reconciliation correctly retired and cause the next save to preserve it for the replacement companion.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A lease restores the chosen slot only while that arrangement still belongs to the rider's current companion. Genuine replacement retires it.",
+        "id": "R9-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2605
+        },
+        "priority": "P2",
+        "requested_correction": "Check the current public-control arrangement and companion identity when releasing a serialization lease. Preserve ordinary same-companion restoration and the existing placeholder check.",
+        "requested_evidence": "Lease slot 9 for pet A, change the rider's link to supported pet B before scope release, then run the production release order. Verify slot 9 stays empty and the next archive omits its kind-6 row. Repeat with A retained and verify exactly one binding at 9.",
+        "title": "Save-scope release can restore a retired shortcut for a different companion",
+        "trigger": "The public slot is leased for serialization, and the rider's companion changes from A to B before the save worker settles. The original placeholder remains in the slot."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 genuine companion removal and world disposal",
+          "\u00a73 actor lifecycle"
+        ],
+        "actual": "reserveScanned is a strong HashSet of every reserve unit scanned in the world. No roster departure removes an entry. reserveScanWorld also strongly holds the Player, and AdmitReserveBindings returns on a null player before clearing either reference. The cache is released only on disable, service disposal or a later scan with another nonnull player.",
+        "blocking_rationale": "The new scan cache retains retired entity graphs for the continuing session and can retain a disposed world while no replacement player is present.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "One-time migration bookkeeping releases removed unit instances and the disposed player world.",
+        "id": "R9-F3",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 2076
+        },
+        "priority": "P2",
+        "requested_correction": "Bound the scan bookkeeping to current roster membership and world lifetime, or use weak identities that cannot keep discarded units or the Player alive.",
+        "requested_evidence": "Scan a reserve unit, remove it from the roster, then dispose the world with no replacement player. Verify the service releases both identities. Retain a control showing repeated scans of an unchanged reserve bar do not repeat migration.",
+        "title": "Reserve scan bookkeeping retains removed units and the outgoing player world",
+        "trigger": "A scanned reserve unit permanently leaves the roster, or the world is disposed before another nonnull Player is scanned."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 temporary mount unavailability",
+          "\u00a74 existing save compatibility"
+        ],
+        "actual": "The new reserve recovery handles this alias, but the party reconciliation path converts it to an empty slot whenever publicActive is false and records placement as complete. Boundary observation recognizes only the canonical public blueprint. With no earlier arrangement, the alias index is lost and later reconciliation leaves the rider off the bar.",
+        "blocking_rationale": "An identifiable supported older shortcut is permanently lost on temporary pet non-resolution, depending on which roster handles the rider first.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "An exact legacy Mount or Dismount binding preserves its recoverable index until the same pet resolves. An existing canonical binding takes precedence.",
+        "id": "R9-F4",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1897
+        },
+        "priority": "P2",
+        "requested_correction": "Preserve the identifiable legacy index before clearing an unavailable party rider's alias, including when archive capture precedes the first update. Use the existing migration precedence and permanent-loss rules.",
+        "requested_evidence": "Start a party rider with a legacy alias at 9, no owned rows, and a persistent pet ID whose unit temporarily fails to resolve. Exercise update-first and save-first order. Verify a resave retains the index and the same pet's return restores the canonical control once. A cleared link should recover nothing.",
+        "title": "A temporarily unavailable party rider loses an older Mount or Dismount binding",
+        "trigger": "An older native bar has an exact legacy alias and no owned placement rows. The rider is a current candidate when first reconciled, but its linked pet is temporarily unresolved."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R8-F1",
+        "rationale": "RecoveredPublicSlot gives the canonical public binding precedence over legacy aliases. The reserve loop migrates legacy Mounted Charge through ResolveStockChargeForSlot and preserves an existing stock Charge elsewhere. The candidate gate records the mixed-bar regression passing."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R8-F2",
+        "rationale": "Live, unbound reconciliation now preserves the interrupted slot and known companion identity when the pet link is empty but the relationship still grants Dismount. The candidate gate records the faulted-rider regression passing, including the entitlement-ended and different-pet controls."
+      }
+    ],
+    "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r09-2146f9",
+    "round": 9,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "The candidate adds per-rider placement intent using the existing archive format, projects eligible reserve owners' persistent pets into the capital UI roster, and carries an explicit order on an already-unconscious living enemy through mounted attack admission. Both pending round-eight corrections pass their focused regressions.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "After correction, verify chosen-slot persistence through actual capital visits and saves, and inspect and equip the exact reserve pet in Inventory and Character.",
+        "Compare mounted and dismounted longbow attacks against standing, consciously tripped and unconscious enemies in real time and turn based. Observe actual rolls, range, line of sight, penalties and action expenditure."
+      ],
+      "scope_reviewed": "Complete maintenance mission for draft PR #57 on codex/mounted-city-and-prone-fixes, from dbf637021db42cdc9bf27f3d79fc255d4569c788 through a3462521bd66c4f414a14a387b7b7fdebecbbe56.",
+      "unresolved_questions": [
+        "The original report does not identify the weapon, the enemy's consciousness at the click, or the exact transition that erased the toolbar shortcut."
+      ]
+    }
+  },
+  "round": 9,
+  "validated_at": "2026-11-21T16:44:02Z",
+  "workflow_fingerprint": "6b0bec9f60331ed63943f0eed0230290393a9f52a1fea7afe0528440e7a45926"
+}
