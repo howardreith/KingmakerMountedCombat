@@ -18,7 +18,7 @@ param()
 # Pro review of 74fa9931 adds recorded native cleanup writes (M6e, W10), the observed fallback against an occupied
 # archived slot (M7c) and the provenance of an unread retirement (M8b, M8c). The second Pro review adds the pin before a
 # write reaches a never-read bar (M8d, W11), the retirement carried through a native replacement (M8e) and the chosen
-# identity after a native rebind (M8f).
+# identity after a native rebind (M8f). The third Pro review adds the pin's authority (M8g).
 # Not native evidence.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -199,6 +199,11 @@ $mutations=@(
       Needle="                    if (wasRebound) { arrangement.Pending = false; arrangement.RecordChoice(replacement); }`n"
       Replace="                    if (wasRebound) { arrangement.Pending = false; }`n"
       Expect=@('review R2-F3 (round 3)')},
+    # Third Pro review (of 241eb24d).
+    @{Campaign='lifecycle';Name='M8g a former instance may pin the current rider''s unread retirement (R6-F1)';File=$lifecycle
+      Needle="            if (records == null || !records.RetiredUnreadUnknown(id) || !PinAuthority(unit)) return;`n"
+      Replace="            if (records == null || !records.RetiredUnreadUnknown(id)) return;`n"
+      Expect=@('review R6-F1')},
     @{Campaign='wiring';Name='W11 the SetSlot prefix''s observation is not forwarded to the lifecycle (R2-F3)';File=$adapter
       Needle="            toolbar.BeforeSlotWrite(ResolveBarUnit(settings, null));`n";Replace="            // mutation: SetSlot observation not forwarded`n"
       Expect=@('review R2-F3 (second Pro review)')},

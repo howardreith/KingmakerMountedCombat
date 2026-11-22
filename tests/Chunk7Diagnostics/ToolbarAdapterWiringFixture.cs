@@ -118,7 +118,10 @@ namespace Kingmaker.UI.UnitSettings
         public UnitDescriptor Owner { get; set; }
         public MechanicActionBarSlot[] Slots = new MechanicActionBarSlot[140];
         public int DirtyCount;
-        public void SetSlot(MechanicActionBarSlot slot, int index) { Slots[index] = slot; }
+        // KMC's Harmony prefix on the exact native SetSlot (MountedPatchController.SlotWritePrefix, mirrored): every write,
+        // KMC's own included, reaches the service's BeforeNativeSlotWrite first.
+        public static Action<UnitUISettings> SetSlotPrefix;
+        public void SetSlot(MechanicActionBarSlot slot, int index) { SetSlotPrefix?.Invoke(this); Slots[index] = slot; }
         public MechanicActionBarSlot GetSlot(int index, UnitEntityData unit) =>
             Slots[index] ?? (Slots[index] = new MechanicActionBarSlotEmpty { Unit = unit });
         public void SetDirty() { DirtyCount++; }
@@ -203,7 +206,7 @@ namespace KingmakerMountedCombat.Integration
         internal Func<bool> PlacementSettled { get; set; }
         internal Func<bool> PersistentRowsSuppressed { get; set; }
 
-        internal NativeMountedControlService() { CreateToolbarLifecycle(); }
+        internal NativeMountedControlService() { CreateToolbarLifecycle(); UnitUISettings.SetSlotPrefix = BeforeNativeSlotWrite; }
 
         internal sealed class InitialPlacementObservation { internal string UnitId; internal int Index; internal int Frame; internal string[] MainBarBefore; }
 
@@ -697,13 +700,51 @@ namespace KingmakerMountedCombat.Tests
                 service.Update();
                 rider.UISettings.Slots = bar;
                 // The player's placement of B's control at 11: the action bar UI writes it through SetSlot, whose prefix
-                // forwards to the service (the Harmony forwarder is mirrored here; its shape is a contract row).
+                // forwards to the service (the Harmony forwarder is mirrored by the facade's SetSlot; its shape is a contract
+                // row and Test-ToolbarCleanupWriteHook.ps1 executes it).
                 var fact = rider.Descriptor.Abilities.GetAbility(NativeMountedControlService.MountStateBlueprint);
                 True(fact != null && fact.Active, "The update did not lease B's rider a live control.");
-                service.BeforeNativeSlotWrite(rider.UISettings);
                 rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint, fact.Data), 11);
                 service.Update(); service.Update();
                 True(Controls(rider).SequenceEqual(new[] { 11 }), "B's fresh placement was not kept once at 11: " + string.Join(",", Controls(rider)));
+                var rows = service.CapturePersistentSlots(false, true);
+                True(Rows(rows, "A", MountedControlSlotPolicy.SavedMountState).SequenceEqual(new[] { 11 }) &&
+                    Rows(rows, "A", MountedControlSlotPolicy.SavedPlacementRecord).Length == 1, "Not saved as 11 with one marker.");
+            });
+            Check("review R6-F1 the service's own cleanup of a former object in pair custody never supplies the current rider's retirement evidence", () =>
+            {
+                var player = NewWorld();
+                var service = new NativeMountedControlService();
+                Autofill(false);
+                var rider = Owner("A");
+                player.PartyCharacters.Add(new UnitReference(rider));
+                var bar = rider.UISettings.Slots;
+                bar[9] = Binding(rider, NativeMountedControlService.MountStateBlueprint);
+                rider.UISettings.Slots = null;
+                var former = Owner("A");
+                service.relationship.Ownership.Owners.Add(new PairOwner { Rider = former });
+                service.FixtureEnableWithoutUpdate();
+                service.RestorePersistentSlots(new[]
+                {
+                    new SavedMountedSlot { ActorId = "A", Index = 9, Kind = MountedControlSlotPolicy.SavedMountState },
+                    new SavedMountedSlot { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
+                }, true);
+                // The former object's own shortcut object at 9 (after the restore's own update), cleaned by the update that
+                // records the retirement: the current party rider is reconciled first, then the former object.
+                former.UISettings.Slots[9] = Binding(former, NativeMountedControlService.MountStateBlueprint);
+                var petB = new UnitEntityData("pet-B");
+                petB.Descriptor.IsPet = true;
+                petB.Descriptor.Master = new UnitReference(rider);
+                rider.Descriptor.Pet = petB;
+                rider.Descriptor.PetUniqueId = petB.UniqueId;
+                service.Update();
+                True(!IsBlueprint(former, 9, NativeMountedControlService.MountStateBlueprint), "The former object's bar was not cleaned.");
+                rider.UISettings.Slots = bar;
+                var fact = rider.Descriptor.Abilities.GetAbility(NativeMountedControlService.MountStateBlueprint);
+                True(fact != null && fact.Active, "The update did not lease B's rider a live control.");
+                rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint, fact.Data), 11);
+                service.Update(); service.Update();
+                True(Controls(rider).SequenceEqual(new[] { 11 }), "Not one shortcut at 11 (the leftover 9 cleared): " + string.Join(",", Controls(rider)));
                 var rows = service.CapturePersistentSlots(false, true);
                 True(Rows(rows, "A", MountedControlSlotPolicy.SavedMountState).SequenceEqual(new[] { 11 }) &&
                     Rows(rows, "A", MountedControlSlotPolicy.SavedPlacementRecord).Length == 1, "Not saved as 11 with one marker.");

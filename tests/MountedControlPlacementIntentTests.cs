@@ -80,6 +80,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("toolbar: archived R17-F1 r19 an abandoned load keeps the alias fallback for an occupied choice through save and reload", ArchivedR17F1AbandonedLoadFallback);
             runner.Run("toolbar: archived R17-F2 an aborted native call immediately followed by a successful GetSlot stays recoverable", ArchivedR17F2AbortedThenSuccessfulRead);
             runner.Run("toolbar: archived R19-F3 a replacement companion's fresh placement invalidated before its first observation is kept", ArchivedR19F3ReplacementPlacementInvalidated);
+            runner.Run("toolbar: review R6-F1 a former instance never supplies what predates the current rider's unread retirement", FormerInstanceNeverPinsRetirement);
         }
 
         // ---- thin fakes of the game -------------------------------------------------------------------------------
@@ -277,11 +278,17 @@ namespace KingmakerMountedCombat.Tests
             public void BindControl(Unit unit, int index)
             {
                 if (!ControlLive(unit)) throw new InvalidOperationException("The fake refuses a public binding without a live fact.");
+                Toolbar.BeforeSlotWrite(unit);
                 unit.Bar[index] = new AbilitySlot("Control", unit.ControlFact);
                 Binds++;
             }
 
-            public void ClearSlot(Unit unit, int index) => unit.Bar[index] = new EmptySlot(unit);
+            // KMC's own writes reach native UnitUISettings.SetSlot, whose KMC prefix runs first (as every SetSlot write does).
+            public void ClearSlot(Unit unit, int index)
+            {
+                Toolbar.BeforeSlotWrite(unit);
+                unit.Bar[index] = new EmptySlot(unit);
+            }
             public void BarChanged(Unit unit) { }
 
             public void SanitizeOtherBindings(Unit unit, MountedToolbarBoundary boundary)
@@ -296,6 +303,7 @@ namespace KingmakerMountedCombat.Tests
                     if (kind == "Charge" && unit.HasStockCharge && !unit.Bar.OfType<AbilitySlot>().Any(slot => slot.Kind == "StockCharge"))
                         replacement = new AbilitySlot("StockCharge", 1);
                     else if (boundary == MountedToolbarBoundary.Save) Leases.Add(new Lease { Unit = unit, Index = index, Kind = kind, Placeholder = replacement });
+                    Toolbar.BeforeSlotWrite(unit);
                     unit.Bar[index] = replacement;
                 }
             }
@@ -468,6 +476,7 @@ namespace KingmakerMountedCombat.Tests
                 if (!IsBad(game, unit, index)) continue;
                 if (throwAfter >= 0 && writes == throwAfter) return;
                 var slot = (AbilitySlot)unit.Bar[index];
+                game.Toolbar.BeforeSlotWrite(unit);
                 unit.Bar[index] = slot.Kind == "Control" && game.ControlLive(unit)
                     ? new AbilitySlot("Control", unit.ControlFact) : (Slot)new EmptySlot(unit);
                 game.Toolbar.RecordNativeSlotWrite(unit, index);
@@ -2733,6 +2742,49 @@ namespace KingmakerMountedCombat.Tests
                 Load(game, file);
                 Update(game);
                 Equal(new[] { 11 }, Controls(Find(game, "A")), label + ": cold restore");
+            }
+        }
+
+        // Third Pro review (R6-F1): only the actor's current instance may supply what predates its unread retirement. Case (h)
+        // with a leftover at 9, plus a distinct former object of the same actor with its own shortcut object at 9:
+        // - KMC cleanup: the former object stays in pair custody; the update that records the retirement (the current party
+        //   rider first) then cleans the former object's bar through SetSlot, whose prefix runs;
+        // - native read: the former object is not a rider; a native GetSlot of its stale 9 runs after the retirement.
+        // The former bar is cleaned (KMC route), the current leftover 9 is cleared, B's fresh 11 survives once, and the save
+        // and cold restore keep 11 with one marker.
+        private static void FormerInstanceNeverPinsRetirement()
+        {
+            foreach (var route in new[] { "KMC cleanup of the former object", "native read of the former object's bar" })
+            {
+                var game = new Game();
+                Arranged(game, "A", 9);
+                var file = Save(game);
+                file.Bars["A"][9] = new AbilitySlot("Control", 7);
+                Load(game, file, beforeRestore: g => Find(g, "A").HasBar = false);
+                var rider = Find(game, "A");
+                var former = new Unit("A", game.Current) { Desired = true, PetLink = rider.PetLink };
+                former.Pet = new Unit(rider.PetLink, game.Current) { IsPet = true, Master = former };
+                former.Bar[9] = new AbilitySlot("Control", 5);
+                if (route.StartsWith("KMC", StringComparison.Ordinal)) game.PairMembers.Add(former);
+                ReplaceCompanion(game, rider, "pet-B");
+                Update(game);
+                TestRunner.True(game.Toolbar.IsRetired("A"), route + ": the retirement was not observed while the bar was unreadable.");
+                if (route.StartsWith("KMC", StringComparison.Ordinal))
+                    TestRunner.True(!(former.Bar[9] is AbilitySlot), route + ": the former object's bar was not cleaned.");
+                else
+                {
+                    NativeGetSlot(game, former, 9);
+                    TestRunner.True(!(former.Bar[9] is AbilitySlot), route + ": the fixture's native read did not empty the former object's 9.");
+                }
+                rider.HasBar = true;
+                PlayerWrite(game, rider, 11, new AbilitySlot("Control", rider.ControlFact));
+                Update(game); Update(game);
+                Equal(new[] { 11 }, Controls(rider), route + ": the current rider after the first observations");
+                file = Save(game);
+                ExpectRows(file.Rows, "A", new[] { 11 }, 1, route + ": immediate save");
+                Load(game, file);
+                Update(game);
+                Equal(new[] { 11 }, Controls(Find(game, "A")), route + ": cold restore");
             }
         }
 

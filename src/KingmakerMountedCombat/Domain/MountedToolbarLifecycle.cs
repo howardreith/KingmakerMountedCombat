@@ -524,10 +524,14 @@ namespace KingmakerMountedCombat.Domain
             PinUnreadRetirement(unit);
         }
 
+        // Shared by the SetSlot prefix (BeforeSlotWrite) and the native slot prefixes (BeginNativeSlotOperation). Only the
+        // actor's current instance in this world supplies what predates its unread retirement (PinAuthority): a former object
+        // (kept by pair custody, discarded, or an earlier world's) shares the actor id but not the bar, so cleaning it, or a
+        // native read of its bar, never changes the current rider's retirement record.
         private void PinUnreadRetirement(TUnit unit)
         {
             var id = host.ActorId(unit);
-            if (records == null || !records.RetiredUnreadUnknown(id)) return;
+            if (records == null || !records.RetiredUnreadUnknown(id) || !PinAuthority(unit)) return;
             var count = host.SlotCount(unit);
             if (count == 0) return;
             var bindings = new List<KeyValuePair<int, WeakReference>>();
@@ -1083,6 +1087,16 @@ namespace KingmakerMountedCombat.Domain
                 if (content == MountedToolbarSlot.PublicControl || content == MountedToolbarSlot.LegacyAlias) return true;
             }
             return false;
+        }
+
+        // The unit is its actor's current authoring instance in this world: on the current player roster, or an object of
+        // this world that KMC reconciled and that authors (no other object of the character is on the roster: Authors).
+        private bool PinAuthority(TUnit unit)
+        {
+            var world = host.CurrentWorld;
+            if (world == null || records == null || !records.BelongsTo(world)) return false;
+            if (!Authors(unit, host.CurrentRiders() ?? new List<TUnit>(), host.ReserveOwners() ?? new List<TUnit>())) return false;
+            return host.OnPlayerRoster(unit) || observed.Exists(item => ReferenceEquals(item.Unit, unit) && ReferenceEquals(item.World.Target, world));
         }
 
         private static void AddUnique(List<TUnit> list, TUnit unit)
