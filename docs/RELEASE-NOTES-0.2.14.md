@@ -76,6 +76,9 @@ rule, the Tabletop Rules Expansion compatibility and the still-open items listed
 - **Not tested in the game:** the shortcut through a real capital visit, reserve roster and save/load; selecting and
   equipping a companion's animal in the capital screens; and attacks on prone or unconscious enemies. The test machine
   has no disposable save prepared for these, and no automated script drives them.
+- **Package:** this release's DLL is rebuilt with the new version number, so its hash differs from the reviewed test
+  build (`8de5a104…`, which passed the same startup check). The source is the same except for the version number. The
+  release package's hashes are on the GitHub release. The DLL started in the game above is that release DLL.
 
 **Engineering record:** [the handoff](CITY-AND-PRONE-HANDOFF.md) (PR #57, merged into main as `4e5c9c0c`), with the
 exact playtest steps for the untested cases.
