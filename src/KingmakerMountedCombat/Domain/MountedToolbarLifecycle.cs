@@ -622,6 +622,8 @@ namespace KingmakerMountedCombat.Domain
             var id = host.ActorId(unit);
             var count = host.SlotCount(unit);
             if (id == null || count == 0) return;
+            // The common per-frame case, a unit with no arrangement and no public binding, is decided without allocating.
+            if (nativeBefore == null && records.Get(id) == null && !BarHoldsPublicBinding(unit)) return;
             var canonical = new SortedSet<int>();
             var aliases = new SortedSet<int>();
             var occupied = new HashSet<int>();
