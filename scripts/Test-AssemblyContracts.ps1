@@ -1625,6 +1625,11 @@ if($Target-eq'Kingmaker'){
         $ownerToken-eq0x06002FE9-and$null-ne$assembly.GetType('Kingmaker.UnitLogic.UnitDescriptor',$false).GetMethod('get_Unit',$cityFlags)) ('toolbar: UnitUISettings.Owner is the bar owner''s UnitDescriptor (with Unit), token '+$ownerToken.ToString('X8'))
     Assert-Contract ($ownerToken-ne0-and(Test-MethodIlContainsToken $cleanupBad $ownerToken)-and-not(Test-MethodIlContainsToken $cleanupBad $getSlotToken)) 'toolbar: CleanupBadSlots binds through UnitUISettings.Owner and never calls GetSlot (the bracketed operations do not nest)'
     Assert-Contract ($null-ne$abilitySlotCtor-and-not(Test-MethodIlContainsToken $getSlotExact $abilitySlotCtor.MetadataToken)) 'toolbar: GetSlot constructs no MechanicActionBarSlotAbility (it can only empty a bad slot)'
+    # CleanupBadSlots writes only through its own calls of the non-virtual UnitUISettings.SetSlot, exactly three, each a
+    # plain call (MountedPatchController.NativeCleanupSetSlotCalls): KMC's transpiler redirects those call sites to record
+    # each write as it completes, the evidence a cleanup that throws is settled from.
+    $setSlotPlainCalls=if($null-eq$setSlotMethod){@()}else{Find-IlTokenPositions $cleanupIl 0x28 $setSlotMethod.MetadataToken}
+    Assert-Contract ($null-ne$setSlotMethod-and-not$setSlotMethod.IsVirtual-and-not$setSlotMethod.IsStatic-and$setSlotPlainCalls.Count-eq3-and$setSlotCalls.Count-eq3) ('toolbar: CleanupBadSlots writes through exactly 3 plain calls of the non-virtual SetSlot (call x'+$setSlotPlainCalls.Count+', any x'+$setSlotCalls.Count+')')
     $getSlotParameters=if($null-eq$getSlotExact){@()}else{@($getSlotExact.GetParameters())}
     Assert-Contract ($getSlotParameters.Count-eq2-and$getSlotParameters[0].Name-ceq'index'-and$getSlotParameters[1].Name-ceq'unit') 'toolbar: GetSlot''s parameters are named index and unit'
     # The product's Harmony forwarders (MountedPatchController.PatchMethods), read from the built product: Harmony 1.2 binds
@@ -1640,6 +1645,15 @@ if($Target-eq'Kingmaker'){
         Assert-Contract ($slotRead-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Int32 index, Kingmaker.EntitySystem.Entities.UnitEntityData unit, System.Object& __state out') ('toolbar: the GetSlot prefix binds __instance, index, unit and out __state: '+$slotRead)
         Assert-Contract ($cleanupPrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Object& __state out') ('toolbar: the CleanupBadSlots prefix binds __instance and out __state: '+$cleanupPrefix)
         Assert-Contract ($postfix-ceq'System.Object __state') ('toolbar: the shared postfix receives only its own prefix''s __state: '+$postfix)
+        $cleanupHook=Get-ForwarderShape 'NativeCleanupSetSlot'
+        Assert-Contract ($cleanupHook-ceq'Kingmaker.UI.UnitSettings.UnitUISettings settings, Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, System.Int32 index') ('toolbar: the redirected cleanup write takes SetSlot''s instance and arguments in stack order: '+$cleanupHook)
+        # Its Harmony12 types resolve against the installed loader's 0Harmony12 (preloaded reflection-only once).
+        if(-not@([AppDomain]::CurrentDomain.ReflectionOnlyGetAssemblies()|Where-Object{$_.GetName().Name-ceq'0Harmony12'}).Count){
+            [void][Reflection.Assembly]::ReflectionOnlyLoadFrom((Join-Path $managed 'UnityModManager\0Harmony12.dll'))
+        }
+        $cleanupTranspiler=if($null-eq$patchMethods){$null}else{$patchMethods.GetMethod('BadSlotCleanupWritesTranspiler',[Reflection.BindingFlags]'NonPublic,Public,Static')}
+        $transpilerShape=if($null-eq$cleanupTranspiler){'(missing)'}else{$cleanupTranspiler.ReturnType.Name+' ('+(@($cleanupTranspiler.GetParameters()|ForEach-Object{$_.ParameterType.Name+'['+$_.ParameterType.GetGenericArguments()[0].FullName+'] '+$_.Name})-join', ')+')'}
+        Assert-Contract ($transpilerShape-ceq'IEnumerable`1 (IEnumerable`1[Harmony12.CodeInstruction] instructions)') ('toolbar: the product''s CleanupBadSlots write transpiler maps the Harmony12 instruction stream: '+$transpilerShape)
     }else{Write-Host "UNASSESSED $Target toolbar Harmony forwarder shapes: no $Configuration build of the product"}
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'

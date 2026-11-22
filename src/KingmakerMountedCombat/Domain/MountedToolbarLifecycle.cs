@@ -70,11 +70,6 @@ namespace KingmakerMountedCombat.Domain
         bool IsNativeEmptySlot(TUnit unit, int index);
         // A public binding (canonical or alias, never another KMC command) holding its live fact's own data.
         bool HoldsLiveBinding(TUnit unit, int index);
-        // The data native CleanupBadSlots would bind into this ability slot now: the active fact of the slot's blueprint
-        // (its AbilityData), or null.
-        object RebindData(TUnit unit, int index);
-        // The ability data an ability slot holds (reference identity), or null.
-        object BoundData(TUnit unit, int index);
         // Binds the canonical public control to its live fact's data.
         void BindControl(TUnit unit, int index);
         void ClearSlot(TUnit unit, int index);
@@ -124,8 +119,6 @@ namespace KingmakerMountedCombat.Domain
             internal int Index;
             internal MountedToolbarSlot Content;
             internal object Identity;
-            // What CleanupBadSlots would bind into this slot when native started (IMountedToolbarHost.RebindData).
-            internal object RebindData;
         }
 
         // The bar as it stood when a native slot operation started: every public binding with its slot object, and every
@@ -145,6 +138,9 @@ namespace KingmakerMountedCombat.Domain
             internal bool SingleSlot;
             internal List<NativeEntry> Entries;
             internal NativeView View;
+            // The slots CleanupBadSlots actually wrote, recorded at its own SetSlot call sites as each write completed
+            // (RecordNativeSlotWrite), with the slot object it wrote.
+            internal readonly Dictionary<int, object> Writes = new Dictionary<int, object>();
         }
 
         private readonly IMountedToolbarHost<TUnit> host;
@@ -345,6 +341,7 @@ namespace KingmakerMountedCombat.Domain
                 {
                     if (content == MountedToolbarSlot.PublicControl && host.HoldsLiveBinding(unit, index)) continue;
                     host.BindControl(unit, index);
+                    arrangement.RecordChoice(host.SlotIdentity(unit, index));
                     if (content == MountedToolbarSlot.LegacyAlias) AliasMigrationCount++;
                 }
                 else if (live || content == MountedToolbarSlot.LegacyAlias)
@@ -374,6 +371,7 @@ namespace KingmakerMountedCombat.Domain
             }
             if (host.ReadSlot(unit, arrangement.Slot) != MountedToolbarSlot.Empty) return;
             host.BindControl(unit, arrangement.Slot);
+            arrangement.RecordChoice(host.SlotIdentity(unit, arrangement.Slot));
             arrangement.Pending = false;
             RestoreCount++;
             if (arrangement.FromAliasRow) AliasMigrationCount++;
@@ -394,6 +392,7 @@ namespace KingmakerMountedCombat.Domain
             if (index < 0) { InitialPlacementFullBarCount++; return; }
             host.BindControl(unit, index);
             arrangement.Slot = index;
+            arrangement.RecordChoice(host.SlotIdentity(unit, index));
             host.BarChanged(unit);
             InitialPlacementCount++;
         }
@@ -486,7 +485,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 var content = host.ReadSlot(unit, at);
                 if (IsPublic(content))
-                    view.Public[at] = new NativeEntry { Index = at, Content = content, Identity = host.SlotIdentity(unit, at), RebindData = host.RebindData(unit, at) };
+                    view.Public[at] = new NativeEntry { Index = at, Content = content, Identity = host.SlotIdentity(unit, at) };
                 else if (content != MountedToolbarSlot.Empty) view.Occupied.Add(at);
             }
             var entries = view.Public.Values.Where(entry => index < 0 || entry.Index == index).OrderBy(entry => entry.Index).ToList();
@@ -502,6 +501,16 @@ namespace KingmakerMountedCombat.Domain
             if (operation == null || !ReferenceEquals(operation, openOperation)) return;
             openOperation = null;
             ApplyNativeOperation((NativeOperation)operation, true);
+        }
+
+        // Native CleanupBadSlots has just written this slot of the unit's bar through one of its own SetSlot call sites (the
+        // adapter redirects exactly those call sites: installed contract, three of them): the exact evidence of what a
+        // cleanup that later throws actually wrote, recorded before anything else can write the bar.
+        public void RecordNativeSlotWrite(TUnit unit, int index)
+        {
+            var operation = openOperation;
+            if (operation == null || operation.SingleSlot || unit == null || !ReferenceEquals(operation.Unit, unit) || index < 0 || index >= host.SlotCount(unit)) return;
+            operation.Writes[index] = host.SlotIdentity(unit, index);
         }
 
         // An operation whose postfix never ran threw. It is settled from what that native method can have written (see
@@ -524,10 +533,12 @@ namespace KingmakerMountedCombat.Domain
         // stays a copy under its new slot object; an emptied copy is gone, except that the last surviving copy of a pending
         // choice whose slot was filled becomes that choice (the fallback). Only in the world that produced the operation and
         // only for a unit on its roster.
-        // A returned operation: every replaced slot is native's. A thrown one: only what that method can write. GetSlot only
-        // writes an empty slot bound to the unit; CleanupBadSlots writes that, or a new binding of exactly the data it would
-        // rebind when it started (NativeEntry.RebindData). Anything else in a noted slot is a later edit, read at the next
-        // ordinary observation, so neither a player's placement nor a later change of the fact reverses native's outcome.
+        // A returned operation: every replaced slot is native's (its postfix runs right after native). A thrown one: only
+        // native's actual writes. GetSlot can only write an empty slot bound to the unit (installed contract), so such a slot
+        // is its write; CleanupBadSlots's writes were recorded as they completed (Writes) and count while the slot still holds
+        // the object native wrote. Anything else in a noted slot is a later edit, read at the next ordinary observation, so
+        // neither a player's placement (even of the very data cleanup would rebind) nor a later change of the fact reverses
+        // or invents native's outcome.
         private void ApplyNativeOperation(NativeOperation operation, bool returned)
         {
             if (!Enabled) return;
@@ -544,10 +555,11 @@ namespace KingmakerMountedCombat.Domain
                 var identity = host.SlotIdentity(unit, entry.Index);
                 if (ReferenceEquals(identity, entry.Identity)) continue;
                 var bound = IsPublic(host.ReadSlot(unit, entry.Index));
+                object written;
                 if (returned) { if (bound) rebound[entry.Index] = identity; else emptied.Add(entry.Index); }
-                else if (!bound) { if (host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }
-                else if (!operation.SingleSlot && entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))
-                    rebound[entry.Index] = identity;
+                else if (operation.SingleSlot) { if (!bound && host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }
+                else if (operation.Writes.TryGetValue(entry.Index, out written) && ReferenceEquals(written, identity))
+                { if (bound) rebound[entry.Index] = identity; else emptied.Add(entry.Index); }
             }
             if (emptied.Count == 0 && rebound.Count == 0) return;
             Observe(unit, operation.View);
@@ -799,30 +811,28 @@ namespace KingmakerMountedCombat.Domain
             arrangement.FromAliasRow = rows.First(row => row.Index == slot).Kind != MountedControlSlotPolicy.SavedMountState;
         }
 
-        // An incoming observation whose choice was a leftover alias meets the archive's record of the actor: the archive's
-        // choice is the arrangement (its public row pending, as seeded; a marker alone: off the bar), and the alias is what
-        // seeding first would have made of it: a known copy while it is still on the bar, or, when native already emptied it
-        // and the archive's slot cannot take the control, the fallback that emptying earned.
+        // An incoming observation whose choice was a leftover alias meets the archive's record of the actor. Seeding first
+        // would have made every leftover alias a known copy of the archive's choice, so:
+        // - a marker alone: off the bar (no copy becomes a choice while nothing is owed);
+        // - an archived slot that can take the control: that slot, pending as seeded; the alias, while still on the bar, is
+        //   its known copy;
+        // - an archived slot that cannot (occupied): the fallback is the first leftover in F2's order, which is exactly the
+        //   alias the observation chose, so that choice stands with whatever native did to it since (emptied: still owed).
+        //   Another surviving copy never displaces it.
         private void AdoptArchiveChoice(TUnit unit, MountedControlPlacementIntent.Arrangement arrangement, IList<MountedToolbarRow> publicRows)
         {
             var alias = arrangement.Slot;
-            var aliasEmptied = arrangement.Pending;
             var slot = publicRows.Count == 0 ? MountedControlPlacementIntent.OffBar : SelectRow(unit, null, publicRows, true);
+            arrangement.ObservedBeforeRows = false;
+            arrangement.FromAliasRow = false;
+            if (slot >= 0 && alias >= 0 && !Restorable(unit, null, slot)) return;
             arrangement.Slot = slot;
             arrangement.Pending = slot >= 0;
             arrangement.ChoiceIsAlias = false;
-            arrangement.ObservedBeforeRows = false;
             arrangement.FromAliasRow = slot >= 0 && publicRows.First(row => row.Index == slot).Kind != MountedControlSlotPolicy.SavedMountState;
             if (alias < 0 || alias == slot || unit == null) return;
-            var count = host.SlotCount(unit);
-            if (!aliasEmptied && alias < count && IsPublic(host.ReadSlot(unit, alias)))
+            if (alias < host.SlotCount(unit) && IsPublic(host.ReadSlot(unit, alias)))
                 arrangement.RecordCopy(alias, host.SlotIdentity(unit, alias));
-            else if (aliasEmptied && slot >= 0 && !Restorable(unit, null, slot) && !arrangement.Copies.Any(copy => copy.Key < count && copy.Value.Target != null &&
-                ReferenceEquals(host.SlotIdentity(unit, copy.Key), copy.Value.Target)))
-            {
-                arrangement.Slot = alias;
-                arrangement.FromAliasRow = false;
-            }
         }
 
         // The slot can take the public control (empty, or a public binding), on the bar as it stands or as native started.
@@ -857,8 +867,11 @@ namespace KingmakerMountedCombat.Domain
             if (known != null && CompanionLost(unit, known)) { RetireAndClear(unit); return; }
             if (known != null && known.PetId == null && !string.IsNullOrEmpty(link)) known.PetId = link;
             if (count == 0) return;
-            // A retirement made while this bar could not be read: every public binding it still holds predates it.
-            if (records.TakeRetiredUnread(id)) ClearPublicBindings(unit, false);
+            // A retirement made while this bar could not be read: the bindings that predate it are cleared and never read as
+            // a placement, on the bar now or in a native operation's view of it; a binding placed since is the player's.
+            List<KeyValuePair<int, WeakReference>> predating;
+            var retiredUnread = records.TakeRetiredUnread(id, out predating);
+            if (retiredUnread) ClearPredating(unit, predating);
             if (known?.Alternatives != null) ResolveAlternatives(unit, view, known);
             // The common per-frame case, a unit with no arrangement and no public binding, is decided without allocating.
             if (view == null && known == null && !BarHoldsPublicBinding(unit)) return;
@@ -873,6 +886,7 @@ namespace KingmakerMountedCombat.Domain
                 {
                     var binding = new MountedControlPlacementIntent.Binding
                         { Index = index, Identity = view != null ? identity : host.SlotIdentity(unit, index), Alias = content == MountedToolbarSlot.LegacyAlias };
+                    if (retiredUnread && MountedControlPlacementIntent.Predates(predating, index, binding.Identity)) continue;
                     (binding.Alias ? aliases : canonical).Add(binding);
                 }
                 else if (content != MountedToolbarSlot.Empty) occupied.Add(index);
@@ -906,16 +920,33 @@ namespace KingmakerMountedCombat.Domain
         }
 
         // Permanent loss: the arrangement is retired (pets own none) and every public binding on the bar is cleared. A bar
-        // that cannot be read now is cleared when it next can (MountedControlPlacementIntent.MarkRetiredUnread).
+        // that cannot be read now keeps what predates the retirement: the arrangement's known bindings by slot object, or,
+        // for a bar never read, everything on it (MountedControlPlacementIntent.MarkRetiredUnread).
         private void RetireAndClear(TUnit unit)
         {
             var id = host.ActorId(unit);
             if (id != null && !host.IsPet(unit))
             {
+                var known = Get(unit);
                 Retire(id);
-                if (host.SlotCount(unit) == 0 && records != null) records.MarkRetiredUnread(id);
+                if (host.SlotCount(unit) == 0 && records != null)
+                    records.MarkRetiredUnread(id, known != null && known.Observed ? known.KnownBindings() : null);
             }
             ClearPublicBindings(unit, false);
+        }
+
+        // The public bindings that predate an unread retirement are cleared from the bar now readable.
+        private void ClearPredating(TUnit unit, List<KeyValuePair<int, WeakReference>> predating)
+        {
+            var count = host.SlotCount(unit);
+            var changed = false;
+            for (var index = 0; index < count; index++)
+            {
+                if (!IsPublic(host.ReadSlot(unit, index)) || !MountedControlPlacementIntent.Predates(predating, index, host.SlotIdentity(unit, index))) continue;
+                host.ClearSlot(unit, index);
+                changed = true;
+            }
+            if (changed) host.BarChanged(unit);
         }
 
         private void Retire(string id)

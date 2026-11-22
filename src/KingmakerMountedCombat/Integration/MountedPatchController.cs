@@ -42,6 +42,9 @@ namespace KingmakerMountedCombat.Integration
         // Kingmaker 2.1.7b UnitUISettings.CleanupBadSlots and GetSlot(int, UnitEntityData), pinned in Test-AssemblyContracts.ps1.
         internal const int NativeCleanupBadSlotsToken = 0x06003004;
         internal const int NativeGetSlotToken = 0x06002FFE;
+        // CleanupBadSlots writes only through its own calls of the non-virtual UnitUISettings.SetSlot, three of them
+        // (rebind, activatable rebind, empty), pinned in Test-AssemblyContracts.ps1.
+        internal const int NativeCleanupSetSlotCalls = 3;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -165,8 +168,11 @@ namespace KingmakerMountedCombat.Integration
                 // Toolbar persistence (observation only): native CleanupBadSlots replaces every slot whose ability fact is gone
                 // or inactive (empty, or rebound to a live fact of the same blueprint); its bracket tells KMC which public
                 // slots native emptied, so that emptying is never read as the player's removal.
+                // Its SetSlot call sites are redirected to record each write as it completes, so a cleanup that throws is
+                // settled from what it actually wrote (MountedToolbarLifecycle.RecordNativeSlotWrite).
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
-                    Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
+                    Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix),
+                    nameof(PatchMethods.BadSlotCleanupWritesTranspiler));
                 // GetSlot replaces a bad slot too (that one slot only).
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "GetSlot", NativeGetSlotToken,
                     new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.SlotReadPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
@@ -598,6 +604,35 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void BadSlotCleanupPostfix(object __state) =>
                 PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__state);
+
+            // CleanupBadSlots's own SetSlot(slot, index) calls become NativeCleanupSetSlot(this, slot, index): the same write
+            // (a native exception propagates unchanged), then KMC records it. Exactly the pinned call sites, or patching fails.
+            internal static IEnumerable<CodeInstruction> BadSlotCleanupWritesTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var native = typeof(Kingmaker.UI.UnitSettings.UnitUISettings).GetMethod("SetSlot",
+                    new[] { typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlot), typeof(int) });
+                var hook = typeof(PatchMethods).GetMethod(nameof(NativeCleanupSetSlot), BindingFlags.Static | BindingFlags.NonPublic);
+                var list = instructions.ToList();
+                var replaced = 0;
+                foreach (var instruction in list)
+                {
+                    if (instruction.opcode != OpCodes.Call || !Equals(instruction.operand, native)) continue;
+                    instruction.operand = hook;
+                    replaced++;
+                }
+                if (native == null || hook == null || replaced != NativeCleanupSetSlotCalls)
+                    throw new InvalidOperationException("UnitUISettings.CleanupBadSlots no longer writes through exactly " +
+                        NativeCleanupSetSlotCalls + " SetSlot calls (found " + replaced + ").");
+                return list;
+            }
+
+            private static void NativeCleanupSetSlot(Kingmaker.UI.UnitSettings.UnitUISettings settings,
+                Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, int index)
+            {
+                settings.SetSlot(slot, index);
+                try { PatchBridge.NativeControls?.RecordNativeCleanupWrite(settings, index); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mount / Dismount toolbar: a native cleanup write was not recorded", error); }
+            }
 
             internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
             {

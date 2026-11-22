@@ -336,21 +336,27 @@ namespace KingmakerMountedCombat.Tests
         }
 
         // Native CleanupBadSlots through the service's prefix and postfix: each bad ability slot is rebound to the owner's
-        // active fact of its blueprint (a new slot with that fact's data), or emptied, both bound to Owner.Unit.
-        private static void NativeCleanup(NativeMountedControlService service, UnitUISettings settings)
+        // active fact of its blueprint (a new slot with that fact's data), or emptied, both bound to Owner.Unit. Each write
+        // is reported to the service as MountedPatchController's transpiled SetSlot call sites report it (a labeled mirror of
+        // NativeCleanupSetSlot). throwAfter: native threw after that many writes (no postfix).
+        private static void NativeCleanup(NativeMountedControlService service, UnitUISettings settings, int throwAfter = -1)
         {
             var operation = service.BeginNativeBadSlotCleanup(settings);
             var owner = settings.Owner.Unit;
+            var writes = 0;
             for (var index = 0; index < settings.Slots.Length; index++)
             {
                 var slot = settings.Slots[index];
                 if (!IsBad(owner, slot)) continue;
+                if (writes == throwAfter) return;
                 var blueprint = ((MechanicActionBarSlotAbility)slot).Ability.Blueprint;
                 var fact = owner.Descriptor.Abilities.Enumerable.FirstOrDefault(item => ReferenceEquals(item.Blueprint, blueprint) && item.Active);
                 settings.SetSlot(fact == null ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = owner }
                     : new MechanicActionBarSlotAbility { Unit = owner, Ability = fact.Data }, index);
+                service.RecordNativeCleanupWrite(settings, index);
+                writes++;
             }
-            service.EndNativeBadSlotCleanup(operation);
+            if (throwAfter < 0) service.EndNativeBadSlotCleanup(operation);
         }
 
         private static int[] Rows(SavedMountedSlot[] rows, string actorId, int kind) =>
@@ -627,6 +633,44 @@ namespace KingmakerMountedCombat.Tests
                     service.Update();
                     True(Controls(current).SequenceEqual(new[] { 9 }), "whole bar: the chosen 9 did not return once: " + string.Join(",", Controls(current)));
                     True(!IsBlueprint(current, 4, NativeMountedControlService.MountBlueprint), "whole bar: the stale alias came back.");
+                }
+            });
+            Check("review R2-F5 (Pro review of 74fa9931) a thrown cleanup is settled from the writes its own SetSlot calls reported", () =>
+            {
+                foreach (var variant in new[] { "rebind then fact deactivated", "no write then the player's placement" })
+                {
+                    // 3 pending with a known stale copy at 9 (GetSlot emptied 3 before any scan).
+                    var player = NewWorld();
+                    var service = new NativeMountedControlService();
+                    Autofill(false);
+                    var rider = Owner("A");
+                    player.PartyCharacters.Add(new UnitReference(rider));
+                    var fact = Lease(rider, NativeMountedControlService.MountStateBlueprint);
+                    rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint), 3);
+                    rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint), 9);
+                    service.FixtureEnableWithoutUpdate();
+                    NativeGetSlot(service, rider.UISettings, 3, rider);
+                    var expected = 3;
+                    if (variant.StartsWith("rebind", StringComparison.Ordinal))
+                    {
+                        NativeCleanup(service, rider.UISettings, throwAfter: 1);
+                        True(ReferenceEquals((rider.UISettings.Slots[9] as MechanicActionBarSlotAbility)?.Ability, fact.Data), variant + ": the fixture's cleanup did not rebind 9.");
+                        fact.Active = false;
+                    }
+                    else
+                    {
+                        NativeCleanup(service, rider.UISettings, throwAfter: 0);
+                        rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint, fact.Data), 9);
+                        NativeGetSlot(service, rider.UISettings, 9, rider);
+                        expected = 9;
+                    }
+                    var rows = service.CapturePersistentSlots(false, true);
+                    True(Rows(rows, "A", MountedControlSlotPolicy.SavedMountState).SequenceEqual(new[] { expected }) &&
+                        Rows(rows, "A", MountedControlSlotPolicy.SavedPlacementRecord).Length == 1,
+                        variant + ": not saved as " + expected + " with one marker: " + string.Join(",", Rows(rows, "A", MountedControlSlotPolicy.SavedMountState)));
+                    fact.Active = true;
+                    service.Update(); service.Update();
+                    True(Controls(rider).SequenceEqual(new[] { expected }), variant + ": not one shortcut at " + expected + ": " + string.Join(",", Controls(rider)));
                 }
             });
             Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);

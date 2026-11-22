@@ -148,6 +148,14 @@ namespace KingmakerMountedCombat.Integration
         // The operation returned normally (exact postfixes): only the operation its own prefix opened is completed.
         internal void EndNativeBadSlotCleanup(object operation) => toolbar.EndNativeSlotOperation(operation);
 
+        // Native CleanupBadSlots has just written this slot through one of its own SetSlot call sites (redirected by
+        // MountedPatchController's transpiler): recorded as native's actual write on the open operation of the bar's owner.
+        internal void RecordNativeCleanupWrite(UnitUISettings settings, int index)
+        {
+            var owner = disposed || !enabled || mountStateAbility == null ? null : ResolveBarUnit(settings, null);
+            toolbar.RecordNativeSlotWrite(owner, index);
+        }
+
         // The unit whose bar a native slot operation reads, from the verified native relationship between the bar and its
         // owner, never from a slot's contents (a stale slot can name a discarded rider object): GetSlot's unit argument when
         // that unit's own bar is this one, else the settings' Owner (UnitUISettings.Owner, the descriptor CleanupBadSlots
@@ -462,16 +470,6 @@ namespace KingmakerMountedCombat.Integration
                 return MountedControlSlotPolicy.IsPublicControlKind(kind) && service.IsCallableLiveBinding(unit, slot, kind);
             }
 
-            // What native CleanupBadSlots binds when it rebinds this slot: the active fact of the slot's blueprint from the
-            // bar owner's abilities (installed contract: a new MechanicActionBarSlotAbility with that fact's Data).
-            public object RebindData(UnitEntityData unit, int index)
-            {
-                var blueprint = (Slot(unit, index) as MechanicActionBarSlotAbility)?.Ability?.Blueprint;
-                if (blueprint == null) return null;
-                return unit?.Descriptor?.Abilities?.Enumerable.FirstOrDefault(fact => ReferenceEquals(fact.Blueprint, blueprint) && fact.Active)?.Data;
-            }
-
-            public object BoundData(UnitEntityData unit, int index) => (Slot(unit, index) as MechanicActionBarSlotAbility)?.Ability;
 
             public void BindControl(UnitEntityData unit, int index)
             {

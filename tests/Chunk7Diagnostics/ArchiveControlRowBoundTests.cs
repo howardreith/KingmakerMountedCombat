@@ -53,8 +53,6 @@ internal static class ArchiveControlRowBoundTests
         public object SlotIdentity(Rider unit, int index) => null;
         public bool IsNativeEmptySlot(Rider unit, int index) => false;
         public bool HoldsLiveBinding(Rider unit, int index) => false;
-        public object RebindData(Rider unit, int index) => null;
-        public object BoundData(Rider unit, int index) => null;
         public void BindControl(Rider unit, int index) { throw new InvalidOperationException("No control is live in this fixture."); }
         public void ClearSlot(Rider unit, int index) => unit.Bar[index] = MountedToolbarSlot.Empty;
         public void BarChanged(Rider unit) { }

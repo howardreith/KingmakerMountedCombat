@@ -34,6 +34,18 @@ namespace KingmakerMountedCombat.Domain
             }
 
             public void RecordCopy(int index, object identity) => Copies[index] = new WeakReference(identity);
+            // The slot object of the binding at the chosen slot when it was last seen or written (held weakly), or null.
+            public WeakReference ChoiceIdentity;
+
+            public void RecordChoice(object identity) => ChoiceIdentity = identity == null ? null : new WeakReference(identity);
+
+            // Every public binding this arrangement knows on the bar by slot object: the chosen binding and the copies.
+            public List<KeyValuePair<int, WeakReference>> KnownBindings()
+            {
+                var known = Copies.Where(copy => copy.Value.Target != null).ToList();
+                if (Slot >= 0 && ChoiceIdentity?.Target != null) known.Add(new KeyValuePair<int, WeakReference>(Slot, ChoiceIdentity));
+                return known;
+            }
             // The bar has been observed since the arrangement was made (an archive row's arrangement has not).
             public bool Observed;
             // The pending slot was seeded from an older Mount / Dismount archive row (its restore is that row's migration).
@@ -63,9 +75,12 @@ namespace KingmakerMountedCombat.Domain
         private readonly HashSet<string> retired = new HashSet<string>(StringComparer.Ordinal);
         // Actors that had their one automatic placement, or any arrangement, in this world (archive kind 7).
         private readonly HashSet<string> placed = new HashSet<string>(StringComparer.Ordinal);
-        // Retired while their bar could not be read: whatever public binding that bar holds when it is next readable was
-        // there before the retirement (the player cannot edit an unreadable bar) and is cleared then.
-        private readonly HashSet<string> retiredUnread = new HashSet<string>(StringComparer.Ordinal);
+        // Retired while their bar could not be read: the public bindings that predate the retirement, by index and slot
+        // object (the arrangement's known bindings), or null when the bar was never read (then every binding the bar holds
+        // when it is next readable predates it). They are cleared, and never read as a placement, when the bar returns; a
+        // binding the player placed after that is a fresh placement.
+        private readonly Dictionary<string, List<KeyValuePair<int, WeakReference>>> retiredUnread =
+            new Dictionary<string, List<KeyValuePair<int, WeakReference>>>(StringComparer.Ordinal);
 
         public MountedControlPlacementIntent(object world) { this.world = new WeakReference(world); }
 
@@ -112,9 +127,22 @@ namespace KingmakerMountedCombat.Domain
             retired.Add(id);
         }
 
-        public void MarkRetiredUnread(string id) { if (id != null) retiredUnread.Add(id); }
+        // A second retirement while the bar is still unread never widens a known record to "everything".
+        public void MarkRetiredUnread(string id, List<KeyValuePair<int, WeakReference>> predating)
+        {
+            if (id == null || predating == null && retiredUnread.ContainsKey(id)) return;
+            retiredUnread[id] = predating;
+        }
 
-        public bool TakeRetiredUnread(string id) => id != null && retiredUnread.Remove(id);
+        public bool TakeRetiredUnread(string id, out List<KeyValuePair<int, WeakReference>> predating)
+        {
+            predating = null;
+            return id != null && retiredUnread.TryGetValue(id, out predating) && retiredUnread.Remove(id);
+        }
+
+        // A binding (index, slot object) that predates an unread retirement: every binding when the bar was never read.
+        public static bool Predates(List<KeyValuePair<int, WeakReference>> predating, int index, object identity) =>
+            predating == null || predating.Any(known => known.Key == index && known.Value.Target != null && ReferenceEquals(known.Value.Target, identity));
 
         public void Clear() { arrangements.Clear(); retired.Clear(); placed.Clear(); retiredUnread.Clear(); RowsSeeded = false; }
 
@@ -161,6 +189,7 @@ namespace KingmakerMountedCombat.Domain
             foreach (var binding in bindings)
                 if (binding.Index != arrangement.Slot) arrangement.RecordCopy(binding.Index, binding.Identity);
             arrangement.Copies.Remove(arrangement.Slot);
+            arrangement.RecordChoice(bindings.Where(binding => binding.Index == arrangement.Slot).Select(binding => binding.Identity).FirstOrDefault());
         }
     }
 }

@@ -14,7 +14,9 @@ param()
 # player during a load); a player edit confused with native invalidation; a disconnected adapter boundary or roster input.
 # Round 3 (review of 6251885) adds one mutation per repaired boundary: capture authority and preparation (M5, W6), the
 # public-binding predicate (W7), per-invocation native operations and their method-specific evidence (M6), deferred
-# archive selection and alias provenance (M7), retirement of an unreadable bar (M8), and the bar owner (W8, W9).
+# archive selection and alias provenance (M7), retirement of an unreadable bar (M8), and the bar owner (W8, W9). The
+# Pro review of 74fa9931 adds recorded native cleanup writes (M6e, W10), the observed fallback against an occupied
+# archived slot (M7c) and the provenance of an unread retirement (M8b, M8c).
 # Not native evidence.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -106,7 +108,8 @@ $mutations=@(
       Needle="            if (!Authors(unit, riders, reserve))`n";Replace="            if (!Authors(unit, riders, reserve) && unit == null)`n"
       Expect=@('review R1-F10')},
     @{Campaign='lifecycle';Name='M4a a player removal after an aborted native operation is read as native emptying';File=$lifecycle
-      Needle="                else if (!bound) { if (host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }`n";Replace="                else if (!bound) emptied.Add(entry.Index);`n"
+      Needle="                else if (operation.SingleSlot) { if (!bound && host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }`n"
+      Replace="                else if (operation.SingleSlot) { if (!bound) emptied.Add(entry.Index); }`n"
       Expect=@('D6 native operations that throw')},
     @{Campaign='lifecycle';Name='M4b a native emptying is read as the player''s removal (no pending slot)';File=$lifecycle
       Needle="                    else if (!arrangement.Pending) { arrangement.Pending = true; NativeInvalidationCount++; }`n"
@@ -145,12 +148,12 @@ $mutations=@(
       Replace="            if (operation == null || !ReferenceEquals(operation, openOperation)) { thrownOperations.Clear(); return; }`n"
       Expect=@('review R2-F4 (round 3)')},
     @{Campaign='lifecycle';Name='M6b a thrown GetSlot is credited with a rebind it cannot write (R2-F5)';File=$lifecycle
-      Needle="                else if (!operation.SingleSlot && entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
-      Replace="                else if (entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
+      Needle="                else if (operation.SingleSlot) { if (!bound && host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }`n"
+      Replace="                else if (operation.SingleSlot) { if (bound) rebound[entry.Index] = identity; else if (host.IsNativeEmptySlot(unit, entry.Index)) emptied.Add(entry.Index); }`n"
       Expect=@('review R2-F5 (round 3)')},
-    @{Campaign='lifecycle';Name='M6c a thrown cleanup''s rebind is judged by the fact''s later state (R2-F5)';File=$lifecycle
-      Needle="                else if (!operation.SingleSlot && entry.RebindData != null && ReferenceEquals(host.BoundData(unit, entry.Index), entry.RebindData))`n"
-      Replace="                else if (!operation.SingleSlot && host.HoldsLiveBinding(unit, entry.Index))`n"
+    @{Campaign='lifecycle';Name='M6c a thrown cleanup is settled from slot contents, not from its recorded writes (R2-F5)';File=$lifecycle
+      Needle="                else if (operation.Writes.TryGetValue(entry.Index, out written) && ReferenceEquals(written, identity))`n"
+      Replace="                else if (!operation.Writes.TryGetValue(-1, out written) && (bound ? host.HoldsLiveBinding(unit, entry.Index) : host.IsNativeEmptySlot(unit, entry.Index)))`n"
       Expect=@('review R2-F5 (round 3)')},
     @{Campaign='lifecycle';Name='M6d a thrown operation is read against the occupancy at settlement (R2-F5)';File=$lifecycle
       Needle="            return view.Occupied.Contains(index) ? MountedToolbarSlot.Ordinary : MountedToolbarSlot.Empty;`n"
@@ -165,8 +168,25 @@ $mutations=@(
       Replace="                    if (loadedWorld && existing.ObservedBeforeRows && existing.ChoiceIsAlias && unit == null)`n"
       Expect=@('review R2-F2 (round 3)')},
     @{Campaign='lifecycle';Name='M8a a bar unreadable at retirement is not sanitized when it returns (R2-F3)';File=$lifecycle
-      Needle="            if (records.TakeRetiredUnread(id)) ClearPublicBindings(unit, false);`n";Replace="            // mutation: no sanitation of a bar retired unread`n"
+      Needle="            if (retiredUnread) ClearPredating(unit, predating);`n";Replace="            // mutation: no sanitation of a bar retired unread`n"
       Expect=@('review R2-F3 (round 3)')},
+    # Pro review of 74fa9931.
+    @{Campaign='lifecycle';Name='M6e a cleanup''s own writes are not recorded (R2-F5)';File=$lifecycle
+      Needle="            operation.Writes[index] = host.SlotIdentity(unit, index);`n";Replace="            // mutation: native writes not recorded`n"
+      Expect=@('review R2-F5 (round 3)')},
+    @{Campaign='lifecycle';Name='M7c an occupied archived slot displaces the fallback a native read established (R2-F2)';File=$lifecycle
+      Needle="            if (slot >= 0 && alias >= 0 && !Restorable(unit, null, slot)) return;`n";Replace="            // mutation: the archive always displaces the observed fallback`n"
+      Expect=@('review R2-F2 (round 3)')},
+    @{Campaign='lifecycle';Name='M8b a native view of a bar retired unread is read as a placement (R2-F3)';File=$lifecycle
+      Needle="                    if (retiredUnread && MountedControlPlacementIntent.Predates(predating, index, binding.Identity)) continue;`n";Replace="                    // mutation: predating bindings read`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='lifecycle';Name='M8c an unread retirement treats every later binding as predating it (R2-F3)';File=$lifecycle
+      Needle="                    records.MarkRetiredUnread(id, known != null && known.Observed ? known.KnownBindings() : null);`n"
+      Replace="                    records.MarkRetiredUnread(id, null);`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='wiring';Name='W10 a cleanup write reported by the redirected SetSlot call site is not forwarded (R2-F5)';File=$adapter
+      Needle="            toolbar.RecordNativeSlotWrite(owner, index);`n";Replace="            // mutation: native cleanup write not forwarded`n"
+      Expect=@('review R2-F5 (Pro review')},
     @{Campaign='wiring';Name='W6 other managed rows come from every candidate, not the authoring units (R1-F10)';File=$adapter
       Needle="            CaptureOtherLiveSlots(result, legacySchema, authors);`n";Replace="            CaptureOtherLiveSlots(result, legacySchema, CollectCurrentCandidateUnits());`n"
       Expect=@('review R1-F10 a former rider object')},
