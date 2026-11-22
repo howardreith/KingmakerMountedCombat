@@ -76,9 +76,10 @@ namespace KingmakerMountedCombat.Domain
         // Actors that had their one automatic placement, or any arrangement, in this world (archive kind 7).
         private readonly HashSet<string> placed = new HashSet<string>(StringComparer.Ordinal);
         // Retired while their bar could not be read: the public bindings that predate the retirement, by index and slot
-        // object (the arrangement's known bindings), or null when the bar was never read (then every binding the bar holds
-        // when it is next readable predates it). They are cleared, and never read as a placement, when the bar returns; a
-        // binding the player placed after that is a fresh placement.
+        // object (the arrangement's known bindings), or null when the bar was never read: then the bindings it holds just
+        // before the first write that reaches it (PinRetiredUnread), or when it is next observed, predate it. A native
+        // replacement of a predating binding predates it too (CarryRetiredUnread). They are cleared, and never read as a
+        // placement, when the bar returns; a binding the player placed after that is a fresh placement.
         private readonly Dictionary<string, List<KeyValuePair<int, WeakReference>>> retiredUnread =
             new Dictionary<string, List<KeyValuePair<int, WeakReference>>>(StringComparer.Ordinal);
 
@@ -132,6 +133,28 @@ namespace KingmakerMountedCombat.Domain
         {
             if (id == null || predating == null && retiredUnread.ContainsKey(id)) return;
             retiredUnread[id] = predating;
+        }
+
+        // The retirement's bar was never read and nothing has pinned what predates it yet.
+        public bool RetiredUnreadUnknown(string id)
+        {
+            List<KeyValuePair<int, WeakReference>> predating;
+            return id != null && retiredUnread.TryGetValue(id, out predating) && predating == null;
+        }
+
+        // The bindings a never-read bar holds before the first write that reaches it are exactly what predates the retirement.
+        public void PinRetiredUnread(string id, List<KeyValuePair<int, WeakReference>> bindings)
+        {
+            if (RetiredUnreadUnknown(id) && bindings != null) retiredUnread[id] = bindings;
+        }
+
+        // Native replaced a binding (index, slot object before) with another slot object: when the one before predates the
+        // retirement, so does its replacement.
+        public void CarryRetiredUnread(string id, int index, object before, object after)
+        {
+            List<KeyValuePair<int, WeakReference>> predating;
+            if (id == null || after == null || !retiredUnread.TryGetValue(id, out predating) || predating == null) return;
+            if (Predates(predating, index, before)) predating.Add(new KeyValuePair<int, WeakReference>(index, new WeakReference(after)));
         }
 
         public bool TakeRetiredUnread(string id, out List<KeyValuePair<int, WeakReference>> predating)

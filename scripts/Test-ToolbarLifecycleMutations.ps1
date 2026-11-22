@@ -16,7 +16,9 @@ param()
 # public-binding predicate (W7), per-invocation native operations and their method-specific evidence (M6), deferred
 # archive selection and alias provenance (M7), retirement of an unreadable bar (M8), and the bar owner (W8, W9). The
 # Pro review of 74fa9931 adds recorded native cleanup writes (M6e, W10), the observed fallback against an occupied
-# archived slot (M7c) and the provenance of an unread retirement (M8b, M8c).
+# archived slot (M7c) and the provenance of an unread retirement (M8b, M8c). The second Pro review adds the pin before a
+# write reaches a never-read bar (M8d, W11), the retirement carried through a native replacement (M8e) and the chosen
+# identity after a native rebind (M8f).
 # Not native evidence.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -184,6 +186,22 @@ $mutations=@(
       Needle="                    records.MarkRetiredUnread(id, known != null && known.Observed ? known.KnownBindings() : null);`n"
       Replace="                    records.MarkRetiredUnread(id, null);`n"
       Expect=@('review R2-F3 (round 3)')},
+    # Second Pro review (of 203a1377).
+    @{Campaign='lifecycle';Name='M8d a write reaching a never-read retired bar is not preceded by pinning what predates it (R2-F3)';File=$lifecycle
+      Needle="            if (!Enabled || records == null || unit == null || !records.BelongsTo(host.CurrentWorld)) return;`n            PinUnreadRetirement(unit);`n"
+      Replace="            if (!Enabled || records == null || unit == null || !records.BelongsTo(host.CurrentWorld)) return;`n            // mutation: no pin before the write`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='lifecycle';Name='M8e a native replacement of a predating binding does not inherit the retirement (R2-F3)';File=$lifecycle
+      Needle="                if (rebound.TryGetValue(entry.Index, out replaced)) records.CarryRetiredUnread(actor, entry.Index, entry.Identity, replaced);`n"
+      Replace="                if (rebound.TryGetValue(entry.Index, out replaced) && replaced == null) records.CarryRetiredUnread(actor, entry.Index, entry.Identity, replaced);`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='lifecycle';Name='M8f a native rebind of the chosen binding leaves its identity stale (R2-F3)';File=$lifecycle
+      Needle="                    if (wasRebound) { arrangement.Pending = false; arrangement.RecordChoice(replacement); }`n"
+      Replace="                    if (wasRebound) { arrangement.Pending = false; }`n"
+      Expect=@('review R2-F3 (round 3)')},
+    @{Campaign='wiring';Name='W11 the SetSlot prefix''s observation is not forwarded to the lifecycle (R2-F3)';File=$adapter
+      Needle="            toolbar.BeforeSlotWrite(ResolveBarUnit(settings, null));`n";Replace="            // mutation: SetSlot observation not forwarded`n"
+      Expect=@('review R2-F3 (second Pro review)')},
     @{Campaign='wiring';Name='W10 a cleanup write reported by the redirected SetSlot call site is not forwarded (R2-F5)';File=$adapter
       Needle="            toolbar.RecordNativeSlotWrite(owner, index);`n";Replace="            // mutation: native cleanup write not forwarded`n"
       Expect=@('review R2-F5 (Pro review')},

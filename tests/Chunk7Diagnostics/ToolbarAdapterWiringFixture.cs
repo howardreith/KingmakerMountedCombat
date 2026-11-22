@@ -673,6 +673,41 @@ namespace KingmakerMountedCombat.Tests
                     True(Controls(rider).SequenceEqual(new[] { expected }), variant + ": not one shortcut at " + expected + ": " + string.Join(",", Controls(rider)));
                 }
             });
+            Check("review R2-F3 (second Pro review) a fresh placement on a never-read loaded bar survives the companion's retirement through the SetSlot boundary", () =>
+            {
+                var player = NewWorld();
+                var service = new NativeMountedControlService();
+                Autofill(false);
+                var rider = Owner("A");
+                player.PartyCharacters.Add(new UnitReference(rider));
+                var bar = rider.UISettings.Slots;
+                rider.UISettings.Slots = null;
+                service.FixtureEnableWithoutUpdate();
+                service.RestorePersistentSlots(new[]
+                {
+                    new SavedMountedSlot { ActorId = "A", Index = 9, Kind = MountedControlSlotPolicy.SavedMountState },
+                    new SavedMountedSlot { ActorId = "A", Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
+                }, true);
+                // A is replaced by B while the bar is unreadable; the update records the retirement.
+                var petB = new UnitEntityData("pet-B");
+                petB.Descriptor.IsPet = true;
+                petB.Descriptor.Master = new UnitReference(rider);
+                rider.Descriptor.Pet = petB;
+                rider.Descriptor.PetUniqueId = petB.UniqueId;
+                service.Update();
+                rider.UISettings.Slots = bar;
+                // The player's placement of B's control at 11: the action bar UI writes it through SetSlot, whose prefix
+                // forwards to the service (the Harmony forwarder is mirrored here; its shape is a contract row).
+                var fact = rider.Descriptor.Abilities.GetAbility(NativeMountedControlService.MountStateBlueprint);
+                True(fact != null && fact.Active, "The update did not lease B's rider a live control.");
+                service.BeforeNativeSlotWrite(rider.UISettings);
+                rider.UISettings.SetSlot(Binding(rider, NativeMountedControlService.MountStateBlueprint, fact.Data), 11);
+                service.Update(); service.Update();
+                True(Controls(rider).SequenceEqual(new[] { 11 }), "B's fresh placement was not kept once at 11: " + string.Join(",", Controls(rider)));
+                var rows = service.CapturePersistentSlots(false, true);
+                True(Rows(rows, "A", MountedControlSlotPolicy.SavedMountState).SequenceEqual(new[] { 11 }) &&
+                    Rows(rows, "A", MountedControlSlotPolicy.SavedPlacementRecord).Length == 1, "Not saved as 11 with one marker.");
+            });
             Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);
             return failed == 0 ? 0 : 1;
         }

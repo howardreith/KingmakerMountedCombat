@@ -45,6 +45,8 @@ namespace KingmakerMountedCombat.Integration
         // CleanupBadSlots writes only through its own calls of the non-virtual UnitUISettings.SetSlot, three of them
         // (rebind, activatable rebind, empty), pinned in Test-AssemblyContracts.ps1.
         internal const int NativeCleanupSetSlotCalls = 3;
+        // UnitUISettings.SetSlot(MechanicActionBarSlot, int), the write every action bar edit and every cleanup write uses.
+        internal const int NativeSetSlotToken = 0x06002FFF;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -173,6 +175,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
                     Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix),
                     nameof(PatchMethods.BadSlotCleanupWritesTranspiler));
+                // Before any write reaches a bar (a player's edit, a cleanup write), a companion retirement made while that bar
+                // was never read is pinned to what the bar held, so the write itself is never taken for an older binding.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "SetSlot", NativeSetSlotToken,
+                    new[] { typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlot), typeof(int) }, nameof(PatchMethods.SlotWritePrefix));
                 // GetSlot replaces a bad slot too (that one slot only).
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "GetSlot", NativeGetSlotToken,
                     new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.SlotReadPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
@@ -604,6 +610,13 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void BadSlotCleanupPostfix(object __state) =>
                 PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__state);
+
+            // Observation only, before the native write; it never throws, so the write always happens.
+            internal static void SlotWritePrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance)
+            {
+                try { PatchBridge.NativeControls?.BeforeNativeSlotWrite(__instance); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mount / Dismount toolbar: a native slot write was not observed", error); }
+            }
 
             // CleanupBadSlots's own SetSlot(slot, index) calls become NativeCleanupSetSlot(this, slot, index): the same write
             // (a native exception propagates unchanged), then KMC records it. Exactly the pinned call sites, or patching fails.

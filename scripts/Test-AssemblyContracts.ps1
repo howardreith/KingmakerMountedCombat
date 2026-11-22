@@ -1630,6 +1630,11 @@ if($Target-eq'Kingmaker'){
     # each write as it completes, the evidence a cleanup that throws is settled from.
     $setSlotPlainCalls=if($null-eq$setSlotMethod){@()}else{Find-IlTokenPositions $cleanupIl 0x28 $setSlotMethod.MetadataToken}
     Assert-Contract ($null-ne$setSlotMethod-and-not$setSlotMethod.IsVirtual-and-not$setSlotMethod.IsStatic-and$setSlotPlainCalls.Count-eq3-and$setSlotCalls.Count-eq3) ('toolbar: CleanupBadSlots writes through exactly 3 plain calls of the non-virtual SetSlot (call x'+$setSlotPlainCalls.Count+', any x'+$setSlotCalls.Count+')')
+    # KMC's SetSlot prefix (MountedPatchController.NativeSetSlotToken) observes every bar write before it lands: the exact
+    # instance SetSlot(MechanicActionBarSlot slot, int index) the action bar UI's TryToSet and CleanupBadSlots write through.
+    $setSlotShape=if($null-eq$setSlotMethod){'(missing)'}else{(@($setSlotMethod.GetParameters()|ForEach-Object{$_.ParameterType.FullName+' '+$_.Name})-join', ')}
+    Assert-Contract ($null-ne$setSlotMethod-and$setSlotMethod.MetadataToken-eq0x06002FFF-and$setSlotMethod.ReturnType.FullName-ceq'System.Void'-and
+        $setSlotShape-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, System.Int32 index'-and(Test-MethodIlContainsToken $tryToSet $setSlotMethod.MetadataToken)) ('toolbar: UnitUISettings.SetSlot('+$setSlotShape+') token 06002FFF is the write TryToSet uses')
     $getSlotParameters=if($null-eq$getSlotExact){@()}else{@($getSlotExact.GetParameters())}
     Assert-Contract ($getSlotParameters.Count-eq2-and$getSlotParameters[0].Name-ceq'index'-and$getSlotParameters[1].Name-ceq'unit') 'toolbar: GetSlot''s parameters are named index and unit'
     # The product's Harmony forwarders (MountedPatchController.PatchMethods), read from the built product: Harmony 1.2 binds
@@ -1645,6 +1650,8 @@ if($Target-eq'Kingmaker'){
         Assert-Contract ($slotRead-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Int32 index, Kingmaker.EntitySystem.Entities.UnitEntityData unit, System.Object& __state out') ('toolbar: the GetSlot prefix binds __instance, index, unit and out __state: '+$slotRead)
         Assert-Contract ($cleanupPrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Object& __state out') ('toolbar: the CleanupBadSlots prefix binds __instance and out __state: '+$cleanupPrefix)
         Assert-Contract ($postfix-ceq'System.Object __state') ('toolbar: the shared postfix receives only its own prefix''s __state: '+$postfix)
+        $writePrefix=Get-ForwarderShape 'SlotWritePrefix'
+        Assert-Contract ($writePrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance') ('toolbar: the SetSlot prefix binds only __instance: '+$writePrefix)
         $cleanupHook=Get-ForwarderShape 'NativeCleanupSetSlot'
         Assert-Contract ($cleanupHook-ceq'Kingmaker.UI.UnitSettings.UnitUISettings settings, Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, System.Int32 index') ('toolbar: the redirected cleanup write takes SetSlot''s instance and arguments in stack order: '+$cleanupHook)
         # Its Harmony12 types resolve against the installed loader's 0Harmony12 (preloaded reflection-only once).

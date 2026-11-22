@@ -480,6 +480,7 @@ namespace KingmakerMountedCombat.Domain
             var count = host.SlotCount(unit);
             if (count == 0 || index >= count) return null;
             if (index >= 0 && !IsPublic(host.ReadSlot(unit, index))) return null;
+            PinUnreadRetirement(unit);
             var view = new NativeView();
             for (var at = 0; at < count; at++)
             {
@@ -511,6 +512,28 @@ namespace KingmakerMountedCombat.Domain
             var operation = openOperation;
             if (operation == null || operation.SingleSlot || unit == null || !ReferenceEquals(operation.Unit, unit) || index < 0 || index >= host.SlotCount(unit)) return;
             operation.Writes[index] = host.SlotIdentity(unit, index);
+        }
+
+        // A write is about to reach this unit's bar: native UnitUISettings.SetSlot (its KMC prefix), through which the action
+        // bar UI writes every player edit and CleanupBadSlots writes its own. A retirement whose bar was never read is pinned
+        // now to the public bindings the bar holds before that write, so the write itself (a fresh placement) never counts
+        // as predating it. Nothing else happens here: no settlement, observation or record change.
+        public void BeforeSlotWrite(TUnit unit)
+        {
+            if (!Enabled || records == null || unit == null || !records.BelongsTo(host.CurrentWorld)) return;
+            PinUnreadRetirement(unit);
+        }
+
+        private void PinUnreadRetirement(TUnit unit)
+        {
+            var id = host.ActorId(unit);
+            if (records == null || !records.RetiredUnreadUnknown(id)) return;
+            var count = host.SlotCount(unit);
+            if (count == 0) return;
+            var bindings = new List<KeyValuePair<int, WeakReference>>();
+            for (var index = 0; index < count; index++)
+                if (IsPublic(host.ReadSlot(unit, index))) bindings.Add(new KeyValuePair<int, WeakReference>(index, new WeakReference(host.SlotIdentity(unit, index))));
+            records.PinRetiredUnread(id, bindings);
         }
 
         // An operation whose postfix never ran threw. It is settled from what that native method can have written (see
@@ -562,6 +585,13 @@ namespace KingmakerMountedCombat.Domain
                 { if (bound) rebound[entry.Index] = identity; else emptied.Add(entry.Index); }
             }
             if (emptied.Count == 0 && rebound.Count == 0) return;
+            // A native replacement of a binding that predates an unread retirement predates it as well.
+            var actor = host.ActorId(unit);
+            foreach (var entry in operation.Entries)
+            {
+                object replaced;
+                if (rebound.TryGetValue(entry.Index, out replaced)) records.CarryRetiredUnread(actor, entry.Index, entry.Identity, replaced);
+            }
             Observe(unit, operation.View);
             var arrangement = Get(unit);
             if (arrangement == null) return;
@@ -572,7 +602,7 @@ namespace KingmakerMountedCombat.Domain
                 if (!wasRebound && !emptied.Contains(entry.Index)) continue;
                 if (entry.Index == arrangement.Slot)
                 {
-                    if (wasRebound) arrangement.Pending = false;
+                    if (wasRebound) { arrangement.Pending = false; arrangement.RecordChoice(replacement); }
                     else if (!arrangement.Pending) { arrangement.Pending = true; NativeInvalidationCount++; }
                 }
                 else if (arrangement.IsCopyObject(entry.Index, entry.Identity))

@@ -148,6 +148,15 @@ namespace KingmakerMountedCombat.Integration
         // The operation returned normally (exact postfixes): only the operation its own prefix opened is completed.
         internal void EndNativeBadSlotCleanup(object operation) => toolbar.EndNativeSlotOperation(operation);
 
+        // Native UnitUISettings.SetSlot is about to write this bar (exact prefix): every player edit from the action bar UI
+        // and every CleanupBadSlots write passes through it. Lets the lifecycle pin what an unread retirement's bar held
+        // before the write; it never settles, observes or writes anything.
+        internal void BeforeNativeSlotWrite(UnitUISettings settings)
+        {
+            if (disposed || !enabled || mountStateAbility == null) return;
+            toolbar.BeforeSlotWrite(ResolveBarUnit(settings, null));
+        }
+
         // Native CleanupBadSlots has just written this slot through one of its own SetSlot call sites (redirected by
         // MountedPatchController's transpiler): recorded as native's actual write on the open operation of the bar's owner.
         internal void RecordNativeCleanupWrite(UnitUISettings settings, int index)

@@ -2665,6 +2665,83 @@ namespace KingmakerMountedCombat.Tests
                 Update(game);
                 Equal(expected, Controls(Find(game, "A")), variant + ": cold load");
             }
+            // Second Pro review (of 203a1377), native replacements of a binding that predates the retirement:
+            // (f) A's 9 is stale when the retirement is recorded (fact unavailable; the update re-leases a live fact while the
+            //     bar is hidden); the bar returns and CleanupBadSlots rebinds the stale 9 into a new slot object before the
+            //     first ordinary update: B inherits nothing;
+            // (g) CleanupBadSlots rebinds the chosen 9 (stale, with a live replacement fact) just before the bar is hidden; A is
+            //     then replaced and retired, and the bar revealed: B inherits nothing.
+            foreach (var variant in new[] { "(f) cleanup rebind after the bar returns", "(g) cleanup rebind before the bar is hidden" })
+            {
+                var game = new Game();
+                var rider = Arranged(game, "A", 9);
+                if (variant.StartsWith("(g)", StringComparison.Ordinal))
+                {
+                    var before = rider.Bar[9];
+                    rider.ControlFact = ++game.Generation;
+                    NativeCleanup(game, rider);
+                    TestRunner.True(rider.Bar[9] is AbilitySlot && !ReferenceEquals(rider.Bar[9], before) && game.HoldsLiveBinding(rider, 9),
+                        variant + ": the fixture's cleanup did not rebind 9 into a new live slot object.");
+                }
+                rider.HasBar = false;
+                ReplaceCompanion(game, rider, "pet-B");
+                if (variant.StartsWith("(f)", StringComparison.Ordinal)) rider.FactActive = false;
+                Update(game);
+                TestRunner.True(game.Toolbar.IsRetired("A"), variant + ": the retirement was not recorded while the bar was hidden.");
+                rider.HasBar = true;
+                if (variant.StartsWith("(f)", StringComparison.Ordinal))
+                {
+                    // The fact is live and A's 9 is stale, so the fake CleanupBadSlots rebinds it into a new slot object (and
+                    // KMC may clear that replacement in the cleanup's own postfix).
+                    var stale = rider.Bar[9];
+                    TestRunner.True(game.ControlLive(rider) && IsBad(game, rider, 9), variant + ": the fixture's 9 is not a stale binding with a live fact.");
+                    NativeCleanup(game, rider);
+                    TestRunner.True(!ReferenceEquals(rider.Bar[9], stale), variant + ": the fixture's cleanup did not replace the stale 9.");
+                }
+                Update(game); Update(game);
+                Equal(new int[0], Controls(rider), variant + ": after the first observations");
+                var file = Save(game);
+                ExpectRows(file.Rows, "A", new int[0], 1, variant + ": save");
+                Load(game, file);
+                Update(game);
+                Equal(new int[0], Controls(Find(game, "A")), variant + ": cold load");
+            }
+            // (h) Second Pro review, a never-observed loaded bar: A's saved 9 is seeded while the bar is unreadable; A is
+            //     replaced by B and the retirement is observed; the bar is revealed (empty, or holding a leftover public
+            //     binding at 9 from the save); the player places B's fresh live control at 11 before the first lifecycle
+            //     observation (the UI writes it through UnitUISettings.SetSlot, whose prefix the fake models). Only 11 survives,
+            //     once, through the updates, the save and the cold restore; the leftover 9 is cleared.
+            foreach (var leftover in new[] { false, true })
+            {
+                var label = "(h) never-observed bar" + (leftover ? " with a leftover at 9" : "");
+                var game = new Game();
+                Arranged(game, "A", 9);
+                var file = Save(game);
+                if (leftover) file.Bars["A"][9] = new AbilitySlot("Control", 7);
+                Load(game, file, beforeRestore: g => Find(g, "A").HasBar = false);
+                var rider = Find(game, "A");
+                ReplaceCompanion(game, rider, "pet-B");
+                Update(game);
+                TestRunner.True(game.Toolbar.IsRetired("A"), label + ": the retirement was not observed while the bar was unreadable.");
+                rider.HasBar = true;
+                TestRunner.True(game.ControlLive(rider), label + ": the fixture's fact is not live.");
+                PlayerWrite(game, rider, 11, new AbilitySlot("Control", rider.ControlFact));
+                Update(game); Update(game);
+                Equal(new[] { 11 }, Controls(rider), label + ": after the first observations");
+                file = Save(game);
+                ExpectRows(file.Rows, "A", new[] { 11 }, 1, label + ": save");
+                Load(game, file);
+                Update(game);
+                Equal(new[] { 11 }, Controls(Find(game, "A")), label + ": cold restore");
+            }
+        }
+
+        // A player's edit of the action bar: the UI writes the slot through native UnitUISettings.SetSlot, whose KMC prefix
+        // (NativeMountedControlService.BeforeNativeSlotWrite -> MountedToolbarLifecycle.BeforeSlotWrite) runs first.
+        private static void PlayerWrite(Game game, Unit unit, int index, Slot slot)
+        {
+            game.Toolbar.BeforeSlotWrite(unit);
+            unit.Bar[index] = slot;
         }
 
         private static void ReplaceCompanion(Game game, Unit rider, string petId)

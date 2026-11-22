@@ -2,8 +2,10 @@
 param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 # Focused selection for the mounted city toolbar, city companion roster and prone-target mission
 # (docs/MOUNTED-COMBAT-CITY-AND-PRONE-MISSION-WITH-TOOLBAR-REPAIR-ADDENDUM.md). The controller's focused gate accepts one
-# -Focused script name, so this wrapper declares exactly seven checks and nothing broader (docs/VALIDATION-POLICY.md 3: no
+# -Focused script name, so this wrapper declares exactly eight checks and nothing broader (docs/VALIDATION-POLICY.md 3: no
 # silent broadening):
+#   8. Test-ToolbarCleanupWriteHook.ps1: the product's CleanupBadSlots write transpiler composed on the installed method
+#      through the installed Harmony12 shim, and the product's write hook and SetSlot prefix executed (second Pro review).
 #   7. Test-ToolbarLifecycleMutations.ps1: the toolbar lifecycle's behavioural tests against the unmutated production
 #      component, and the actual adapter file (NativeMountedControlService.Toolbar.cs) through its offline wiring fixture,
 #      then single-line production mutations of both, compiled in a temp directory (the worktree is not written).
@@ -38,11 +40,11 @@ if($LASTEXITCODE -ne 0){$failed.Add('Test-GunslingerClickComposition.ps1')}
 
 #   6. Test-CityTargetLiveness.ps1: Test-Harness.ps1's target-liveness assertion, as corrected for the delegated
 #      TargetLifeAdmits rule, evaluated against this worktree (the rest of Test-Harness.ps1 is not selected).
-foreach($child in @('Test-CityArchiveRowBound.ps1','chunk7\Test-Chunk7SixPairArchiveAdapter.ps1','Test-CityAreaAdapterBaseline.ps1','Test-CityTargetLiveness.ps1','Test-ToolbarLifecycleMutations.ps1')){
+foreach($child in @('Test-CityArchiveRowBound.ps1','chunk7\Test-Chunk7SixPairArchiveAdapter.ps1','Test-CityAreaAdapterBaseline.ps1','Test-CityTargetLiveness.ps1','Test-ToolbarLifecycleMutations.ps1','Test-ToolbarCleanupWriteHook.ps1')){
     Write-Host ('CITY-TOOLBAR-PRONE CHILD '+$child)
     & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot $child)
     if($LASTEXITCODE -ne 0){$failed.Add($child)}
 }
 
 if($failed.Count -ne 0){Write-Host ('CITY-TOOLBAR-PRONE FOCUSED FAIL: '+($failed -join ', '));exit 1}
-Write-Host 'CITY-TOOLBAR-PRONE FOCUSED PASS (7 of 7 children)'
+Write-Host 'CITY-TOOLBAR-PRONE FOCUSED PASS (8 of 8 children)'
