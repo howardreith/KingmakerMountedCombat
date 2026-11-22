@@ -2,15 +2,21 @@
 
 Start here. The sections below this one are dated history, newest first.
 
-- **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13); writer/reviewer controller
-  enrollment (second enrollment, under the owner addendum of 2026-11-22). Development candidate only: no merge,
+- **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13). Development candidate only: no merge,
   release, install or native run.
+- **Mode (2026-11-22):** ordinary interactive Claude development under
+  [the manual continuation mission](docs/MOUNTED-COMBAT-CITY-AND-PRONE-MANUAL-CONTINUATION-MISSION.md). The second
+  controller enrollment stopped after its review round 3 (`changes_required`, ten findings). Its records are archived
+  (`6c1a61d7`, records 115–126) and it is cancelled (PR comment `status-9-cancelled`). Claude answered all ten findings in
+  source candidate `e429d290`, where the focused Fast gate passes. The corrections are claimed, not yet independently
+  verified: the next step is the owner's Pro review of that candidate. Native verification follows that review.
 - **Fixes:** Mount / Dismount keeps the player's toolbar arrangement through temporary absence (area changes, the
   capital's reserve roster, saves there). One production component, `MountedToolbarLifecycle`, owns every toolbar
   boundary; `NativeMountedControlService` is its narrow adapter. The capital's Inventory/Character/Spellbook roster
-  lists reserve owners' own animal companions (a UI projection of `UIUtility.GetGroup`). The identified rejection of
-  attacks against an already-unconscious target is corrected in source. The original prone-target report still needs
-  matched in-game verification. Save format unchanged.
+  lists reserve owners' own animal companions (a UI projection of `UIUtility.GetGroup`). The identified rejection of an
+  explicit mounted attack on a living target that was already unconscious is corrected in source. The original
+  prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious
+  remains unknown. Save format unchanged.
 - **Read:** [the handoff and acceptance record](docs/CITY-AND-PRONE-HANDOFF.md). Native cases are deferred to owner
   verification there, with the playtest steps.
 
