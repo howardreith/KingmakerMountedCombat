@@ -4,9 +4,9 @@ Missions: [original](MOUNTED-COMBAT-CITY-AND-PRONE-MISSION.md),
 [original plus the owner's toolbar repair addendum](MOUNTED-COMBAT-CITY-AND-PRONE-MISSION-WITH-TOOLBAR-REPAIR-ADDENDUM.md),
 and [the manual continuation](MOUNTED-COMBAT-CITY-AND-PRONE-MANUAL-CONTINUATION-MISSION.md) (current; it replaces the
 execution model and remaining work plan; the earlier acceptance criteria and safety rules still apply).
-Branch `codex/mounted-city-and-prone-fixes` from `main` `dbf63702` (0.2.13). Draft PR #57. Development candidate
-only: no merge, release, tag or install. Native: one guarded startup smoke of the reviewed DLL; no gameplay case ran
-(section 11).
+Branch `codex/mounted-city-and-prone-fixes` from `main` `dbf63702` (0.2.13). PR #57, **merged into main as `4e5c9c0c`
+and released in 0.2.14 by owner order (2026-11-22)**; see [the release notes](RELEASE-NOTES-0.2.14.md). Native: guarded
+startup smokes only; no gameplay case ran (section 11). The text below records the state before the merge.
 
 **Current status (native assessment after the fourth Pro review, 2026-11-22).** Source candidate **`36f95d53`**,
 accepted for guarded native verification; this handoff is documentation on top of it. History of the manual rounds:

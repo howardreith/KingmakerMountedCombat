@@ -19,6 +19,9 @@ Current material comes first; the detail and the reconciliation history follow i
   [Sprint 8 and epic closeout](KNOWN-ISSUES-REMEDIATION-EPIC-CLOSEOUT.md).
 - **After release (2026-11-20):** X01, the 0.2.12 startup conflict with Tabletop Rules Expansion, is recorded under
   [After release 0.2.12](#after-release-0212); repaired and released in 0.2.13.
+- **After release 0.2.13 (2026-11-22):** X02–X04 are recorded under [After release 0.2.13](#after-release-0213). X02 is the
+  toolbar shortcut's placement, X03 the capital's companion screens and X04 the mounted attack on a downed enemy. All
+  three are released in 0.2.14 and none was played in the game. X04's original prone-target report stays open.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Current status (Sprint 8, 2026-11-19)
@@ -178,6 +181,16 @@ parent ID and have no row of their own.
 | ID | Report | Disposition | Native |
 |---|---|---|---|
 | X01 | 0.2.12 is `Not loaded` beside Tabletop Rules Expansion (`KingmakerGunslinger`) 0.0.191; a save using the Mounted Combat toggle `3c81f5a02be74d96a4e07d1c92b6f385` then fails to load (owner log `output_log(20261120-043652).txt`) | **Repaired; released in 0.2.13** (PR #55, merged as `a4d25e45`). Cause: the M04 closeout's `ClickUnitHandler.OnClick` transpiler (`cdfbe509`) replaced a native `Run` that the other mod also rewrites; whichever ran second threw. The transpiler now guards the submission instead. Composition repaired and verified offline with both released binaries ([handoff](GUNSLINGER-CLICK-COMPAT-REPAIR-HANDOFF.md)) | Native `mod-load-smoke` beside the installed 0.0.140: game-side PASS, both `Active`, `failure=none` (harness FAIL only on the UMM 0.33.0/0.33.2 platform pin). Not run with 0.0.191; the owner's save recovery and gameplay are not verified |
+
+### After release 0.2.13
+
+Engineering record: [CITY-AND-PRONE-HANDOFF.md](CITY-AND-PRONE-HANDOFF.md) (PR #57, merged as `4e5c9c0c`).
+
+| ID | Report | Disposition | Native |
+|---|---|---|---|
+| X02 | The Mount / Dismount shortcut disappears from, or moves away from, the slot the player chose: after the capital, the reserve roster, saves there, or temporary companion unavailability | **Repaired; released in 0.2.14.** One production lifecycle (`MountedToolbarLifecycle`) keeps each rider's arrangement through temporary absence and respects moves, removals, occupied slots and companion replacement. Save format unchanged. | Startup only: every patch installs (`pr57-city-prone-smoke-1`; the release DLL's own smoke is in the 0.2.14 notes). Behaviour NOT RUN: owner playtests 1–2 in the handoff. |
+| X03 | A companion's animal companion cannot be selected in the capital's Inventory and Character screens | **Repaired; released in 0.2.14.** A capital-only UI projection of each listed owner's own persistent pet into native `GetGroup`; nothing else changes. | Startup only (the `GetGroup` patch installs). Behaviour NOT RUN: owner playtest 3. |
+| X04 | A mounted ranged character cannot attack a prone target | **Partly repaired; released in 0.2.14.** The identified rejection of an explicit mounted attack on a living target that was already unconscious is corrected in source. The original prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious remains unknown. **Open.** | NOT RUN: owner playtests 4–5. |
 
 ## Reconciliation history (superseded by the current status above)
 

@@ -1,6 +1,40 @@
-# IN REVIEW — CITY TOOLBAR, CITY COMPANION ACCESS AND PRONE RANGED TARGET (2026-11-21, DRAFT PR #57)
+# RELEASE 0.2.14: TOOLBAR PLACEMENT, CAPITAL COMPANION SCREENS, DOWNED-TARGET ATTACK (2026-11-22)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Release:** 0.2.14, by owner order on 2026-11-22, from main after PR #57 (merged as `4e5c9c0c`). Notes:
+  [docs/RELEASE-NOTES-0.2.14.md](docs/RELEASE-NOTES-0.2.14.md). The package identity (zip and DLL SHA-256, MVID,
+  release-source commit, tagged merge) is recorded on the GitHub release.
+- **Version:** 0.2.14 in `version.json`, `Info.json` and `BuildIdentity.cs`; the assembly version stays 0.1.0.0.
+- **Content:** X02 (toolbar placement), X03 (capital companion screens) and X04 (explicit attack on an already-unconscious
+  enemy), plus records. Save format unchanged from 0.2.13.
+- **Open:**
+  - none of the three was played in the game;
+  - X04's original prone-target report is unreproduced;
+  - the owner playtest steps are in [the handoff](docs/CITY-AND-PRONE-HANDOFF.md), section 12;
+  - the UMM 0.33.0/0.33.2 platform pin (owner decision).
+- **Offline (release commit `55ea6603`, budget `release-0.2.14`):** Fast tier 4/0 in 1.75 minutes: components 1473/0,
+  Validate-Source 153/0, focused gate 8 of 8 children (41/41 mutations killed). Log
+  `artifacts\release-0.2.14\gate-fast-55ea6603.log` (sha256 `ca83b567…`).
+- **Package:** `KingmakerMountedCombat-0.2.14-release-diagnostic.zip`, SHA-256
+  `8dbcebc9112a4eac5f0135a9a5b9713593c0aa41fc5d49295ee359031f95ee07`. DLL
+  `b077dbf7594602d14acc3592d252bc41c414687c8c526d2e9466a61288e6efb1`, MVID `6a4f8ce8-aec4-484b-b249-36b41763276d`.
+  Package validator 11/0. Built from `55ea6603`.
+- **Native (startup only):** run `release-0.2.14-smoke-140` with the release DLL, packaged deterministically at
+  `55ea6603` on the local alias branch `codex/mounted-combat-release-0.2.14-native` (zip `025dffff…`). Results:
+  - game side PASS, all 17 mods `active=true` (Tabletop Rules Expansion 0.0.140 included), every exact-token patch
+    installed, `failure=none`, no Mounted Combat exception;
+  - harness verdict FAIL only on the UMM 0.33.0/0.33.2 platform pin (not re-pinned);
+  - restoration exact: Mods digest `51a2e474…` and save digest `6a8a8ad1…` unchanged;
+  - log copy `analysis-cache\release-0.2.14-native\output_log.txt` (`b47df211…`).
+
+  Budget `release-0.2.14`: 3.23 of 90 minutes.
+- **Previous release:** `v0.2.13`, merge `dbf63702`.
+- **Not done:** no install, staging or loader replacement.
+
+# CITY TOOLBAR, CITY COMPANION ACCESS AND PRONE RANGED TARGET (2026-11-21, PR #57; MERGED AND RELEASED IN 0.2.14)
+
+Dated history: the state before the merge.
 
 - **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13). Development candidate only: no merge,
   release or install; native startup smoke only.

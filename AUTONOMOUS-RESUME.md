@@ -1,3 +1,11 @@
+# Release 0.2.14 (owner order, 2026-11-22)
+
+0.2.14 releases PR #57 (merged as `4e5c9c0c`): X02 toolbar placement, X03 capital companion screens, X04 explicit attack
+on an already-unconscious enemy. Read CURRENT.md (its first section), docs/RELEASE-NOTES-0.2.14.md and
+docs/CITY-AND-PRONE-HANDOFF.md. Open: all three behaviours natively (no qualified KMC Working fixture on this machine;
+owner playtest steps in the handoff, section 12); X04's original prone-target report; the UMM 0.33.0/0.33.2 platform pin
+(owner decision).
+
 # Release 0.2.13 (owner order, 2026-11-20)
 
 0.2.13 releases only the X01 repair (PR #55, merged as `a4d25e45`). Read CURRENT.md (its first section),
