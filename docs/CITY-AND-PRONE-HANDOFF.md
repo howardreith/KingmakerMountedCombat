@@ -478,6 +478,30 @@ metadata (docs/FINALIZE-F2-CANONICAL-CONTROLS.md); downgrade stays unsupported, 
   one of the current world's player characters (`ReleaseCopiesOfDepartedRiders`), including a rider removed before
   its first reserve scan. The registry's world goes with its last entry.
 
+**Round 23 additions.**
+- *Copy identity lasts while the copy is on the bar (R18-F1):* repair no longer forgets the copies just because no
+  choice is interrupted. Take an inactive duplicate left beside a deliberate removal while the public fact is
+  withdrawn: it stays identified, so a save while absent and the same pet's return both keep the removal. Pairs are
+  released as their objects leave the bar (`PruneCopies`), or when KMC clears the rider's bindings, departs the rider,
+  or the world changes. An emptied entry holds no slot object. It stays while a choice is interrupted, as the record
+  that native recorded this bar.
+- *Reserve scan interrupts a live chosen slot (R22-F3):* when the first reserve scan clears the binding at the rider's
+  live chosen slot, for example a fallback native rebound before the scan, the scan records a temporary absence. The
+  slot is then carried by the save and restored on the same pet's return. A changed or cleared companion link is
+  still retired by the reserve rule.
+- *A stale lower-priority copy never displaces the fallback (R23-F1):* a native report's yield test also holds when
+  another binding is the owning records' effective one, for example the callable fallback at 7. The report for 9 only
+  updates that copy's bookkeeping.
+- *Placement records are scoped to the player world (R23-F2):* `SyncPlacementWorld`, using a weak reference to the
+  world, runs on Update, `BeginSelectedLoad`, `CapturePersistentSlots` and `RestorePersistentSlots`. Any change of
+  player world outside a selected load, such as the main menu followed by a new game, releases the chosen slots,
+  off-bar records and retirements. A missing player releases them only when no load scope fences them, so an
+  abandoned load still gets its records back.
+- *A moved legacy alias is the player's (R23-F3):* once native has recorded a rider's bar, an older alias counts as a
+  copy only at its recorded position. The blanket "an alias away from an interrupted slot is secondary" rule applies
+  only when nothing was recorded. A callable alias moved from 9 to 11 after native emptied 4 migrates to one shortcut
+  at 11. The untouched alias still yields to 4.
+
 ## 2. Animal companions in the city's inventory and character screens
 
 **Established cause.** In a capital the full-screen Inventory, Character and Spellbook screens use `GroupController`
@@ -727,7 +751,21 @@ One local Fast run, with PASS lines temporarily silenced (reverted), passed: com
 Five targeted regressions failed. The departed-rider release was masked by an earlier assertion in the same test,
 so a separate run with only that mutation failed its assertion. All mutations were reverted. The controller gate on
 the round-22 commit is the result of record.
-| components (`bin\Tests`) | 1503/0 | 83 toolbar, 6 city-roster and 3 downed-target tests |
+
+Round 23 extended three tests and added two:
+- `StaleThenCurrentCanonical`: withdrawal after removal, then a save while absent or the same pet's return;
+- `DepartedRiderReleasesCopies`: a fallback rebound before the first scan, with a same-world return and a cold load;
+- `SurvivingAliasAfterCanonicalCleanup`: the moved callable alias, update-first and save-first;
+- new: `StaleCopyReadKeepsCallableFallback` and `MainMenuNewGameReleasesRecords`.
+`MainMenuNewGameReleasesRecords` models `ResetToMainMenu` then `LoadNewGame` as a player-world change in the
+component double. The in-game `RuntimePersistenceCampaignBScenario` was not run (no native session).
+
+One local Fast run, with PASS lines temporarily silenced (reverted), passed: components 1505/0 and Validate-Source
+153/0. A combined mutation run then reverted five lines in the double, each mirroring the production change: the
+forget-when-not-interrupted rule, the reserve chosen-slot interruption, the effective-binding yield, the world-change
+release, and the recorded-bar alias rule. It failed exactly the five targeted regressions. All mutations were
+reverted. The controller gate on the round-23 commit is the result of record.
+| components (`bin\Tests`) | 1505/0 | 85 toolbar, 6 city-roster and 3 downed-target tests |
 | Validate-Source | 153/0 | source/payload rules |
 | `Test-AssemblyContracts.ps1 -Target Kingmaker` (via wrapper) | 825/0 (adds the `IsBad` override, `CleanupBadSlots` token, rebind-shape and `GetSlot` token rows; round 19: native empty slots bound to the unit, drag-off removal writes null before `GetSlot`) | reflection-only contracts; Wrath not selected |
 | `Test-GunslingerClickComposition.ps1` (via wrapper) | 21/0, both patch orders | substituted native execution, not gameplay |

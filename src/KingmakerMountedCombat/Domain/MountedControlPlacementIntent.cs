@@ -166,16 +166,17 @@ namespace KingmakerMountedCombat.Domain
         // An arrangement already interrupted in this absence (for example the canonical slot native cleanup emptied a
         // moment earlier in the same pass) is the remembered choice and wins: a later report for a secondary alias never
         // replaces it.
-        // An older alias is never a placement the player made since (no live control produces one): it is a copy of a choice
-        // interrupted elsewhere, and of any arrangement when the caller recorded it as a copy (recordedCopy).
+        // reportIsCopy: the caller's identity decision (a recorded copy at its recorded position; an alias the player moved
+        // is not one). Without one, an older alias is a copy of a choice interrupted elsewhere (no live control produces
+        // one).
         public bool ObserveNativeAliasInvalidated(string actorId, int aliasIndex, string petId, bool controlDesired,
-            bool chosenSlotFree = true, bool recordedCopy = false)
+            bool chosenSlotFree = true, bool? reportIsCopy = null)
         {
             Entry entry;
             if (actorId == null || aliasIndex < 0) return false;
             if (!entries.TryGetValue(actorId, out entry)) return AdmitSurvivingBinding(actorId, aliasIndex, petId, controlDesired);
             return ObserveNativeSlotInvalidated(actorId, aliasIndex, petId, controlDesired,
-                recordedCopy || HoldsInterruptedChoiceElsewhere(actorId, aliasIndex), chosenSlotFree);
+                reportIsCopy ?? HoldsInterruptedChoiceElsewhere(actorId, aliasIndex), chosenSlotFree);
         }
 
         private bool HoldsInterruptedChoiceElsewhere(string actorId, int slotIndex)
@@ -672,11 +673,11 @@ namespace KingmakerMountedCombat.Domain
         // this fence holds: recovered into the outgoing records (with their placement record) by the same rule as the
         // live records, so an abandoned load keeps the chosen slot and a replaced world drops it.
         public bool AdmitOutgoingSurvivingBinding(object currentWorld, string actorId, int slotIndex, string petId, bool controlDesired,
-            bool chosenSlotFree = true, bool recordedCopy = false)
+            bool chosenSlotFree = true, bool? reportIsCopy = null)
         {
             if (fencedWorld == null || outgoingIntent == null || !ReferenceEquals(currentWorld, fencedWorld)) return false;
             // The same distinction as the live records: a recorded placement is invalidated, an unrecorded alias recovered.
-            if (!outgoingIntent.ObserveNativeAliasInvalidated(actorId, slotIndex, petId, controlDesired, chosenSlotFree, recordedCopy)) return false;
+            if (!outgoingIntent.ObserveNativeAliasInvalidated(actorId, slotIndex, petId, controlDesired, chosenSlotFree, reportIsCopy)) return false;
             outgoingPlaced?.Add(actorId);
             return true;
         }
