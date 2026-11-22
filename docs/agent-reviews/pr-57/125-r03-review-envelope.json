@@ -1,0 +1,405 @@
+{
+  "B": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "H": "6251885809dfcb7f036974ba1ae98eb96f6817af",
+  "M": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "invocation": {
+    "completed": true,
+    "duration_s": 1300.3,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 6634752,
+        "input_tokens": 6966591,
+        "output_tokens": 40912,
+        "reasoning_output_tokens": 23221,
+        "total_tokens": 7007503
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a20163-cc74-7e41-9c81-3885a5377e0d",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "mounted-combat-city-and-prone-mission-with-toolbar-repair-addendum",
+    "sha256": "2faba57367f1617c03115a66332206d43da8a6342014a85ca7fcbb7d372aae85"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mounted-city-and-prone-fixes-20261121203639-898f\\rounds\\r03\\envelope-1.json",
+  "pr": 57,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r03-review",
+  "published": [
+    {
+      "comment_id": 7074074421,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/57#issuecomment-7074074421"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121203639-898f-r03-57383d",
+  "response_sha256": "3e918e0919f3dda090aaf509bdb774e71c6db9cbfa1ce3b7bea5d9700082d296",
+  "result": {
+    "candidate_commit": "6251885809dfcb7f036974ba1ae98eb96f6817af",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The focused gate passed on the requested commit, and all six inherited acceptance cases pass at the component-test level. The toolbar can still lose a saved shortcut, restore a former companion\u2019s shortcut, or record the wrong rider\u2019s slot. The outcome depends on when a bar becomes readable, when a native slot operation finishes, and which capture path runs. Several required historical regressions also lack their specified test sequence. The documented deferral of native playtesting is permitted and does not drive this decision.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Read-only Git checks confirmed the candidate, merge base, and a clean feature diff under git diff --check. The supplied mission file matched the controller\u2019s SHA-256.",
+        "The CLI transcript records the focused Fast gate on 6251885809dfcb7f036974ba1ae98eb96f6817af with exit code 0, duration 35.0 seconds, and worktree_unchanged true. Its receipt names gate-focused-6251885809df-d43d449b6c4-a030b738800-20261122T035306903450Z.log. The guarded push subsequently reported the same commit on codex/mounted-city-and-prone-fixes.",
+        "The gate runs the component suite and focused checks. The developer\u2019s breakdown lists 1,463 component checks, 43 toolbar tests, five adapter wiring checks and 18 killed mutations. It also lists 153 source checks, 825 assembly contracts, 21 Tabletop Rules Expansion composition checks, seven archive-bound checks and 22 six-pair adapter checks. The transcript independently confirms the aggregate gate result.",
+        "AC-R26-F4 PASS, UNIT. AcR26F4ReservePetSanitized and PairCustodyOwnerPetSanitized check the separate reserve owner and horse. The factless Mount Primary slot and auto-use selection are cleared at serialization and disable, with ordinary controls preserved.",
+        "AC-R22-F3 PASS, UNIT. AcR22F3FreshPlacementAfterNativeEmpty requires the live placement at 11 and one marker after GetSlot empties the sole slot at 3. It checks one shortcut after same-world return and cold restore, plus the untouched and duplicate controls.",
+        "AC-R25-F3 PASS, UNIT. AcR25F3FreshShortcutAfterReplacement retires A\u2019s slot 9 on an empty reserve bar. B\u2019s deliberate placement restores once at 11. The no-placement control restores nothing.",
+        "AC-R26-F1 PASS, UNIT. AcR26F1CanceledLoadKeepsEdit checks that abandoning a selected load before observation preserves the reserve edit from 9 to 11 on immediate save and cold restore. The untouched control keeps 9.",
+        "AC-R26-F2 PASS, UNIT. AcR26F2MainMenuReleases checks release of the discarded world and its copies while still at the main menu. It includes separate selected-load abandonment and actual world-replacement controls.",
+        "AC-R26-F3 PASS, UNIT. AcR26F3RejoinedRiderAutoUse moves the rider back to the party before update and checks save, disable and disabled-save sanitation. The stale managed selection is cleared and ordinary auto-use survives."
+      ],
+      "inspected": [
+        "The mission and addendum, AGENTS.md, validation policy, CURRENT.md, AUTONOMOUS-RESUME.md, the full 7,881-line feature diff, changed files, developer report, CLI transcript, pending ledger and relevant first-enrollment review records.",
+        "The shared toolbar lifecycle and placement state, native and Harmony adapters, archive validation, area-transfer and retained-remount callers, focused tests, mutation script, regression map and final handoff.",
+        "The capital roster projection, explicit downed-target attack path, installed-contract checks, Tabletop Rules Expansion composition checks and owner playtest."
+      ],
+      "limitations": [
+        "This review used the detached read-only snapshot. I did not build, execute a reproduction, launch the game or access the installation. The defect outcomes below follow from the cited production paths.",
+        "The area-adapter 63/63 result compares compiler diagnostics between base and candidate. It supplies no executed area-transfer behavior. The older presentation-probe and F2 reader results cited in the handoff belong to an earlier commit.",
+        "Native cases remain NOT RUN. The enrollment lacks a commit-bound runtime package, a reserve-portrait driver, an up-to-date capital reader and pre-click target setup for the matched prone cases. No native transaction required restoration."
+      ],
+      "required_gaps": [
+        "Correct the capture, archive-restoration, companion-retirement and native-operation paths identified below, and demonstrate the stated outcomes through the production component or adapter.",
+        "Restore the missing historical event sequences in the regression map, report the six inherited cases individually in the developer summary, and obtain a focused gate receipt on the corrected candidate."
+      ],
+      "source_inspection_only": [
+        "The capital inventory projection uses the existing owner and persistent pet on the capital group returned for remote characters and pets. The toolbar and portrait reports share a capital roster transition but have different causes. One loses a binding when runtime ability data becomes unavailable. The other omits a reserve owner\u2019s pet from the native UI group.",
+        "The identified rejection of attacks against an already-unconscious target is corrected in source. The original prone-target report still needs matched in-game verification. The Charge, continuation and automatic-target filters were traced. No executed integration case passed an unconscious unit through those filters.",
+        "The archive retains row kinds 6 and 7 and the 128-row bound. The tests drive the shared production lifecycle through fake game objects. Adapter fixtures cover selected wiring and installed-assembly checks pin native method contracts."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum C3",
+          "Addendum D2",
+          "Addendum D3"
+        ],
+        "actual": "CaptureRows(false) calls CaptureLiveRows on every current candidate without the Authors check or a fresh observation. Both objects use the cached arrangement for their shared ID. The former can contribute 9 and a marker while the replacement contributes another marker and misses 11. MountedAreaPersistence and MountedRetainedIntent both use this path. CaptureOtherLiveSlots also accepts a callable binding from the former object. If its Mounted Charge occupies the replacement\u2019s chosen index, the owned capture can contain two rows with a key that ValidateSlots rejects.",
+        "blocking_rationale": "A retained former object can still author persistence data for the current rider. The owned-save public-row fixture covers only one of the production capture paths.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The current roster object authors the slot rows. Its new placement is captured at 11 once, and the former object remains available for sanitation.",
+        "id": "R1-F10",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 565
+        },
+        "priority": "P2",
+        "requested_correction": "Apply exact current-instance authority when capturing public and other managed rows. Read the current rider\u2019s live placement before constructing area-transfer or retained-remount rows.",
+        "requested_evidence": "Extend FormerInstanceKeepsReplacement through CapturePersistentSlots() before an update. Require only 11 and one marker with the former object still held by the pair. Also place a callable managed control on the former object at 11 and verify that the owned archive validates.",
+        "title": "Area and retained-remount captures still accept the former rider\u2019s bar",
+        "trigger": "A rider with a live shortcut at 9 stays in pair custody while a replacement object with the same actor ID and companion puts the control at 11. A capture runs before the next update."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum C4",
+          "Addendum E"
+        ],
+        "actual": "Restorable returns false for every row while the bar is unavailable. SelectSeededPublicRow then returns the first index, and SeedFromRows retains only that index. When the bar appears, Fireball occupies 3 and the valid fallback at 9 has already been discarded. The marker prevents a later initial placement.",
+        "blocking_rationale": "An accepted older archive loses its shortcut solely because its toolbar becomes readable later in the same load.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Once the bar is readable, the first usable saved row restores one shortcut at 9 and Fireball stays at 3.",
+        "id": "R2-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 663
+        },
+        "priority": "P2",
+        "requested_correction": "Defer selection among fresh-load public rows while the actor or bar is unreadable. Retain the alternatives until occupancy can be checked.",
+        "requested_evidence": "Combine MixedArchiveRows with UnavailableBarDefersRestore. With autofill off, reveal Fireball at 3 and an empty 9 after seeding. Require one shortcut at 9 after repeated updates, resave and cold restore. Retain the marker-only control.",
+        "title": "A delayed toolbar discards a usable row from an older archive",
+        "trigger": "Cold-load a kind-6 row at 3, a legacy Mount or Dismount row at 9 and a placement marker. The rider is known, but its bar is unavailable when the rows are seeded."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum D1",
+          "Addendum D3",
+          "Addendum D6"
+        ],
+        "actual": "If GetSlot(9) runs first, Observe creates an observed arrangement at 9 from the lone alias. The loadedWorld guard then skips the saved choice at 3. With seeding first, ApplyBar classifies the same alias as a copy of the pending choice at 3. Identical bar and archive data produce different saved rows.",
+        "blocking_rationale": "A native read can move the rider\u2019s saved choice without any player edit.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Both orders retain the archived choice at 3. The stale alias is consumed without becoming the rider\u2019s new placement.",
+        "id": "R2-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 668
+        },
+        "priority": "P2",
+        "requested_correction": "Reconcile the incoming observation with the archive\u2019s chosen slot and the provenance of the binding. Preserve genuine native recoveries and distinguish a leftover alias when a saved choice exists.",
+        "requested_evidence": "Run GetSlot(9) immediately before and immediately after seeding the same reserve fixture. Require only 3 and one marker on immediate save, party return and cold restore. Keep the existing marker-only recovery and deliberate-removal controls.",
+        "title": "Reading a legacy alias before archive restoration changes the chosen slot",
+        "trigger": "An incoming reserve rider has a saved choice at 3 and one marker. Its native bar has an empty 3 and a lone stale legacy alias at 9. Native empties 9 during loading."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum D2",
+          "Addendum D3",
+          "Addendum E"
+        ],
+        "actual": "RetireAndClear retires the record, but ClearPublicBindings returns when SlotCount is zero. When the same bar returns, Observe treats its surviving old binding as a new placement for B. CompanionReplacedWhileBarHidden replaces the underlying array with an empty one before hiding it, which removes this trigger. A related load path creates the arrangement with a null PetId even when the rider resolves. While the bar stays unreadable, the known A link is never recorded, so a subsequent change to B can also carry slot 9 forward on an empty bar.",
+        "blocking_rationale": "A genuine companion replacement can inherit a retired shortcut on a later update or save.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A\u2019s old binding stays retired when the bar returns. A deliberate placement for B can establish a new slot. Temporary loss of the bar with the same pet keeps 9.",
+        "id": "R2-F3",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 700
+        },
+        "priority": "P2",
+        "requested_correction": "Record a known companion link independently of bar availability. Preserve enough retirement information to clean an old binding when its bar reappears while still recognizing a subsequent player placement.",
+        "requested_evidence": "Hide and reattach the same array with A\u2019s original slot object intact, replace A with B during the outage, then update, save and cold-load. Also seed a saved 9 with A known and the bar hidden, change to B, and reveal an empty bar. Require no inherited 9 in either case, one 9 for the same-pet control, and one 11 after a fresh placement for B.",
+        "title": "A hidden bar can reintroduce the former companion\u2019s slot after retirement",
+        "trigger": "The rider\u2019s bar becomes unreadable while its underlying slot 9 still holds A\u2019s shortcut. A is replaced by B and the retirement is observed before the bar returns."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum D4",
+          "Addendum D5",
+          "Addendum D6"
+        ],
+        "actual": "SettleNativeOperation correctly defers the outgoing write while Player is null. The next ordinary slot prefix opens no operation, but its postfix calls EndNativeSlotOperation, which clears the retained operation unconditionally. ApplyNativeOperation then returns because the world is null. After abandonment, the empty slot reads as a player removal.",
+        "blocking_rationale": "An unrelated successful slot read during a canceled load can turn a confirmed native write into a permanent removal.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A later callback can close only its own operation. Reinstating the outgoing world preserves its recoverable 9. Actual replacement, unfenced disposal and disable release it.",
+        "id": "R2-F4",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 476
+        },
+        "priority": "P2",
+        "requested_correction": "Associate each postfix with its own invocation and retain the outgoing write until its world\u2019s load outcome is known.",
+        "requested_evidence": "Extend FencedThrownNativeWrite with a complete GetSlot call on an ordinary or empty slot while Player is null. Exercise the adapter prefix and postfix. Abandon back to the same world and require row 9, one marker and one restored shortcut. Keep the replacement and disposal controls.",
+        "title": "An unrelated slot postfix consumes the outgoing world\u2019s deferred write",
+        "trigger": "GetSlot writes a native empty at 9 and throws. A selected load opens, Player becomes temporarily null, and another GetSlot returns normally before the outgoing world is reinstated."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum D1",
+          "Addendum D6"
+        ],
+        "actual": "Settlement infers a write from the current slot object and its current callability. It does not retain which native method ran. A genuine cleanup rebind at 9 becomes a fresh placement if the fact deactivates before settlement. Conversely, after GetSlot throws before writing, a player\u2019s new live slot object at 9 is credited as a native rebind, although GetSlot\u2019s bad-slot write is an empty slot. The operation context also omits ordinary occupants, so moving Fireball out of 3 after a thrown fallback read can change which index that earlier read preserves.",
+        "blocking_rationale": "A later fact change or player edit can reverse the recorded outcome of an earlier native operation and persist the wrong shortcut.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A completed native rebind keeps the copy\u2019s status, and a player\u2019s later placement wins. The decision about an occupied fallback uses the bar state at the native operation.",
+        "id": "R2-F5",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs",
+          "line": 512
+        },
+        "priority": "P2",
+        "requested_correction": "Record completed writes at an exception-safe boundary, or retain operation-specific evidence sufficient to distinguish native outcomes from later edits and eligibility changes. Preserve the native exception.",
+        "requested_evidence": "With 3 pending and a known copy at 9, require 3 after a cleanup rebind followed by fact deactivation, and 9 after a throw-before-write GetSlot followed by a fresh player placement at 9. Also empty fallback 9 while Fireball occupies 3, move Fireball before settlement, and require the already-earned fallback at 9 through save and reload.",
+        "title": "Settlement of a thrown slot operation still mistakes later edits for native writes",
+        "trigger": "A native operation on a known copy throws, and the fact, copy slot or ordinary occupant changes before the next boundary settles it."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum C2",
+          "Addendum C4"
+        ],
+        "actual": "CaptureLiveRows tests the cached index with HoldsLiveBinding. The production adapter returns true for any callable managed kind, including Mounted Charge. The same capture can therefore emit kind 5 and a false kind 6 for the same slot. The fake\u2019s HoldsLiveBinding accepts only the public control and its aliases, so the component suite cannot expose this adapter discrepancy.",
+        "blocking_rationale": "Retained-remount capture can record a public shortcut at a slot occupied by another command.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The capture records Charge at 9 and records Mount / Dismount only at an index that actually holds that public control or a supported alias.",
+        "id": "R3-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.Toolbar.cs",
+          "line": 460
+        },
+        "priority": "P2",
+        "requested_correction": "Make the production host\u2019s public-binding predicate enforce the same kind restriction as its interface and fake. Capture the current public placement when another managed command occupies its previous slot.",
+        "requested_evidence": "Use the real adapter fixture with callable Mounted Charge at the former Mount / Dismount index. Invoke the in-world capture before an update and inspect its rows. Cover both a removed public control and one moved to 11.",
+        "title": "In-world capture can record Mounted Charge as Mount / Dismount",
+        "trigger": "On a mounted rider with Charge enabled, the previously chosen public slot at 9 is occupied by the live Mounted Charge, and an area transfer or retained suspension captures the bar before reconciliation."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74",
+          "Addendum C1",
+          "Addendum D1",
+          "Addendum D6"
+        ],
+        "actual": "ResolveBarUnit derives the owner from slot.Unit or the saved ability\u2019s caster. On the first public binding it returns null if that entity no longer owns the supplied UISettings. The GetSlot prefix omits the native unit argument. For whole-bar cleanup the early return also skips later correctly owned bindings. Native can then empty the current rider\u2019s shortcut without the lifecycle recording the write.",
+        "blocking_rationale": "The adapter can lose the very native invalidation needed to recover a current rider\u2019s shortcut from stale ability data.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The callback identifies the current bar\u2019s owner from the native operation and its settings. A reference to a discarded entity inside one slot cannot suppress observation of the current bar.",
+        "id": "R3-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.Toolbar.cs",
+          "line": 164
+        },
+        "priority": "P2",
+        "requested_correction": "Use the verified native GetSlot unit or settings owner, checked against the actual bar, when forwarding the operation. Ensure one stale slot cannot prevent observation of the rest of a CleanupBadSlots pass.",
+        "requested_evidence": "Through the adapter, give the current rider a stale public slot referring to its discarded instance and let native empty it before the first scan. Also place a correctly owned chosen binding after a stale-owner alias in a whole-bar pass. Require recovery on the current rider only.",
+        "title": "A stale slot owner can suppress native invalidation for the current bar",
+        "trigger": "An older or reconstructed bar belongs to the current rider, but a stale public slot still names the former rider object. GetSlot reads it, or CleanupBadSlots encounters it before another public binding."
+      },
+      {
+        "acceptance_ids": [
+          "Addendum D1",
+          "Addendum E"
+        ],
+        "actual": "The map assigns archived R17-F1 round 19 to LoadLifetime, which never combines Fireball at 4, alias 9 and an abandoned selected load. The separate KnownCopies fallback runs without that load. The R17-F2 mapping lacks the aborted call immediately followed by a successful GetSlot(9) before Update. The R19-F3 test invalidates a newer placement after an interruption, but omits the requested fresh placement after companion retirement followed by native invalidation before observation.",
+        "blocking_rationale": "Addendum E requires preservation of each distinct archived regression. Passing the named suites does not establish these omitted event sequences.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "Each mapped subcase reaches its archived failure boundary and checks the requested save, return or cold-restore outcome.",
+        "id": "R1-F13",
+        "location": {
+          "file": "docs/CITY-AND-PRONE-HANDOFF.md",
+          "line": 307
+        },
+        "priority": "P2",
+        "requested_correction": "Add the missing event sequences through the shared lifecycle and update the map to name the subcase that exercises each one.",
+        "requested_evidence": "For archived R17-F1, require Fireball at 4 and one shortcut at 9 after abandonment, save and reload. For R17-F2, require recovery after the second successful lookup before Update. For R19-F3, invalidate the replacement companion\u2019s fresh placement before its first ordinary observation and check the cold restore.",
+        "title": "The regression map still names tests that omit the archived trigger",
+        "trigger": "Compare the handoff mappings with the requested evidence in docs/agent-reviews/pr-57/081-r19-review.md and the mapped component tests."
+      },
+      {
+        "acceptance_ids": [
+          "Addendum F"
+        ],
+        "actual": "The handoff contains all six outcomes and test names. The candidate\u2019s developer summary gives aggregate suite totals and round-two dispositions without the six individual outcomes.",
+        "blocking_rationale": "The final checkpoint has an explicit case-by-case reporting requirement for both deliverables.",
+        "blocks_readiness": true,
+        "category": "required_gap",
+        "expected": "The developer summary and handoff each identify every inherited case\u2019s PASS or FAIL result, test name and evidence type.",
+        "id": "R3-F3",
+        "location": {
+          "file": null,
+          "line": null
+        },
+        "priority": "P3",
+        "requested_correction": "Include the six individually named outcomes and their evidence types in the next developer summary.",
+        "requested_evidence": "The corrected developer summary can use the existing handoff table and the focused gate receipt for its candidate.",
+        "title": "The developer summary omits the six individual inherited-case outcomes",
+        "trigger": "Read the final candidate\u2019s submitted developer summary against addendum F\u2019s reporting instructions."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R1-F10",
+        "rationale": "The pair-custody replacement passes through reconciliation and the owned public-row header. The in-world capture and other managed-row capture still accept the retained former object."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R1-F11",
+        "rationale": "A positively identified pet loses its arrangement and placement marker. LateResolvingPetPurged covers the horse initially missing from AllCharacters and a legitimate late-resolving rider that restores its slot."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R1-F13",
+        "rationale": "The new item-slot, native rebind, intervening-update and selected-load batch subcases address the examples from the previous round. The archived fallback during abandonment, consecutive native calls and replacement-companion invalidation still lack their specified sequences."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R2-F1",
+        "rationale": "MixedArchiveRows now selects 9 across accepted public kinds when the bar is visible. A delayed bar still causes the same usable older row to be discarded."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R2-F2",
+        "rationale": "IncomingObservationBeforeRestore covers canonical bindings at 3 and 9 and marker-only recovery. A lone stale legacy alias still produces different choices depending on whether native reads it before or after seeding."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R2-F3",
+        "rationale": "A known replacement now yields a marker-only header while the bar is hidden. The fixture erases the old array first. A surviving binding can be readmitted, and a newly seeded arrangement can miss a companion change during the outage."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R2-F4",
+        "rationale": "A missing-Player update now preserves the deferred operation. A subsequent successful ordinary-slot postfix during that same interval still discards it before abandonment."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R2-F5",
+        "rationale": "The supplied immediate-settlement cases pass. The method still infers write provenance from later slot state and eligibility, which can promote a native copy or discard a genuine player placement."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R2-F6",
+        "rationale": "Copy identities are weak references, and clearing a binding removes its recorded identity. ReserveCopiesReleased covers immediate sweep release, removal before the first sweep, collection in the continuing world and one restoration on return."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R2-F7",
+        "rationale": "The handoff distinguishes executed target predicates from traced Charge, continuation and automatic filters. The playtest now checks one chosen shortcut after forced dismount and same-pet recovery, and the same identifiable item on the reserve pet after reopening and reloading."
+      }
+    ],
+    "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121203639-898f-r03-57383d",
+    "round": 3,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "The candidate provides a shared production toolbar lifecycle, bounded capital companion roster projection, and a correction for explicit mounted attacks on already-unconscious targets. The six inherited toolbar cases pass through the production component. Remaining defects affect additional supported save, restore and native-callback sequences.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "After the development blockers are resolved, verify the chosen shortcut through city and interior transitions, saves, forced dismount and return of the same horse. Check moves, removals, occupied slots and a second rider.",
+        "Select the exact reserve pet through the normal capital interfaces, inspect its details, and confirm that an identifiable equipped item stays on that pet after reopening and reloading.",
+        "Compare mounted and dismounted attacks on standing, conscious-prone and already-unconscious enemies at near and ordinary firing distances in real-time and turn-based play. Observe the actual attack rolls, action expenditure, penalties and negative controls in the handoff."
+      ],
+      "scope_reviewed": "Complete final mission and addendum for draft PR #57, from dbf637021db42cdc9bf27f3d79fc255d4569c788 through 6251885809dfcb7f036974ba1ae98eb96f6817af, including all ten pending findings.",
+      "unresolved_questions": [
+        "The reported prone-target failure has not been reproduced under matched native conditions. The original target\u2019s state and the stage of any conscious-prone failure remain unverified."
+      ]
+    }
+  },
+  "round": 3,
+  "validated_at": "2026-11-22T04:15:47Z",
+  "workflow_fingerprint": "17b66fac3294f0767f9a8a49358d6dd889a8f406363c14243509acac5086b2c7"
+}

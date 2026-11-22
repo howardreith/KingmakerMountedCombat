@@ -39,6 +39,14 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedPatchController : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
+        // Kingmaker 2.1.7b UnitUISettings.CleanupBadSlots and GetSlot(int, UnitEntityData), pinned in Test-AssemblyContracts.ps1.
+        internal const int NativeCleanupBadSlotsToken = 0x06003004;
+        internal const int NativeGetSlotToken = 0x06002FFE;
+        // CleanupBadSlots writes only through its own calls of the non-virtual UnitUISettings.SetSlot, three of them
+        // (rebind, activatable rebind, empty), pinned in Test-AssemblyContracts.ps1.
+        internal const int NativeCleanupSetSlotCalls = 3;
+        // UnitUISettings.SetSlot(MechanicActionBarSlot, int), the write every action bar edit and every cleanup write uses.
+        internal const int NativeSetSlotToken = 0x06002FFF;
         private static readonly Guid ExpectedKingmakerMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
         private readonly HarmonyInstance harmony;
         private bool disposed;
@@ -79,6 +87,10 @@ namespace KingmakerMountedCombat.Integration
                 // PET-01: the sheet's name line offers Rename Companion for the companion it is showing.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController), "SetupInfo", 0x060049BE,
                     new[] { typeof(bool) }, null, nameof(PatchMethods.CharacterSheetNamePostfix));
+                // City companion inspection: the capital's full-screen Inventory/Character/Spellbook roster lists the
+                // reserve owners' own animal companions (a UI projection only; see CityCompanionRosterProjection).
+                PatchExact(typeof(Kingmaker.UI.Common.UIUtility), "GetGroup", CityCompanionRosterAdapter.NativeGetGroupToken,
+                    new[] { typeof(bool), typeof(bool) }, null, nameof(PatchMethods.CityCompanionRosterPostfix));
                 PatchExact(typeof(Kingmaker.RuleSystem.Rules.RuleAttackRoll), "OnTrigger", 0x06007173, new[] { typeof(Kingmaker.RuleSystem.RulebookEventContext) }, null, null, nameof(PatchMethods.MountedCombatDefenseTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.Class.LevelUp.Actions.LevelUpHelper), "AddFeatures", 0x060028C6,
                     new[] { typeof(Kingmaker.UnitLogic.Class.LevelUp.LevelUpState), typeof(Kingmaker.UnitLogic.UnitDescriptor), typeof(System.Collections.Generic.IList<Kingmaker.Blueprints.Classes.BlueprintFeatureBase>), typeof(Kingmaker.Blueprints.BlueprintScriptableObject), typeof(int) },
@@ -155,6 +167,21 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility), "OnClick", 0x06002F5D,
                     Type.EmptyTypes, nameof(PatchMethods.PublicSlotClickPrefix), nameof(PatchMethods.PublicSlotClickPostfix));
+                // Toolbar persistence (observation only): native CleanupBadSlots replaces every slot whose ability fact is gone
+                // or inactive (empty, or rebound to a live fact of the same blueprint); its bracket tells KMC which public
+                // slots native emptied, so that emptying is never read as the player's removal.
+                // Its SetSlot call sites are redirected to record each write as it completes, so a cleanup that throws is
+                // settled from what it actually wrote (MountedToolbarLifecycle.RecordNativeSlotWrite).
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "CleanupBadSlots", NativeCleanupBadSlotsToken,
+                    Type.EmptyTypes, nameof(PatchMethods.BadSlotCleanupPrefix), nameof(PatchMethods.BadSlotCleanupPostfix),
+                    nameof(PatchMethods.BadSlotCleanupWritesTranspiler));
+                // Before any write reaches a bar (a player's edit, a cleanup write), a companion retirement made while that bar
+                // was never read is pinned to what the bar held, so the write itself is never taken for an older binding.
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "SetSlot", NativeSetSlotToken,
+                    new[] { typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlot), typeof(int) }, nameof(PatchMethods.SlotWritePrefix));
+                // GetSlot replaces a bad slot too (that one slot only).
+                PatchExact(typeof(Kingmaker.UI.UnitSettings.UnitUISettings), "GetSlot", NativeGetSlotToken,
+                    new[] { typeof(int), typeof(UnitEntityData) }, nameof(PatchMethods.SlotReadPrefix), nameof(PatchMethods.BadSlotCleanupPostfix));
                 // Known issues Sprint 7 (U03): the class panel's rows for the shown character's bond.
                 PatchExact(typeof(Kingmaker.UI.ServiceWindow.CharacterScreen.CharSComponentClassBlock), "GetUIProgressionLayout", 0x06004A32,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.DivineBondClassRowsTranspiler));
@@ -568,6 +595,62 @@ namespace KingmakerMountedCombat.Integration
             internal static void CharacterSheetNamePostfix(Kingmaker.UI.ServiceWindow.CharacterScreen.CharacterScreenController __instance)
             {
                 CompanionNameService.Current?.Sheet.Refresh(__instance);
+            }
+
+            // Each prefix hands its own operation (or null) to its own postfix through Harmony's per-invocation __state, so a
+            // postfix completes only its own invocation; a native method that throws runs no postfix, and the lifecycle settles
+            // its operation at the next entry.
+            internal static void BadSlotCleanupPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, out object __state) =>
+                __state = PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance);
+
+            // GetSlot(int index, UnitEntityData unit): only that slot belongs to the operation; native's own unit argument
+            // identifies the bar's owner (parameter names pinned in Test-AssemblyContracts.ps1).
+            internal static void SlotReadPrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance, int index, UnitEntityData unit, out object __state) =>
+                __state = PatchBridge.NativeControls?.BeginNativeBadSlotCleanup(__instance, index, unit);
+
+            internal static void BadSlotCleanupPostfix(object __state) =>
+                PatchBridge.NativeControls?.EndNativeBadSlotCleanup(__state);
+
+            // Observation only, before the native write; it never throws, so the write always happens.
+            internal static void SlotWritePrefix(Kingmaker.UI.UnitSettings.UnitUISettings __instance)
+            {
+                try { PatchBridge.NativeControls?.BeforeNativeSlotWrite(__instance); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mount / Dismount toolbar: a native slot write was not observed", error); }
+            }
+
+            // CleanupBadSlots's own SetSlot(slot, index) calls become NativeCleanupSetSlot(this, slot, index): the same write
+            // (a native exception propagates unchanged), then KMC records it. Exactly the pinned call sites, or patching fails.
+            internal static IEnumerable<CodeInstruction> BadSlotCleanupWritesTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var native = typeof(Kingmaker.UI.UnitSettings.UnitUISettings).GetMethod("SetSlot",
+                    new[] { typeof(Kingmaker.UI.UnitSettings.MechanicActionBarSlot), typeof(int) });
+                var hook = typeof(PatchMethods).GetMethod(nameof(NativeCleanupSetSlot), BindingFlags.Static | BindingFlags.NonPublic);
+                var list = instructions.ToList();
+                var replaced = 0;
+                foreach (var instruction in list)
+                {
+                    if (instruction.opcode != OpCodes.Call || !Equals(instruction.operand, native)) continue;
+                    instruction.operand = hook;
+                    replaced++;
+                }
+                if (native == null || hook == null || replaced != NativeCleanupSetSlotCalls)
+                    throw new InvalidOperationException("UnitUISettings.CleanupBadSlots no longer writes through exactly " +
+                        NativeCleanupSetSlotCalls + " SetSlot calls (found " + replaced + ").");
+                return list;
+            }
+
+            private static void NativeCleanupSetSlot(Kingmaker.UI.UnitSettings.UnitUISettings settings,
+                Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, int index)
+            {
+                settings.SetSlot(slot, index);
+                try { PatchBridge.NativeControls?.RecordNativeCleanupWrite(settings, index); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Mount / Dismount toolbar: a native cleanup write was not recorded", error); }
+            }
+
+            internal static void CityCompanionRosterPostfix(ref List<UnitEntityData> __result, bool withRemote, bool withPet)
+            {
+                __result = CityCompanionRosterAdapter.Project(__result, withRemote, withPet,
+                    PatchBridge.NativeControls?.IsActive == true, PatchBridge.Logger);
             }
 
             internal static void FeatSelectorRefreshPostfix(Kingmaker.Assets.UI.LevelUp.CharBSelectorLayer __instance, bool __state)

@@ -1,0 +1,208 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c key=r16-review part=1/1 sha256=635c5ad354179a821c8a68fff4da73a52b969a2da353c10c305b0d9107e25ec3 -->
+### Codex GPT-6.2 Astra — review — round 16 — candidate `b37d4fb2ef`
+
+**Decision:** `changes_required` — The required focused gate passed on the exact candidate, and the disabled-save isolation fix is verified. Three toolbar paths still lose track of which slot or companion owns the placement. Two can save a secondary shortcut in place of the selected one. The third lets a replacement companion inherit a newly placed shortcut.
+
+#### Findings
+
+**R14-F2** · P2 · defect · blocks readiness — A surviving legacy alias takes the canonical slot's place when the pet returns before saving
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:1909`; acceptance: §4 chosen toolbar slot, §4 temporary mount unavailability, §4 existing save compatibility
+- Trigger: Native GetSlot empties the stale canonical binding at 4 and leaves the older Mount alias at 9. The same pet resolves and KMC updates before a save or a second native read.
+- Expected: The same companion's return restores one public shortcut at 4. A surviving secondary alias cannot become the chosen binding through migration or capture.
+- Actual: ObserveAliasAtBoundary preserves the interrupted choice at 4. During the same update, ReconcilePublicControlSlots sees a live public fact and no canonical binding on the bar, converts the surviving alias at 9, and passes 9 to ReconcileChosenSlot. Reconcile calls ObserveBound at 9 and the next save persists 9. Capture has a related bypass if the surviving alias is already callable at the header: LivePublicRows emits 9 and CaptureAbsentIntent skips the actor.
+- Why it blocks / does not: The same older bar returns to a different slot depending on whether the pet resolves before or after save sanitation clears the secondary alias.
+- Requested correction: Use the interrupted canonical choice when deciding which surviving binding to migrate and serialize. Preserve migration of an alias-only bar and recognition of an actual player move.
+- Requested evidence: Start with MixedOlderBar, invalidate only slot 4, resolve the same pet and run reconciliation before saving. Assert one shortcut at 4, slot 9 empty, and one public archive row at 4 after resave. Also cover capture while the surviving alias is callable.
+
+**R15-F1** · P2 · defect · blocks readiness — Saving between reads of two canonical shortcuts still records the secondary index
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2300`; acceptance: §4 chosen toolbar slot, §4 temporary unavailability, §4 save/load
+- Trigger: The same pet becomes unavailable with canonical bindings at 3 and 9. Native GetSlot empties 3 only, then the player saves.
+- Expected: The archive contains one public row at 3, matching capture before cleanup and capture after both slots are cleaned.
+- Actual: GetSlot(3) records interrupted intent at 3. At the header, PublicBindingIndex now finds only the secondary canonical binding at 9. ObserveArrangementOnBar routes it to ObserveAtBoundary, which unconditionally calls ObserveBound at 9. With the fact unavailable, capture marks 9 interrupted and writes it as kind 6. The new report filter is never consulted for the surviving slot.
+- Why it blocks / does not: The archived index still depends on how many slots the native UI read before the save.
+- Requested correction: Carry the selected binding through partial cleanup so a known secondary canonical copy cannot replace it at capture or reconciliation. Keep a single manually moved binding authoritative.
+- Requested evidence: Use TwoCanonicalCleanup with slots 3 and 9. Call NativeInvalidateAt(3), save before reading 9, reload, and return the same pet. Require one kind-6 row and one restored shortcut at 3. Keep the reverse-order and manual-move controls.
+
+**R16-F1** · P2 · defect · blocks readiness — Initial automatic placement leaves the companion identity unrecorded for one update
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2389`; acceptance: §4 genuine companion removal, §4 placement intent, §7 affected lifecycle paths
+- Trigger: KMC auto-places the control for a newly eligible rider. The linked companion changes before the next update or save observes that new slot.
+- Expected: A confirmed change from companion A to B retires A's placement even when it occurs immediately after KMC writes the shortcut.
+- Actual: TryInitialPlacement writes the slot and adds the rider to placementRecorded, but does not record the chosen index and PetUniqueId in placementIntent. For a first placement there can be no entry yet. If A is replaced directly by B, RetireOnCompanionLoss has no stored pet ID to compare, and the next update or save observes A's slot as B's arrangement.
+- Why it blocks / does not: KMC knows which companion it placed the shortcut for, but loses that identity during the interval before the next bar observation. A different companion can inherit the old binding and persist it.
+- Requested correction: Record the successful initial binding and its current companion identity when TryInitialPlacement writes it, as the chosen-slot restore and lease-release paths already do.
+- Requested evidence: Let an eligible rider receive its first automatic placement for A. Replace A directly with B before another reconciliation, then exercise update-first and save-first order. Verify B inherits no public row or shortcut from A. Include a same-A temporary-absence control.
+
+#### Prior finding assessments
+
+- **R14-F2** — `fix_rejected` — SaveBetweenNativeReads covers saving while both facts remain unavailable. It clears the alias during save sanitation before the pet returns. If the pet returns first, live migration still promotes that same secondary alias to the chosen slot.
+- **R15-F1** — `fix_rejected` — The fix handles a full cleanup pass and individual reads in either order when both finish before capture. All three TwoCanonicalCleanup cases empty both slots before saving. A header between the reads still overwrites the first choice with the surviving canonical copy.
+- **R15-F2** — `fix_verified` — Disabled save sanitation still clears bindings, while bar observation, alias recovery, absence recording and lease-release observation are gated. A disabled selected load clears both live placement collections. DisabledSaveIsolation covers the outgoing shortcut, same-ID incoming rider and re-enable with autofill off.
+
+#### Evidence assessment
+
+- **Inspected:** The mission, repository instructions, validation policy, current handoff, full feature diff, prior findings ledger, developer report and CLI transcript.; Toolbar placement, native cleanup callbacks, fact reconciliation, save capture, lease release, selected-load fencing and the corresponding component and archive fixtures.; The capital roster projection and its native adapter, mounted stock-attack admission and execution changes, assembly-contract checks, and the focused validation wrapper.
+- **Executed verification:** The controller transcript confirms a guarded push of b37d4fb2 and a passing focused gate on that commit using -Tier Fast -Focused Test-CityToolbarProneFocused.ps1. The gate exited 0 in 54.2 seconds with the worktree unchanged.; The preceding development run printed 1,480 component passes and zero failures. A separate combined mutation run printed 1,476 passes and four failures, including the mixed-bar, two-canonical and disabled-save regressions.; Reviewer read-only checks confirmed the snapshot HEAD and found no whitespace errors in the feature diff.
+- **Source inspection only:** The three reported failure sequences are traced through candidate source. They were not executed in this review.; The city implementation projects the existing persistent pet into the capital roster. Selection and equipment behavior in the game remain owner checks.; The combat change admits an explicit order on an already-unconscious living target. The conscious-prone path has a separate source trace. Neither path has a candidate-bound observation of an attack roll.
+- **Required gaps:** Preserve the interrupted canonical choice through live alias migration and capture.; Preserve the first canonical choice when a save splits two native slot reads.; Record the companion identity when KMC first places the control, then verify replacement before the next reconciliation.
+- **Limitations:** The review sandbox is read-only. The execution results above come from the developer transcript except for the reviewer Git checks.; The toolbar components exercise production domain decisions with a double for the native bar and service callbacks. The area-restore adapter has a documented baseline compilation failure, so the diagnostic comparison supplies no executed area-restore assertion.; Native capital UI and combat cases remain NOT RUN. The handoff identifies the missing package and scenario prerequisites and gives owner playtest steps. No native transaction or restoration occurred.
+
+#### Summary
+
+- **Delivered behavior:** Draft PR #57 adds per-rider placement recovery, a capital inventory and character roster projection for eligible owners' existing pets, and an explicit-order allowance for living enemies already unconscious when targeted. The city issues share a roster transition as a trigger. The toolbar failure concerns fact and slot lifetime, while the missing pet portrait concerns the native roster's in-game pet filter.
+- **Scope reviewed:** Complete final mission for howardreith/KingmakerMountedCombat draft PR #57 on codex/mounted-city-and-prone-fixes, from dbf63702 through b37d4fb2.
+- **Pending later-phase work:** none
+- **Unresolved questions:** The owner's original toolbar-loss sequence, ranged weapon and target consciousness were not identified. Native verification remains deferred under the mission's stated conditions.
+- **Remaining owner review:** After the source findings are resolved, verify toolbar position and deliberate removal across capital visits, interiors and save/load.; Select a reserve owner's pet in the capital Inventory and Character panels and verify identity, equipment interaction and selection after reload.; Compare ordinary longbow clicks through actual attack resolution on standing, conscious-prone and unconscious targets in RT and TB, including the documented range, line-of-sight, penalty and action-cost controls.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `high` | `high` (turns ['high']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Codex CLI `0.170.0`, thread `01a1ff62-7fd5-7bf3-b855-482c8859a0b1`, duration 331.8s, response sha256 `212dd75a0eabeadc6a06a7f392c2270e1628ed5c83467c94feb3df7a88a6534a`, request `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r16-0a946b`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "b37d4fb2efd62c24b1ce982e4509ce4bc9f76b11",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The required focused gate passed on the exact candidate, and the disabled-save isolation fix is verified. Three toolbar paths still lose track of which slot or companion owns the placement. Two can save a secondary shortcut in place of the selected one. The third lets a replacement companion inherit a newly placed shortcut.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "The controller transcript confirms a guarded push of b37d4fb2 and a passing focused gate on that commit using -Tier Fast -Focused Test-CityToolbarProneFocused.ps1. The gate exited 0 in 54.2 seconds with the worktree unchanged.",
+      "The preceding development run printed 1,480 component passes and zero failures. A separate combined mutation run printed 1,476 passes and four failures, including the mixed-bar, two-canonical and disabled-save regressions.",
+      "Reviewer read-only checks confirmed the snapshot HEAD and found no whitespace errors in the feature diff."
+    ],
+    "inspected": [
+      "The mission, repository instructions, validation policy, current handoff, full feature diff, prior findings ledger, developer report and CLI transcript.",
+      "Toolbar placement, native cleanup callbacks, fact reconciliation, save capture, lease release, selected-load fencing and the corresponding component and archive fixtures.",
+      "The capital roster projection and its native adapter, mounted stock-attack admission and execution changes, assembly-contract checks, and the focused validation wrapper."
+    ],
+    "limitations": [
+      "The review sandbox is read-only. The execution results above come from the developer transcript except for the reviewer Git checks.",
+      "The toolbar components exercise production domain decisions with a double for the native bar and service callbacks. The area-restore adapter has a documented baseline compilation failure, so the diagnostic comparison supplies no executed area-restore assertion.",
+      "Native capital UI and combat cases remain NOT RUN. The handoff identifies the missing package and scenario prerequisites and gives owner playtest steps. No native transaction or restoration occurred."
+    ],
+    "required_gaps": [
+      "Preserve the interrupted canonical choice through live alias migration and capture.",
+      "Preserve the first canonical choice when a save splits two native slot reads.",
+      "Record the companion identity when KMC first places the control, then verify replacement before the next reconciliation."
+    ],
+    "source_inspection_only": [
+      "The three reported failure sequences are traced through candidate source. They were not executed in this review.",
+      "The city implementation projects the existing persistent pet into the capital roster. Selection and equipment behavior in the game remain owner checks.",
+      "The combat change admits an explicit order on an already-unconscious living target. The conscious-prone path has a separate source trace. Neither path has a candidate-bound observation of an attack roll."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "\u00a74 chosen toolbar slot",
+        "\u00a74 temporary mount unavailability",
+        "\u00a74 existing save compatibility"
+      ],
+      "actual": "ObserveAliasAtBoundary preserves the interrupted choice at 4. During the same update, ReconcilePublicControlSlots sees a live public fact and no canonical binding on the bar, converts the surviving alias at 9, and passes 9 to ReconcileChosenSlot. Reconcile calls ObserveBound at 9 and the next save persists 9. Capture has a related bypass if the surviving alias is already callable at the header: LivePublicRows emits 9 and CaptureAbsentIntent skips the actor.",
+      "blocking_rationale": "The same older bar returns to a different slot depending on whether the pet resolves before or after save sanitation clears the secondary alias.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The same companion's return restores one public shortcut at 4. A surviving secondary alias cannot become the chosen binding through migration or capture.",
+      "id": "R14-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 1909
+      },
+      "priority": "P2",
+      "requested_correction": "Use the interrupted canonical choice when deciding which surviving binding to migrate and serialize. Preserve migration of an alias-only bar and recognition of an actual player move.",
+      "requested_evidence": "Start with MixedOlderBar, invalidate only slot 4, resolve the same pet and run reconciliation before saving. Assert one shortcut at 4, slot 9 empty, and one public archive row at 4 after resave. Also cover capture while the surviving alias is callable.",
+      "title": "A surviving legacy alias takes the canonical slot's place when the pet returns before saving",
+      "trigger": "Native GetSlot empties the stale canonical binding at 4 and leaves the older Mount alias at 9. The same pet resolves and KMC updates before a save or a second native read."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 chosen toolbar slot",
+        "\u00a74 temporary unavailability",
+        "\u00a74 save/load"
+      ],
+      "actual": "GetSlot(3) records interrupted intent at 3. At the header, PublicBindingIndex now finds only the secondary canonical binding at 9. ObserveArrangementOnBar routes it to ObserveAtBoundary, which unconditionally calls ObserveBound at 9. With the fact unavailable, capture marks 9 interrupted and writes it as kind 6. The new report filter is never consulted for the surviving slot.",
+      "blocking_rationale": "The archived index still depends on how many slots the native UI read before the save.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The archive contains one public row at 3, matching capture before cleanup and capture after both slots are cleaned.",
+      "id": "R15-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2300
+      },
+      "priority": "P2",
+      "requested_correction": "Carry the selected binding through partial cleanup so a known secondary canonical copy cannot replace it at capture or reconciliation. Keep a single manually moved binding authoritative.",
+      "requested_evidence": "Use TwoCanonicalCleanup with slots 3 and 9. Call NativeInvalidateAt(3), save before reading 9, reload, and return the same pet. Require one kind-6 row and one restored shortcut at 3. Keep the reverse-order and manual-move controls.",
+      "title": "Saving between reads of two canonical shortcuts still records the secondary index",
+      "trigger": "The same pet becomes unavailable with canonical bindings at 3 and 9. Native GetSlot empties 3 only, then the player saves."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 genuine companion removal",
+        "\u00a74 placement intent",
+        "\u00a77 affected lifecycle paths"
+      ],
+      "actual": "TryInitialPlacement writes the slot and adds the rider to placementRecorded, but does not record the chosen index and PetUniqueId in placementIntent. For a first placement there can be no entry yet. If A is replaced directly by B, RetireOnCompanionLoss has no stored pet ID to compare, and the next update or save observes A's slot as B's arrangement.",
+      "blocking_rationale": "KMC knows which companion it placed the shortcut for, but loses that identity during the interval before the next bar observation. A different companion can inherit the old binding and persist it.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A confirmed change from companion A to B retires A's placement even when it occurs immediately after KMC writes the shortcut.",
+      "id": "R16-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2389
+      },
+      "priority": "P2",
+      "requested_correction": "Record the successful initial binding and its current companion identity when TryInitialPlacement writes it, as the chosen-slot restore and lease-release paths already do.",
+      "requested_evidence": "Let an eligible rider receive its first automatic placement for A. Replace A directly with B before another reconciliation, then exercise update-first and save-first order. Verify B inherits no public row or shortcut from A. Include a same-A temporary-absence control.",
+      "title": "Initial automatic placement leaves the companion identity unrecorded for one update",
+      "trigger": "KMC auto-places the control for a newly eligible rider. The linked companion changes before the next update or save observes that new slot."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R14-F2",
+      "rationale": "SaveBetweenNativeReads covers saving while both facts remain unavailable. It clears the alias during save sanitation before the pet returns. If the pet returns first, live migration still promotes that same secondary alias to the chosen slot."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R15-F1",
+      "rationale": "The fix handles a full cleanup pass and individual reads in either order when both finish before capture. All three TwoCanonicalCleanup cases empty both slots before saving. A header between the reads still overwrites the first choice with the surviving canonical copy."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R15-F2",
+      "rationale": "Disabled save sanitation still clears bindings, while bar observation, alias recovery, absence recording and lease-release observation are gated. A disabled selected load clears both live placement collections. DisabledSaveIsolation covers the outgoing shortcut, same-ID incoming rider and re-enable with autofill off."
+    }
+  ],
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r16-0a946b",
+  "round": 16,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "Draft PR #57 adds per-rider placement recovery, a capital inventory and character roster projection for eligible owners' existing pets, and an explicit-order allowance for living enemies already unconscious when targeted. The city issues share a roster transition as a trigger. The toolbar failure concerns fact and slot lifetime, while the missing pet portrait concerns the native roster's in-game pet filter.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "After the source findings are resolved, verify toolbar position and deliberate removal across capital visits, interiors and save/load.",
+      "Select a reserve owner's pet in the capital Inventory and Character panels and verify identity, equipment interaction and selection after reload.",
+      "Compare ordinary longbow clicks through actual attack resolution on standing, conscious-prone and unconscious targets in RT and TB, including the documented range, line-of-sight, penalty and action-cost controls."
+    ],
+    "scope_reviewed": "Complete final mission for howardreith/KingmakerMountedCombat draft PR #57 on codex/mounted-city-and-prone-fixes, from dbf63702 through b37d4fb2.",
+    "unresolved_questions": [
+      "The owner's original toolbar-loss sequence, ranged weapon and target consciousness were not identified. Native verification remains deferred under the mission's stated conditions."
+    ]
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

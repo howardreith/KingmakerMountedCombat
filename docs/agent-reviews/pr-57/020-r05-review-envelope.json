@@ -1,0 +1,267 @@
+{
+  "B": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "H": "9ce8b7c17c55c49b3eb85776f6bcf547fe2e656e",
+  "M": "dbf637021db42cdc9bf27f3d79fc255d4569c788",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "invocation": {
+    "completed": true,
+    "duration_s": 419.4,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "high",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "high"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2282624,
+        "input_tokens": 2422355,
+        "output_tokens": 9426,
+        "reasoning_output_tokens": 2435,
+        "total_tokens": 2431781
+      }
+    },
+    "requested": {
+      "effort": "high",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a1fea2-1727-7141-8a92-ed511075cfc8",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "mounted-combat-city-and-prone-mission",
+    "sha256": "4d7161071bc463e581f0f555296112d58ec4737c33b2b3859e435b982489664a"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c\\rounds\\r05\\envelope-1.json",
+  "pr": 57,
+  "project_sha256": "1200c7bc10f2a33f60084a3bf8e8fd93d0417ee87f7bfeacaf9671f328864cce",
+  "protocol": "agent-review.v1",
+  "publication": "r05-review",
+  "published": [
+    {
+      "comment_id": 7064661104,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/57#issuecomment-7064661104"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r05-54aa03",
+  "response_sha256": "146a26f9ee5dcda8267378310ed074fbfc3a9825a42b6574868d96ecb28724ca",
+  "result": {
+    "candidate_commit": "9ce8b7c17c55c49b3eb85776f6bcf547fe2e656e",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The focused gate passed on the requested commit. Source inspection still found toolbar edits that can be reversed, an old slot that can transfer to a different pet, and two load-cancellation paths that can lose placement state or stop reconciliation. The deferred real-time attack check also stops too early to verify the promised attack count. Each issue has a focused correction that can be checked without launching the game.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Verified snapshot HEAD and the SHA-256 of the retained gate log against the controller receipt. The transcript confirms the guarded push and a clean, unchanged worktree for the focused gate.",
+        "The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 on 9ce8b7c1. It exited 0 in 22.4 seconds. Components passed 1443/0, including 23 toolbar cases. Validate-Source passed 153/0.",
+        "The gate log records Kingmaker assembly contracts 820/0, Tabletop Rules Expansion click composition 21/0 across both patch orders, archive row bounds 3/0, and the six-pair archive adapter 22/0. The inspected product DLL had MVID bba9c74a-d3cc-47c1-8cbd-e5469662f440 and SHA-256 d60b5627d8579f13fd3f63b1d0222e78c9b93e6d1faf9d227b469c81dc64fd08.",
+        "The area-adapter comparison reproduced the same 63 compiler errors at the base and candidate. Its runtime assertions did not execute. The reviewer also ran git diff --check successfully."
+      ],
+      "inspected": [
+        "Mission, AGENTS.md, validation policy, current handoff and resume guidance, full feature diff, developer report and transcript, prior ledger, focused receipt and log.",
+        "Toolbar fact reconciliation, native slot invalidation, save-header capture, serialization leases, area suspension, archive restore, selected-load iterator ownership and the placement test double.",
+        "City roster projection and native adapter, mounted stock-click admission and command target validation, focused test scripts, acceptance record and owner playtest."
+      ],
+      "limitations": [
+        "The review used the read-only snapshot and retained execution records. No native transaction ran on this candidate, so there is no restoration outcome.",
+        "The handoff identifies the missing commit-bound native package, capital reader and fixture lineage, reserve-pet panel driver, and enemy-posture setup. The mission permits owner verification for these cases. Historical native passes belong to earlier binaries."
+      ],
+      "required_gaps": [
+        "Cover a manual removal immediately followed by native fact deactivation, and a direct nonempty pet-ID change before the next observation.",
+        "Cover an aborted load with a reserve or off-bar arrangement and a superseded load whose replacement iterator never starts.",
+        "Give the owner a real-time observation window that can detect the complete expected routine and an extra attack."
+      ],
+      "source_inspection_only": [
+        "The remaining toolbar and load findings follow the production call order. The committed gate exercises nearby cases with a service double.",
+        "The city projection uses the eligible owner's persistent pet instance. Actual portrait selection, equipment changes and selection fallback remain unobserved on this candidate.",
+        "The combat change admits an explicit order on an enemy already unconscious. The conscious-prone case has a separate source trace. Ordinary clicks through attack resolution remain unobserved in both combat modes."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "\u00a74 deliberate removal",
+          "\u00a74 temporary mount unavailability"
+        ],
+        "actual": "ReconcileFacts samples the bar before repair only if a public fact is still active. With the fact inactive and the slot already empty, there is no IsBad callback for that slot. Replacing the fact then marks the previously remembered slot interrupted, and ResolveUnbound restores slot 9.",
+        "blocking_rationale": "An ordinary fact transition can still reverse an explicit toolbar removal.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A player removal stays off-bar. A slot emptied by native cleanup returns to its observed index.",
+        "id": "R4-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1750
+        },
+        "priority": "P2",
+        "requested_correction": "Classify the latest bar before marking fact replacement as an interruption, including when the fact is already inactive. Preserve an interruption previously recorded by native cleanup or KMC suspension.",
+        "requested_evidence": "Remove slot 9 while the fact is live, deactivate the fact before the next update, then reconcile with the same pet. Verify that slot 9 stays empty and the save carries only the placement marker. Keep the native-cleanup control restoring slot 9 once.",
+        "title": "A fact that deactivates before reconciliation can undo a toolbar removal",
+        "trigger": "The player removes the live control from slot 9. Native deactivates its fact before the next control update while the rider remains eligible."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 genuine companion removal",
+          "\u00a74 stable placement ownership"
+        ],
+        "actual": "ObserveArrangementOnBar passes the current pet ID to ObserveBound, which overwrites the stored pet ID. The later ProvesPermanentLoss or Revalidate check therefore compares B with B. The uninspected slot survives withdrawal and can rebind when B resolves. Save-header classification observes the bar in the same order.",
+        "blocking_rationale": "The previous companion's arrangement can survive positive evidence that the companion was replaced.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A changed persistent pet ID retires A's arrangement and clears its managed slot. Temporary non-resolution of the same ID preserves the slot.",
+        "id": "R4-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1987
+        },
+        "priority": "P2",
+        "requested_correction": "Compare the previous arrangement's pet ID with the current link before an observation or stale-slot rebind can overwrite that identity. Apply the same ordering at the save header.",
+        "requested_evidence": "Bind slot 9 to pet A. Change the link directly to nonempty B with B temporarily unresolved, leaving the old slot on an uninspected bar. Exercise both update-first and save-first ordering. Verify B cannot inherit slot 9, unrelated slots survive, and the same-ID control still restores.",
+        "title": "Observing the bar can erase the evidence that the rider changed pets",
+        "trigger": "A dismounted party rider's pet link changes directly from A to B between updates, without a sampled null link."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 save/load and placement intent",
+          "\u00a77 affected lifecycle paths"
+        ],
+        "actual": "BeginSelectedLoad clears placementIntent and placementRecorded before player replacement. AbandonLoadedWorld only releases the fence. The passing abort test uses a live binding still visible at slot 9, so it can reconstruct the arrangement. A reserve rider's empty bar cannot reconstruct its chosen slot, and an off-bar rider loses the marker that prevents autofill.",
+        "blocking_rationale": "Canceling a load can change the toolbar in the world the player continues using.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "If the same player world continues, its reserve-slot intent and deliberate removals survive the canceled load. A successful world replacement isolates the incoming records.",
+        "id": "R5-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+          "line": 1728
+        },
+        "priority": "P2",
+        "requested_correction": "Keep outgoing placement state recoverable until a distinct player takes ownership, or restore that state on an abort that leaves the original player current.",
+        "requested_evidence": "Abort before player replacement with one reserve rider whose only record is slot 9 and another rider deliberately off-bar with autofill enabled. Verify the next save and party return preserve both choices. Retain the successful-load same-ID isolation test.",
+        "title": "An aborted load discards arrangements that the live bar cannot reconstruct",
+        "trigger": "A selected load starts and is disposed or fails before native loading replaces Game.Instance.Player."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a74 load and world cleanup",
+          "\u00a77 affected lifecycle paths"
+        ],
+        "actual": "Creating B increments loadSequence. A's end callback then takes the stale-sequence early return without releasing its placement fence. ScopedEnumerator.Dispose skips the end callback for unstarted B. With the original player still current, ArrangementsAccepted remains false and Update returns before reconciling controls.",
+        "blocking_rationale": "The surviving world can stop reconciling Mount / Dismount controls until a later player replacement.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "A superseded scope releases its own fence. An unstarted replacement leaves the continuing world able to reconcile controls.",
+        "id": "R5-F2",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/MountedPersistenceService.cs",
+          "line": 736
+        },
+        "priority": "P2",
+        "requested_correction": "Tie the placement fence to its owning load scope and retire it on supersession. Ensure disposal of an older scope cannot release a newer scope's active fence.",
+        "requested_evidence": "Start A while the old player is current, queue B, dispose A, then dispose B without MoveNext. Verify toolbar reconciliation resumes. Also start B before disposing A and verify A cannot release B's fence.",
+        "title": "Superseding a load with an unstarted iterator can leave controls fenced",
+        "trigger": "Load A has started before player replacement. Load B supersedes it and is disposed without starting."
+      },
+      {
+        "acceptance_ids": [
+          "\u00a76 native attack count and expenditure",
+          "\u00a77 owner-verification deferral"
+        ],
+        "actual": "Setup S now defines a single-attack rider and a matched full-attack fallback. The real-time instruction tells the owner to pause as soon as the first attack resolves. At that point a delayed extra roll and the remaining rolls of a legal full attack are both outside the observation.",
+        "blocking_rationale": "The deferred real-time check cannot establish its stated attack-count criterion.",
+        "blocks_readiness": true,
+        "category": "required_gap",
+        "expected": "The owner observes enough of the attack to distinguish the complete matched routine from a missing or extra roll.",
+        "id": "R3-F2",
+        "location": {
+          "file": "docs/CITY-AND-PRONE-HANDOFF.md",
+          "line": 344
+        },
+        "priority": "P2",
+        "requested_correction": "Use the same bounded observation interval for mounted and dismounted runs, continuing past the first roll. State how to identify the end of the routine or exclude the next automatic routine. Keep the conditional ammunition comparison.",
+        "requested_evidence": "Revised NOT RUN steps under which a normal multi-roll routine passes and an extra roll after the first resolution is observable.",
+        "title": "The real-time playtest stops before the attack count can be checked",
+        "trigger": "The owner follows the real-time test with a delayed extra attack or uses the documented multi-attack fallback."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R2-F1",
+        "rationale": "Header classification now checks lease eligibility, exact fact data and caster. The gate covers a still-bound active fact with the same pet temporarily unresolved, plus the marker-only removal control."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R3-F1",
+        "rationale": "The new test starts the load while the outgoing player is current and exercises both Update and native slot invalidation before replacement. The fence closes that observation window. R5-F1 and R5-F2 concern cancellation."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R3-F2",
+        "rationale": "The fixture, conditional ammunition check and turn-based cost instructions address the earlier ambiguity. Stopping at the first real-time resolution still prevents the owner from checking the whole routine."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R4-F1",
+        "rationale": "The new case passes when KMC sees an active fact before withdrawing it. If native already deactivated the fact after the player removed the slot, the same removal is reversed."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R4-F2",
+        "rationale": "The tested null-link interval correctly clears the old slot. A direct A-to-B link change loses the previous ID during observation, before the permanent-loss test runs."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R4-F3",
+        "rationale": "SuspendAreaControls now observes former candidates before clearing their bars. The gate covers both move and removal on the departing rider while the other rider retains slot 5."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R4-F4",
+        "rationale": "The handoff identifies the failed local invocation and retries separately from the 25.7-second gate on 29ffa3a5. The current receipt independently confirms the 22.4-second pass on 9ce8b7c1."
+      }
+    ],
+    "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r05-54aa03",
+    "round": 5,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "The candidate preserves toolbar arrangements across the tested city, reserve and save transitions. The city UI projects eligible owners' persistent pets into the native roster. These issues share the capital roster transition as a trigger and have separate causes. The combat change addresses mounted command admission for an enemy already unconscious when clicked.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "After correction, verify actual toolbar behavior through capital, interior and adventuring saves, and inspect and equip a reserve owner's exact companion in both city panels.",
+        "Compare mounted and dismounted longbow attacks on standing, conscious-prone and already-unconscious enemies at near and ordinary range in real time and turn based. Verify resolution, modifiers, native costs and negative controls."
+      ],
+      "scope_reviewed": "Complete final mission for [draft PR #57](https://github.com/howardreith/KingmakerMountedCombat/pull/57), branch codex/mounted-city-and-prone-fixes, from dbf63702 through 9ce8b7c1.",
+      "unresolved_questions": [
+        "The available evidence does not identify the reported weapon or whether the original enemy was conscious and tripped or already unconscious. The current candidate has no native observation of that incident."
+      ]
+    }
+  },
+  "round": 5,
+  "validated_at": "2026-11-21T15:10:17Z",
+  "workflow_fingerprint": "6b0bec9f60331ed63943f0eed0230290393a9f52a1fea7afe0528440e7a45926"
+}

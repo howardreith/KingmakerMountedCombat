@@ -190,6 +190,17 @@ namespace KingmakerMountedCombat.Domain
                 riderHostileToTarget && riderCanAttackTarget;
         }
 
+        // The life-state half of target validity, with native UnitAttack's explicit-order rule (2.1.7b UnitAttack.Init
+        // records m_IsUnconsciousAtStartOfCommand; UpdateTarget keeps a target that was already unconscious when ordered
+        // and abandons one that falls unconscious later). A downed enemy lies prone (UnitProneController.ShouldBeProne),
+        // so without this a mounted player could not attack a prone, downed enemy that an unmounted one can. A dead
+        // target never qualifies; automatic proposals, routine continuation and Charge never pass the ordered flag.
+        public static bool TargetLifeAdmits(bool targetConscious, bool targetDead, bool targetFinallyDead,
+            bool targetUnconsciousWhenOrdered)
+        {
+            return !targetDead && !targetFinallyDead && (targetConscious || targetUnconsciousWhenOrdered);
+        }
+
         // The refusal names the actor whose own native Standard is spent, and points to the
         // partner only when that partner can still attack with its own Standard.
         public static string NoStandardFeedback(string actorName, string partnerName, bool partnerHasStandardAction)
@@ -260,6 +271,8 @@ namespace KingmakerMountedCombat.Domain
         public bool PreferMount { get; private set; }
         // AI-01: admitted from the native party brain, not a click. Same dispatch; different boundaries.
         public bool Automatic { get; private set; }
+        // The player ordered this attack on a target that was already unconscious (native explicit-order rule).
+        public bool TargetUnconsciousWhenOrdered { get; private set; }
         private bool hasDispatched;
         private object riderContext;
         private object mountContext;
@@ -277,13 +290,15 @@ namespace KingmakerMountedCombat.Domain
 
         public void Begin(TTarget target, TTurn turn, bool mountActor, bool inCombat,
             object rider = null, object mount = null, object weapon = null, object mountWeapon = null, int action = 0,
-            bool automatic = false)
+            bool automatic = false, bool targetUnconsciousWhenOrdered = false)
         {
             Target = target ?? throw new ArgumentNullException(nameof(target));
             Turn = turn;
             MountActor = mountActor;
             PreferMount = false;
             Automatic = automatic;
+            // Only a player order carries the native explicit-order allowance; the party brain never targets the downed.
+            TargetUnconsciousWhenOrdered = !automatic && targetUnconsciousWhenOrdered;
             hasDispatched = false;
             HasEnteredCombat = inCombat;
             riderContext = rider;
@@ -361,6 +376,7 @@ namespace KingmakerMountedCombat.Domain
             MountActor = false;
             PreferMount = false;
             Automatic = false;
+            TargetUnconsciousWhenOrdered = false;
             hasDispatched = false;
             riderContext = mountContext = weaponContext = mountWeaponContext = null;
             actionContext = 0;

@@ -1,0 +1,343 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c key=r18-review part=1/1 sha256=2225a5c51b34adbac09cf6217666f93f88d633de7722293c532e871db6a34d57 -->
+### Codex GPT-6.2 Astra — review — round 18 — candidate `352c12aca7`
+
+**Decision:** `changes_required` — The focused gate passed on the requested commit. The toolbar implementation can still discard a player's move, restore a deliberately removed shortcut, leave duplicate bindings, or transfer a retired shortcut to a replacement companion. An existing combat regression assertion also passes on the base and fails on this candidate. The documented native playtest deferrals are acceptable under mission §7.
+
+#### Findings
+
+**R15-F1** · P2 · defect · blocks readiness — A new placement in a former copy's slot is discarded
+- Location: `src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs:175`; acceptance: §4 chosen toolbar slot, §4 player moves, §7 toolbar persistence and intent
+- Trigger: GetSlot empties the chosen shortcut at 3 and then its stale canonical copy at 9. Before reconciliation, the player drags the current control into the now-empty slot 9.
+- Expected: The later player placement becomes the chosen slot. The continuing bar and archive each retain one shortcut at 9.
+- Actual: Entry.Copies still contains index 9 after its old binding is emptied. IsSecondaryBinding therefore classifies the new live binding at 9 as the old copy. Capture selects 3, and live reconciliation can clear the player's placement at 9.
+- Why it blocks / does not: A deliberate move can be reversed in both the continuing game and the save.
+- Requested correction: Track whether the recorded copy still occupies the index. End its copy status when it is emptied, while preserving that status through a native rebind of the same copy.
+- Requested evidence: Start with stale canonical bindings at 3 and 9. Empty both with GetSlot, place the current control at 9, then compare update-first and save-first results through cold reload. Retain the untouched-copy control.
+
+**R17-F1** · P2 · defect · blocks readiness — Native cleanup can erase the fallback for an occupied chosen slot
+- Location: `src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs:116`; acceptance: §4 occupied slots, §4 temporary unavailability, §4 save/load
+- Trigger: On the mixed older bar, GetSlot empties 4, the player puts Fireball there, and GetSlot empties the surviving stale alias at 9 before the next update or save header.
+- Expected: Fireball stays at 4. The fallback at 9 remains recoverable for the same pet even when native UI empties its stale binding before KMC observes it.
+- Actual: ObserveNativeSlotInvalidated rejects 9 because an interrupted choice exists at 4. This path never checks whether 4 is occupied. With both public bindings gone, reconciliation or capture gives up 4 and loses the shortcut entirely.
+- Why it blocks / does not: Reading the fallback slot can erase the arrangement that the occupied-slot fix otherwise preserves.
+- Requested correction: Apply the chosen-slot occupancy decision when processing native invalidation of the fallback. Preserve the fallback as interrupted when its former chosen slot has been taken.
+- Requested evidence: Extend OccupiedChosenSlotWithCopy by calling GetSlot on stale alias 9 after placing Fireball at 4. Require one restored shortcut at 9, Fireball at 4, and the same result after save, reload and resave.
+
+**R17-F2** · P2 · defect · blocks readiness — An aborted native operation leaves standalone reads inside its observation scope
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2000`; acceptance: §4 deliberate removal, §4 temporary unavailability, §7 affected lifecycle paths
+- Trigger: GetSlot or CleanupBadSlots throws on a rider's bar before its postfix. Before the next KMC update, a caller reads IsBad on a stale shortcut at 9 and the player clears it.
+- Expected: A standalone validity read leaves intent untouched. Recovery records only replacements attributable to the native operation.
+- Actual: An exceptional exit leaves activeNativeSlotOperation set until Update. The standalone read on that bar passes the guard and queues a report. Update then attributes the player's empty slot to native cleanup and can restore it. The outcome classifier also treats an untouched stale slot as an emptying.
+- Why it blocks / does not: The exception recovery path can undo the same deliberate removal that the normal-call fix protects.
+- Requested correction: Close or invalidate the observation scope at exceptional exit and distinguish an actual native write from an unchanged slot or later player edit.
+- Requested evidence: Exercise the production observation sequence with an aborted operation, a standalone IsBad read and a deliberate removal before Update. Require an empty slot and only the kind-7 placement marker after reload. Keep a completed native emptying as the recovery control.
+
+**R17-F3** · P2 · defect · blocks readiness — A second cleanup report can reverse companion retirement
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2100`; acceptance: §4 genuine companion removal, §4 save/load, §7 affected lifecycle paths
+- Trigger: A rider recorded with pet A now links to B. While a selected load fences the outgoing world, CleanupBadSlots empties stale canonical bindings at 3 and 9 with no active replacement fact.
+- Expected: Retiring A's arrangement invalidates the remaining reports for A's bindings from the same cleanup operation.
+- Actual: Both reports queue because each index is the first remaining canonical slot when native checks it. The first report retires A. The second finds no stored A identity to compare with B, calls ObserveBound, clears the retirement and remembers 9. Abandoning the load restores that choice for B.
+- Why it blocks / does not: A replacement companion can inherit and persist the previous companion's shortcut.
+- Requested correction: Make retirement effective for all outstanding reports for that rider from the operation. Preserve later genuine placements and other riders' arrangements.
+- Requested evidence: With autofill off, queue both canonical emptyings while the load fence is active, abandon the load, make B available and save. Require both old slots empty, no public binding row for B and an unrelated slot intact. Exercise the same batch outside the fence.
+
+**R18-F1** · P2 · defect · blocks readiness — Repair clears only one of multiple surviving canonical copies
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:1937`; acceptance: §4 no duplicate shortcuts, §4 deliberate removal, §4 save/load
+- Trigger: GetSlot empties the chosen stale binding at 3 while two existing live canonical copies remain at 7 and 9.
+- Expected: Recovery leaves one shortcut at 3 and agrees with the archived arrangement.
+- Actual: ReconcilePublicControlSlots clears only boundIndex, the first surviving copy, then sets it to -1 and restores 3. Slot 9 remains callable. Recording 3 as live drops the remembered copy list, so later updates keep both shortcuts while the archive writes only 3.
+- Why it blocks / does not: Live repair leaves a duplicate that can become the chosen shortcut after the player removes the restored one.
+- Requested correction: Account for every surviving copy of the interrupted choice before restoring it. Preserve unrelated bindings and later player placements.
+- Requested evidence: Use canonical bindings at 3, 7 and 9. Empty 3 with GetSlot and reconcile twice. Require exactly one shortcut at 3 before saving and after reload, then remove it and verify that removal persists.
+
+**R18-F2** · P2 · defect · blocks readiness — Emptying a secondary legacy alias is attributed to the selected alias
+- Location: `src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs:2015`; acceptance: §4 deliberate removal, §4 existing save compatibility, §7 toolbar persistence and intent
+- Trigger: An older bar has a recorded live Mount alias at 4, a bad Dismount alias at 9 and no canonical binding. GetSlot reads only 9 before the player removes 4.
+- Expected: Only native invalidation of the selected binding itself can mark that binding interrupted.
+- Actual: The observer accepts the report for 9 but stores LegacyAliasIndex(slots), which is 4. ApplySlotInvalidation passes 4 to ObserveNativeAliasInvalidated. This marks the untouched shortcut at 4 as interrupted, allowing its subsequent deliberate removal to be undone.
+- Why it blocks / does not: Inspecting a different legacy slot can resurrect a shortcut the player removed.
+- Requested correction: Match a legacy alias report to the actual selected slot before attributing an emptying to that choice, including in the outgoing load records.
+- Requested evidence: With a valid selected Mount alias at 4 and a bad Dismount alias at 9, call GetSlot only on 9, then remove 4. Require a marker-only save and an empty bar after reload. Retain recovery when GetSlot actually empties 4.
+
+**R18-F3** · P2 · defect · blocks readiness — The combat harness rejects the changed target-liveness implementation
+- Location: `scripts/Test-Harness.ps1:6321`; acceptance: §6 target legality and attack resolution, §7 shared regressions
+- Trigger: Evaluate the repository's existing target-liveness assertion against the candidate's MountedPairAttackCommand.cs.
+- Expected: The harness recognizes the new explicit-order rule and continues checking in-state, hostility, CanAttack and native child completion.
+- Actual: Test-Harness.ps1 still requires the old inline IsFinallyDead expression. MountedPairAttackCommand now delegates that decision to TargetLifeAdmits. The complete assertion evaluates true on the base and false on this candidate.
+- Why it blocks / does not: The attack change breaks an existing regression check for the exact combat path it modifies.
+- Requested correction: Update the assertion to cover the delegated life-state decision and preserve its other legality and completion checks.
+- Requested evidence: Show the corrected affected check passing alongside the dead-target rejection and explicit-order downed-target controls. A focused reproduction is sufficient.
+
+#### Prior finding assessments
+
+- **R14-F2** — `fix_verified` — With chosen slot 4 free, the rebound legacy alias at 9 is recognized as secondary. The recorded regression checks one shortcut at 4 after reconciliation, in the save and after reload.
+- **R15-F1** — `fix_rejected` — The untouched live-copy case passes. The manual-move control starts with 9 empty, so it misses reuse of a recorded copy's index after that copy was emptied.
+- **R17-F1** — `fix_rejected` — Update-first and save-first agree while alias 9 survives until observation. Native invalidation of 9 before that observation still ignores the occupant at 4 and loses the fallback.
+- **R17-F2** — `fix_rejected` — The new bracket protects standalone queries after normal returns. A missing postfix leaves that bracket active, and next-update recovery cannot distinguish a player removal from a native write.
+- **R17-F3** — `fix_rejected` — The single-rebind case now clears A's slot. Production continues processing queued reports after retirement, allowing a second canonical report to recreate the choice. The batch fixture returns immediately on retirement.
+
+#### Evidence assessment
+
+- **Inspected:** The mission, AGENTS.md, validation policy, current handoffs, 32-file feature diff, developer report and tool transcript, focused receipt and log, and all five pending findings.; The native slot patches, placement intent, load fence, live reconciliation, archive capture and restore, and the component fixtures that model their ordering.; The capital roster adapter and projection, mounted stock attack admission and command lifecycle, compatibility checks, combat harness and owner playtest record.
+- **Executed verification:** The controller receipt and matching log confirm that Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed on 352c12aca79a1a681f75608a342fdf2edec7a1d8 in 47.2 seconds with the worktree unchanged. The transcript also confirms the guarded push of that commit.; The gate recorded 1,488 component checks, 153 source checks and 823 installed assembly-contract checks passing. All five new toolbar regressions passed. The contracts identified the installed IsBad, GetSlot and CleanupBadSlots methods and the native slot replacement instructions.; The focused wrapper passed all five children, including 21 click-composition checks across both patch orders, 9 archive checks and 22 six-pair adapter checks. The tested product DLL MVID was 2d7a5342-9cf7-4918-856f-d959a720c179.; The developer transcript records a separate pre-commit mutation run with 1,483 passes and five expected failures.; I evaluated the complete five-part target-liveness predicate from Test-Harness.ps1 against the command source at each revision. It returned true at dbf637021db42cdc9bf27f3d79fc255d4569c788 and false at the candidate.
+- **Source inspection only:** The two city issues have distinct mechanisms. Toolbar cleanup can discard a binding when its fact becomes unavailable. The capital's full-screen roster can list a reserve owner while its controllable-character filter omits that owner's pet.; The attack change carries an explicit player order on an already-unconscious living target through mounted admission. The conscious-prone path has a code trace. Actual firing, attack rolls and action expenditure remain unobserved on this candidate.
+- **Required gaps:** Focused regressions must cover edits to previously occupied copy indices, native cleanup of an occupied slot's fallback, exceptional exits, multiple cleanup reports for a retired rider, and bars with multiple canonical or legacy copies. Check the continuing bar and the cold-loaded archive.; The affected target-liveness assertion must pass while retaining coverage of native target legality and attack completion.
+- **Limitations:** The toolbar findings below are source traces. The component fixtures substitute native slot operations and reproduce parts of the service's control flow.; The area adapter produced the same 63 compiler diagnostics on the base and candidate. Its in-world restore assertion did not execute.; Native UI and combat checks remain deferred. The handoff identifies the missing candidate package, capital reader and fixture lineage, reserve-pet equipment driver, and enemy-posture setup. No native transaction ran, so restoration was inapplicable.
+
+#### Summary
+
+- **Delivered behavior:** The candidate records per-rider toolbar choices using existing save rows, projects eligible owners' persistent pets into the capital roster, and carries a player's explicit order against an already-unconscious living enemy into the mounted attack command. The toolbar defects above prevent final readiness.
+- **Scope reviewed:** The complete final mission for draft PR #57, including the three reported behaviors, save and lifecycle compatibility, Tabletop Rules Expansion click composition, the focused gate and the five pending findings.
+- **Pending later-phase work:** none
+- **Unresolved questions:** The owner's original weapon and target consciousness are unknown. A matched native observation is still needed to identify which firing stage accounts for the reported prone-target symptom.
+- **Remaining owner review:** After corrections, verify a moved or removed nondefault shortcut through capital travel, an interior transition and cold loads with two riders.; Select a reserve owner's pet through Inventory and Character, change permitted equipment, and verify the same pet and equipment after reopening and reloading.; Use the handoff's matched longbow cases in real time and turn-based mode. Observe actual rolls and action use against standing, conscious-prone and already-unconscious enemies at near and normal range, including the blocked-line-of-sight control.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Codex CLI `0.170.0`, thread `01a1ff87-03f9-7533-be82-4930996651e2`, duration 1193.6s, response sha256 `f645eb0475507b34d85edf6b8839d6924b146ad607cf2c3c82db72d6b7ae6bad`, request `kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r18-5cefee`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "352c12aca79a1a681f75608a342fdf2edec7a1d8",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed on the requested commit. The toolbar implementation can still discard a player's move, restore a deliberately removed shortcut, leave duplicate bindings, or transfer a retired shortcut to a replacement companion. An existing combat regression assertion also passes on the base and fails on this candidate. The documented native playtest deferrals are acceptable under mission \u00a77.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "The controller receipt and matching log confirm that Test-Tiers.ps1 -Tier Fast -Focused Test-CityToolbarProneFocused.ps1 passed on 352c12aca79a1a681f75608a342fdf2edec7a1d8 in 47.2 seconds with the worktree unchanged. The transcript also confirms the guarded push of that commit.",
+      "The gate recorded 1,488 component checks, 153 source checks and 823 installed assembly-contract checks passing. All five new toolbar regressions passed. The contracts identified the installed IsBad, GetSlot and CleanupBadSlots methods and the native slot replacement instructions.",
+      "The focused wrapper passed all five children, including 21 click-composition checks across both patch orders, 9 archive checks and 22 six-pair adapter checks. The tested product DLL MVID was 2d7a5342-9cf7-4918-856f-d959a720c179.",
+      "The developer transcript records a separate pre-commit mutation run with 1,483 passes and five expected failures.",
+      "I evaluated the complete five-part target-liveness predicate from Test-Harness.ps1 against the command source at each revision. It returned true at dbf637021db42cdc9bf27f3d79fc255d4569c788 and false at the candidate."
+    ],
+    "inspected": [
+      "The mission, AGENTS.md, validation policy, current handoffs, 32-file feature diff, developer report and tool transcript, focused receipt and log, and all five pending findings.",
+      "The native slot patches, placement intent, load fence, live reconciliation, archive capture and restore, and the component fixtures that model their ordering.",
+      "The capital roster adapter and projection, mounted stock attack admission and command lifecycle, compatibility checks, combat harness and owner playtest record."
+    ],
+    "limitations": [
+      "The toolbar findings below are source traces. The component fixtures substitute native slot operations and reproduce parts of the service's control flow.",
+      "The area adapter produced the same 63 compiler diagnostics on the base and candidate. Its in-world restore assertion did not execute.",
+      "Native UI and combat checks remain deferred. The handoff identifies the missing candidate package, capital reader and fixture lineage, reserve-pet equipment driver, and enemy-posture setup. No native transaction ran, so restoration was inapplicable."
+    ],
+    "required_gaps": [
+      "Focused regressions must cover edits to previously occupied copy indices, native cleanup of an occupied slot's fallback, exceptional exits, multiple cleanup reports for a retired rider, and bars with multiple canonical or legacy copies. Check the continuing bar and the cold-loaded archive.",
+      "The affected target-liveness assertion must pass while retaining coverage of native target legality and attack completion."
+    ],
+    "source_inspection_only": [
+      "The two city issues have distinct mechanisms. Toolbar cleanup can discard a binding when its fact becomes unavailable. The capital's full-screen roster can list a reserve owner while its controllable-character filter omits that owner's pet.",
+      "The attack change carries an explicit player order on an already-unconscious living target through mounted admission. The conscious-prone path has a code trace. Actual firing, attack rolls and action expenditure remain unobserved on this candidate."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "\u00a74 chosen toolbar slot",
+        "\u00a74 player moves",
+        "\u00a77 toolbar persistence and intent"
+      ],
+      "actual": "Entry.Copies still contains index 9 after its old binding is emptied. IsSecondaryBinding therefore classifies the new live binding at 9 as the old copy. Capture selects 3, and live reconciliation can clear the player's placement at 9.",
+      "blocking_rationale": "A deliberate move can be reversed in both the continuing game and the save.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The later player placement becomes the chosen slot. The continuing bar and archive each retain one shortcut at 9.",
+      "id": "R15-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs",
+        "line": 175
+      },
+      "priority": "P2",
+      "requested_correction": "Track whether the recorded copy still occupies the index. End its copy status when it is emptied, while preserving that status through a native rebind of the same copy.",
+      "requested_evidence": "Start with stale canonical bindings at 3 and 9. Empty both with GetSlot, place the current control at 9, then compare update-first and save-first results through cold reload. Retain the untouched-copy control.",
+      "title": "A new placement in a former copy's slot is discarded",
+      "trigger": "GetSlot empties the chosen shortcut at 3 and then its stale canonical copy at 9. Before reconciliation, the player drags the current control into the now-empty slot 9."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 occupied slots",
+        "\u00a74 temporary unavailability",
+        "\u00a74 save/load"
+      ],
+      "actual": "ObserveNativeSlotInvalidated rejects 9 because an interrupted choice exists at 4. This path never checks whether 4 is occupied. With both public bindings gone, reconciliation or capture gives up 4 and loses the shortcut entirely.",
+      "blocking_rationale": "Reading the fallback slot can erase the arrangement that the occupied-slot fix otherwise preserves.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Fireball stays at 4. The fallback at 9 remains recoverable for the same pet even when native UI empties its stale binding before KMC observes it.",
+      "id": "R17-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs",
+        "line": 116
+      },
+      "priority": "P2",
+      "requested_correction": "Apply the chosen-slot occupancy decision when processing native invalidation of the fallback. Preserve the fallback as interrupted when its former chosen slot has been taken.",
+      "requested_evidence": "Extend OccupiedChosenSlotWithCopy by calling GetSlot on stale alias 9 after placing Fireball at 4. Require one restored shortcut at 9, Fireball at 4, and the same result after save, reload and resave.",
+      "title": "Native cleanup can erase the fallback for an occupied chosen slot",
+      "trigger": "On the mixed older bar, GetSlot empties 4, the player puts Fireball there, and GetSlot empties the surviving stale alias at 9 before the next update or save header."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 deliberate removal",
+        "\u00a74 temporary unavailability",
+        "\u00a77 affected lifecycle paths"
+      ],
+      "actual": "An exceptional exit leaves activeNativeSlotOperation set until Update. The standalone read on that bar passes the guard and queues a report. Update then attributes the player's empty slot to native cleanup and can restore it. The outcome classifier also treats an untouched stale slot as an emptying.",
+      "blocking_rationale": "The exception recovery path can undo the same deliberate removal that the normal-call fix protects.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A standalone validity read leaves intent untouched. Recovery records only replacements attributable to the native operation.",
+      "id": "R17-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2000
+      },
+      "priority": "P2",
+      "requested_correction": "Close or invalidate the observation scope at exceptional exit and distinguish an actual native write from an unchanged slot or later player edit.",
+      "requested_evidence": "Exercise the production observation sequence with an aborted operation, a standalone IsBad read and a deliberate removal before Update. Require an empty slot and only the kind-7 placement marker after reload. Keep a completed native emptying as the recovery control.",
+      "title": "An aborted native operation leaves standalone reads inside its observation scope",
+      "trigger": "GetSlot or CleanupBadSlots throws on a rider's bar before its postfix. Before the next KMC update, a caller reads IsBad on a stale shortcut at 9 and the player clears it."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 genuine companion removal",
+        "\u00a74 save/load",
+        "\u00a77 affected lifecycle paths"
+      ],
+      "actual": "Both reports queue because each index is the first remaining canonical slot when native checks it. The first report retires A. The second finds no stored A identity to compare with B, calls ObserveBound, clears the retirement and remembers 9. Abandoning the load restores that choice for B.",
+      "blocking_rationale": "A replacement companion can inherit and persist the previous companion's shortcut.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Retiring A's arrangement invalidates the remaining reports for A's bindings from the same cleanup operation.",
+      "id": "R17-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2100
+      },
+      "priority": "P2",
+      "requested_correction": "Make retirement effective for all outstanding reports for that rider from the operation. Preserve later genuine placements and other riders' arrangements.",
+      "requested_evidence": "With autofill off, queue both canonical emptyings while the load fence is active, abandon the load, make B available and save. Require both old slots empty, no public binding row for B and an unrelated slot intact. Exercise the same batch outside the fence.",
+      "title": "A second cleanup report can reverse companion retirement",
+      "trigger": "A rider recorded with pet A now links to B. While a selected load fences the outgoing world, CleanupBadSlots empties stale canonical bindings at 3 and 9 with no active replacement fact."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 no duplicate shortcuts",
+        "\u00a74 deliberate removal",
+        "\u00a74 save/load"
+      ],
+      "actual": "ReconcilePublicControlSlots clears only boundIndex, the first surviving copy, then sets it to -1 and restores 3. Slot 9 remains callable. Recording 3 as live drops the remembered copy list, so later updates keep both shortcuts while the archive writes only 3.",
+      "blocking_rationale": "Live repair leaves a duplicate that can become the chosen shortcut after the player removes the restored one.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Recovery leaves one shortcut at 3 and agrees with the archived arrangement.",
+      "id": "R18-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 1937
+      },
+      "priority": "P2",
+      "requested_correction": "Account for every surviving copy of the interrupted choice before restoring it. Preserve unrelated bindings and later player placements.",
+      "requested_evidence": "Use canonical bindings at 3, 7 and 9. Empty 3 with GetSlot and reconcile twice. Require exactly one shortcut at 3 before saving and after reload, then remove it and verify that removal persists.",
+      "title": "Repair clears only one of multiple surviving canonical copies",
+      "trigger": "GetSlot empties the chosen stale binding at 3 while two existing live canonical copies remain at 7 and 9."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a74 deliberate removal",
+        "\u00a74 existing save compatibility",
+        "\u00a77 toolbar persistence and intent"
+      ],
+      "actual": "The observer accepts the report for 9 but stores LegacyAliasIndex(slots), which is 4. ApplySlotInvalidation passes 4 to ObserveNativeAliasInvalidated. This marks the untouched shortcut at 4 as interrupted, allowing its subsequent deliberate removal to be undone.",
+      "blocking_rationale": "Inspecting a different legacy slot can resurrect a shortcut the player removed.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Only native invalidation of the selected binding itself can mark that binding interrupted.",
+      "id": "R18-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs",
+        "line": 2015
+      },
+      "priority": "P2",
+      "requested_correction": "Match a legacy alias report to the actual selected slot before attributing an emptying to that choice, including in the outgoing load records.",
+      "requested_evidence": "With a valid selected Mount alias at 4 and a bad Dismount alias at 9, call GetSlot only on 9, then remove 4. Require a marker-only save and an empty bar after reload. Retain recovery when GetSlot actually empties 4.",
+      "title": "Emptying a secondary legacy alias is attributed to the selected alias",
+      "trigger": "An older bar has a recorded live Mount alias at 4, a bad Dismount alias at 9 and no canonical binding. GetSlot reads only 9 before the player removes 4."
+    },
+    {
+      "acceptance_ids": [
+        "\u00a76 target legality and attack resolution",
+        "\u00a77 shared regressions"
+      ],
+      "actual": "Test-Harness.ps1 still requires the old inline IsFinallyDead expression. MountedPairAttackCommand now delegates that decision to TargetLifeAdmits. The complete assertion evaluates true on the base and false on this candidate.",
+      "blocking_rationale": "The attack change breaks an existing regression check for the exact combat path it modifies.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The harness recognizes the new explicit-order rule and continues checking in-state, hostility, CanAttack and native child completion.",
+      "id": "R18-F3",
+      "location": {
+        "file": "scripts/Test-Harness.ps1",
+        "line": 6321
+      },
+      "priority": "P2",
+      "requested_correction": "Update the assertion to cover the delegated life-state decision and preserve its other legality and completion checks.",
+      "requested_evidence": "Show the corrected affected check passing alongside the dead-target rejection and explicit-order downed-target controls. A focused reproduction is sufficient.",
+      "title": "The combat harness rejects the changed target-liveness implementation",
+      "trigger": "Evaluate the repository's existing target-liveness assertion against the candidate's MountedPairAttackCommand.cs."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R14-F2",
+      "rationale": "With chosen slot 4 free, the rebound legacy alias at 9 is recognized as secondary. The recorded regression checks one shortcut at 4 after reconciliation, in the save and after reload."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R15-F1",
+      "rationale": "The untouched live-copy case passes. The manual-move control starts with 9 empty, so it misses reuse of a recorded copy's index after that copy was emptied."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R17-F1",
+      "rationale": "Update-first and save-first agree while alias 9 survives until observation. Native invalidation of 9 before that observation still ignores the occupant at 4 and loses the fallback."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R17-F2",
+      "rationale": "The new bracket protects standalone queries after normal returns. A missing postfix leaves that bracket active, and next-update recovery cannot distinguish a player removal from a native write."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R17-F3",
+      "rationale": "The single-rebind case now clears A's slot. Production continues processing queued reports after retirement, allowing a second canonical report to recreate the choice. The batch fixture returns immediately on retirement."
+    }
+  ],
+  "request_id": "kmc-codex-mounted-city-and-prone-fixes-20261121063023-e55c-r18-5cefee",
+  "round": 18,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The candidate records per-rider toolbar choices using existing save rows, projects eligible owners' persistent pets into the capital roster, and carries a player's explicit order against an already-unconscious living enemy into the mounted attack command. The toolbar defects above prevent final readiness.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "After corrections, verify a moved or removed nondefault shortcut through capital travel, an interior transition and cold loads with two riders.",
+      "Select a reserve owner's pet through Inventory and Character, change permitted equipment, and verify the same pet and equipment after reopening and reloading.",
+      "Use the handoff's matched longbow cases in real time and turn-based mode. Observe actual rolls and action use against standing, conscious-prone and already-unconscious enemies at near and normal range, including the blocked-line-of-sight control."
+    ],
+    "scope_reviewed": "The complete final mission for draft PR #57, including the three reported behaviors, save and lifecycle compatibility, Tabletop Rules Expansion click composition, the focused gate and the five pending findings.",
+    "unresolved_questions": [
+      "The owner's original weapon and target consciousness are unknown. A matched native observation is still needed to identify which firing stage accounts for the reported prone-target symptom."
+    ]
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

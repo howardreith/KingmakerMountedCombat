@@ -312,7 +312,10 @@ public static class MountedPresentationProbe {
   var serviceType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
   controls=Blank(serviceType);handler=Blank(native.GetType("Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler",true));
   Set(controls,"enabled",true);
-  foreach(var name in new[]{"placementRecorded","initialPlacements"})Set(controls,name,Activator.CreateInstance(Field(serviceType,name).FieldType));
+  // Older builds hold placement records on the service; the current one keeps them in its toolbar lifecycle, created
+  // here the way the constructor does.
+  foreach(var name in new[]{"placementRecorded","initialPlacements"})if(serviceType.GetField(name,F)!=null)Set(controls,name,Activator.CreateInstance(Field(serviceType,name).FieldType));
+  if(serviceType.GetMethod("CreateToolbarLifecycle",F)!=null)serviceType.GetMethod("CreateToolbarLifecycle",F).Invoke(controls,null);
   var a=NewPair("u02a",4,Mounted());var b=NewPair("u02b",9,Mounted());
   Set(controls,"relationship",a.Relationship);
   SetStatic(patchBridge,"NativeControls",controls);

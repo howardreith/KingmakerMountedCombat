@@ -83,7 +83,6 @@ namespace KingmakerMountedCombat.Integration
             new NativeMountedAbilityActivationLedger();
         private readonly IModLogger logger;
         private readonly List<UnityEngine.Object> ownedObjects = new List<UnityEngine.Object>();
-        private readonly List<UnitEntityData> observedUnits = new List<UnitEntityData>();
         private readonly List<HotbarSerializationLease> hotbarSerializationLeases =
             new List<HotbarSerializationLease>();
         private readonly Dictionary<string, string> localization =
@@ -113,9 +112,6 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintAbility mountedChargeAbility;
         private BlueprintAbility mountStateAbility;
         private LocalizationPack localizedPack;
-        // CTRL-03: actors that had their one automatic placement, placed or migrated a control, or removed it. Belongs to
-        // the loaded world; saved as archive placement records and cleared when a new load begins.
-        private readonly HashSet<string> placementRecorded = new HashSet<string>(StringComparer.Ordinal);
         private bool restoringSlots;
         private bool registered;
         private bool enabled;
@@ -141,6 +137,7 @@ namespace KingmakerMountedCombat.Integration
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.lifecycleLedger = lifecycleLedger ?? throw new ArgumentNullException(nameof(lifecycleLedger));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            CreateToolbarLifecycle();
             NativeMountedAbilityBridge.Service = this;
         }
 
@@ -163,15 +160,7 @@ namespace KingmakerMountedCombat.Integration
         // no control slot or placement row. Native serialization already blanks the slots themselves.
         internal Func<bool> PersistentRowsSuppressed { get; set; }
 
-        internal long InitialPlacementCount { get; private set; }
-
-        internal long InitialPlacementFullBarCount { get; private set; }
-
-        internal long LegacySlotRepairCount { get; private set; }
-
         internal long PublicControlCommandRefusedCount { get; private set; }
-
-        internal bool IsPlacementRecorded(UnitEntityData unit) => unit?.UniqueId != null && placementRecorded.Contains(unit.UniqueId);
 
         // What each automatic placement saw: the main bar before it, and the slot it chose (-1: full). Observation only.
         internal sealed class InitialPlacementObservation
@@ -187,6 +176,9 @@ namespace KingmakerMountedCombat.Integration
         internal IReadOnlyList<InitialPlacementObservation> InitialPlacements => initialPlacements;
 
         internal bool SerializationSuspended => serializationSuspended;
+
+        // Mounted Combat's services are enabled (CompositionRoot.SetEnabled drives SetEnabled) and not disposed.
+        internal bool IsActive => enabled && !disposed;
 
         // ATTACK-01: Rider Primary and Mount Primary are retired from gameplay. Their definitions stay registered so an
         // older reference resolves; the facts are leased only for a runtime scenario that explicitly selected them.
@@ -869,36 +861,28 @@ namespace KingmakerMountedCombat.Integration
             if (enabled)
             {
                 EnsureSubscribed();
+                toolbar.Enable();
                 Update();
             }
             else
             {
                 ClearTargetingPresentation("disabled");
-                RemoveAllManagedFacts(true);
+                CancelPendingNativeControls(CleanupTrigger.ModDisabled);
+                // Disable is cleanup, not a temporary absence: every KMC binding, auto-use selection and fact leaves the
+                // units the sweep covers and nothing is remembered (MountedToolbarLifecycle.Disable).
+                toolbar.Disable();
                 ClearSerializationHotbarLeases(false);
                 EnsureUnsubscribed();
-                // KMC itself emptied the public slots here, which is not the player's removal: placement may run once more.
-                placementRecorded.Clear();
             }
         }
 
-        private bool areaSuspended;
-        internal void SuspendAreaControls()
-        {
-            if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
-            areaSuspended = true;
-            ClearTargetingPresentation("area-unloading");
-            RemoveAllManagedFacts(true);
-        }
-        internal void ResumeAreaControls()
-        {
-            areaSuspended = false;
-            if (!disposed && enabled) Update();
-        }
 
         internal void Update()
         {
             ObservePendingRiderPrimaryOutcome();
+            // Before any early return: an aborted native slot operation is settled and the toolbar records follow the
+            // current player world (released on replacement or disposal).
+            toolbar.Housekeeping();
             if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
@@ -919,7 +903,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            ReconcileFacts();
+            toolbar.Reconcile();
         }
 
         internal NativeMountedControlAvailability Evaluate(
@@ -1202,19 +1186,6 @@ namespace KingmakerMountedCombat.Integration
             return accepted;
         }
 
-        internal bool BeginSaveSerializationScope()
-        {
-            if (disposed || serializationSuspended)
-            {
-                return false;
-            }
-
-            serializationSuspended = true;
-            CaptureAndClearManagedHotbarSlots();
-            RemoveAllManagedFacts(false);
-            logger.Info("Native mounted control facts and exact KMC hotbar bindings suspended before save serialization.");
-            return true;
-        }
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> inner)
         {
@@ -1417,7 +1388,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             ClearTargetingPresentation("disposed");
-            RemoveAllManagedFacts(true);
+            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
+            toolbar.Disable();
             ClearSerializationHotbarLeases(false);
             EnsureUnsubscribed();
             RemoveRegisteredBlueprints();
@@ -1680,63 +1652,6 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        // A new native load begins: the previous world's placement records do not belong to it.
-        internal void BeginLoadedWorld()
-        {
-            ClearTargetingPresentation("load");
-            placementRecorded.Clear();
-            initialPlacements.Clear();
-        }
-
-        private void ReconcileFacts()
-        {
-            var candidates = CollectCurrentCandidateUnits();
-            foreach (var unit in candidates)
-            {
-                RememberUnit(unit);
-                ReconcileRetiredPrimaryReferences(unit);
-                foreach (var ability in EnumerateBlueprints())
-                {
-                    var kind = ResolveKind(ability);
-                    var desired = ShouldLease(unit, kind);
-                    var facts = unit?.Descriptor?.Abilities?.Enumerable
-                        .Where(item => ReferenceEquals(item.Blueprint, ability)).ToList() ??
-                        new List<Ability>();
-                    if (desired && facts.Count == 1 && facts[0].Active)
-                    {
-                        continue;
-                    }
-                    foreach (var fact in facts)
-                    {
-                        unit.Descriptor.Abilities.RemoveFact(fact);
-                    }
-                    if (!desired)
-                    {
-                        continue;
-                    }
-                    var added = unit.Descriptor.Abilities.AddFact(ability, null) as Ability;
-                    if (added == null || !added.Active || !ReferenceEquals(added.Blueprint, ability))
-                    {
-                        throw new InvalidOperationException("The exact native control fact could not be leased: " + ability.name + ".");
-                    }
-                    logger.Info("Native mounted control fact leased: ability=" + ability.name +
-                        "; unitId=" + unit.UniqueId + ".");
-                }
-                ReconcilePublicControlSlots(unit);
-                TryInitialPlacement(unit);
-            }
-
-            foreach (var prior in observedUnits.ToArray())
-            {
-                if (prior == null || candidates.Contains(prior))
-                {
-                    continue;
-                }
-                RemoveManagedFacts(prior, false);
-                observedUnits.Remove(prior);
-            }
-        }
-
         // A slot or auto-use selection an older save restored would otherwise outlive its fact. Only these exact entries
         // are touched; every other slot keeps its content and position, and the check is idempotent every update.
         private void ReconcileRetiredPrimaryReferences(UnitEntityData unit)
@@ -1762,93 +1677,10 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // F2: an exact old Mount, Dismount or Mounted Charge binding becomes the public control it now stands for, in
-        // the same slot; every other slot keeps its content and position. A stale binding of the public control is
-        // rebound to the live fact. Idempotent every update; nothing is matched by display name.
-        private void ReconcilePublicControlSlots(UnitEntityData unit)
-        {
-            var slots = unit?.UISettings?.Slots;
-            var abilities = unit?.Descriptor?.Abilities;
-            if (slots == null || abilities == null || mountStateAbility == null) return;
-            var publicControl = abilities.GetAbility(mountStateAbility);
-            var publicActive = publicControl != null && publicControl.Active;
-            for (var index = 0; index < slots.Length; index++)
-            {
-                var bound = (slots[index] as MechanicActionBarSlotAbility)?.Ability;
-                var kind = ResolveKind(bound?.Blueprint);
-                if (kind == NativeMountedControlKind.MountState)
-                {
-                    if (!publicActive) continue;
-                    if (unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
-                    if (!ReferenceEquals(bound, publicControl.Data))
-                    {
-                        unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, index);
-                        MarkBarChanged(unit);
-                    }
-                    continue;
-                }
-                var repair = MountedControlSlotPolicy.RepairLiveSlot(kind);
-                if (repair == MountedControlSlotRepair.Keep) continue;
-                var replacement = repair == MountedControlSlotRepair.MountState
-                    ? (publicActive && !SlotsHold(slots, mountStateAbility) ? publicControl.Data : null)
-                    : ResolveStockChargeForSlot(unit, slots);
-                unit.UISettings.SetSlot(replacement == null
-                    ? (MechanicActionBarSlot)new MechanicActionBarSlotEmpty { Unit = unit }
-                    : new MechanicActionBarSlotAbility { Unit = unit, Ability = replacement }, index);
-                MarkBarChanged(unit);
-                if (repair == MountedControlSlotRepair.MountState && unit.UniqueId != null) placementRecorded.Add(unit.UniqueId);
-                LegacySlotRepairCount++;
-                logger.Info("Old KMC control slot repaired: unitId=" + unit.UniqueId + "; slot=" + index + "; from=" + kind +
-                    "; to=" + (replacement == null ? "empty" : replacement.Blueprint.name) + ".");
-            }
-            var autoUse = ResolveKind(unit.AutoUseAbility?.Blueprint);
-            if (autoUse == NativeMountedControlKind.MountCompanion || autoUse == NativeMountedControlKind.Dismount ||
-                autoUse == NativeMountedControlKind.MountedCharge || autoUse == NativeMountedControlKind.MountState)
-                unit.AutoUseAbility = null;
-        }
-
-        // CTRL-03: the native new-ability placement, once per actor, into an empty main-bar slot. Never over a slot;
-        // a full main bar records the attempt. Waits for the selected load's restored bindings and the native setting.
-        private void TryInitialPlacement(UnitEntityData unit)
-        {
-            if (mountStateAbility == null || unit?.UniqueId == null || unit.UISettings == null) return;
-            var publicControl = unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-            var settled = !restoringSlots && (PlacementSettled == null || PlacementSettled());
-            var autofill = Kingmaker.UI.SettingsUI.SettingsRoot.Instance?.AutofillActionbarSlots?.CurrentValue == true;
-            if (!MountedControlSlotPolicy.ShouldAttemptInitialPlacement(publicControl != null && publicControl.Active,
-                placementRecorded.Contains(unit.UniqueId), settled, autofill)) return;
-            placementRecorded.Add(unit.UniqueId);
-            if (unit.UISettings.Slots != null && SlotsHold(unit.UISettings.Slots, mountStateAbility)) return;
-            var empty = new bool[MountedControlSlotPolicy.MainBarSlotCount];
-            var before = new string[empty.Length];
-            for (var index = 0; index < empty.Length; index++)
-            {
-                var slot = unit.UISettings.GetSlot(index, unit);
-                empty[index] = slot is MechanicActionBarSlotEmpty;
-                before[index] = empty[index] ? "" : (slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint?.AssetGuid ?? slot?.GetType().Name ?? "";
-            }
-            var chosen = MountedControlSlotPolicy.SelectInitialPlacementIndex(empty);
-            if (initialPlacements.Count < 32)
-                initialPlacements.Add(new InitialPlacementObservation { UnitId = unit.UniqueId, Index = chosen, Frame = Time.frameCount, MainBarBefore = before });
-            if (chosen < 0)
-            {
-                InitialPlacementFullBarCount++;
-                logger.Info("Mount / Dismount was not placed: the main action bar is full; unitId=" + unit.UniqueId + ".");
-                return;
-            }
-            unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = publicControl.Data }, chosen);
-            MarkBarChanged(unit);
-            InitialPlacementCount++;
-            logger.Info("Mount / Dismount placed once on the main action bar: unitId=" + unit.UniqueId + "; slot=" + chosen + ".");
-        }
-
         // Native ActionBarManager rebuilds the visible bar only when the unit's UISettings is dirty or an ability fact
         // changes. A slot KMC writes otherwise stays hidden behind the previous content until the next selection change
         // (run 20261105-finalize-f2-r03). Dirty runs the same native rebuild a selection change does.
         private static void MarkBarChanged(UnitEntityData unit) => unit.UISettings?.SetDirty();
-
-        private bool SlotsHold(MechanicActionBarSlot[] slots, BlueprintAbility blueprint) =>
-            slots.Any(slot => ReferenceEquals((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint, blueprint));
 
         // The unit's own exact stock Charge, unless it is already on the bar (one Charge per bar, not a second copy).
         private static AbilityData ResolveStockChargeForSlot(UnitEntityData unit, MechanicActionBarSlot[] slots)
@@ -1885,49 +1717,6 @@ namespace KingmakerMountedCombat.Integration
                 RetiredPrimaryHelpersSelected);
         }
 
-        private List<UnitEntityData> CollectCurrentCandidateUnits()
-        {
-            var result = new List<UnitEntityData>();
-            var player = Game.Instance?.Player;
-            if (player?.PartyCharacters != null)
-            {
-                foreach (var reference in player.PartyCharacters)
-                {
-                    var unit = reference.Value;
-                    AddUnique(result, unit);
-                    AddUnique(result, unit?.Descriptor?.Pet);
-                }
-            }
-            foreach (var owner in relationship.Ownership.Owners)
-            {
-                AddUnique(result, owner.Rider); AddUnique(result, owner.Mount);
-            }
-            return result;
-        }
-
-        private List<UnitEntityData> CollectCandidateUnits()
-        {
-            var result = CollectCurrentCandidateUnits();
-            foreach (var unit in observedUnits)
-            {
-                AddUnique(result, unit);
-            }
-            return result;
-        }
-
-        private void RemoveAllManagedFacts(bool cleanupSlots)
-        {
-            CancelPendingNativeControls(CleanupTrigger.ModDisabled);
-            foreach (var unit in CollectCandidateUnits())
-            {
-                RemoveManagedFacts(unit, cleanupSlots);
-            }
-            if (cleanupSlots)
-            {
-                observedUnits.Clear();
-            }
-        }
-
         private void CancelPendingNativeControls(CleanupTrigger trigger) => CancelPairControls(null, trigger);
 
         private void CancelPairControls(GameMountedRelationshipService owner, CleanupTrigger trigger)
@@ -1944,211 +1733,6 @@ namespace KingmakerMountedCombat.Integration
                         command.Interrupt();
                 }
             }
-        }
-
-        private void RemoveManagedFacts(UnitEntityData unit, bool cleanupSlots)
-        {
-            var abilities = unit?.Descriptor?.Abilities;
-            if (abilities == null)
-            {
-                return;
-            }
-            foreach (var blueprint in EnumerateBlueprints())
-            {
-                foreach (var fact in abilities.Enumerable
-                    .Where(item => ReferenceEquals(item.Blueprint, blueprint)).ToList())
-                {
-                    abilities.RemoveFact(fact);
-                }
-            }
-            if (cleanupSlots)
-            {
-                ClearManagedHotbarSlots(unit);
-            }
-        }
-
-        // legacySchema: the held schema-2 writer only knows kinds 1-4, so the public control is written as the shell it
-        // runs now and F2's placement records are omitted.
-        internal SavedMountedSlot[] CapturePersistentSlots(bool legacySchema = false)
-        {
-            var result = new List<SavedMountedSlot>();
-            if (PersistentRowsSuppressed != null && PersistentRowsSuppressed()) return result.ToArray();
-            foreach (var unit in CollectCurrentCandidateUnits())
-            {
-                var slots = unit?.UISettings?.Slots;
-                if (slots == null) continue;
-                // Saved indices are bounded to 0-127 by the archive contract; a binding further out is not persisted.
-                for (var i = 0; i < slots.Length && i <= 127; i++)
-                {
-                    var ability = (slots[i] as MechanicActionBarSlotAbility)?.Ability;
-                    var kind = ResolveKind(ability?.Blueprint);
-                    if (kind == NativeMountedControlKind.None || !ShouldLease(unit, kind)) continue;
-                    var fact = unit.Descriptor.Abilities.GetAbility(ability.Blueprint);
-                    // Native hotbars can retain AbilityData after its runtime fact
-                    // was removed by a real dismount. That is not a live control
-                    // binding and must not require inventing a fact after loading.
-                    if (fact == null || !fact.Active || !ReferenceEquals(fact.Data, ability) || ability.Caster?.Unit != unit) continue;
-                    var savedKind = legacySchema && kind == NativeMountedControlKind.MountState
-                        ? (int)ResolveMountStateIntent(unit) : (int)kind;
-                    if (legacySchema && savedKind > MountedControlSlotPolicy.SavedMountPrimary) continue;
-                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = savedKind });
-                }
-                // The one-placement record travels with a live public control only, so a disabled or removed KMC writes none.
-                var publicControl = mountStateAbility == null ? null : unit.Descriptor?.Abilities?.GetAbility(mountStateAbility);
-                if (!legacySchema && enabled && publicControl != null && publicControl.Active && unit.UniqueId != null &&
-                    placementRecorded.Contains(unit.UniqueId))
-                    result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = 0,
-                        Kind = MountedControlSlotPolicy.SavedPlacementRecord });
-            }
-            return result.ToArray();
-        }
-
-        internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
-        {
-            // Records first, so the placement that Update may otherwise attempt cannot run ahead of this load's bindings.
-            foreach (var binding in bindings)
-                if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) placementRecorded.Add(binding.ActorId);
-            restoringSlots = true;
-            try
-            {
-                Update();
-                var candidates = CollectCandidateUnits();
-                foreach (var binding in bindings)
-                {
-                    if (binding.Kind == MountedControlSlotPolicy.SavedPlacementRecord) continue;
-                    var units = candidates.Where(u => u.UniqueId == binding.ActorId).ToArray();
-                    if (units.Length != 1) continue;
-                    var unit = units[0];
-                    var slots = unit.UISettings?.Slots;
-                    if (slots == null || binding.Index >= slots.Length) continue;
-                    var current = slots[binding.Index];
-                    var repair = MountedControlSlotPolicy.RestoreSavedSlot(binding.Kind);
-                    if (repair == MountedControlSlotRepair.MountState) placementRecorded.Add(binding.ActorId);
-                    var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
-                    if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
-                    if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;
-                    AbilityData restored = null;
-                    if (repair == MountedControlSlotRepair.MountState)
-                    {
-                        // Mount, Dismount and the public control collapse to one public control at the first saved index.
-                        var publicControl = mountStateAbility == null ? null : unit.Descriptor.Abilities.GetAbility(mountStateAbility);
-                        if (publicControl != null && publicControl.Active && !SlotsHold(slots, mountStateAbility)) restored = publicControl.Data;
-                    }
-                    else if (repair == MountedControlSlotRepair.StockCharge)
-                    {
-                        restored = ResolveStockChargeForSlot(unit, slots);
-                    }
-                    else
-                    {
-                        var blueprint = EnumerateBlueprints().SingleOrDefault(b => (int)ResolveKind(b) == binding.Kind);
-                        var fact = blueprint == null ? null : unit.Descriptor.Abilities.GetAbility(blueprint);
-                        if (fact != null && fact.Active) restored = fact.Data;
-                    }
-                    if (restored == null) continue;
-                    unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = restored }, binding.Index);
-                    MarkBarChanged(unit);
-                    if (repair != MountedControlSlotRepair.Keep && binding.Kind != MountedControlSlotPolicy.SavedMountState)
-                    {
-                        LegacySlotRepairCount++;
-                        logger.Info("Saved KMC control slot migrated: unitId=" + unit.UniqueId + "; slot=" + binding.Index +
-                            "; savedKind=" + binding.Kind + "; to=" + restored.Blueprint.name + ".");
-                    }
-                }
-            }
-            finally
-            {
-                restoringSlots = false;
-            }
-        }
-
-        private void CaptureAndClearManagedHotbarSlots()
-        {
-            hotbarSerializationLeases.Clear();
-            foreach (var unit in CollectCandidateUnits())
-            {
-                var slots = unit?.UISettings?.Slots;
-                if (slots == null)
-                {
-                    continue;
-                }
-                for (var index = 0; index < slots.Length; index++)
-                {
-                    var abilitySlot = slots[index] as MechanicActionBarSlotAbility;
-                    var blueprint = abilitySlot?.Ability?.Blueprint;
-                    if (ResolveKind(blueprint) == NativeMountedControlKind.None)
-                    {
-                        continue;
-                    }
-                    var placeholder = new MechanicActionBarSlotEmpty { Unit = unit };
-                    hotbarSerializationLeases.Add(new HotbarSerializationLease(unit, index, blueprint, placeholder));
-                    unit.UISettings.SetSlot(placeholder, index);
-                }
-            }
-        }
-
-        internal void EndSaveSerializationScope()
-        {
-            if (!serializationSuspended)
-            {
-                return;
-            }
-            serializationSuspended = false;
-            try
-            {
-                if (enabled && !disposed) Update();
-            }
-            finally
-            {
-                ClearSerializationHotbarLeases(true);
-            }
-            logger.Info("Native mounted control save-serialization suspension ended; current runtime facts were rebuilt without saved residue.");
-        }
-
-        private void ClearSerializationHotbarLeases(bool restore)
-        {
-            foreach (var lease in hotbarSerializationLeases)
-            {
-                var slots = lease.Unit?.UISettings?.Slots;
-                if (slots == null || lease.Index < 0 || lease.Index >= slots.Length ||
-                    !ReferenceEquals(slots[lease.Index], lease.Placeholder))
-                {
-                    continue;
-                }
-                var fact = lease.Unit.Descriptor?.Abilities?.GetAbility(lease.Blueprint);
-                if (restore && fact != null && fact.Active)
-                {
-                    lease.Unit.UISettings.SetSlot(
-                        new MechanicActionBarSlotAbility { Unit = lease.Unit, Ability = fact.Data },
-                        lease.Index);
-                }
-            }
-            hotbarSerializationLeases.Clear();
-        }
-
-        private void ClearManagedHotbarSlots(UnitEntityData unit)
-        {
-            var slots = unit?.UISettings?.Slots;
-            if (slots == null)
-            {
-                return;
-            }
-            for (var index = 0; index < slots.Length; index++)
-            {
-                var ability = (slots[index] as MechanicActionBarSlotAbility)?.Ability?.Blueprint;
-                if (ResolveKind(ability) != NativeMountedControlKind.None)
-                {
-                    unit.UISettings.SetSlot(new MechanicActionBarSlotEmpty { Unit = unit }, index);
-                }
-            }
-        }
-
-        private int CountManagedHotbarSlots(UnitEntityData unit)
-        {
-            var slots = unit?.UISettings?.Slots;
-            return slots == null
-                ? 0
-                : slots.Count(slot => ResolveKind((slot as MechanicActionBarSlotAbility)?.Ability?.Blueprint) !=
-                    NativeMountedControlKind.None);
         }
 
         private PendingNativeActivation StartActivation(
@@ -2408,16 +1992,10 @@ namespace KingmakerMountedCombat.Integration
             EventBus.RaiseEvent<IWarningNotificationUIHandler>(handler => handler.HandleWarning(message, true));
         }
 
-        private NativeMountedControlKind ResolveKind(BlueprintAbility ability)
-        {
-            if (ReferenceEquals(ability, mountAbility)) { return NativeMountedControlKind.MountCompanion; }
-            if (ReferenceEquals(ability, dismountAbility)) { return NativeMountedControlKind.Dismount; }
-            if (ReferenceEquals(ability, riderPrimaryAbility)) { return NativeMountedControlKind.RiderPrimary; }
-            if (ReferenceEquals(ability, mountPrimaryAbility)) { return NativeMountedControlKind.MountPrimary; }
-            if (ReferenceEquals(ability, mountedChargeAbility)) { return NativeMountedControlKind.MountedCharge; }
-            if (ReferenceEquals(ability, mountStateAbility)) { return NativeMountedControlKind.MountState; }
-            return NativeMountedControlKind.None;
-        }
+        // A missing blueprint is never a KMC control, even while a control field is still unregistered (null).
+        private NativeMountedControlKind ResolveKind(BlueprintAbility ability) =>
+            MountedControlSlotPolicy.ResolveExactKind(ability, mountAbility, dismountAbility, riderPrimaryAbility,
+                mountPrimaryAbility, mountedChargeAbility, mountStateAbility);
 
         private IEnumerable<BlueprintAbility> EnumerateBlueprints()
         {
@@ -2542,14 +2120,6 @@ namespace KingmakerMountedCombat.Integration
                 if (relationship.World != null) relationship.World.PairDismounting -= CancelPairControls;
                 else relationship.Dismounting -= CancelPendingNativeControls;
                 subscribed = false;
-            }
-        }
-
-        private void RememberUnit(UnitEntityData unit)
-        {
-            if (unit != null && !observedUnits.Contains(unit))
-            {
-                observedUnits.Add(unit);
             }
         }
 

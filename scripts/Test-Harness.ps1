@@ -6316,9 +6316,15 @@ try {
             $engineSource.Contains('MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(') -and
             $engineSource.Contains('target.Translocate(refreshedPoint, null);') -and
             $engineSource.Contains('MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(')) 'combat diagnostic does not repair and revalidate exact observed actor-specific target-placement drift before evidence capture'
+        # The life-state part of target validity is UnifiedMountedStockAttackPolicy.TargetLifeAdmits (never finally dead or
+        # dead; conscious, or the exact target the player ordered while it was already unconscious, as native UnitAttack).
+        $stockAttackPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStockAttack.cs'))
         Assert-Test ($commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
             $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
-            $commandSource.Contains('!targetState.IsFinallyDead && hostile && actionActor.CanAttack(attackTarget)') -and
+            $commandSource.Contains('inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget)') -and
+            $commandSource.Contains('UnifiedMountedStockAttackPolicy.TargetLifeAdmits(state.IsConscious, state.IsDead,') -and
+            $commandSource.Contains('state.IsFinallyDead, unconsciousOrderedTarget != null && ReferenceEquals(unit, unconsciousOrderedTarget));') -and
+            $stockAttackPolicySource.Contains('return !targetDead && !targetFinallyDead && (targetConscious || targetUnconsciousWhenOrdered);') -and
             $commandSource.Contains('attackTarget != null && attackTarget.IsInState') -and
             $commandSource.Contains('childAttack != null && childAttack.IsFinished')) 'target liveness must preserve in-state/hostility admission and native released/finished lifecycle without invented success'
         Assert-Test ($ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackWithWeapon>') -and

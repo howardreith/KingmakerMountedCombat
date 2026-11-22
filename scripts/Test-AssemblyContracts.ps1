@@ -1510,6 +1510,158 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ((Test-MethodIlContainsToken $tickMovement 0x060018BD)-and(Test-MethodIlContainsToken $tickMovement 0x06000C5A)) 'TurnController.TickMovement clamps to the remaining allowance except within NearTheEnd'
     [byte[]]$timeTick=$assembly.ManifestModule.ResolveMethod(0x060090CF).GetMethodBody().GetILAsByteArray(); $timeIl=($timeTick|ForEach-Object{$_.ToString('X2')})-join''
     Assert-Contract ($timeIl.Contains('2200004040')-and$timeIl.Contains('2200004041')) 'TimeController.Tick clamps the TB time scale to 3 and the tick to scale/12'
+    # City companion roster: the capital's full-screen Inventory/Character/Spellbook roster is GroupController ->
+    # UIUtility.GetGroup(withRemote, withPet), whose pets come from Player.ControllableCharacters only. KMC postfixes
+    # that exact GetGroup (CityCompanionRosterAdapter).
+    $cityFlags=[Reflection.BindingFlags]'Public,NonPublic,Static,Instance,DeclaredOnly'
+    $uiUtility=$assembly.GetType('Kingmaker.UI.Common.UIUtility',$false)
+    $getGroup=if($null-eq$uiUtility){$null}else{$uiUtility.GetMethod('GetGroup',$cityFlags,$null,[Type[]]@([bool],[bool]),$null)}
+    $getGroupToken=if($null-eq$getGroup){0}else{$getGroup.MetadataToken}
+    $getGroupReturn=if($null-eq$getGroup){$null}else{$getGroup.ReturnType}
+    Assert-Contract ($null-ne$getGroup-and$getGroup.IsStatic-and$getGroupToken-eq0x06004281-and$getGroupReturn.IsGenericType-and
+        $getGroupReturn.GetGenericTypeDefinition().FullName-ceq'System.Collections.Generic.List`1'-and
+        $getGroupReturn.GetGenericArguments()[0].FullName-ceq'Kingmaker.EntitySystem.Entities.UnitEntityData') `
+        ('city roster: UIUtility.GetGroup(bool withRemote, bool withPet) is static, returns List<UnitEntityData>, token '+$getGroupToken.ToString('X8'))
+    $groupController=$assembly.GetType('Kingmaker.UI.Group.GroupController',$false)
+    $setGroup=if($null-eq$groupController){$null}else{$groupController.GetMethod('SetGroup',$cityFlags,$null,[Type[]]@(),$null)}
+    $controllable=$assembly.GetType('Kingmaker.Player',$false).GetMethod('get_ControllableCharacters',$cityFlags)
+    Assert-Contract ($getGroupToken-ne0-and(Test-MethodIlContainsToken $setGroup $getGroupToken)) 'city roster: GroupController.SetGroup builds its portraits from UIUtility.GetGroup'
+    Assert-Contract ($null-ne$controllable-and(Test-MethodIlContainsToken $getGroup $controllable.MetadataToken)) 'city roster: GetGroup takes pets from Player.ControllableCharacters'
+    # Toolbar persistence: native UnitUISettings.GetSlot and CleanupBadSlots empty an ability slot that IsBad reports
+    # (its fact removed or inactive), which is why the chosen slot of a temporarily absent control is kept by KMC.
+    $uiSettings=$assembly.GetType('Kingmaker.UI.UnitSettings.UnitUISettings',$false)
+    $abilitySlotIsBad=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility',$false).GetMethod('IsBad',$cityFlags)
+    $baseSlotIsBad=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlot',$false).GetMethod('IsBad',$cityFlags)
+    $getSlot=$uiSettings.GetMethod('GetSlot',$cityFlags)
+    $cleanupBad=$uiSettings.GetMethod('CleanupBadSlots',$cityFlags)
+    Assert-Contract ($null-ne$abilitySlotIsBad-and$null-ne$baseSlotIsBad-and(Test-MethodIlContainsToken $getSlot $baseSlotIsBad.MetadataToken)-and
+        (Test-MethodIlContainsToken $cleanupBad $baseSlotIsBad.MetadataToken)) 'toolbar: UnitUISettings.GetSlot and CleanupBadSlots replace slots that IsBad reports'
+    # The exact override that decision runs through (KMC brackets the two native operations below rather than IsBad itself).
+    $abilityIsBadToken=if($null-eq$abilitySlotIsBad){0}else{$abilitySlotIsBad.MetadataToken}
+    Assert-Contract ($null-ne$abilitySlotIsBad-and-not$abilitySlotIsBad.IsStatic-and$abilitySlotIsBad.ReturnType.FullName-ceq'System.Boolean'-and
+        $abilitySlotIsBad.GetParameters().Count-eq0-and$abilitySlotIsBad.DeclaringType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility'-and
+        $abilityIsBadToken-eq0x06002F6E) ('toolbar: MechanicActionBarSlotAbility.IsBad is an instance bool override, token '+$abilityIsBadToken.ToString('X8'))
+    # KMC brackets the exact CleanupBadSlots (MountedPatchController.NativeCleanupBadSlotsToken): the public slots noted
+    # before it and changed after it, other than a rebind to a live fact of the same blueprint, were emptied by native
+    # (MountedToolbarLifecycle.BeginNativeSlotOperation / EndNativeSlotOperation).
+    $cleanupBadToken=if($null-eq$cleanupBad){0}else{$cleanupBad.MetadataToken}
+    Assert-Contract ($null-ne$cleanupBad-and-not$cleanupBad.IsStatic-and$cleanupBad.ReturnType.FullName-ceq'System.Void'-and
+        $cleanupBad.GetParameters().Count-eq0-and$cleanupBadToken-eq0x06003004) ('toolbar: UnitUISettings.CleanupBadSlots is an instance void method, token '+$cleanupBadToken.ToString('X8'))
+    # KMC also brackets the exact GetSlot(int, UnitEntityData) (MountedPatchController.NativeGetSlotToken), that one slot
+    # only; a standalone validity query outside these two operations records nothing.
+    $getSlotExact=$uiSettings.GetMethod('GetSlot',$cityFlags,$null,[Type[]]@([int],$assembly.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData',$false)),$null)
+    $getSlotToken=if($null-eq$getSlotExact){0}else{$getSlotExact.MetadataToken}
+    $emptyCtorForGetSlot=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false).GetConstructor([Type[]]@())
+    Assert-Contract ($null-ne$getSlotExact-and-not$getSlotExact.IsStatic-and$getSlotExact.ReturnType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot'-and
+        $getSlotToken-eq0x06002FFE-and$getSlotExact.GetParameters()[0].Name-ceq'index'-and(Test-MethodIlContainsToken $getSlotExact $emptyCtorForGetSlot.MetadataToken)) ('toolbar: UnitUISettings.GetSlot(int index, UnitEntityData) replaces a bad slot with a new empty slot, token '+$getSlotToken.ToString('X8'))
+    # What a successful rebind writes (the lifecycle reads a slot that still holds a public binding after the operation as a
+    # rebind, never as an emptying): CleanupBadSlots constructs one new MechanicActionBarSlotAbility, stores the fact's data in
+    # its Ability field and passes it to SetSlot; its other outcome constructs a MechanicActionBarSlotEmpty for SetSlot.
+    function Find-IlTokenPositions([byte[]]$Il,[int]$Opcode,[int]$Token){
+        $positions=@();[byte[]]$needle=[BitConverter]::GetBytes($Token)
+        for($index=1;$index-le$Il.Length-4;$index++){
+            if(($Opcode-lt0-or$Il[$index-1]-eq$Opcode)-and$Il[$index]-eq$needle[0]-and$Il[$index+1]-eq$needle[1]-and$Il[$index+2]-eq$needle[2]-and$Il[$index+3]-eq$needle[3]){$positions+=$index}
+        }
+        return ,$positions
+    }
+    $abilitySlotType=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility',$false)
+    $abilitySlotCtor=if($null-eq$abilitySlotType){$null}else{$abilitySlotType.GetConstructor([Type[]]@())}
+    $abilitySlotField=if($null-eq$abilitySlotType){$null}else{$abilitySlotType.GetField('Ability',$cityFlags)}
+    $emptySlotType=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlotEmpty',$false)
+    $emptySlotCtor=if($null-eq$emptySlotType){$null}else{$emptySlotType.GetConstructor([Type[]]@())}
+    $setSlotMethod=$uiSettings.GetMethod('SetSlot',$cityFlags)
+    $cleanupIl=if($null-eq$cleanupBad){[byte[]]@()}else{$cleanupBad.GetMethodBody().GetILAsByteArray()}
+    $rebindNew=if($null-eq$abilitySlotCtor){@()}else{Find-IlTokenPositions $cleanupIl 0x73 $abilitySlotCtor.MetadataToken}
+    $rebindStore=if($null-eq$abilitySlotField){@()}else{Find-IlTokenPositions $cleanupIl 0x7D $abilitySlotField.MetadataToken}
+    $setSlotCalls=if($null-eq$setSlotMethod){@()}else{Find-IlTokenPositions $cleanupIl -1 $setSlotMethod.MetadataToken}
+    $emptyNew=if($null-eq$emptySlotCtor){@()}else{Find-IlTokenPositions $cleanupIl 0x73 $emptySlotCtor.MetadataToken}
+    $rebindShape=$rebindNew.Count-eq1-and$rebindStore.Count-eq1-and$rebindNew[0]-lt$rebindStore[0]-and
+        @($setSlotCalls|Where-Object{$_-gt$rebindStore[0]}).Count-ge1-and$emptyNew.Count-ge1-and$abilitySlotField.FieldType.FullName-ceq'Kingmaker.UnitLogic.Abilities.AbilityData'
+    Assert-Contract $rebindShape ('toolbar: CleanupBadSlots rebinds a bad ability slot with a new slot object (newobj MechanicActionBarSlotAbility x'+$rebindNew.Count+
+        ', stfld Ability x'+$rebindStore.Count+', SetSlot calls '+$setSlotCalls.Count+', empty-slot newobj x'+$emptyNew.Count+')')
+    # What native writes when it empties a slot (MountedToolbarLifecycle counts the outcome of an operation that threw only
+    # when the slot holds native's own write, IMountedToolbarHost.IsNativeEmptySlot): GetSlot and CleanupBadSlots bind
+    # every empty slot they construct to the unit (stfld MechanicActionBarSlot.Unit within the object initializer that
+    # follows the newobj: dup, the unit argument or this.Owner.Unit, stfld).
+    $slotUnitField=$assembly.GetType('Kingmaker.UI.UnitSettings.MechanicActionBarSlot',$false).GetField('Unit',$cityFlags)
+    function Test-EmptySlotsBoundToUnit($Method){
+        if($null-eq$Method-or$null-eq$emptySlotCtor-or$null-eq$slotUnitField){return $false}
+        [byte[]]$il=$Method.GetMethodBody().GetILAsByteArray()
+        $news=Find-IlTokenPositions $il 0x73 $emptySlotCtor.MetadataToken
+        $stores=Find-IlTokenPositions $il 0x7D $slotUnitField.MetadataToken
+        if($news.Count-lt1){return $false}
+        foreach($at in $news){if(@($stores|Where-Object{$_-gt$at-and$_-lt($at+24)}).Count-lt1){return $false}}
+        return $true
+    }
+    Assert-Contract ((Test-EmptySlotsBoundToUnit $getSlotExact)-and(Test-EmptySlotsBoundToUnit $cleanupBad)) 'toolbar: GetSlot and CleanupBadSlots bind every empty slot they write to the unit'
+    # The player's drag-off removal on the action bar writes null, not such an empty slot: ActionBarIndexSlot.EndDrag passes
+    # null to TryToSet, which calls UnitUISettings.SetSlot and only then Set, whose GetSlot (a new bracketed native scope,
+    # closing any earlier one first) creates the empty slot.
+    $indexSlotType=$assembly.GetType('Kingmaker.UI.ActionBar.ActionBarIndexSlot',$false)
+    $unitEntityType=$assembly.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData',$false)
+    $endDrag=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('EndDrag',$cityFlags)}
+    $tryToSet=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('TryToSet',$cityFlags)}
+    $indexSet=if($null-eq$indexSlotType){$null}else{$indexSlotType.GetMethod('Set',$cityFlags,$null,[Type[]]@($unitEntityType),$null)}
+    $removalShape=$false
+    if($null-ne$endDrag-and$null-ne$tryToSet-and$null-ne$indexSet-and$null-ne$setSlotMethod-and$null-ne$getSlotExact){
+        [byte[]]$endDragIl=$endDrag.GetMethodBody().GetILAsByteArray()
+        $tryToSetCalls=Find-IlTokenPositions $endDragIl -1 $tryToSet.MetadataToken
+        $nullRemovals=@($tryToSetCalls|Where-Object{[int]$_-ge2-and$endDragIl[[int]$_-2]-eq0x14})
+        [byte[]]$tryToSetIl=$tryToSet.GetMethodBody().GetILAsByteArray()
+        $setSlotAt=Find-IlTokenPositions $tryToSetIl -1 $setSlotMethod.MetadataToken
+        $setAt=Find-IlTokenPositions $tryToSetIl -1 $indexSet.MetadataToken
+        $removalShape=$nullRemovals.Count-ge1-and$setSlotAt.Count-eq1-and$setAt.Count-eq1-and$setSlotAt[0]-lt$setAt[0]-and
+            (Test-MethodIlContainsToken $indexSet $getSlotExact.MetadataToken)
+    }
+    Assert-Contract $removalShape 'toolbar: the action bar drag-off removal writes null through SetSlot before GetSlot rebuilds the slot'
+    # Round-3 native-operation evidence (MountedToolbarLifecycle.ApplyNativeOperation, NativeMountedControlService
+    # .ResolveBarUnit): the bar's owner is UnitUISettings.Owner, the descriptor CleanupBadSlots binds its writes to; the two
+    # bracketed methods never nest (CleanupBadSlots does not call GetSlot), so a prefix whose postfix never ran threw;
+    # GetSlot can only empty a slot (it constructs no ability slot), so a thrown GetSlot is never credited with a rebind;
+    # and GetSlot's unit argument is named 'unit', which the Harmony prefix binds by name.
+    $ownerGetter=$uiSettings.GetMethod('get_Owner',$cityFlags)
+    $ownerToken=if($null-eq$ownerGetter){0}else{$ownerGetter.MetadataToken}
+    Assert-Contract ($null-ne$ownerGetter-and-not$ownerGetter.IsStatic-and$ownerGetter.ReturnType.FullName-ceq'Kingmaker.UnitLogic.UnitDescriptor'-and
+        $ownerToken-eq0x06002FE9-and$null-ne$assembly.GetType('Kingmaker.UnitLogic.UnitDescriptor',$false).GetMethod('get_Unit',$cityFlags)) ('toolbar: UnitUISettings.Owner is the bar owner''s UnitDescriptor (with Unit), token '+$ownerToken.ToString('X8'))
+    Assert-Contract ($ownerToken-ne0-and(Test-MethodIlContainsToken $cleanupBad $ownerToken)-and-not(Test-MethodIlContainsToken $cleanupBad $getSlotToken)) 'toolbar: CleanupBadSlots binds through UnitUISettings.Owner and never calls GetSlot (the bracketed operations do not nest)'
+    Assert-Contract ($null-ne$abilitySlotCtor-and-not(Test-MethodIlContainsToken $getSlotExact $abilitySlotCtor.MetadataToken)) 'toolbar: GetSlot constructs no MechanicActionBarSlotAbility (it can only empty a bad slot)'
+    # CleanupBadSlots writes only through its own calls of the non-virtual UnitUISettings.SetSlot, exactly three, each a
+    # plain call (MountedPatchController.NativeCleanupSetSlotCalls): KMC's transpiler redirects those call sites to record
+    # each write as it completes, the evidence a cleanup that throws is settled from.
+    $setSlotPlainCalls=if($null-eq$setSlotMethod){@()}else{Find-IlTokenPositions $cleanupIl 0x28 $setSlotMethod.MetadataToken}
+    Assert-Contract ($null-ne$setSlotMethod-and-not$setSlotMethod.IsVirtual-and-not$setSlotMethod.IsStatic-and$setSlotPlainCalls.Count-eq3-and$setSlotCalls.Count-eq3) ('toolbar: CleanupBadSlots writes through exactly 3 plain calls of the non-virtual SetSlot (call x'+$setSlotPlainCalls.Count+', any x'+$setSlotCalls.Count+')')
+    # KMC's SetSlot prefix (MountedPatchController.NativeSetSlotToken) observes every bar write before it lands: the exact
+    # instance SetSlot(MechanicActionBarSlot slot, int index) the action bar UI's TryToSet and CleanupBadSlots write through.
+    $setSlotShape=if($null-eq$setSlotMethod){'(missing)'}else{(@($setSlotMethod.GetParameters()|ForEach-Object{$_.ParameterType.FullName+' '+$_.Name})-join', ')}
+    Assert-Contract ($null-ne$setSlotMethod-and$setSlotMethod.MetadataToken-eq0x06002FFF-and$setSlotMethod.ReturnType.FullName-ceq'System.Void'-and
+        $setSlotShape-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, System.Int32 index'-and(Test-MethodIlContainsToken $tryToSet $setSlotMethod.MetadataToken)) ('toolbar: UnitUISettings.SetSlot('+$setSlotShape+') token 06002FFF is the write TryToSet uses')
+    $getSlotParameters=if($null-eq$getSlotExact){@()}else{@($getSlotExact.GetParameters())}
+    Assert-Contract ($getSlotParameters.Count-eq2-and$getSlotParameters[0].Name-ceq'index'-and$getSlotParameters[1].Name-ceq'unit') 'toolbar: GetSlot''s parameters are named index and unit'
+    # The product's Harmony forwarders (MountedPatchController.PatchMethods), read from the built product: Harmony 1.2 binds
+    # prefix parameters by the native names, and each prefix hands its own operation to its own postfix through __state.
+    if($null-ne$ummProduct){
+        $patchMethods=$ummProduct.GetType('KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods',$false)
+        function Get-ForwarderShape([string]$Name){
+            $method=if($null-eq$patchMethods){$null}else{$patchMethods.GetMethod($Name,[Reflection.BindingFlags]'NonPublic,Public,Static')}
+            if($null-eq$method){return '(missing)'}
+            return (@($method.GetParameters()|ForEach-Object{$_.ParameterType.FullName+' '+$_.Name+$(if($_.IsOut){' out'}else{''})})-join', ')
+        }
+        $slotRead=Get-ForwarderShape 'SlotReadPrefix'; $cleanupPrefix=Get-ForwarderShape 'BadSlotCleanupPrefix'; $postfix=Get-ForwarderShape 'BadSlotCleanupPostfix'
+        Assert-Contract ($slotRead-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Int32 index, Kingmaker.EntitySystem.Entities.UnitEntityData unit, System.Object& __state out') ('toolbar: the GetSlot prefix binds __instance, index, unit and out __state: '+$slotRead)
+        Assert-Contract ($cleanupPrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance, System.Object& __state out') ('toolbar: the CleanupBadSlots prefix binds __instance and out __state: '+$cleanupPrefix)
+        Assert-Contract ($postfix-ceq'System.Object __state') ('toolbar: the shared postfix receives only its own prefix''s __state: '+$postfix)
+        $writePrefix=Get-ForwarderShape 'SlotWritePrefix'
+        Assert-Contract ($writePrefix-ceq'Kingmaker.UI.UnitSettings.UnitUISettings __instance') ('toolbar: the SetSlot prefix binds only __instance: '+$writePrefix)
+        $cleanupHook=Get-ForwarderShape 'NativeCleanupSetSlot'
+        Assert-Contract ($cleanupHook-ceq'Kingmaker.UI.UnitSettings.UnitUISettings settings, Kingmaker.UI.UnitSettings.MechanicActionBarSlot slot, System.Int32 index') ('toolbar: the redirected cleanup write takes SetSlot''s instance and arguments in stack order: '+$cleanupHook)
+        # Its Harmony12 types resolve against the installed loader's 0Harmony12 (preloaded reflection-only once).
+        if(-not@([AppDomain]::CurrentDomain.ReflectionOnlyGetAssemblies()|Where-Object{$_.GetName().Name-ceq'0Harmony12'}).Count){
+            [void][Reflection.Assembly]::ReflectionOnlyLoadFrom((Join-Path $managed 'UnityModManager\0Harmony12.dll'))
+        }
+        $cleanupTranspiler=if($null-eq$patchMethods){$null}else{$patchMethods.GetMethod('BadSlotCleanupWritesTranspiler',[Reflection.BindingFlags]'NonPublic,Public,Static')}
+        $transpilerShape=if($null-eq$cleanupTranspiler){'(missing)'}else{$cleanupTranspiler.ReturnType.Name+' ('+(@($cleanupTranspiler.GetParameters()|ForEach-Object{$_.ParameterType.Name+'['+$_.ParameterType.GetGenericArguments()[0].FullName+'] '+$_.Name})-join', ')+')'}
+        Assert-Contract ($transpilerShape-ceq'IEnumerable`1 (IEnumerable`1[Harmony12.CodeInstruction] instructions)') ('toolbar: the product''s CleanupBadSlots write transpiler maps the Harmony12 instruction stream: '+$transpilerShape)
+    }else{Write-Host "UNASSESSED $Target toolbar Harmony forwarder shapes: no $Configuration build of the product"}
 }else{
     Assert-Contract ((Get-FileHash -Algorithm SHA256 -LiteralPath $assemblyPath).Hash.ToLowerInvariant()-ceq'2cb7160b7154d4ffacc77b9c51b1eb26199e1294300f04fdfc073367b2ef8953') 'Assembly-CSharp SHA-256'
     Assert-Contract ($assembly.ManifestModule.ModuleVersionId.ToString()-ceq'90a9869c-2792-4c7b-bfb7-5a8b33da7c82') 'Assembly-CSharp MVID'

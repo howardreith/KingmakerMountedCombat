@@ -705,6 +705,9 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             SpeedLegSamplerTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
             MountedControlSlotPolicyTests.Register(runner);
+            MountedControlPlacementIntentTests.Register(runner);
+            CityCompanionRosterProjectionTests.Register(runner);
+            MountedDownedTargetOrderTests.Register(runner);
             NativeShellBindingPolicyTests.Register(runner);
             RelationshipCommandEvidenceTests.Register(runner);
             ChargeCohortTests.Register(runner);

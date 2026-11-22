@@ -859,6 +859,9 @@ namespace KingmakerMountedCombat.Integration
                     allowApproach,
                     !ordinaryIntent);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
+                // The player's order on an already unconscious enemy keeps that target as native UnitAttack does.
+                if (ordinaryIntent && !automaticOrigin && !stockIntent.Automatic && stockIntent.TargetUnconsciousWhenOrdered)
+                    command.AdmitTargetUnconsciousWhenOrdered();
                 // Never presented as a click: an automatic pair command is not a player order, marks no manual
                 // target and leaves a native Hold in place at every native Run (NativeRunKeepsHold).
                 if (automaticOrigin)
@@ -1124,8 +1127,15 @@ namespace KingmakerMountedCombat.Integration
             var actionContext = ownerIsMount ? MountedCombatActionKind.MountPrimaryNatural : ResolveRiderPrimaryAction();
             var weaponContext = principal.GetFirstWeapon();
             var mountWeaponContext = mount.GetFirstWeapon();
-            var click = target != null && target.IsInState && target.Descriptor?.State != null &&
-                target.Descriptor.State.IsConscious && !target.Descriptor.State.IsFinallyDead && principal.IsEnemy(target)
+            // Native explicit-order rule: a click on an enemy that is already unconscious (downed, lying prone) is a valid
+            // order on that enemy. A retained intent continues only if it was itself ordered on the downed enemy; a click
+            // on a target that fell unconscious after an earlier order is a fresh order, as a new native UnitAttack is.
+            var clickTargetState = target?.Descriptor?.State;
+            var orderedWhileUnconscious = clickTargetState != null && clickTargetState.IsUnconscious;
+            var click = target != null && target.IsInState && clickTargetState != null &&
+                UnifiedMountedStockAttackPolicy.TargetLifeAdmits(clickTargetState.IsConscious, clickTargetState.IsDead,
+                    clickTargetState.IsFinallyDead, orderedWhileUnconscious) &&
+                (!orderedWhileUnconscious || stockIntent.TargetUnconsciousWhenOrdered) && principal.IsEnemy(target)
                 ? ObserveStockClick(target, turn, ownerIsMount, rider, mount, weaponContext, mountWeaponContext, (int)actionContext)
                 : MountedStockClick.NewRequest;
             if (click == MountedStockClick.Continue)
@@ -1142,7 +1152,8 @@ namespace KingmakerMountedCombat.Integration
             // Known issues Sprint 6 (A01): a same-target click after the dispatched command ended is a fresh request as well.
             Cancel("new stock hostile attack");
             stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat(),
-                rider, mount, weaponContext, mountWeaponContext, (int)actionContext);
+                rider, mount, weaponContext, mountWeaponContext, (int)actionContext,
+                targetUnconsciousWhenOrdered: orderedWhileUnconscious);
             StockAttackIntentStartCount++;
             principal.CombatState.ManualTarget = target;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -1151,7 +1162,8 @@ namespace KingmakerMountedCombat.Integration
             LastStockAttackObservation = "intent-start;target=" + target.UniqueId +
                 ";ranged=" + (ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderRanged) +
                 ";createdByPlayer=" + stockAttack.CreatedByPlayer + ";principal=" + principal.UniqueId +
-                ";turnBased=" + CombatController.IsInTurnBasedCombat();
+                ";turnBased=" + CombatController.IsInTurnBasedCombat() +
+                ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered;
             TryDriveStockAttackIntent();
             return false;
         }
@@ -1416,7 +1428,8 @@ namespace KingmakerMountedCombat.Integration
             var targetValid = UnifiedMountedStockAttackPolicy.IsValidTarget(
                 target != null,
                 target != null && target.IsInState,
-                targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
+                targetState != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(targetState.IsConscious,
+                    targetState.IsDead, targetState.IsFinallyDead, stockIntent.TargetUnconsciousWhenOrdered),
                 principal != null && principal.IsEnemy(target),
                 principal != null && principal.CanAttack(target));
             if (!targetValid && HasActiveCommand && ReferenceEquals(activeCommand, stockIntentCommand))
@@ -2181,8 +2194,13 @@ namespace KingmakerMountedCombat.Integration
                 RiderAliveAndConscious = riderState != null && riderState.IsConscious && !riderState.IsFinallyDead,
                 MountAliveAndConscious = mountState != null && mountState.IsConscious && !mountState.IsFinallyDead,
                 TargetExists = targetValid,
+                // Native explicit-order rule: only the player's own retained order on an enemy that was already
+                // unconscious admits that downed enemy; every other request still needs a conscious target.
                 TargetAliveAndConscious = assumeTargetAvailable ||
-                    targetState != null && targetState.IsConscious && !targetState.IsFinallyDead,
+                    targetState != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(targetState.IsConscious,
+                        targetState.IsDead, targetState.IsFinallyDead,
+                        ordinaryIntent && !stockIntent.Automatic && ReferenceEquals(target, stockIntentTarget) &&
+                        stockIntent.TargetUnconsciousWhenOrdered),
                 TargetVisible = assumeTargetAvailable || targetValid && target.IsVisibleForPlayer,
                 TargetHostile = assumeTargetAvailable || targetValid && actionActor != null && actionActor.IsEnemy(target),
                 TargetAttackable = assumeTargetAvailable || targetValid && actionActor != null && actionActor.CanAttack(target),

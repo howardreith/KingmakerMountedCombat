@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
@@ -44,6 +45,46 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
+        // The exact KMC identity of a slot's ability blueprint, by reference. A missing blueprint (an item, an empty or
+        // another non-ability slot) is never a KMC control, including before or after registration when some control
+        // blueprints are still (or again) null: only an identifiable registered blueprint matches.
+        public static NativeMountedControlKind ResolveExactKind<T>(T ability, T mount, T dismount, T riderPrimary,
+            T mountPrimary, T mountedCharge, T mountState) where T : class
+        {
+            if (ability == null) return NativeMountedControlKind.None;
+            if (ReferenceEquals(ability, mount)) return NativeMountedControlKind.MountCompanion;
+            if (ReferenceEquals(ability, dismount)) return NativeMountedControlKind.Dismount;
+            if (ReferenceEquals(ability, riderPrimary)) return NativeMountedControlKind.RiderPrimary;
+            if (ReferenceEquals(ability, mountPrimary)) return NativeMountedControlKind.MountPrimary;
+            if (ReferenceEquals(ability, mountedCharge)) return NativeMountedControlKind.MountedCharge;
+            if (ReferenceEquals(ability, mountState)) return NativeMountedControlKind.MountState;
+            return NativeMountedControlKind.None;
+        }
+
+        // A binding that stands for the rider's one public Mount / Dismount control: the public control itself, or an
+        // older exact Mount or Dismount alias that repair turns into it.
+        public static bool IsPublicControlKind(NativeMountedControlKind kind) =>
+            kind == NativeMountedControlKind.MountState || RepairLiveSlot(kind) == MountedControlSlotRepair.MountState;
+
+        // An archive row that restores as the rider's public control: kind 6, or an older Mount / Dismount kind (the
+        // live writer emits the alias kind while a live alias awaits migration, or the legacy schema's shell kinds).
+        public static bool IsPublicBindingRow(int savedKind) =>
+            savedKind != SavedPlacementRecord && RestoreSavedSlot(savedKind) == MountedControlSlotRepair.MountState;
+
+        // The older Mount / Dismount row an actor's arrangement is seeded from when an archive holds no kind-6 row (F2
+        // collapses the two older controls into one), among those rows in archive order. A replay of rows captured earlier
+        // in this world takes the first row. A freshly loaded save takes the first row whose destination slot can hold the
+        // control now (restorable: empty, or a public binding), as the pre-change reader skipped an occupied row and went on
+        // to the next one; when none can, the first row (the occupied-slot rule then gives it up). -1 for no rows.
+        public static int SelectSeededPublicRow(IList<int> publicRowIndices, Func<int, bool> restorable, bool loadedWorld)
+        {
+            if (publicRowIndices == null || publicRowIndices.Count == 0) return -1;
+            if (loadedWorld && restorable != null)
+                foreach (var index in publicRowIndices)
+                    if (restorable(index)) return index;
+            return publicRowIndices[0];
+        }
+
         public static MountedControlSlotRepair RestoreSavedSlot(int savedKind)
         {
             switch (savedKind)
@@ -66,6 +107,12 @@ namespace KingmakerMountedCombat.Domain
         public static bool IsValidSavedRow(int index, int kind) =>
             kind >= SavedMountCompanion && kind <= MaximumSavedKind &&
             (kind == SavedPlacementRecord ? index == 0 : index >= 0 && index <= 127);
+
+        // The owned archive's control-row bound (MountedArchiveData.ValidateSlots). A capture that needs more rows fails
+        // that validation, the archive's bounded failure path, rather than dropping any row.
+        public const int MaximumArchiveRows = 128;
+
+        public static bool FitsArchive(int rowCount) => rowCount >= 0 && rowCount <= MaximumArchiveRows;
 
         // Native SetSlotInternal fills the first empty slot of all 140. The public control goes only to the visible main
         // bar, and never over anything: -1 when that bar is full.
