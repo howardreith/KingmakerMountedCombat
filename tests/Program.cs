@@ -655,6 +655,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             DeferredSaveEnumeratorTests.Register(runner);
+            SaveWaitObservationTests.Register(runner);
             OwnedWorkerTeardownPolicyTests.Register(runner);
             NativeSaveCommitOutcomeTests.Register(runner);
             NativeArchiveReplacementPathTests.Register(runner);

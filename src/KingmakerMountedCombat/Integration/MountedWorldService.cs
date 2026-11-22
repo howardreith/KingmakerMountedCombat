@@ -175,9 +175,13 @@ namespace KingmakerMountedCombat.Integration
             pair.Relationship.Dismounting += trigger => PairDismounting?.Invoke(pair.Relationship, trigger);
             pair.Relationship.BindOwnershipReadiness(participant.RetainsPairParticipation,
                 () => pair.Combat.HasRetainedPairCommands || NativeControls?.HasUnsettledShellFor(pair.Relationship) == true,
-                () => !participant.HasUnsettledPreparation && !pair.PlayerActions.HasVoluntaryTransitionInFlight &&
-                    !pair.Combat.HasChargeOwnership && !pair.Combat.ChargeNativeBoundaryPending &&
-                    NativeControls?.HasUnsettledShellFor(pair.Relationship) != true,
+                // The same five terms, in the same order, each named so a deferred save can say which one held it.
+                () => participant.HasUnsettledPreparation ? "native paired preparation is unsettled" :
+                    pair.PlayerActions.HasVoluntaryTransitionInFlight ? "a voluntary Mount/Dismount is in flight" :
+                    pair.Combat.HasChargeOwnership ? "Mounted Charge ownership is unresolved" :
+                    pair.Combat.ChargeNativeBoundaryPending ? "a Mounted Charge native boundary is pending" :
+                    NativeControls?.HasUnsettledShellFor(pair.Relationship) == true ? "a Mount/Dismount command shell is unsettled" :
+                    null,
                 () => !pair.Combat.ChargeAdmissionFenced && !participant.HasUnsettledPreparation &&
                     NativeControls?.HasUnsettledShellFor(pair.Relationship) != true);
         }

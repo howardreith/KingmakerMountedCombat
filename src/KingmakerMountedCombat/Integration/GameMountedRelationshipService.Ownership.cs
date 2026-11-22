@@ -18,15 +18,20 @@ namespace KingmakerMountedCombat.Integration
         internal MountedPairOwner<UnitEntityData, GameMountedRelationshipService> PairOwner { get; private set; }
         private Func<UnitEntityData, UnitEntityData, bool> retainedParticipation = (rider, mount) => false;
         private Func<bool> retainedCommands = () => false;
-        private Func<bool> pairSaveReady = () => true;
+        private Func<string> pairSaveRefusal = () => null;
         private Func<bool> pairTeardownReady = () => true;
 
+        // The pair's save readiness is its refusal reason being absent: the owner
+        // registry and the save barrier's diagnostics read the same decision.
+        private bool pairSaveReady() => pairSaveRefusal() == null;
+        internal string PairSaveRefusal => pairSaveRefusal();
+
         internal void BindOwnershipReadiness(Func<UnitEntityData, UnitEntityData, bool> participation,
-            Func<bool> commands, Func<bool> saveReady, Func<bool> teardownReady)
+            Func<bool> commands, Func<string> saveRefusal, Func<bool> teardownReady)
         {
             retainedParticipation = participation ?? throw new ArgumentNullException(nameof(participation));
             retainedCommands = commands ?? throw new ArgumentNullException(nameof(commands));
-            pairSaveReady = saveReady ?? throw new ArgumentNullException(nameof(saveReady));
+            pairSaveRefusal = saveRefusal ?? throw new ArgumentNullException(nameof(saveRefusal));
             pairTeardownReady = teardownReady ?? throw new ArgumentNullException(nameof(teardownReady));
         }
 
@@ -201,6 +206,7 @@ namespace KingmakerMountedCombat.Integration
             Ownership.IsActiveOwner(owner, Rider, Mount);
 
         internal bool AllSaveOwnersReady => Ownership.AllSaveReady();
+        internal MountedPairOwner<UnitEntityData, GameMountedRelationshipService> FirstUnreadySaveOwner => Ownership.FirstUnreadySaveOwner();
         internal bool AllTeardownOwnersReady => Ownership.AllTeardownReady();
     }
 }

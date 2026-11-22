@@ -23,6 +23,8 @@ namespace KingmakerMountedCombat.Domain
         private readonly Action endWait;
         private readonly double maximumWait;
         private readonly Action terminal;
+        private readonly Func<string> timeoutMessage;
+        private readonly Action serializationStarted;
         private Action startSerialization;
         private double beganAt;
         private bool activated;
@@ -33,10 +35,20 @@ namespace KingmakerMountedCombat.Domain
         internal bool SerializationStarted { get; private set; }
         internal bool FailedBeforeSerialization { get; private set; }
         internal bool FailedAfterNativeCleanup { get; private set; }
+        // Set before the bounded wait's refusal is thrown, so the wait's end
+        // observer can tell a timeout from a cancellation or a world refusal.
+        internal bool TimedOut { get; private set; }
+        internal bool Disposed => disposed;
+        // The exception that ended this operation, recorded before its disposal
+        // (review of 0b4b8fa4, F2): a wait ended by a fault is not a cancellation.
+        internal Exception Failure { get; private set; }
 
         internal DeferredSaveEnumerator(IEnumerator<T> inner, Func<bool> ready, Func<double> elapsed,
-            Action beginWait, Action tickWait, Action endWait, double maximumWait, Action terminal = null)
+            Action beginWait, Action tickWait, Action endWait, double maximumWait, Action terminal = null,
+            Func<string> timeoutMessage = null, Action serializationStarted = null)
         {
+            this.timeoutMessage = timeoutMessage;
+            this.serializationStarted = serializationStarted;
             this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
             this.ready = ready ?? throw new ArgumentNullException(nameof(ready));
             this.elapsed = elapsed ?? throw new ArgumentNullException(nameof(elapsed));
@@ -80,7 +92,10 @@ namespace KingmakerMountedCombat.Domain
                     {
                         var duration = elapsed() - beganAt;
                         if (double.IsNaN(duration) || double.IsInfinity(duration) || duration < 0 || duration > maximumWait)
-                            throw new InvalidOperationException("Save was not written: the current native effect did not finish within the bounded wait.");
+                        {
+                            TimedOut = true;
+                            throw new InvalidOperationException(DescribeTimeout());
+                        }
                         tickWait();
                         return true;
                     }
@@ -114,6 +129,25 @@ namespace KingmakerMountedCombat.Domain
             startSerialization();
             startSerialization = null;
             SerializationStarted = true;
+            // Diagnostic only, after native serialization really started; it can
+            // never turn a started save into a failure (review of 0b4b8fa4, F2).
+            try { serializationStarted?.Invoke(); } catch { }
+        }
+
+        private const string GenericTimeout =
+            "Save was not written: the current native effect did not finish within the bounded wait.";
+
+        // The refusal itself must not fail: a faulting description falls back
+        // to the generic text and the timeout still retires this request.
+        private string DescribeTimeout()
+        {
+            if (timeoutMessage == null) return GenericTimeout;
+            try
+            {
+                var message = timeoutMessage();
+                return string.IsNullOrEmpty(message) ? GenericTimeout : message;
+            }
+            catch { return GenericTimeout; }
         }
 
         private void ReleaseWait()
@@ -134,15 +168,24 @@ namespace KingmakerMountedCombat.Domain
             try { ReleaseWait(); }
             catch (Exception exception)
             {
+                // Recorded before the terminal reads it, as a cleanup fault below is
+                // (Pro review of 079f4e9e, note 1): a disposal that threw is not a
+                // clean cancellation. The exceptions still propagate unchanged.
+                if (Failure == null) Failure = failure != null ? new AggregateException(failure, exception) : exception;
                 if (failure != null) throw new AggregateException(failure, exception);
                 throw;
             }
-            finally { terminal?.Invoke(); }
+            finally
+            {
+                if (Failure == null && failure != null) Failure = failure;
+                terminal?.Invoke();
+            }
             if (failure != null) throw failure;
         }
 
         private void Fail(Exception original)
         {
+            if (Failure == null) Failure = original;
             try { Dispose(); }
             catch (Exception cleanup) { throw new AggregateException(original, cleanup); }
             // Only a pre-snapshot failure or a completed worker's explicit

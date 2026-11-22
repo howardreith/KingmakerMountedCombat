@@ -119,6 +119,26 @@ public static class KmcPersistenceContractProbe
         }
     }
 
+    // Reflection does not apply C# optional parameters; a trailing optional one
+    // (the deferred wait's timeout description, 2026-11-22) takes its declared default.
+    private sealed class PaddedConstructor
+    {
+        private readonly ConstructorInfo constructor;
+        internal PaddedConstructor(ConstructorInfo constructor) { this.constructor = constructor; }
+        internal object Invoke(object[] args)
+        {
+            var parameters = constructor.GetParameters();
+            var full = new object[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                if (i < args.Length) { full[i] = args[i]; continue; }
+                if (!parameters[i].IsOptional) throw new TargetParameterCountException("Missing required parameter " + parameters[i].Name);
+                full[i] = parameters[i].DefaultValue;
+            }
+            return constructor.Invoke(full);
+        }
+    }
+
     private sealed class DisposeProbe : System.Collections.Generic.IEnumerator<object>
     {
         internal int Disposals, Moves;
@@ -187,6 +207,11 @@ public static class KmcPersistenceContractProbe
         var process=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(processType);
         list.Add(process);
         Check((bool)read.Invoke(null,new[]{controller}),"native ability effect remains unsettled without any live command");
+        var firstAbility=adapter.GetMethod("FirstUnresolvedAbility",BindingFlags.Static|BindingFlags.NonPublic,null,new[]{controllerType},null);
+        var describeAbility=(string)adapter.GetMethod("DescribeAbility",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new[]{process});
+        Check(ReferenceEquals(firstAbility.Invoke(null,new[]{controller}),process) && describeAbility.Contains("ended=False") &&
+            describeAbility.Contains("caster=<none>") && list.Count==1,
+            "the deferred save names the exact unfinished native ability process without retiring it");
         Check(list.Count==1 && object.ReferenceEquals(list[0],process) && processType.GetField("m_Process",flags).GetValue(process)==null,
             "save admission does not enumerate or retire native ability effects");
         processType.GetProperty("IsEnded").GetSetMethod(true).Invoke(process,new object[]{true});
@@ -364,7 +389,7 @@ public static class KmcPersistenceContractProbe
         var queue=Activator.CreateInstance(ownerType.GetField("m_Queue",flags).FieldType);
         ownerType.GetField("m_Queue",flags).SetValue(owner,queue);
         var wrapperType=candidate.GetType("KingmakerMountedCombat.Domain.DeferredSaveEnumerator`1",true).MakeGenericType(typeof(object));
-        var constructor=wrapperType.GetConstructors(flags)[0];
+        var constructor=new PaddedConstructor(wrapperType.GetConstructors(flags)[0]);
         var currentInner=new DisposeProbe { FailDispose=true };
         var queuedInner=new DisposeProbe();
         var foreign=new DisposeProbe();
@@ -458,6 +483,10 @@ public static class KmcPersistenceContractProbe
             "already charged native reaction must start and settle before the snapshot");
         commandType.GetProperty("IsStarted").GetSetMethod(true).Invoke(attack,new object[]{true});
         Check((bool)settle.Invoke(null,new[]{attack}),"started native action remains outside the snapshot barrier");
+        var describeCommand=(string)effect.GetMethod("DescribeCommand",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{null,attack,false});
+        Check(describeCommand.Contains("type=Kingmaker.UnitLogic.Commands.UnitAttack") && describeCommand.Contains("started=True") &&
+            describeCommand.Contains("ownership=raw") && describeCommand.Contains("executor=<none>") && describeCommand.Contains("reaction=False"),
+            "the deferred save names the exact started native command that holds it");
         var mountedType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPairAttackCommand",true);
         var mounted=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(mountedType);
         var transactionType=candidate.GetType("KingmakerMountedCombat.Domain.MountedCombatTransaction",true);
@@ -843,9 +872,26 @@ public static class KmcPersistenceContractProbe
                 "native pending effect observation retains exact identity without changing outer iteration");
         }
         finally { while(outer.MoveNext()) { } var disposable=outer as IDisposable; if(disposable!=null) disposable.Dispose(); }
+        // Incident 2026-11-22: the deferred save names the exact projectile the barrier waits for, from the same predicate.
+        var first=boundary.GetMethod("FirstUnresolvedProjectile",flags,null,new[]{controllerType,typeof(bool).MakeByRefType()},null);
+        var describe=boundary.GetMethod("DescribeProjectile",flags);var summarize=boundary.GetMethod("SummarizeProjectile",flags);
+        var firstArgs=new object[]{controller,null};
+        Check(ReferenceEquals(first.Invoke(null,firstArgs),q) && !(bool)firstArgs[1] && !(bool)updating.GetValue(controller),
+            "the save barrier's first unresolved projectile is the exact active offender, read without native iteration");
+        var described=(string)describe.Invoke(null,new object[]{q,false});
+        Check(described.Contains("membership=active") && described.Contains("isHit=True") && described.Contains("hitObserved=False") &&
+            described.Contains("cleared=False") && described.Contains("launcher=<none>") && ((string)summarize.Invoke(null,new[]{q})).EndsWith(" projectile"),
+            "blocked-save diagnostics describe an arrived but undelivered native projectile");
         mark.Invoke(null,new[]{q});mark.Invoke(null,new[]{q});
         Check(!(bool)read.Invoke(null,new[]{controller}) && !(bool)updating.GetValue(controller),
             "completed delivery is idempotent and need not wait for visual particle expiry");
+        var launched=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(projectileType);
+        pending.Add(launched);firstArgs=new object[]{controller,null};
+        Check(ReferenceEquals(first.Invoke(null,firstArgs),launched) && (bool)firstArgs[1] &&
+            ((string)describe.Invoke(null,new object[]{launched,true})).Contains("membership=pending") &&
+            ((string)describe.Invoke(null,new object[]{q,false})).Contains("hitObserved=True"),
+            "a launched projectile not yet in the active set is named as pending; a delivered one as observed");
+        pending.Remove(launched);
         clear.Invoke(null,null);
         Check((bool)read.Invoke(null,new[]{controller}),"old-world completion cannot classify a new restoration");
         pending.Clear();active.GetType().GetMethod("Clear").Invoke(active,null);clear.Invoke(null,null);

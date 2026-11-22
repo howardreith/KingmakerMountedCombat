@@ -192,6 +192,7 @@
     <Compile Include="Domain\PairedActivationSnapshot.cs" />
     <Compile Include="Domain\ScopedEnumerator.cs" />
     <Compile Include="Domain\DeferredSaveEnumerator.cs" />
+    <Compile Include="Domain\SaveWaitObservation.cs" />
     <Compile Include="Integration\NativeDeferredSave.cs" />
     <Compile Include="Integration\NativeSaveWorkerBoundary.cs" />
     <Compile Include="Integration\MountedDeferredSave.cs" />
