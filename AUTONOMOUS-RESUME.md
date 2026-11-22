@@ -1,3 +1,10 @@
+# Release 0.2.15 (owner order, 2026-11-22)
+
+0.2.15 releases PR #59 (merged as `d409bffc`): X05's save-wait diagnostics and accurate save messages. Read CURRENT.md
+(its first section), docs/RELEASE-NOTES-0.2.15.md and docs/SAVE-AND-DOOR-LOCK-HANDOFF.md. Open: X05's cause and repair
+(needs an owner log with 0.2.15 or a disposable save); nothing was run in the game; the UMM 0.33.0/0.33.2 platform pin
+(owner decision).
+
 # Post-combat save and door lock (2026-11-22, branch codex/mounted-save-and-door-lock)
 
 Diagnostic checkpoint, revised after the first Pro review (`0b4b8fa4`); awaiting the next Pro review through Howie (manual

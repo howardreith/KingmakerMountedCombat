@@ -4,7 +4,8 @@ A Unity Mod Manager (UMM) mod for Pathfinder: Kingmaker (engine build 2.1.7b) th
 companion: a Horse or Riding Dog added by the mod, or a supported stock Mammoth. Rider and mount keep their own actions,
 health and defenses. No other mod is required.
 
-Release notes: [0.2.14](docs/RELEASE-NOTES-0.2.14.md) (current), [0.2.13](docs/RELEASE-NOTES-0.2.13.md),
+Release notes: [0.2.15](docs/RELEASE-NOTES-0.2.15.md) (current), [0.2.14](docs/RELEASE-NOTES-0.2.14.md),
+[0.2.13](docs/RELEASE-NOTES-0.2.13.md),
 [0.2.12](docs/RELEASE-NOTES-0.2.12.md),
 [0.2.11](docs/RELEASE-NOTES-0.2.11.md),
 [0.2.10](docs/RELEASE-NOTES-0.2.10.md),
@@ -15,13 +16,11 @@ and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 
 ## Current status
 
-- **Release:** 0.2.14 is the current release. Changes since 0.2.13:
-  - the Mount / Dismount shortcut keeps its chosen slot (X02);
-  - companions' animals appear in the capital's Inventory and Character screens (X03);
-  - an explicit mounted attack on an already-unconscious enemy is no longer refused (X04).
-
-  Startup was checked in the game; none of the three changes was played there, and the original prone-target report
-  remains unreproduced ([notes](docs/RELEASE-NOTES-0.2.14.md)).
+- **Release:** 0.2.15 is the current release. A held save now names what it is waiting for and why it stopped, and the
+  log records each held save (X05, the post-combat save and door lock). **It does not fix that lock**, whose cause is
+  not yet known. Nothing in 0.2.15 was run in the game before release ([notes](docs/RELEASE-NOTES-0.2.15.md)).
+- **Previous release:** 0.2.14 (Mount / Dismount shortcut placement, capital companion screens, attacks on an
+  already-unconscious enemy; [notes](docs/RELEASE-NOTES-0.2.14.md)).
 - **What is supported, the retained limits, removal and rollback:** [docs/CURRENT-SUPPORT.md](docs/CURRENT-SUPPORT.md).
   It replaces the 0.2.0 notes' known-limits list for current status.
 - **Known issues:** [docs/CURRENT-KNOWN-ISSUES.md](docs/CURRENT-KNOWN-ISSUES.md), one current disposition per issue.

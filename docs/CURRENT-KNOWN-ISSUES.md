@@ -22,6 +22,9 @@ Current material comes first; the detail and the reconciliation history follow i
 - **After release 0.2.13 (2026-11-22):** X02–X04 are recorded under [After release 0.2.13](#after-release-0213). X02 is the
   toolbar shortcut's placement, X03 the capital's companion screens and X04 the mounted attack on a downed enemy. All
   three are released in 0.2.14 and none was played in the game. X04's original prone-target report stays open.
+- **After release 0.2.14 (2026-11-22):** X05, the post-combat save and door lock, is recorded under
+  [After release 0.2.14](#after-release-0214). 0.2.15 releases its diagnostics and accurate save messages; the cause is
+  not established and the lock is not repaired.
 - Dated handoffs and old failure records are history and are not rewritten. This ledger links to them.
 
 ## Current status (Sprint 8, 2026-11-19)
@@ -191,6 +194,14 @@ Engineering record: [CITY-AND-PRONE-HANDOFF.md](CITY-AND-PRONE-HANDOFF.md) (PR #
 | X02 | The Mount / Dismount shortcut disappears from, or moves away from, the slot the player chose: after the capital, the reserve roster, saves there, or temporary companion unavailability | **Repaired; released in 0.2.14.** One production lifecycle (`MountedToolbarLifecycle`) keeps each rider's arrangement through temporary absence and respects moves, removals, occupied slots and companion replacement. Save format unchanged. | Startup only: every patch installs (`pr57-city-prone-smoke-1`; the release DLL's own smoke is in the 0.2.14 notes). Behaviour NOT RUN: owner playtests 1–2 in the handoff. |
 | X03 | A companion's animal companion cannot be selected in the capital's Inventory and Character screens | **Repaired; released in 0.2.14.** A capital-only UI projection of each listed owner's own persistent pet into native `GetGroup`; nothing else changes. | Startup only (the `GetGroup` patch installs). Behaviour NOT RUN: owner playtest 3. |
 | X04 | A mounted ranged character cannot attack a prone target | **Partly repaired; released in 0.2.14.** The identified rejection of an explicit mounted attack on a living target that was already unconscious is corrected in source. The original prone-target report remains unreproduced; whether the reported target was conscious and prone or already unconscious remains unknown. **Open.** | NOT RUN: owner playtests 4–5. |
+
+### After release 0.2.14
+
+Engineering record: [SAVE-AND-DOOR-LOCK-HANDOFF.md](SAVE-AND-DOOR-LOCK-HANDOFF.md) (PR #59, merged as `d409bffc`).
+
+| ID | Report | Disposition | Native |
+|---|---|---|---|
+| X05 | After mounted ranged combat, quicksaves keep waiting ("Saving after current actions and projectiles finish") and fail, "projectiles appear to keep firing", and doors cannot be opened (owner log `output_log(20261122-180838).txt`, sha256 `8b0e422f…`) | **Diagnosed in part; diagnostics and accurate messages released in 0.2.15. Cause not established; not repaired. Open.** All four requests entered the deferred wait (readiness false at each activation). Three failed the wait's world/mode/loading check, misreported as "the native world changed" (a disallowed mode or manual loading screen on the ordinary path). The fourth was still waiting at the end of the log. The save wait refuses ordinary command starts, which explains the door symptom from source. 0.2.15 names the blocking owner and refusing condition of every held save and the real end of each wait. The readiness check, the hold and the 30 s limit are unchanged (readiness proven equivalent to 0.2.14 over 1,024 states). Needs an owner log with 0.2.15 or a disposable save. | NOT RUN (no startup either). Owner reproduction steps in the handoff, section 11. |
 
 ## Reconciliation history (superseded by the current status above)
 
