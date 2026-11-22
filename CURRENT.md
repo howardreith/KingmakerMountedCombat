@@ -15,11 +15,11 @@ Start here. The sections below this one are dated history, newest first.
   - Focused gate `Test-SaveDoorLockFocused.ps1`, 2 of 2 children: wait regression 16/0 with 8/8 mutations killed;
     readiness equivalence against 0.2.14 over 1,024 states, 0 failures; persistence contracts 228/0.
 
-  Log `artifactselease-0.2.15\gate-fast-804b85ba.log` (sha256 `2c579740…`).
+  Log `artifacts\release-0.2.15\gate-fast-804b85ba.log` (sha256 `2c579740…`).
 - **Package:** `KingmakerMountedCombat-0.2.15-release-diagnostic.zip`, SHA-256
   `0b650bb3dea5003e36606a217d1f2269f1b42b69050d35b5f1785bc18d228af8`. DLL
   `dc52d015ad6b4a80075ab22d8a1ddde6d4de52f09158e66f3c870d625becb515`, MVID `efc09c78-4831-424e-9aad-2d898d1cc88c`.
-  Package validator 11/0. Built from `804b85ba`, log `package-804b85ba.log` (`91e3e1a0…`).
+  Package validator 11/0. Built from `804b85ba`, log `artifacts\release-0.2.15\package-804b85ba.log` (sha256 `91e3e1a0…`).
 - **Native:** not run, startup included.
 - **Previous release:** `v0.2.14`, merge `61519031`.
 - **Not done:** no install, staging or loader replacement.
