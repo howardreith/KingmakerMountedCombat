@@ -86,7 +86,7 @@ function Invoke-Harness([hashtable]$Text, [string]$Label, [switch]$Echo) {
 }
 
 $baseline = Invoke-Harness $production 'unmutated' -Echo
-if (@($baseline.Values | Where-Object { $_ -ne 'PASS' }).Count -ne 0 -or $baseline.Count -lt 15) {
+if (@($baseline.Values | Where-Object { $_ -ne 'PASS' }).Count -ne 0 -or $baseline.Count -lt 16) {
     throw 'Deferred-save wait regression failed.'
 }
 

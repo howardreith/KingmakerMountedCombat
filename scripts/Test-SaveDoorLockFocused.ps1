@@ -3,7 +3,7 @@ param()
 # Focused selection for the post-combat save and door lock incident (docs/MOUNTED-SAVE-AND-DOOR-LOCK-MISSION.md). It declares
 # exactly two checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
 #   1. Test-DeferredSaveWait.ps1: the production deferred wait, its readiness result and observers, the native loading-queue
-#      adapter and the command hold, spliced verbatim; fifteen lifecycle cases (menu/loading/world refusals named, queued
+#      adapter and the command hold, spliced verbatim; sixteen lifecycle cases (menu/loading/world refusals named, queued
 #      requests, door hold released, pause, cancellation, faults, timing from activation, same-owner condition changes,
 #      contained logging, no retention) and eight one-line production mutations in generated copies; then the production
 #      readiness evaluation against the baseline 61519031 predicate over 1,024 term combinations.

@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("save wait refreshes an unchanged owner's detail on its interval without a line", SnapshotRefresh);
             runner.Run("save wait times are measured from activation and queued time is separate", ActivationTiming);
             runner.Run("deferred save records the fault that ended it and reports serialization only once started", FailureAndStart);
+            runner.Run("deferred save cleanup faults during disposal are recorded before the terminal reads them", CleanupFailure);
         }
 
         private static void WorldPolicy()
@@ -234,6 +235,35 @@ namespace KingmakerMountedCombat.Tests
             Throws<InvalidOperationException>(() => begin.Activate(() => { }), "Begin fault vanished.");
             TestRunner.True(begin.Failure != null && begin.Failure.Message == "notice" && begin.Disposed && !begin.TimedOut,
                 "A begin-wait fault was not recorded as the operation's failure.");
+        }
+
+        // Pro review of 079f4e9e, note 1: a disposal whose own cleanup threw is not a clean cancellation.
+        private static void CleanupFailure()
+        {
+            Exception seenByTerminal = null;
+            DeferredSaveEnumerator<object> writerFault = null;
+            writerFault = new DeferredSaveEnumerator<object>(new Inner(() => throw new InvalidOperationException("writer dispose")), () => false, () => 0,
+                () => { }, () => { }, () => { }, 30d, () => seenByTerminal = writerFault.Failure);
+            writerFault.Activate(() => { });
+            var thrown = Throws<InvalidOperationException>(() => writerFault.Dispose(), "Writer cleanup fault vanished.");
+            TestRunner.True(ReferenceEquals(seenByTerminal, thrown) && ReferenceEquals(writerFault.Failure, thrown) && !writerFault.TimedOut,
+                "The terminal did not see the writer's cleanup fault.");
+
+            Exception seenByEndTerminal = null;
+            DeferredSaveEnumerator<object> endFault = null;
+            endFault = new DeferredSaveEnumerator<object>(new Inner(() => { }), () => false, () => 0, () => { }, () => { },
+                () => throw new InvalidOperationException("wait release"), 30d, () => seenByEndTerminal = endFault.Failure);
+            endFault.Activate(() => { });
+            Throws<InvalidOperationException>(() => endFault.Dispose(), "Wait release fault vanished.");
+            TestRunner.True(seenByEndTerminal != null && seenByEndTerminal.Message == "wait release", "The terminal did not see the release fault.");
+
+            Exception seenByClean = new Exception("unset");
+            DeferredSaveEnumerator<object> clean = null;
+            clean = new DeferredSaveEnumerator<object>(new Inner(() => { }), () => false, () => 0, () => { }, () => { }, () => { }, 30d,
+                () => seenByClean = clean.Failure);
+            clean.Activate(() => { });
+            clean.Dispose();
+            TestRunner.True(seenByClean == null, "A clean disposal recorded a failure.");
         }
 
         private static T Throws<T>(Action action, string message) where T : Exception

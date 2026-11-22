@@ -46,7 +46,7 @@ Readings, each tied to source (corrected after the Pro review of `0b4b8fa4`, fin
    false at each activation. That does not establish that the same condition or object blocked every request, or that it
    stayed unresolved between them. Each request released its own fence (terminal → `ReleaseUnstartedSaveFence`); the log
    proves repeated deferral, not one leaked fence.
-2. None of the four failures used the 30-second timeout text ("did not finish within the bounded wait"). "The native world
+2. None of the three recorded failures used the 30-second timeout text ("did not finish within the bounded wait"). "The native world
    changed" came only from the per-tick world check (`tick` in `DeferNativeSave`), which refused for
    `world == null || Player replaced || IsManualLoadingScreenActive || mode ∉ {Default, Pause}`. The baseline binds `world`
    in `beginWait` before the first tick and checks player replacement separately in `ready()` (with its own message), so on

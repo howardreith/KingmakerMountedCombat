@@ -60,12 +60,12 @@ namespace KingmakerMountedCombat.Integration
     {
         private readonly SaveScope scope;
         internal int Moves, Disposals;
-        internal bool ThrowOnMove;
+        internal bool ThrowOnMove, ThrowOnDispose;
         internal Writer(SaveScope scope) { this.scope = scope; }
         public object Current => null;
         public bool MoveNext() { if (ThrowOnMove) throw new InvalidOperationException("native writer step failed"); scope.Began = true; return ++Moves < 2; }
         public void Reset() { throw new NotSupportedException(); }
-        public void Dispose() { Disposals++; }
+        public void Dispose() { Disposals++; if (ThrowOnDispose) throw new InvalidOperationException("writer dispose failed"); }
     }
 
     class Persistence
@@ -441,6 +441,20 @@ __NATIVE_METHODS__
                 True(end.Contains("outcome=TimedOut") && end.Contains("condition=[refusal=a voluntary Mount/Dismount is in flight]") &&
                     end.Contains("detail=[fake=PairOwnership; at=30.01]") && end.Contains("snapshotAt=30.01s") &&
                     end.IndexOf("native paired preparation", StringComparison.Ordinal) < 0, "stale end: " + end);
+            });
+
+            // Pro review of 079f4e9e, note 1: the reviewer's probe, a waiting operation disposed while its writer's cleanup throws.
+            Check("a waiting operation disposed while its writer cleanup throws is Faulted, not Cancelled", () =>
+            {
+                var persistence = new Persistence { Blocker = SaveWaitBlockerKind.Command, Subject = new object(), Summary = "Akasa's UnitAttack" };
+                var operation = persistence.Wrap(out var writer);
+                writer.ThrowOnDispose = true;
+                Activate(operation);
+                var threw = false;
+                try { operation.Dispose(); } catch (InvalidOperationException) { threw = true; }
+                True(threw && persistence.Released == 1 && persistence.LastSaveWaitOutcome == SaveWaitOutcome.Faulted &&
+                    persistence.logger.Lines.Last().Contains("outcome=Faulted") && persistence.logger.Lines.Last().Contains("writer dispose failed"),
+                    "cleanup fault: " + Lines(persistence));
             });
 
             Console.WriteLine("DEFERRED SAVE WAIT ACTUAL METHODS PASS=" + pass + " FAIL=" + fail +

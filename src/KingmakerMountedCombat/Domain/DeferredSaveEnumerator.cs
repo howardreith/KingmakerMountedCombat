@@ -168,10 +168,18 @@ namespace KingmakerMountedCombat.Domain
             try { ReleaseWait(); }
             catch (Exception exception)
             {
+                // Recorded before the terminal reads it, as a cleanup fault below is
+                // (Pro review of 079f4e9e, note 1): a disposal that threw is not a
+                // clean cancellation. The exceptions still propagate unchanged.
+                if (Failure == null) Failure = failure != null ? new AggregateException(failure, exception) : exception;
                 if (failure != null) throw new AggregateException(failure, exception);
                 throw;
             }
-            finally { terminal?.Invoke(); }
+            finally
+            {
+                if (Failure == null && failure != null) Failure = failure;
+                terminal?.Invoke();
+            }
             if (failure != null) throw failure;
         }
 
