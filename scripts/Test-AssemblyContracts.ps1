@@ -1536,7 +1536,7 @@ if($Target-eq'Kingmaker'){
     $cleanupBad=$uiSettings.GetMethod('CleanupBadSlots',$cityFlags)
     Assert-Contract ($null-ne$abilitySlotIsBad-and$null-ne$baseSlotIsBad-and(Test-MethodIlContainsToken $getSlot $baseSlotIsBad.MetadataToken)-and
         (Test-MethodIlContainsToken $cleanupBad $baseSlotIsBad.MetadataToken)) 'toolbar: UnitUISettings.GetSlot and CleanupBadSlots replace slots that IsBad reports'
-    # KMC postfixes the exact override (MountedPatchController.NativeAbilitySlotIsBadToken) to observe that decision.
+    # The exact override that decision runs through (KMC brackets the two native operations below rather than IsBad itself).
     $abilityIsBadToken=if($null-eq$abilitySlotIsBad){0}else{$abilitySlotIsBad.MetadataToken}
     Assert-Contract ($null-ne$abilitySlotIsBad-and-not$abilitySlotIsBad.IsStatic-and$abilitySlotIsBad.ReturnType.FullName-ceq'System.Boolean'-and
         $abilitySlotIsBad.GetParameters().Count-eq0-and$abilitySlotIsBad.DeclaringType.FullName-ceq'Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility'-and

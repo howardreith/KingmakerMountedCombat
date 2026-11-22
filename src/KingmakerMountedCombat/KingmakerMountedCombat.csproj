@@ -542,6 +542,7 @@
     <Compile Include="Domain\NativeMountedControl.cs" />
     <Compile Include="Domain\MountedControlSlotPolicy.cs" />
     <Compile Include="Domain\MountedControlPlacementIntent.cs" />
+    <Compile Include="Domain\MountedToolbarLifecycle.cs" />
     <Compile Include="Domain\CityCompanionRosterProjection.cs" />
     <Compile Include="Integration\CityCompanionRosterAdapter.cs" />
     <Compile Include="Domain\NativeShellBindingPolicy.cs" />
@@ -643,6 +644,7 @@
     <Compile Include="Integration\GameMountedRelationshipService.ContinuousDrive.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
+    <Compile Include="Integration\NativeMountedControlService.Toolbar.cs" />
     <Compile Include="Domain\MountedPresentationPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.Presentation.cs" />
     <Compile Include="Integration\NativeMountedControlService.TargetingPresentation.cs" />

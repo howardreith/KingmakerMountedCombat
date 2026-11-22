@@ -71,109 +71,11 @@ namespace KingmakerMountedCombat.Domain
         public static bool IsPublicBindingRow(int savedKind) =>
             savedKind != SavedPlacementRecord && RestoreSavedSlot(savedKind) == MountedControlSlotRepair.MountState;
 
-        // The current archive's live public rows for one rider. The public binding is chosen before anything is
-        // emitted, with ReconcilePublicControlSlots' precedence (RecoveredPublicSlot): the bar's first canonical binding
-        // when one is there, otherwise its first exact older alias. Only that one slot is written, as kind 6, and only
-        // when it is callable live data. A stale canonical binding is not written here (the remembered-row writer
-        // carries its index), and an alias never stands in for a canonical binding on the same bar. The placement
-        // record is accounted separately: written when the rider has it and either the public control is live or this
-        // capture wrote the public binding (a live alias with the canonical fact still inactive).
-        // selectedIndex: the effective binding the caller chose (EffectiveBindingIndex; -1 for none); by default the repair
-        // precedence (RecoveredPublicSlot).
-        public static IList<KeyValuePair<int, int>> LivePublicRows(IList<NativeMountedControlKind> kinds, Func<int, bool> callable,
-            bool placementRecorded, bool publicControlActive, int selectedIndex = int.MinValue)
-        {
-            var result = new List<KeyValuePair<int, int>>();
-            var at = selectedIndex == int.MinValue ? RecoveredPublicSlot(kinds) : selectedIndex;
-            if (at >= 0 && IsValidSavedRow(at, SavedMountState) && callable != null && callable(at))
-                result.Add(new KeyValuePair<int, int>(at, SavedMountState));
-            if (placementRecorded && (publicControlActive || result.Count > 0))
-                result.Add(new KeyValuePair<int, int>(0, SavedPlacementRecord));
-            return result;
-        }
-
-        // The rows an absent arrangement adds for one actor after the live writer ran, given the (index, kind) rows it
-        // already wrote for that actor. None when the live writer already wrote the actor's public binding (the
-        // effective choice; the archive keys rows by actor and index, so the same choice is never written twice). When
-        // the remembered slot now belongs to something else (rememberedSlotOccupied: another binding is on the bar
-        // there, or the live writer emitted another row at that index), the occupant keeps it and the shortcut is
-        // saved as off the bar: the placement record alone. Otherwise AbsentArrangementRows. Never a second placement
-        // record.
-        public static IList<KeyValuePair<int, int>> AbsentRowsAfterLive(int index, IEnumerable<KeyValuePair<int, int>> liveRowsForActor,
-            bool rememberedSlotOccupied = false)
-        {
-            var live = liveRowsForActor == null ? new List<KeyValuePair<int, int>>() : new List<KeyValuePair<int, int>>(liveRowsForActor);
-            var result = new List<KeyValuePair<int, int>>();
-            if (live.Exists(row => IsPublicBindingRow(row.Value))) return result;
-            var occupied = RememberedSlotTaken(index, live, rememberedSlotOccupied);
-            var hasRecord = live.Exists(row => row.Value == SavedPlacementRecord);
-            foreach (var row in AbsentArrangementRows(occupied ? -1 : index))
-                if (row.Value != SavedPlacementRecord || !hasRecord) result.Add(row);
-            return result;
-        }
-
-        // Whether a remembered slot belongs to something else now: another binding on the bar there, or another row the
-        // live writer emitted at that index. The save then records the shortcut off the bar, and so does the continuing
-        // arrangement (MountedControlPlacementIntent.GiveUpOccupiedSlot).
-        public static bool RememberedSlotTaken(int index, IEnumerable<KeyValuePair<int, int>> liveRowsForActor, bool rememberedSlotOccupied)
-        {
-            if (index < 0) return false;
-            if (rememberedSlotOccupied) return true;
-            if (liveRowsForActor == null) return false;
-            foreach (var row in liveRowsForActor)
-                if (row.Value != SavedPlacementRecord && row.Key == index) return true;
-            return false;
-        }
-
-        // Native UnitUISettings.CleanupBadSlots' outcome for a bad slot it was handed, from what the slot holds when the
-        // call returns: a rebind leaves a binding of the same KMC kind whose ability data is the live fact's own (the
-        // pinned build writes a new slot object; an in-place data change is recognized the same way), anything else
-        // (an empty slot) is an emptying.
-        public static bool IsNativeRebind(NativeMountedControlKind reportedKind, NativeMountedControlKind kindNow, bool nowHoldsLiveFactData) =>
-            reportedKind != NativeMountedControlKind.None && kindNow == reportedKind && nowHoldsLiveFactData;
-
-        // A native report for a canonical slot counts for the arrangement only when that slot is the bar's selected public
-        // binding (RecoveredPublicSlot: the first canonical binding); a report for a secondary copy never replaces it.
-        public static bool IsSelectedPublicReport(int selectedIndex, int reportedIndex) =>
-            reportedIndex >= 0 && selectedIndex == reportedIndex;
-
-        // A deferred native observation applies only in the player world that produced it and only while the reporting
-        // rider instance is still on that world's roster; work from a replaced world is discarded.
-        public static bool DeferredObservationApplies(object originWorld, object currentWorld, bool riderStillOnRoster) =>
-            originWorld != null && ReferenceEquals(originWorld, currentWorld) && riderStillOnRoster;
-
-        // The bar's effective public binding, for observation, capture and repair alike. Bindings are taken in the repair
-        // precedence (canonical bindings by index, then older aliases by index). The first one that is not a copy (isCopy)
-        // is the player's binding and wins, wherever it is. When only copies remain:
-        // - a choice is interrupted (choiceInterrupted) and its slot is free: they yield to it (-1 with onlyYieldingCopies);
-        // - a choice is interrupted and its slot is occupied: the first copy becomes the fallback;
-        // - no choice is interrupted (the arrangement was live, and the player removed its binding): copies of it are not a
-        //   binding at all (-1 without onlyYieldingCopies), so the removal stands and repair discards them.
-        // -1 without onlyYieldingCopies: no public binding at all.
-        public static int EffectiveBindingIndex(IList<NativeMountedControlKind> kinds, Func<int, bool> isCopy, bool choiceInterrupted,
-            bool chosenSlotFree, out bool onlyYieldingCopies)
-        {
-            onlyYieldingCopies = false;
-            if (kinds == null) return -1;
-            var first = -1;
-            foreach (var canonical in new[] { true, false })
-                for (var index = 0; index < kinds.Count; index++)
-                {
-                    var kind = kinds[index];
-                    if (canonical ? kind != NativeMountedControlKind.MountState : RepairLiveSlot(kind) != MountedControlSlotRepair.MountState) continue;
-                    if (first < 0) first = index;
-                    if (isCopy == null || !isCopy(index)) return index;
-                }
-            if (first < 0 || !choiceInterrupted) return -1;
-            if (chosenSlotFree) { onlyYieldingCopies = true; return -1; }
-            return first;
-        }
-
-        // The saved public row an actor's arrangement is seeded from, among its public rows in archive order. A replay of
-        // rows captured earlier in this world takes the first row (later in-world edits are protected elsewhere). A freshly
-        // loaded save takes the first row whose destination slot can hold the control now (restorable: empty, or a public
-        // binding), as the pre-change reader skipped an occupied row and went on to the next one; when none can, the first
-        // row (the occupied-slot rule then records the shortcut off the bar). -1 for no rows.
+        // The older Mount / Dismount row an actor's arrangement is seeded from when an archive holds no kind-6 row (F2
+        // collapses the two older controls into one), among those rows in archive order. A replay of rows captured earlier
+        // in this world takes the first row. A freshly loaded save takes the first row whose destination slot can hold the
+        // control now (restorable: empty, or a public binding), as the pre-change reader skipped an occupied row and went on
+        // to the next one; when none can, the first row (the occupied-slot rule then gives it up). -1 for no rows.
         public static int SelectSeededPublicRow(IList<int> publicRowIndices, Func<int, bool> restorable, bool loadedWorld)
         {
             if (publicRowIndices == null || publicRowIndices.Count == 0) return -1;
@@ -181,19 +83,6 @@ namespace KingmakerMountedCombat.Domain
                 foreach (var index in publicRowIndices)
                     if (restorable(index)) return index;
             return publicRowIndices[0];
-        }
-
-        // The slot an older bar's public control is recovered from, with ReconcilePublicControlSlots' precedence: an
-        // existing public Mount / Dismount binding wins; otherwise the first exact older Mount or Dismount binding.
-        // -1 when the bar holds neither.
-        public static int RecoveredPublicSlot(IList<NativeMountedControlKind> kinds)
-        {
-            if (kinds == null) return -1;
-            for (var index = 0; index < kinds.Count; index++)
-                if (kinds[index] == NativeMountedControlKind.MountState) return index;
-            for (var index = 0; index < kinds.Count; index++)
-                if (RepairLiveSlot(kinds[index]) == MountedControlSlotRepair.MountState) return index;
-            return -1;
         }
 
         public static MountedControlSlotRepair RestoreSavedSlot(int savedKind)
@@ -224,15 +113,6 @@ namespace KingmakerMountedCombat.Domain
         public const int MaximumArchiveRows = 128;
 
         public static bool FitsArchive(int rowCount) => rowCount >= 0 && rowCount <= MaximumArchiveRows;
-
-        // The archive rows of an absent rider's arrangement (index, kind): its chosen slot when it fits the saved bound,
-        // and always its placement record, so a rider that left the control off the bar is never placed again.
-        public static IEnumerable<KeyValuePair<int, int>> AbsentArrangementRows(int chosenIndex)
-        {
-            if (IsValidSavedRow(chosenIndex, SavedMountState))
-                yield return new KeyValuePair<int, int>(chosenIndex, SavedMountState);
-            yield return new KeyValuePair<int, int>(0, SavedPlacementRecord);
-        }
 
         // Native SetSlotInternal fills the first empty slot of all 140. The public control goes only to the visible main
         // bar, and never over anything: -1 when that bar is full.

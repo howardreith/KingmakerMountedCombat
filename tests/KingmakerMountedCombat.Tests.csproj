@@ -357,6 +357,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedControlSlotPolicy.cs"><Link>Shared\Domain\MountedControlSlotPolicy.cs</Link></Compile>
     <Compile Include="MountedControlSlotPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedControlPlacementIntent.cs"><Link>Shared\Domain\MountedControlPlacementIntent.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedToolbarLifecycle.cs"><Link>Shared\Domain\MountedToolbarLifecycle.cs</Link></Compile>
     <Compile Include="MountedControlPlacementIntentTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\CityCompanionRosterProjection.cs"><Link>Shared\Domain\CityCompanionRosterProjection.cs</Link></Compile>
     <Compile Include="CityCompanionRosterProjectionTests.cs" />

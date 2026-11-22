@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using KingmakerMountedCombat.Domain;
@@ -6,8 +7,9 @@ using KingmakerMountedCombat.Integration;
 
 // The owned archive's control-row bound through the production DTO, validator and codec (MountedArchiveData.Validate,
 // MountedArchiveCodec.Encode/Decode), compiled from the candidate's own sources by scripts/Test-CityArchiveRowBound.ps1.
-// The rows are what NativeMountedControlService.CapturePersistentSlots writes: a live rider's slot row and placement
-// record, and absent riders' arrangements from MountedControlSlotPolicy.AbsentArrangementRows. In-memory graphs only.
+// The public rows are written by the production toolbar lifecycle (MountedToolbarLifecycle.CaptureRows, the rows
+// NativeMountedControlService.CapturePersistentSlots(includeAbsentIntent: true) archives) over a minimal labeled fake of
+// reserve riders' bars. In-memory graphs only.
 internal static class ArchiveControlRowBoundTests
 {
     private const string Campaign = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", Area = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -22,19 +24,78 @@ internal static class ArchiveControlRowBoundTests
         Pairs = new SavedMountedPair[0], Participations = new SavedPairParticipation[0], Slots = slots
     };
 
-    private static SavedMountedSlot[] AbsentRows(int actor, int index) =>
-        MountedControlSlotPolicy.AbsentArrangementRows(index)
-            .Select(row => new SavedMountedSlot { ActorId = ActorId(actor), Index = row.Key, Kind = row.Value }).ToArray();
-
-    // One live rider (slot row at 9 plus its placement record) and absentRiders absent arrangements of two rows each.
-    private static SavedMountedSlot[] Rows(int absentRiders)
+    // A reserve rider's bar (labeled fake): 140 slots, its pet link, nothing leased.
+    private sealed class Rider
     {
-        var live = new[]
+        internal string Id;
+        internal MountedToolbarSlot[] Bar = new MountedToolbarSlot[140];
+        internal string PetLink = "pet";
+    }
+
+    private sealed class Host : IMountedToolbarHost<Rider>
+    {
+        internal readonly object World = new object();
+        internal readonly List<Rider> Reserve = new List<Rider>();
+        public object CurrentWorld => World;
+        public IList<Rider> CurrentRiders() => new List<Rider>();
+        public IList<Rider> ReserveOwners() => Reserve;
+        public Rider PersistentPet(Rider owner) => null;
+        public bool IsPet(Rider unit) => false;
+        public string ActorId(Rider unit) => unit.Id;
+        public string PetLink(Rider unit) => unit.PetLink;
+        public bool OnPlayerRoster(Rider unit) => Reserve.Contains(unit);
+        public Rider ResolveCharacter(string actorId) => Reserve.SingleOrDefault(unit => unit.Id == actorId);
+        public bool ControlDesired(Rider unit) => false;
+        public bool ControlLive(Rider unit) => false;
+        public void PrepareRider(Rider unit) { }
+        public int SlotCount(Rider unit) => unit.Bar.Length;
+        public MountedToolbarSlot ReadSlot(Rider unit, int index) => unit.Bar[index];
+        public object SlotIdentity(Rider unit, int index) => null;
+        public bool IsNativeEmptySlot(Rider unit, int index) => false;
+        public bool HoldsLiveBinding(Rider unit, int index) => false;
+        public void BindControl(Rider unit, int index) { throw new InvalidOperationException("No control is live in this fixture."); }
+        public void ClearSlot(Rider unit, int index) => unit.Bar[index] = MountedToolbarSlot.Empty;
+        public void BarChanged(Rider unit) { }
+        public void SanitizeOtherBindings(Rider unit, MountedToolbarBoundary boundary) { }
+        public void ClearManagedAutoUse(Rider unit, MountedToolbarBoundary boundary) { }
+        public void RemoveManagedFacts(Rider unit) { }
+        public bool InitialPlacementAllowed(Rider unit) => false;
+        public int SelectInitialPlacementSlot(Rider unit) => -1;
+    }
+
+    private static SavedMountedSlot[] Capture(Host host, MountedToolbarLifecycle<Rider> lifecycle) =>
+        lifecycle.CaptureRows(true).Select(row => new SavedMountedSlot { ActorId = row.ActorId, Index = row.Index, Kind = row.Kind }).ToArray();
+
+    // count reserve riders with one public binding each at index i % 120 (a slot row and a placement record each), plus
+    // offBar riders whose loaded arrangement is off the bar (a placement record alone).
+    private static SavedMountedSlot[] Rows(int count, int offBar = 0)
+    {
+        var host = new Host();
+        var lifecycle = new MountedToolbarLifecycle<Rider>(host);
+        lifecycle.Enable();
+        for (var i = 1; i <= count + offBar; i++)
         {
-            new SavedMountedSlot { ActorId = ActorId(0), Index = 9, Kind = MountedControlSlotPolicy.SavedMountState },
-            new SavedMountedSlot { ActorId = ActorId(0), Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }
-        };
-        return live.Concat(Enumerable.Range(1, absentRiders).SelectMany(i => AbsentRows(i, i % 120))).ToArray();
+            var rider = new Rider { Id = ActorId(i) };
+            if (i <= count) rider.Bar[i % 120] = MountedToolbarSlot.PublicControl;
+            host.Reserve.Add(rider);
+        }
+        lifecycle.SeedFromRows(Enumerable.Range(count + 1, offBar).Select(i => new MountedToolbarRow
+            { ActorId = ActorId(i), Index = 0, Kind = MountedControlSlotPolicy.SavedPlacementRecord }), true);
+        // The update observes and sweeps the reserve bars (every slot pending).
+        lifecycle.Reconcile();
+        return Capture(host, lifecycle);
+    }
+
+    private static SavedMountedSlot[] One(Action<Rider> bar, Action<Host, MountedToolbarLifecycle<Rider>, Rider> between = null)
+    {
+        var host = new Host();
+        var lifecycle = new MountedToolbarLifecycle<Rider>(host);
+        lifecycle.Enable();
+        var rider = new Rider { Id = ActorId(300) };
+        bar(rider);
+        host.Reserve.Add(rider);
+        between?.Invoke(host, lifecycle, rider);
+        return Capture(host, lifecycle);
     }
 
     private static void True(bool value, string message) { if (!value) throw new Exception(message); }
@@ -50,10 +111,10 @@ internal static class ArchiveControlRowBoundTests
         // The installed Newtonsoft's Unity converters load UnityEngine from the game's Managed directory only.
         AppDomain.CurrentDomain.AssemblyResolve += (sender, request) =>
             new System.Reflection.AssemblyName(request.Name).Name == "UnityEngine" ? System.Reflection.Assembly.LoadFrom(arguments[0]) : null;
-        Check("an exact-fit archive of 128 control rows round-trips every actor id, index and kind", () =>
+        Check("an exact-fit archive of 128 control rows written by the lifecycle round-trips every actor id, index and kind", () =>
         {
-            var rows = Rows(63);
-            True(rows.Length == MountedControlSlotPolicy.MaximumArchiveRows && rows.Length == 128, "The fixture is not an exact fit.");
+            var rows = Rows(64);
+            True(rows.Length == MountedControlSlotPolicy.MaximumArchiveRows && rows.Length == 128, "The fixture is not an exact fit: " + rows.Length);
             var read = MountedArchiveCodec.Decode(MountedArchiveCodec.Encode(Archive(rows)));
             True(read.Kind == MountedSaveReadKind.Current && read.Data != null, "The exact-fit archive did not decode as current data: " + read.Feedback);
             var decoded = read.Data.Slots;
@@ -66,12 +127,10 @@ internal static class ArchiveControlRowBoundTests
             Console.WriteLine("INFO exact-fit decoded rows=" + decoded.Length + "; first=" + decoded[0].ActorId + "/" + decoded[0].Index + "/" + decoded[0].Kind +
                 "; last=" + decoded[127].ActorId + "/" + decoded[127].Index + "/" + decoded[127].Kind);
         });
-        Check("127 rows plus an absent rider's two rows are refused by the production archive validation", () =>
+        Check("129 required rows from the lifecycle are written, then refused by the production archive validation", () =>
         {
-            var rows = Rows(62).Concat(new[] { new SavedMountedSlot { ActorId = ActorId(200), Index = 3, Kind = MountedControlSlotPolicy.SavedMountState } }).ToArray();
-            True(rows.Length == 127, "The fixture does not start from 127 rows.");
-            rows = rows.Concat(AbsentRows(201, 40)).ToArray();
-            True(rows.Length == 129, "The overflow fixture is not 129 rows.");
+            var rows = Rows(64, offBar: 1);
+            True(rows.Length == 129, "The overflow fixture is not 129 rows: " + rows.Length);
             string error = null;
             try { MountedArchiveCodec.Encode(Archive(rows)); }
             catch (InvalidDataException refusal) { error = refusal.Message; }
@@ -79,97 +138,57 @@ internal static class ArchiveControlRowBoundTests
             True(error.Contains("Owned archive control slots are not bounded."), "The refusal is not the archive's bound validation: " + error);
             Console.WriteLine("INFO overflow refused: " + error);
         });
-        Check("an absent rider that left the control off the bar is a placement record alone and round-trips", () =>
+        Check("a rider that left the control off the bar is a placement record alone and round-trips", () =>
         {
-            var rows = Rows(0).Concat(AbsentRows(7, MountedControlPlacementIntent.OffBar)).ToArray();
+            var rows = Rows(1, offBar: 1);
             var decoded = MountedArchiveCodec.Decode(MountedArchiveCodec.Encode(Archive(rows))).Data.Slots;
-            var absent = decoded.Where(r => Guid.Parse(r.ActorId) == Guid.Parse(ActorId(7))).ToArray();
+            var absent = decoded.Where(r => Guid.Parse(r.ActorId) == Guid.Parse(ActorId(2))).ToArray();
             True(absent.Length == 1 && absent[0].Kind == MountedControlSlotPolicy.SavedPlacementRecord && absent[0].Index == 0,
                 "An off-bar arrangement did not round-trip as one placement record.");
         });
-        foreach (var alias in new[] { NativeMountedControlKind.MountCompanion, NativeMountedControlKind.Dismount })
+        Check("an older alias at 9 on a bar with no canonical binding writes one binding and one record through the production codec", () =>
         {
-            Check("a live older alias (" + alias + ") at 9 with the canonical fact inactive and no prior record emits one binding and one record through the production codec", () =>
-            {
-                // CaptureLiveSlots' public rows (MountedControlSlotPolicy.LivePublicRows) for a bar in production slot
-                // order: the alias at 9 is callable (its shell is live), the canonical fact is inactive, and the placement
-                // was recorded only by the alias recovery. Then CaptureAbsentIntent's rows for the recovered arrangement.
-                var kinds = Bar(9, alias);
-                var rows = Emit(ActorId(300), kinds, i => i == 9, placementRecorded: true, publicControlActive: false, absentIndex: 9);
-                var decoded = RoundTrip(rows);
-                ExpectOnePublicBinding(decoded, 9);
-                // Control: the duplicate-key check is intact; the same choice written twice is refused.
-                ExpectDuplicateRefused(rows.Concat(new[] { new SavedMountedSlot { ActorId = ActorId(300), Index = 9, Kind = (int)alias } }).ToArray());
-            });
-        }
-        foreach (var stale in new[] { false, true })
-        {
-            Check("a mixed bar (live alias at 3, canonical at 9" + (stale ? " with stale data" : "") + ") saved first restores the canonical index 9 through the production codec", () =>
-            {
-                // Production slot order: the alias comes first. Its shell is callable; the canonical binding is callable
-                // unless its AbilityData is stale (then classification carries 9 as the remembered slot).
-                var kinds = Bar(3, NativeMountedControlKind.MountCompanion, 9, NativeMountedControlKind.MountState);
-                var rows = Emit(ActorId(301), kinds, i => i == 3 || (i == 9 && !stale), placementRecorded: true, publicControlActive: true,
-                    absentIndex: stale ? 9 : (int?)null);
-                var decoded = RoundTrip(rows);
-                ExpectOnePublicBinding(decoded, 9);
-                True(!decoded.Any(r => r.Index == 3 && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The alias slot 3 was written as a binding.");
-            });
-        }
-        Check("stale canonical data at 3 before current data at 9 saves the selected index 3 once, with the placement record, through the production codec", () =>
-        {
-            // The selected index is the first canonical binding (3); it is not callable, so the live writer skips it and
-            // classification carries 3 as the remembered slot (the same index and callability in both writers).
-            var kinds = Bar(3, NativeMountedControlKind.MountState, 9, NativeMountedControlKind.MountState);
-            var rows = Emit(ActorId(302), kinds, i => i == 9, placementRecorded: true, publicControlActive: true, absentIndex: 3);
+            var rows = One(rider => rider.Bar[9] = MountedToolbarSlot.LegacyAlias);
             var decoded = RoundTrip(rows);
-            ExpectOnePublicBinding(decoded, 3);
+            ExpectPublicBindings(decoded, 9);
+            // Control: the duplicate-key check is intact; the same slot written twice is refused.
+            ExpectDuplicateRefused(rows.Concat(new[] { new SavedMountedSlot { ActorId = ActorId(300), Index = 9, Kind = MountedControlSlotPolicy.SavedDismount } }).ToArray());
         });
-        Check("a remembered shortcut at 9 occupied by a callable older Mounted Charge saves the Charge at 9 and the shortcut off the bar through the production codec", () =>
+        Check("an alias at 3 beside a canonical binding at 9 writes only the canonical index 9 through the production codec", () =>
         {
-            // Interrupted intent at 9; the live writer emits the Charge row at 9 (and no public binding: the bar holds
-            // none); the remembered writer sees index 9 taken and adds the placement record only.
-            var actor = ActorId(303);
-            var charge = new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountedCharge } };
-            var rows = Emit(actor, Bar(9, NativeMountedControlKind.MountedCharge), i => false, placementRecorded: true,
-                publicControlActive: false, absentIndex: 9, otherLiveRows: charge, occupied: true);
+            var rows = One(rider => { rider.Bar[3] = MountedToolbarSlot.LegacyAlias; rider.Bar[9] = MountedToolbarSlot.PublicControl; });
             var decoded = RoundTrip(rows);
+            ExpectPublicBindings(decoded, 9);
+            True(!decoded.Any(r => r.Index == 3 && MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)), "The alias slot 3 was written as a binding.");
+        });
+        Check("the player's two canonical bindings (3 and 9) write two slot rows and one record with unique archive keys", () =>
+        {
+            var rows = One(rider => { rider.Bar[3] = MountedToolbarSlot.PublicControl; rider.Bar[9] = MountedToolbarSlot.PublicControl; });
+            var decoded = RoundTrip(rows);
+            ExpectPublicBindings(decoded, 3, 9);
+        });
+        Check("a pending shortcut at 9 occupied by an older Mounted Charge is saved off the bar beside the Charge row", () =>
+        {
+            var actor = ActorId(300);
+            var rows = One(rider => rider.Bar[9] = MountedToolbarSlot.PublicControl, (host, lifecycle, rider) =>
+            {
+                lifecycle.BeginSave();
+                True(rider.Bar[9] == MountedToolbarSlot.Empty, "The save scope did not clear the binding.");
+                rider.Bar[9] = MountedToolbarSlot.OtherManaged;
+            });
+            // The adapter's own live row for the Charge at 9 (CaptureOtherLiveSlots), then the lifecycle's rows.
+            var charge = new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountedCharge } };
+            var all = charge.Concat(rows).ToArray();
+            var decoded = RoundTrip(all);
             True(decoded.Count(r => r.Index == 9 && r.Kind == MountedControlSlotPolicy.SavedMountedCharge) == 1 &&
                 !decoded.Any(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)) &&
                 decoded.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1 && decoded.Length == 2,
                 "The archive did not hold one Charge row at 9, no mount shortcut and one placement record.");
-            // Control: without the occupancy rule the kind-6 row at 9 would collide and the archive refuses it.
-            ExpectDuplicateRefused(rows.Concat(new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState } }).ToArray());
+            // Control: without the occupancy rule a kind-6 row at 9 would collide and the archive refuses it.
+            ExpectDuplicateRefused(all.Concat(new[] { new SavedMountedSlot { ActorId = actor, Index = 9, Kind = MountedControlSlotPolicy.SavedMountState } }).ToArray());
         });
         Console.WriteLine("TOTAL PASS=" + passed + " FAIL=" + failed);
         return failed == 0 ? 0 : 1;
-    }
-
-    private static NativeMountedControlKind[] Bar(int index, NativeMountedControlKind kind, int secondIndex = -1,
-        NativeMountedControlKind secondKind = NativeMountedControlKind.None)
-    {
-        var kinds = new NativeMountedControlKind[140];
-        kinds[index] = kind;
-        if (secondIndex >= 0) kinds[secondIndex] = secondKind;
-        return kinds;
-    }
-
-    // NativeMountedControlService.CapturePersistentSlots for one rider: the live public rows, then (absentIndex: the
-    // remembered arrangement classification recorded) the remembered rows composed after them.
-    // otherLiveRows: the live writer's other KMC rows for this rider (for example an older Mounted Charge awaiting
-    // migration); occupied: the remembered slot holds another binding on the bar.
-    private static SavedMountedSlot[] Emit(string actor, NativeMountedControlKind[] kinds, Func<int, bool> callable, bool placementRecorded,
-        bool publicControlActive, int? absentIndex, SavedMountedSlot[] otherLiveRows = null, bool occupied = false)
-    {
-        var rows = (otherLiveRows ?? new SavedMountedSlot[0]).ToList();
-        rows.AddRange(MountedControlSlotPolicy.LivePublicRows(kinds, callable, placementRecorded, publicControlActive)
-            .Select(row => new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value }));
-        var writtenBinding = rows.Any(r => r.Kind == MountedControlSlotPolicy.SavedMountState);
-        if (absentIndex.HasValue && !writtenBinding)
-            foreach (var row in MountedControlSlotPolicy.AbsentRowsAfterLive(absentIndex.Value,
-                rows.Select(r => new System.Collections.Generic.KeyValuePair<int, int>(r.Index, r.Kind)).ToArray(), occupied))
-                rows.Add(new SavedMountedSlot { ActorId = actor, Index = row.Key, Kind = row.Value });
-        return rows.ToArray();
     }
 
     private static SavedMountedSlot[] RoundTrip(SavedMountedSlot[] rows)
@@ -179,13 +198,11 @@ internal static class ArchiveControlRowBoundTests
         return read.Data.Slots;
     }
 
-    // RestorePersistentSlots seeds the first public-binding row per actor: it must be the only one, at the expected index.
-    private static void ExpectOnePublicBinding(SavedMountedSlot[] decoded, int index)
+    // Exactly these public-binding rows (one per slot) and exactly one placement record.
+    private static void ExpectPublicBindings(SavedMountedSlot[] decoded, params int[] indices)
     {
-        var bindings = decoded.Where(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).ToArray();
-        True(bindings.Length == 1 && bindings[0].Index == index &&
-            MountedControlSlotPolicy.RestoreSavedSlot(bindings[0].Kind) == MountedControlSlotRepair.MountState,
-            "The archive does not hold exactly one restorable public binding at " + index + ".");
+        var bindings = decoded.Where(r => MountedControlSlotPolicy.IsPublicBindingRow(r.Kind)).Select(r => r.Index).OrderBy(i => i).ToArray();
+        True(bindings.SequenceEqual(indices), "The archive's public bindings are [" + string.Join(",", bindings) + "], expected [" + string.Join(",", indices) + "].");
         True(decoded.Count(r => r.Kind == MountedControlSlotPolicy.SavedPlacementRecord) == 1, "The archive does not hold exactly one placement record.");
     }
 

@@ -2,9 +2,10 @@
 param()
 # The owned archive's control-row bound through the production DTO, validator and codec, compiled from THIS worktree's
 # sources (the same component set Test-Chunk7CurrentRemovalArchive.ps1 compiles) with
-# tests/Chunk7Diagnostics/ArchiveControlRowBoundTests.cs: an exact-fit 128-row archive round-trips every row; 127 rows
-# plus an absent rider's arrangement are refused by MountedArchiveData's own validation. In-memory graphs only; no native
-# storage, game callback or product build is exercised.
+# tests/Chunk7Diagnostics/ArchiveControlRowBoundTests.cs: the public rows come from the production toolbar lifecycle
+# (MountedToolbarLifecycle.CaptureRows over a labeled fake of reserve bars); an exact-fit 128-row archive round-trips every
+# row; 129 required rows are written and then refused by MountedArchiveData's own validation. In-memory graphs only; no
+# native storage, game callback or product build is exercised.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output=Join-Path ([IO.Path]::GetTempPath()) ('kmc-archive-row-bound-'+[Guid]::NewGuid().ToString('N'))
@@ -12,7 +13,8 @@ $output=Join-Path ([IO.Path]::GetTempPath()) ('kmc-archive-row-bound-'+[Guid]::N
 $relative=@('src/KingmakerMountedCombat/Integration/MountedSaveData.cs','src/KingmakerMountedCombat/Integration/SavedCombatData.cs',
     'src/KingmakerMountedCombat/Domain/PairedActivationSnapshot.cs','src/KingmakerMountedCombat/Integration/MountedLoadAdmissionPolicy.cs',
     'src/KingmakerMountedCombat/Integration/MountedArchiveData.cs','src/KingmakerMountedCombat/Domain/MountedControlSlotPolicy.cs',
-    'src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs','src/KingmakerMountedCombat/Domain/NativeMountedControl.cs',
+    'src/KingmakerMountedCombat/Domain/MountedControlPlacementIntent.cs','src/KingmakerMountedCombat/Domain/MountedToolbarLifecycle.cs',
+    'src/KingmakerMountedCombat/Domain/NativeMountedControl.cs',
     'src/KingmakerMountedCombat/Integration/MountedArchiveCodec.cs','src/KingmakerMountedCombat/Integration/NativeMountedSaveFormat.cs',
     'src/KingmakerMountedCombat/Domain/DeclaredSmallRiderBody.cs','src/KingmakerMountedCombat/Domain/MountedRiderProfileCatalog.cs',
     'src/KingmakerMountedCombat/Domain/MountedRiderPoseProfile.cs','src/KingmakerMountedCombat/Domain/PoseVector3.cs',
