@@ -172,7 +172,7 @@ namespace KingmakerMountedCombat.Integration
     internal static class MountedSaveData { internal static bool ActorId(string id) => !string.IsNullOrEmpty(id); }
 
     // Substitute: the pair registry's owners (relationship.Ownership.Owners).
-    internal sealed class PairOwner { public UnitEntityData Rider, Mount; }
+    internal sealed class PairOwner { public UnitEntityData Rider = null, Mount = null; }
     internal sealed class PairOwnership { public List<PairOwner> Owners = new List<PairOwner>(); }
     internal sealed class GameMountedRelationshipService { public PairOwnership Ownership = new PairOwnership(); }
 

@@ -61,7 +61,7 @@ function Invoke-Variant([hashtable]$Campaign,[string]$Label,[hashtable]$Texts){
     $exe=Join-Path $dir 'ToolbarMutation.exe'
     $references=@('mscorlib.dll','System.dll','System.Core.dll'|ForEach-Object{'/reference:'+(Join-Path $framework $_)})
     $compile=@(& $compiler /noconfig /nologo /target:exe /langversion:7.3 /nostdlib+ /warnaserror+ ('/out:'+$exe) @references @files 2>&1)
-    if($LASTEXITCODE-ne0){$compile|ForEach-Object{Write-Output ('  '+$_)};throw ($Campaign.Name+' '+$Label+' did not compile.')}
+    if($LASTEXITCODE-ne0){$compile|ForEach-Object{Write-Host ('  '+$_)};throw ($Campaign.Name+' '+$Label+' did not compile.')}
     $output=@(& $exe 2>&1);$exit=$LASTEXITCODE
     $failed=@($output|ForEach-Object{[string]$_}|Where-Object{$_-cmatch'^FAIL '})
     $passed=@($output|ForEach-Object{[string]$_}|Where-Object{$_-cmatch'^PASS '})
