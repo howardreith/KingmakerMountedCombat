@@ -663,10 +663,11 @@ namespace KingmakerMountedCombat.Domain
             return arrangement != null && arrangement.PetId != null && !string.Equals(arrangement.PetId, link, StringComparison.Ordinal);
         }
 
+        // Permanent loss: the arrangement is retired (pets own none) and every public binding on the bar is cleared.
         private void RetireAndClear(TUnit unit)
         {
             var id = host.ActorId(unit);
-            if (id != null) Retire(id);
+            if (id != null && !host.IsPet(unit)) Retire(id);
             ClearPublicBindings(unit, false);
         }
 

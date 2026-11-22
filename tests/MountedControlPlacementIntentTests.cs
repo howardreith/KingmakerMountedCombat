@@ -588,10 +588,14 @@ namespace KingmakerMountedCombat.Tests
             NativeCleanup(game, rider);
             Update(game);
             Equal(new[] { 9 }, Live(game, rider), "a native emptying before the replacement returns 9 bound to the new fact");
-            // A deliberate removal of a live control stays removed.
+            // A deliberate removal of a live control stays removed, through a save scope and an area transition too.
             Remove(rider, 9);
             Update(game); Update(game);
             Equal(new int[0], Controls(rider), "a live removal was undone");
+            ExpectRows(Save(game).Rows, "A", new int[0], 1, "a live removal is saved as a record only");
+            game.Toolbar.SuspendArea();
+            Update(game);
+            Equal(new int[0], Controls(rider), "a live removal came back after a save scope and an area transition");
             // r3: the player moves the control, then native cleanup empties the new slot before the update.
             game = new Game();
             rider = Arranged(game, "A", 9);
@@ -601,6 +605,15 @@ namespace KingmakerMountedCombat.Tests
             rider.FactActive = true;
             Update(game);
             Equal(new[] { 3 }, Controls(rider), "native cleanup after a move returns the moved slot, not the old one");
+            // R4-F1: a removal, then the rider briefly stops getting the control before the update; the same pet returns.
+            game = new Game();
+            rider = Arranged(game, "A", 9);
+            Remove(rider, 9);
+            rider.Desired = false;
+            Update(game);
+            rider.Desired = true;
+            Update(game); Update(game);
+            Equal(new int[0], Controls(rider), "a removal before a brief loss of eligibility came back");
             // R4-F1 r5: a removal, then native deactivates the fact before the update.
             game = new Game();
             rider = Arranged(game, "A", 9);
@@ -806,6 +819,16 @@ namespace KingmakerMountedCombat.Tests
             rider.Desired = true;
             Update(game);
             Equal(new[] { 9 }, Controls(rider), "an unresolved pet with the same link lost the slot");
+            // R4-F2: a party rider permanently loses its pet (link cleared, no longer granted) while the bar keeps the old
+            // slot object; a new pet later must not revive it.
+            game = new Game();
+            rider = Arranged(game, "A", 9);
+            rider.PetLink = null; rider.Desired = false;
+            Update(game);
+            Equal(new int[0], Controls(rider), "a permanent loss kept the old slot");
+            rider.PetLink = "pet-B"; rider.Desired = true;
+            Update(game); Update(game);
+            Equal(new int[0], Controls(rider), "a new pet revived the old slot");
             // R4-F2 r5: the link changes A to B between updates: retired and the old slot cleared, never revived.
             game = new Game();
             rider = Arranged(game, "A", 9);

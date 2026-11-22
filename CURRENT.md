@@ -3,11 +3,14 @@
 Start here. The sections below this one are dated history, newest first.
 
 - **Branch:** `codex/mounted-city-and-prone-fixes` from main `dbf63702` (0.2.13); writer/reviewer controller
-  enrollment. Development candidate only: no merge, release, install or native run.
-- **Fixes:** Mount / Dismount keeps the player's chosen toolbar slot through temporary absence (area changes, the
-  capital's reserve roster, saves there); the capital's Inventory/Character/Spellbook roster lists reserve owners'
-  own animal companions (UI projection of `UIUtility.GetGroup`); a mounted player order on an enemy already
-  unconscious (lying prone) is kept as native `UnitAttack` keeps it. Save format unchanged.
+  enrollment (second enrollment, under the owner addendum of 2026-11-22). Development candidate only: no merge,
+  release, install or native run.
+- **Fixes:** Mount / Dismount keeps the player's toolbar arrangement through temporary absence (area changes, the
+  capital's reserve roster, saves there). One production component, `MountedToolbarLifecycle`, owns every toolbar
+  boundary; `NativeMountedControlService` is its narrow adapter. The capital's Inventory/Character/Spellbook roster
+  lists reserve owners' own animal companions (a UI projection of `UIUtility.GetGroup`). The identified rejection of
+  attacks against an already-unconscious target is corrected in source. The original prone-target report still needs
+  matched in-game verification. Save format unchanged.
 - **Read:** [the handoff and acceptance record](docs/CITY-AND-PRONE-HANDOFF.md). Native cases are deferred to owner
   verification there, with the playtest steps.
 
