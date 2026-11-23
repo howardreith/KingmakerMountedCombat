@@ -66,8 +66,10 @@ fixtures and play saves are not relabeled. Native rows therefore stay BLOCKED.
 (`runtime-state/fixture-qualification.json`) and suite snapshot the runner's preflight checks
 (`Assert-KmcQualificationSuiteContinuity`), and the exact stock Mammoth pair idle, unmounted and outside combat that the
 parent intake requires (`Chunk6aMammothScenarioEngine.Start`). The last recorded pair was Baseline `c29d965c…` and Working
-`5eb4e0b4…` (docs/CHUNK5-PERSISTENCE.md); restoring that pair with its qualification, or qualifying a new one through the
-existing fixture route, is the input. An owner seed (for example `Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks`) is admissible
+`5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6` (docs/CHUNK5-PERSISTENCE.md). The input is **that exact
+historical pair** with its qualification records: the persistence route pins the Working SHA-256 in its compiled intake and in
+its reader (scripts/runtime/Chunk7CombatPersistenceEvidence.ps1), so a newly qualified save with the same actors and names is
+refused there, and the guard is kept (review PN5-F4). An owner seed (for example `Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks`) is admissible
 only through its own owner-seed route and families; it is not a substitute for this pair. The persistence case runs as
 `chunk7-persistence-save` then `chunk7-persistence-load` with `-PersistenceCase mounted-shield-tb-manual` on that Working
 fixture, as `mounted-combat-feat-tb-debt-manual` did (docs/SPRINT6-MOUNTED-COMBAT-FEAT.md); the owned-pairs and owner-seed
