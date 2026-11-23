@@ -5417,7 +5417,7 @@ try {
         productVersion=$request.productVersion; dllSha256=$request.dllSha256; dllMvid=$request.dllMvid; transactionToken=$request.transactionToken
         startedAtUtc=$gameStarted.ToString('o'); completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o'); loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion; gameAssemblySha256=[string]$gameAssembly.sha256; gameAssemblyMvid=[string]$gameAssembly.mvid
-        ummVersion='0.33.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
+        ummVersion='0.33.0.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted'; movementExperimentEnabled=$true; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
         expectedModId='KingmakerMountedCombat'; expectedProductVersion=$request.productVersion; gamePresent=$true
         shippedMovementExperimentEnabled=$true; shippedPairedActivationEnabled=$false
@@ -5444,6 +5444,28 @@ try {
     Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
         & $invokeGameResult
     }
+
+    Invoke-HarnessTest 'runtime game result rejects another reviewed loader and mixed UMM identities' {
+        $selectedVersion = $gameResult.ummVersion
+        $selectedHash = $gameResult.ummSha256
+        try {
+            foreach ($other in @(
+                @('0.31.1.0','2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4'),
+                @('0.33.2.0','f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9'))) {
+                foreach ($combination in @(@($other[0],$selectedHash),@($selectedVersion,$other[1]),@($other[0],$other[1]))) {
+                    $gameResult.ummVersion = $combination[0]
+                    $gameResult.ummSha256 = $combination[1]
+                    Write-KmcJsonAtomic $gameResultPath $gameResult
+                    & $assertGameResultRejected ('a different or mixed UMM identity: ' + ($combination -join '/'))
+                }
+            }
+        } finally {
+            $gameResult.ummVersion = $selectedVersion
+            $gameResult.ummSha256 = $selectedHash
+            Write-KmcJsonAtomic $gameResultPath $gameResult
+        }
+    }
+
     # Regression for the latent defect a real run exposed, now inverted. The smoke used
     # to force every experiment off and assert they were off, which meant the run
     # produced its own result and could not describe the product's real defaults. It now
@@ -8114,7 +8136,7 @@ try {
         productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid;transactionToken=$v2Request.transactionToken
         startedAtUtc=$gameStarted.ToString('o');completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion;gameAssemblySha256=[string]$gameAssembly.sha256;gameAssemblyMvid=[string]$gameAssembly.mvid
-        ummVersion='0.33.2.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
+        ummVersion='0.33.0.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted';movementExperimentEnabled=$false;processId=$PID;currentGameMode='Default';loadedAreaPresent=$true
         saveRequestCount=0;loadRequestCount=1;frameCount=10;elapsedSeconds=1.0;errors=@();fixture=$v2Fixture;fixtureIdentityVerified=$true
         baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
@@ -13208,3 +13230,4 @@ finally {
 
 Write-Host "TOTAL PASS=$passed FAIL=$failed"
 if ($failed -ne 0) { exit 1 }
+

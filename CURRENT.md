@@ -1,3 +1,17 @@
+# UMM COMPATIBILITY BASELINE (2026-11-23, OWNER DECISION)
+
+The owner confirmed the older baseline used by the sibling mods: **UMM 0.31.1**. This development branch pins that
+build reference and declares that minimum. The exact current Windows native target is separately **UMM 0.33.0**,
+using its already reviewed installed-file identity; a working newer installation need not downgrade.
+
+Read [the dated loader decision](docs/CHUNK7-NATIVE-LOADER-IDENTITY.md#2026-11-23-owner-selected-0311-build-baseline-and-exact-runtime-target).
+The prior Mounted Shield record below is the frozen run at `f19c8333`; its missing native fixture, gameplay driver,
+current independent review and native acceptance remain outstanding. Its earlier loader-pin owner decision is resolved
+by this change. Historical FAIL/blocked evidence stays unchanged. This patch has no native or Linux/Proton acceptance.
+
+The companion patch must enter the existing factory enrollment through its guarded import/development/push flow.
+No merge, release, installation, controller state edit or new enrollment is part of this checkpoint.
+
 # MOUNTED SHIELD FEAT (2026-11-23, BRANCH codex/mounted-shield, PR #61)
 
 Start here. The sections below this one are dated history, newest first.
@@ -1470,3 +1484,4 @@ Verdicts:
 Spend: finalize-f4 68.17/80 min, 10 of 10 starts. All adjustments are append-only. No game, lock or waiter remains. No merge, release, install or F5.
 
 F3 closeout: the F3 review was accepted at PR #18 head 5dd64825; the owner merged it as a92b043a.
+

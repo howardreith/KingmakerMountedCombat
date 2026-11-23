@@ -1,4 +1,18 @@
-# Mounted Shield feat (2026-11-23, branch codex/mounted-shield, PR #61)
+# UMM baseline follow-up (2026-11-23, owner decision)
+
+Read the first two sections of CURRENT.md and the 2026-11-23 entry in docs/CHUNK7-NATIVE-LOADER-IDENTITY.md.
+
+- Pin the distributable's build reference and declared minimum to **0.31.1** as the sibling mods do.
+- The selected installed Windows runtime remains a separate exact **0.33.0** identity. Its native evidence does not
+  establish native 0.31.1 or Linux/Proton acceptance.
+- Preserve older loader profiles and all frozen receipts. Import this companion commit through the existing
+  Mounted Shield enrollment; record the owner's amendment using the installed controller's supported route.
+- Rebuild and run focused binding/reader checks on Windows before native use. The previous feature DLL/gate does not
+  certify a build made with the changed reference.
+- Complete the Mounted Shield code review, gameplay driver and required native acceptance after fixture admission.
+  The pin decision alone does not create a qualified save or an accepted factory review.
+
+# Mounted Shield feat (retained f19c8333 run record, 2026-11-23, PR #61)
 
 Factory mission KMC-MOUNTED-SHIELD-2026-11-23 (foreground enrollment `kmc-codex-mounted-shield-20261123114646-4433`). Read
 CURRENT.md (its first section) and docs/mounted-shield/HANDOFF.md.
@@ -847,3 +861,4 @@ Facts for a successor:
 - The publishing helper registers images by exact path and SHA, and each new image needs owner approval; see docs/evidence/finalize-f1/publishing-authority.json.
 
 First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f1.json.
+

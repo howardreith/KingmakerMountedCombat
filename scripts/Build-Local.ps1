@@ -13,6 +13,8 @@ if (-not $SkipSourceValidation) {
     & (Join-Path $PSScriptRoot 'Validate-Source.ps1')
 }
 
+& (Join-Path $PSScriptRoot 'Restore-UmmBuildReference.ps1')
+
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
     throw 'vswhere.exe was not found.'

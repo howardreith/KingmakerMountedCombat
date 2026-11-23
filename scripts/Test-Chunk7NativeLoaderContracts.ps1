@@ -66,10 +66,10 @@ $inventoryMutations=@(@('foreign active mod',{param($v)$v.observations.modEntrie
 foreach($mutation in $inventoryMutations){$changed=Copy-TestValue $inventory;& $mutation[1] $changed;Reject $mutation[0] {Assert-KmcBaseGameNativeInventory $request $changed $dependencies}}
 
 $exact=Copy-TestValue $inventory;$pinned=Copy-TestValue $dependencies
-$harmonyHash='df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80';$ummHash='f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9'
+$harmonyHash='df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80';$ummHash='63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691'
 $harmonyRelative='Kingmaker_Data/Managed/UnityModManager/0Harmony.dll';$ummRelative='Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll'
 $pinned.files+=@([pscustomobject]@{relativePath=$harmonyRelative;sha256=$harmonyHash});($pinned.files|Where-Object relativePath -CEQ $ummRelative).sha256=$ummHash
-$umm=$exact.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager';$umm.sha256=$ummHash;$umm.fullName='UnityModManager, Version=0.33.2.0, Culture=neutral, PublicKeyToken=null';$umm.mvid='914c93ba-b0bd-409f-9d38-84e575289dc2'
+$umm=$exact.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager';$umm.sha256=$ummHash;$umm.fullName='UnityModManager, Version=0.33.0.0, Culture=neutral, PublicKeyToken=null';$umm.mvid='54059519-2754-445a-b5ee-fdb9326336e2'
 $exact.observations.loadedAssemblies+=@([pscustomobject]@{name='0Harmony';fullName='0Harmony, Version=2.3.6.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location=(Join-Path $pinned.gameRoot $harmonyRelative);mvid='4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc';sha256=$harmonyHash})
 $exact.observations.loadedAssemblies+=@([pscustomobject]@{name='HarmonySharedState';fullName='HarmonySharedState, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location='';mvid='b2f05641-73ed-4a8d-aa45-8bb46a4b7e2f';sha256=$null})
 ($exact.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location+='.51087.cache'
@@ -79,6 +79,28 @@ Check 'exact pinned Harmony memory identity and UMM candidate cache' {
   $scope.kmcLoadedFromNativeCache-ne$true-or$scope.inMemoryAssemblyCreationObserved-ne$false-or$scope.inMemoryAssemblyContentCertified-ne$false-or
   $scope.inMemoryAssemblies[0].identityShapeVerified-ne$true-or$scope.inMemoryAssemblies[0].creationObserved-ne$false-or$scope.inMemoryAssemblies[0].contentCertified-ne$false-or$scope.completeStockAssemblyAllowlistProven-ne$false){throw 'In-memory or cache evidence was mislabeled as byte-backed/native creation proof.'}
 }
+
+# The build baseline and runtime identity are distinct: a cache observation must match the selected runtime,
+# including its separately captured dependency receipt. No older/newer version or mixed identity is substituted.
+foreach($old in @(
+ @('0.31.1.0','230caa64-1cae-4f42-a86c-8f16b5faba9e','2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4'),
+ @('0.33.2.0','914c93ba-b0bd-409f-9d38-84e575289dc2','f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9'))){
+ Reject ('another reviewed loader '+$old[0]+' cannot stand in for selected runtime 0.33.0') {
+  $v=Copy-TestValue $exact;$deps=Copy-TestValue $pinned
+  $row=$v.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager'
+  $row.fullName='UnityModManager, Version='+$old[0]+', Culture=neutral, PublicKeyToken=null';$row.mvid=$old[1];$row.sha256=$old[2]
+  ($deps.files|Where-Object relativePath -CEQ $ummRelative).sha256=$old[2]
+  Assert-KmcBaseGameNativeInventory $request $v $deps
+ }
+ foreach($field in @('fullName','mvid','sha256')){
+  Reject ('mixed selected runtime and '+$old[0]+' '+$field) {
+   $v=Copy-TestValue $exact;$row=$v.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager'
+   $row.$field=if($field-ceq'fullName'){'UnityModManager, Version='+$old[0]+', Culture=neutral, PublicKeyToken=null'}elseif($field-ceq'mvid'){$old[1]}else{$old[2]}
+   Assert-KmcBaseGameNativeInventory $request $v $pinned
+  }
+ }
+}
+
 foreach($suffix in @('0','65535')){Check ('native UInt16 cache suffix '+$suffix) {$v=Copy-TestValue $exact;($v.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location=(Join-Path $pinned.modsRoot ('KingmakerMountedCombat/KingmakerMountedCombat.dll.'+$suffix+'.cache'));Assert-KmcBaseGameNativeInventory $request $v $pinned}}
 $memoryMutations=@(
  @('memory unknown name',{param($m)$m.name='UnknownMemory'}),@('memory version',{param($m)$m.fullName=$m.fullName.Replace('0.0.0.0','1.0.0.0')}),
@@ -107,3 +129,4 @@ Reject 'cache outside exact candidate directory' {$v=Copy-TestValue $exact;($v.o
 $syntax=$null;$tokens=$null;[void][Management.Automation.Language.Parser]::ParseFile($ReaderPath,[ref]$tokens,[ref]$syntax);Check 'reader parses' {if($syntax.Count){throw ($syntax|Out-String)}}
 $receipt=@{status='PASS';pass=$passed;fail=0;reader=@{path=$ReaderPath;sha256=(Get-FileHash -LiteralPath $ReaderPath).Hash.ToLowerInvariant()};cases=@($rows.ToArray());nativeProof=$false;gameplayProof=$false}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),($receipt|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false));Write-Host ('LOADER CONTRACT PASS '+$passed+' FAIL 0')
+

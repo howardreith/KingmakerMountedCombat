@@ -26,11 +26,19 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 ### Game, loader and dependencies
 
 - **Game:** Pathfinder: Kingmaker, engine build **2.1.7b** only. `Info.json` declares `GameVersion` 2.1.7.
-- **Loader:** Unity Mod Manager. `Info.json` declares `ManagerVersion` **0.28.2**; that minimum is declared, not
-  assessed (no genuine 0.28.2 binary was available). API compatibility passed offline on genuine 0.33.0 and 0.33.2
-  binaries; 0.33.0 and 0.33.2 identities are reviewed profiles ([ledger, T03](CURRENT-KNOWN-ISSUES.md#t03--loader-matrix-on-the-development-machine-2026-11-15),
-  `planning/UMM-LOADER-PROFILES.json`). Historical native qualification ran on UMM 0.33.2
-  (`planning/ENVIRONMENT-FINGERPRINT.json`). No loader was run natively by the known-issues sprints.
+- **Loader:** this development branch pins its build reference and declares `ManagerVersion` **0.31.1**, the
+  owner's selected compatibility floor shared with Tabletop Rules and Cutscene Skip. The exact upstream reference is
+  recorded in `planning/UMM-BUILD-REFERENCE.json`; it is separate from the installed loader. The previously released
+  0.2.15 package keeps its published metadata. Genuine 0.31.1 passed the earlier offline API inspection
+  ([ledger, T03](CURRENT-KNOWN-ISSUES.md#t03--loader-matrix-on-the-development-machine-2026-11-15)); its exact identity was
+  added to `planning/UMM-LOADER-PROFILES.json` on 2026-11-23. This does not claim native 0.31.1 or Linux/Proton
+  qualification for Mounted Combat.
+- **Current native test target:** the reviewed installed **UMM 0.33.0** identity in
+  `planning/ENVIRONMENT-FINGERPRINT.json`. Exact runtime version/hash/MVID checks remain independent of the 0.31.1 build
+  floor. A working newer installation need not downgrade. Historical loader records and native receipts remain bound to
+  [their original environments](CHUNK7-NATIVE-LOADER-IDENTITY.md#2026-10-17-owner-reinstall-of-umm-03320) and readers;
+  changing the current target does not turn an earlier FAIL into PASS. See the
+  [2026-11-23 decision and validation limits](CHUNK7-NATIVE-LOADER-IDENTITY.md#2026-11-23-owner-selected-0311-build-baseline-and-exact-runtime-target).
 - **Dependencies:** none. `Info.json` `Requirements` is empty. The historical native lab ran with its fixture's own
   Call of the Wild and Craft Magic Items; neither a KMC-only game nor a full personal mod stack was verified end to end
   ([0.2.0 notes](RELEASE-NOTES-0.2.0.md#supported)).
@@ -305,3 +313,4 @@ personal mod stack; native acceptance of the released 0.2.3–0.2.11 repairs.
 The mod writes to UMM's log, `<Kingmaker install>\Kingmaker_Data\Managed\UnityModManager\Log.txt`, each line prefixed
 `[KingmakerMountedCombat]`. Copy it before the next launch, keep the save, and note the version, turn-based or real
 time, and the steps ([README](../README.md#logs-and-problems)).
+

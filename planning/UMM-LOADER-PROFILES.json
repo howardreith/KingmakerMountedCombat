@@ -3,8 +3,8 @@
   "purpose": "Reviewed Unity Mod Manager loader identities for scripts/UmmLoaderContracts.ps1. A profile is an exact identity (version, SHA-256, MVID) of one genuine UnityModManager.dll with the record it came from. Identity is checked against one selected profile; API compatibility is checked separately against the reference binary itself. A profile is added only from a genuine binary or an existing repository record, never to make a check pass. No loader binary is stored in this repository.",
   "declaredMinimum": {
     "source": "Info.json ManagerVersion",
-    "value": "0.28.2",
-    "note": "The minimum the mod declares to the loader. It is a support declaration, not an identity pin, and is not raised to match the installed loader."
+    "value": "0.31.1",
+    "note": "The owner-selected compatibility floor and pinned build reference, aligned with Kingmaker Tabletop Rules and Cutscene Skip. This is separate from the exact native runtime target in ENVIRONMENT-FINGERPRINT.json; newer working loaders do not require a downgrade."
   },
   "profiles": [
     {
@@ -16,6 +16,16 @@
       "uiTokens": { "get_Instance": "060000CA", "get_Opened": "060000CB", "ToggleWindow": "060000E3" },
       "provenance": "Historical record only. Installed on the development machine from the first intake (planning/ENVIRONMENT-FINGERPRINT.json, 2026-08-13: 'Installed UMM is 0.28.2.0') until the owner's reinstall of 2026-10-16. SHA-256 and MVID are the values docs/CHUNK7-NATIVE-LOADER-IDENTITY.md records for run 20261012-chunk7b-world03. The UI tokens are the ones scripts/Test-AssemblyContracts.ps1 noted when it was re-pinned on 2026-10-17. The file length was not recorded.",
       "lastInspected": null
+    },
+    {
+      "id": "umm-0.31.1",
+      "version": "0.31.1.0",
+      "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4",
+      "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+      "length": 204288,
+      "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
+      "provenance": "Owner-selected build and primary compatibility baseline (2026-11-23), matching the sibling mods. Independently downloaded the author's UnityModManager 0.31.1 NuGet package (https://api.nuget.org/v3-flatcontainer/unitymodmanager/0.31.1/unitymodmanager.0.31.1.nupkg; archive SHA-256 05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9). Extracted lib/net35/UnityModManager.dll and verified its SHA-256 against both siblings' tracked pins. Version, MVID, length and UI tokens were read from those genuine bytes on 2026-11-23. Offline metadata evidence only; no new KMC native or Linux run.",
+      "lastInspected": "2026-11-23"
     },
     {
       "id": "umm-0.33.0",
@@ -39,3 +49,4 @@
     }
   ]
 }
+
