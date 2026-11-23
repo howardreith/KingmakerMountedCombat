@@ -509,7 +509,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold-or$legacy){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     Assert-KmcChunk7CheckpointContinuation $o.combatContinuation $archive $Request $cold
     if($Request.persistenceCase-ceq'mounted-combat-feat-tb-debt-manual'){Assert-KmcSprint6FeatPersistence $Request $o $cold}
-    if($Request.persistenceCase-ceq'mounted-shield-tb-manual'){Assert-KmcSprint6ShieldPersistence $Request $o $cold}
+    if($Request.persistenceCase-ceq'mounted-shield-tb-manual'){Assert-KmcSprint6ShieldPersistence $Request $o $cold $archive}
     if($Request.persistenceCase-ceq'mounted-charge-tb-committed-manual'){Assert-KmcSprint7ChargePersistence $o $archive $cold}
     if($Request.persistenceCase-ceq'integrated-tb-feat-charge-manual'){Assert-KmcSprint7ChargePersistence $o $archive $cold;Assert-KmcSprint9IntegratedPersistence $o $cold}
     $continuation=$o.combatContinuation;$ids=@($continuation.actorIds)

@@ -33,6 +33,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: a copied second reference to a KMC feat is collapsed to one; foreign entries untouched (review finding PN2-F6)", DuplicateKmcReferencesCollapse);
             runner.Run("kmc publication: a competing Mounted Shield in any publication target is found, fighter-only included (review finding 5)", CompetingFeatInAnyTarget);
             runner.Run("kmc publication: a terminal stop suspends only Mounted Shield's offers, reversibly, and never withdraws it (review finding PN4-F3)", SuspensionIsReversible);
+            runner.Run("kmc publication: resume leaves a foreign removal from a non-required list in place (review finding PN6-F1)", ResumeKeepsForeignRemoval);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -352,7 +353,6 @@ namespace KingmakerMountedCombat.Tests
             lists.Arrays["fighter"] = lists.Arrays["fighter"].Concat(new[] { foreignFighter }).ToArray();
             var foreign = lists.Arrays["extra"].Concat(new[] { new object() }).ToArray();
             lists.Arrays["extra"] = foreign;
-            var fighterBefore = lists.Arrays["fighter"]; var extraBefore = lists.Arrays["extra"];
             lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
             TestRunner.True(lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield) && !lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn,
                 "Suspended: not available, not withdrawn.");
@@ -365,17 +365,40 @@ namespace KingmakerMountedCombat.Tests
             lists.Arrays["ordinary"] = copied;
             lists.Set.Refresh(false);
             TestRunner.True(!lists.Has("ordinary", lists.MountedShield), "A reference another mod copies back is removed again while suspended.");
-            // A refused toggle's re-application keeps the suspension.
-            TestRunner.True(lists.Set.Apply(true, key => key) != null, "The re-application reports the foreign-changed list.");
+            // While suspended, another mod edits a required list in place and appends to an extra list (supplemental review
+            // PN6-F1); resuming must keep those edits.
+            var fighterNow = lists.Arrays["fighter"];
+            var replaced = new object(); var replacedAt = Array.IndexOf(fighterNow, foreignFighter);
+            fighterNow[replacedAt] = replaced;
+            var lateForeign = new object();
+            lists.Arrays["extra"] = lists.Arrays["extra"].Concat(new[] { lateForeign }).ToArray();
+            // The explicit enable publishes first (a refused toggle's re-application likewise), keeping the suspension.
+            TestRunner.True(lists.Set.Apply(true, key => key) != null, "The re-application reports the foreign-changed lists.");
             TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedShield)), "Re-publishing while suspended does not offer Mounted Shield.");
+            var expected = lists.Arrays.ToDictionary(pair => pair.Key, pair => { var value = pair.Value.ToList(); value.Insert(value.LastIndexOf(lists.MountedArchery) + 1, lists.MountedShield); return value.ToArray(); });
             var resumed = lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
             TestRunner.True(!lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield), "An explicit enable resumes it: " + resumed);
             TestRunner.True(lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedShield) == 1),
                 "Mounted Shield is offered once in every list, available, and never withdrawn for KMC's own suspension.");
-            TestRunner.True(lists.Arrays["fighter"].SequenceEqual(fighterBefore) && lists.Arrays["extra"].SequenceEqual(extraBefore),
-                "The foreign-changed required and extra lists get back exactly their values before the suspension (foreign order kept).");
+            TestRunner.True(lists.Arrays.Keys.All(key => lists.Arrays[key].SequenceEqual(expected[key])),
+                "Every list keeps all of its current entries in order, the edits made during the suspension included, with Mounted Shield back after Mounted Archery.");
+            TestRunner.True(lists.Arrays["fighter"].Contains(replaced) && !lists.Arrays["fighter"].Contains(foreignFighter) && lists.Arrays["extra"].Contains(lateForeign),
+                "The in-place replacement and the late append survive the resume.");
             TestRunner.True(lists.Set.MountedArcheryAvailable() && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedArchery) == 1), "Mounted Archery is unaffected throughout.");
             TestRunner.True(lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key) == null, "Resuming an unsuspended feat changes nothing.");
+        }
+
+        private static void ResumeKeepsForeignRemoval()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var extra = lists.Arrays["extra"].Where(item => item != lists.MountedShield).ToArray();
+            lists.Arrays["extra"] = extra;
+            TestRunner.True(lists.Set.MountedShieldAvailable(), "A non-required list losing Mounted Shield keeps the rule on.");
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(!lists.Has("extra", lists.MountedShield) && ReferenceEquals(lists.Arrays["extra"], extra), "The list another mod took Mounted Shield from stays as it left it.");
+            TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 && lists.Set.MountedShieldAvailable(), "The required lists offer it again once.");
         }
 
         private static void PartialRegistration()

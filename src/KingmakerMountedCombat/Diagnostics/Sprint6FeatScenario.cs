@@ -50,6 +50,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal readonly JArray SkillChecks = new JArray();
         internal Sprint6RuleObserver(params UnitEntityData[] units) { watched = new HashSet<UnitEntityData>(units); subscription = EventBus.Subscribe(this); }
         internal void Watch(UnitEntityData unit) => watched.Add(unit);
+        // Optional: the target's AC context at the moment of each attack, recorded with that attack (the Mounted Shield band).
+        internal Func<UnitEntityData, JObject> TargetAcContext { get; set; }
         public void Dispose() => subscription.Dispose();
         public void HandleAttackHitRoll(RuleAttackRoll rule)
         {
@@ -60,6 +62,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 row = new JObject { ["identity"] = RuntimeHelpers.GetHashCode(rule), ["attacker"] = rule.Initiator.UniqueId, ["target"] = rule.Target.UniqueId, ["frame"] = Time.frameCount,
                     ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, ["charge"] = rule.RuleAttackWithWeapon?.IsCharge == true, ["criticalAtEventConfirmed"] = rule.IsCriticalConfirmed, ["attackerCommand"] = rule.Initiator.Commands.Standard?.GetType().Name,
                     ["resultAtEvent"] = rule.Result.ToString(), ["isHitAtEvent"] = rule.IsHit, ["criticalAtEvent"] = rule.IsCriticalConfirmed, ["sneakAtEvent"] = rule.IsSneakAttack, ["damageRules"] = 0, ["damage"] = 0 };
+                var context = TargetAcContext?.Invoke(rule.Target);
+                if (context != null) row["acContext"] = context;
                 rows[rule] = row; if (Attacks.Count < 256) Attacks.Add(row);
             }
         }

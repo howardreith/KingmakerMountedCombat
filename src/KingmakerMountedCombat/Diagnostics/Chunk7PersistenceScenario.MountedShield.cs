@@ -17,7 +17,6 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string ShieldCaseName = "mounted-shield-tb-manual";
         private bool ShieldCase => request.PersistenceCase == ShieldCaseName;
-        private const string StockHeavyShieldType = "d1b05b901bab9524388ebfa0435902a6";
 
         private void PrepareShieldBeforeSave()
         {
@@ -25,9 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(service != null && horses.MountedShieldFeature != null && horses.ShieldFocusFeature != null && horses.MountedCombatFeature != null,
                 "Mounted Shield is unavailable: " + horses.MountedShieldFailure);
             Require(Mounted(firstRider, firstMount), "The first pair left its mounted checkpoint before the shield setup.");
-            var heavy = Sprint6ShieldEquipment.StockShields(new[] { StockHeavyShieldType }).FirstOrDefault(shield =>
-                !shield.IsNotable && shield.ArmorComponent.Enchantments.Count == 0 && (shield.WeaponComponent == null || shield.WeaponComponent.Enchantments.Count == 0));
-            Require(heavy != null, "The library lacks a mundane stock heavy shield.");
+            var identity = new JObject();
+            var heavy = Sprint6ShieldEquipment.ResolveStock("heavy", identity);
             var progression = firstRider.Descriptor.Progression.Features;
             if (!progression.HasFact(horses.MountedCombatFeature)) progression.AddFeature(horses.MountedCombatFeature);
             if (!progression.HasFact(horses.ShieldFocusFeature)) progression.AddFeature(horses.ShieldFocusFeature);
@@ -40,7 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var state = ShieldPersistenceState();
             state["equipment"] = equipment.Evidence;
             state["shieldBlueprint"] = heavy.AssetGuid;
-            state["shieldIdentity"] = Sprint6ShieldEquipment.Identity(heavy);
+            state["shieldIdentity"] = identity["heavy"];
             evidence["shieldAtSave"] = state;
             Require(state.Value<int>("ownedCount") == 1, "The first mount does not hold exactly one Mounted Shield contribution before the save.");
         }

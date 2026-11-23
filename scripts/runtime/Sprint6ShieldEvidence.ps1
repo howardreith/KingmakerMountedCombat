@@ -7,6 +7,13 @@ $script:KmcShieldFeatGuid='671a301bd1774677a8bfa2873d33b191'
 $script:KmcShieldFocusGuid='ac57069b6bf8c904086171683992a92a'
 $script:KmcMountedCombatGuid='a7d2e94c6f1b4830b5c9e28d17f3a604'
 $script:KmcShieldStockBase=@{buckler=1;light=1;heavy=2;tower=4}
+# Verified stock items (installed 2.1.7b sharedassets1.assets; supplemental review PN6-F4): key, item GUID, armor type, enhancement.
+$script:KmcShieldStock=[ordered]@{
+ buckler=@('78aef04821150bd479314bc974ea73e2','26fcc43f7d20374498d2e1643381d345',0); light=@('a85d51d0fb905f940b951eec60388bac','d38e8ea23ce653c4582eb3e002555483',0)
+ heavy=@('f4cef3ba1a15b0f4fa7fd66b602ff32b','d1b05b901bab9524388ebfa0435902a6',0); tower=@('6a1a429f023e5134fb16a4962cb79257','5f0f4b6e480e7054b8592b5a8b55854a',0)
+ heavyPlus1=@('5c7b898a1bfb6cb4f8c14a0ebc143abe','d1b05b901bab9524388ebfa0435902a6',1); heavyPlus3=@('7e23918977b18524591204c93fae0a37','d1b05b901bab9524388ebfa0435902a6',3)
+ heavyPlus5=@('0b09d902ff100524dbec6e3d3d93dc3b','d1b05b901bab9524388ebfa0435902a6',5)}
+$script:KmcMageShieldBuff='9c0fa9b438ada3f43864be8dd8b3e741'
 
 function Get-KmcShieldProperty($Value,[string]$Name){ if($null -eq $Value){ return $null }; $p=$Value.PSObject.Properties[$Name]; if($null -eq $p){ return $null }; $p.Value }
 
@@ -118,16 +125,20 @@ function Assert-KmcShieldEquipment($E){
  foreach($k in $expected.Keys){
   $s=Get-KmcShieldProperty $d $k
   Assert-KmcShieldSnapshot $s $expected[$k] $k
+  if([string]$s.shield.blueprint -cne $script:KmcShieldStock[$k][0] -or [int]$s.shield.armorEnhancement -ne 0){ throw ('Mounted Shield '+$k+': the shield is not the verified mundane stock item') }
   if([int]$s.facts.base -ne $script:KmcShieldStockBase[$k] -or $s.facts.focus -ne $true -or $s.facts.greater -ne $false -or $s.facts.effectiveShield -ne $true){ throw ('Mounted Shield '+$k+': the base or focus terms differ from the stock data') }
   Assert-KmcShieldAc $s $none $expected[$k] $k
  }
- $enhanced=@($d.PSObject.Properties | Where-Object { $_.Name -clike 'heavyEnhanced*' })
- if($enhanced.Count -lt 1){ throw 'Mounted Shield no enhanced stock heavy shield was observed' }
- foreach($p in $enhanced){
+ # Each verified stock heavy shield +1, +3 and +5 by its native armor enhancement (review PN6-F4).
+ $exercised=@()
+ foreach($p in @($d.PSObject.Properties | Where-Object { $_.Name -clike 'heavyEnhanced*' })){
   $s=$p.Value; Assert-KmcShieldSnapshot $s 3 $p.Name
-  if([int]$s.shield.enhancement -lt 1 -or [int]$s.facts.base -ne 2){ throw ('Mounted Shield '+$p.Name+' is not an enhanced shield of the heavy base') }
+  $want=[int]$s.requestedEnhancement; $stock=$script:KmcShieldStock['heavyPlus'+$want]
+  if($null -eq $stock -or [string]$s.shield.blueprint -cne $stock[0] -or [int]$s.shield.armorEnhancement -ne $want -or [int]$s.facts.base -ne 2){ throw ('Mounted Shield '+$p.Name+' is not the verified stock heavy shield +'+$want+' by its native armor enhancement') }
   Assert-KmcShieldAc $s $none 3 $p.Name
+  $exercised+=$want
  }
+ if((($exercised | Sort-Object) -join ',') -cne '1,3,5'){ throw 'Mounted Shield the +1, +3 and +5 stock heavy shields were not each observed once' }
  Assert-KmcShieldSnapshot $d.heavyAgain 3 'heavy again'
  Assert-KmcShieldSnapshot $d.greater 4 'Greater Shield Focus'; Assert-KmcShieldAc $d.greater $none 4 'Greater Shield Focus'
  if($d.greater.facts.greater -ne $true){ throw 'Mounted Shield Greater Shield Focus was not read' }
@@ -137,7 +148,14 @@ function Assert-KmcShieldEquipment($E){
   if(@($s.shieldModifiers | Where-Object { $_.kmc -ne $true -and [int]$_.value -eq $n }).Count -ne 1){ throw ('Mounted Shield the competing +'+$n+' shield source is missing') }
   Assert-KmcShieldAc $s $none ([Math]::Max(3,$n)) ('competing '+$n)
  }
- if($null -ne $E.shieldSpell){ Assert-KmcShieldSnapshot $d.mountSpell 3 'Shield spell on the mount'; Assert-KmcShieldAc $d.mountSpell $none 4 'Shield spell on the mount' }
+ # The stock Shield spell itself (review PN6-F3): its own modifier on the mount, or an explicit unavailable observation.
+ $ms=$E.mountSpell
+ if($null -eq $ms -or [string]$ms.guid -cne $script:KmcMageShieldBuff){ throw 'Mounted Shield the mount Shield spell observation is missing' }
+ if($null -eq (Get-KmcShieldProperty $ms 'unavailable')){
+  $spellMods=@($d.mountSpell.shieldModifiers | Where-Object { [string]$_.sourceGuid -ceq $script:KmcMageShieldBuff -and [int]$_.value -eq [int]$ms.value })
+  if($ms.applied -ne $true -or $spellMods.Count -ne 1 -or [int]$ms.value -lt 1){ throw 'Mounted Shield the stock Shield spell is not the source of the mount''s competing bonus' }
+  Assert-KmcShieldSnapshot $d.mountSpell 3 'Shield spell on the mount'; Assert-KmcShieldAc $d.mountSpell $none ([Math]::Max(3,[int]$ms.value)) 'Shield spell on the mount'
+ }
  Assert-KmcShieldSnapshot $d.otherSet 0 'other weapon set'
  if([int]$d.otherSet.riderSet -eq [int]$d.heavyAgain.riderSet){ throw 'Mounted Shield the weapon set did not change' }
  Assert-KmcShieldAc $d.otherSet $none 0 'other weapon set'
@@ -145,7 +163,9 @@ function Assert-KmcShieldEquipment($E){
  Assert-KmcShieldSnapshot $d.unequipped 0 'unequipped'
  if($d.unequipped.shieldInInventory -ne $true){ throw 'Mounted Shield the unequipped shield did not stay in the inventory' }
  Assert-KmcShieldSnapshot $d.riderSpellOnly 0 'rider Shield effect only'
- if(@($d.riderSpellOnly.riderShieldModifiers | Where-Object { $_.item -ne $true -and [int]$_.value -gt 0 }).Count -lt 1){ throw 'Mounted Shield the rider''s own Shield effect was not on the rider' }
+ $rs=$E.riderSpell
+ if($null -eq $rs -or [string]$rs.guid -cne $script:KmcMageShieldBuff){ throw 'Mounted Shield the rider Shield spell observation is missing' }
+ if($null -eq (Get-KmcShieldProperty $rs 'unavailable') -and ($rs.applied -ne $true -or @($d.riderSpellOnly.riderShieldModifiers | Where-Object { [string]$_.sourceGuid -ceq $script:KmcMageShieldBuff -and $_.item -ne $true }).Count -ne 1)){ throw 'Mounted Shield the rider''s own stock Shield spell was not on the rider' }
  Assert-KmcShieldAc $d.riderSpellOnly $none 0 'rider Shield effect only'
  Assert-KmcShieldSnapshot $d.final 3 'final'
  foreach($p in $d.PSObject.Properties){ if($p.Value.mounted -ne $true){ throw ('Mounted Shield '+$p.Name+' was not observed mounted') } }
@@ -184,9 +204,13 @@ function Get-KmcShieldCheckRow($Measure,$R){
 # The use was actually committed (supplemental review PN5-F8), not only labeled: the Sprint 6 state and cooldown evidence.
 function Assert-KmcShieldCommitted($R,[string]$What){
  switch -CaseSensitive ([string]$R.commitment){
-  'RealTimeWindow' { if($R.stateAfter.window -ne $true -or [double]$R.swiftAfter -lt 5.5){ throw ('Mounted Shield '+$What+': the real-time use opened no window or charged no Swift action') } }
-  'SpendCurrentSwift' { if($R.stateAfter.spent -ne $true -or $R.stateAfter.owed -ne $false -or [double]$R.swiftAfter -lt [double]$R.swiftBefore+5.9){ throw ('Mounted Shield '+$What+': the own-turn use did not spend this turn''s Swift action') } }
-  'BorrowNextSwift' { if($R.stateAfter.spent -ne $true -or $R.stateAfter.owed -ne $true -or [double]$R.swiftAfter -ne [double]$R.swiftBefore){ throw ('Mounted Shield '+$What+': the off-turn use did not borrow the next Swift action') } }
+  # Exactly one native Swift charge (six seconds) or exactly one newly incurred debt, from an eligible state (review PN6-F7).
+  'RealTimeWindow' { if([string]$R.mode -cne 'RT' -or $R.stateBefore.window -ne $false -or $R.stateBefore.spent -ne $false -or $R.stateBefore.owed -ne $false -or [double]$R.swiftBefore -ne 0 -or
+    $R.stateAfter.window -ne $true -or [double]$R.swiftAfter -lt 5.5 -or [double]$R.swiftAfter -gt 6.05){ throw ('Mounted Shield '+$What+': the real-time use did not open one window with exactly one Swift charge') } }
+  'SpendCurrentSwift' { if([string]$R.mode -cne 'TB' -or $R.stateBefore.spent -ne $false -or $R.stateBefore.owed -ne $false -or $R.stateAfter.spent -ne $true -or $R.stateAfter.owed -ne $false -or
+    [double]$R.swiftAfter-[double]$R.swiftBefore -lt 5.9 -or [double]$R.swiftAfter-[double]$R.swiftBefore -gt 6.05){ throw ('Mounted Shield '+$What+': the own-turn use did not spend exactly this turn''s Swift action') } }
+  'BorrowNextSwift' { if([string]$R.mode -cne 'TB' -or $R.stateBefore.spent -ne $false -or $R.stateBefore.owed -ne $false -or $R.stateAfter.spent -ne $true -or $R.stateAfter.owed -ne $true -or
+    [double]$R.swiftAfter -ne [double]$R.swiftBefore){ throw ('Mounted Shield '+$What+': the off-turn use did not incur exactly one new debt') } }
   default { throw ('Mounted Shield '+$What+': no commitment for an attempted check') }
  }
 }
@@ -225,13 +249,17 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
  foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){ if([int]$x.shieldBonus -ne 3){ throw 'Mounted Shield a check on this pair missed the full amount' } }
  $b=$E.band; $miss=Get-KmcShieldProperty $E 'bandMiss'
  if([int]$b.amount -ne 3 -or $null -eq $miss -or [int]$E.bandAttempts -lt 1 -or [int]$E.bandAttempts -gt 120){ throw 'Mounted Shield no miss caused only by its AC was identified within the strike bound' }
- # The AC change Mounted Shield made at the strike (supplemental review PN5-F7): its amount above the strongest other Shield.
- $effective=[int]$b.effectiveDelta
- if($effective -lt 1 -or $effective -ne [Math]::Max(0,[int]$b.amount-[Math]::Max(0,[int]$b.otherShield)) -or [int]$b.acWithoutShield -ne [int]$b.ac-$effective){ throw 'Mounted Shield the band''s effective AC change is not derived from the native modifiers' }
+ # The AC change Mounted Shield made at that very attack (review PN5-F7, PN6-F6): its own modifier above the strongest other
+ # Shield modifier, both observed with the attack.
+ $context=Get-KmcShieldProperty $miss 'acContext'
+ if($null -eq $context){ throw 'Mounted Shield the band miss carries no AC context of its own' }
+ $effective=[int]$context.effective
+ if($effective -lt 1 -or [int]$context.ownedCount -ne 1 -or [int]$context.owned -ne [int]$b.amount -or $effective -ne [Math]::Max(0,[int]$context.owned-[Math]::Max(0,[int]$context.otherShield))){ throw 'Mounted Shield the band miss''s AC change is not derived from the modifiers at that attack' }
  $hostile=@($Measure.records | Where-Object { [string]$_.case -ceq $c } | ForEach-Object { [string]$_.attacker } | Select-Object -Unique)
  $row=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$miss.identity })
  if($row.Count -ne 1 -or $hostile.Count -ne 1 -or [string]$row[0].attacker -cne $hostile[0] -or [string]$row[0].target -cne [string]$Measure.mount -or $row[0].isHitAtEvent -eq $true -or [int]$row[0].d20 -le 1 -or
-   [int]$row[0].ac -ne [int]$b.ac -or ([int]$row[0].d20+[int]$row[0].bonus) -ge [int]$b.ac -or ([int]$row[0].d20+[int]$row[0].bonus) -lt [int]$b.acWithoutShield){ throw 'Mounted Shield the identified band miss is not a miss that reached the AC without Mounted Shield' }
+   ($row[0].acContext | ConvertTo-Json -Compress) -cne ($context | ConvertTo-Json -Compress) -or
+   ([int]$row[0].d20+[int]$row[0].bonus) -ge [int]$row[0].ac -or ([int]$row[0].d20+[int]$row[0].bonus) -lt [int]$row[0].ac-$effective){ throw 'Mounted Shield the identified band miss is not a miss that reached the AC without Mounted Shield' }
  if([string]$miss.identity -cin @($Measure.records | ForEach-Object { [string]$_.ruleIdentity })){ throw 'Mounted Shield a miss caused by its AC was evaluated by Mounted Combat' }
 }
 
@@ -253,7 +281,10 @@ function Assert-KmcSprint6ShieldRows($Measure,$Rows,[string]$Scenario){
  # Stock items only (supplemental review PN5-F9): every shield the driver used is a stock blueprint loaded from the game's assets.
  $stock=Get-KmcShieldProperty $m 'shieldBlueprints'
  if($null -eq $stock){ throw 'Mounted Shield the stock shield identities were not recorded' }
- foreach($item in @($stock.mundane.PSObject.Properties | ForEach-Object { $_.Value })+@($stock.enhancedCandidates)){ if($item.stockLoaded -ne $true){ throw 'Mounted Shield a shield that is not a loaded stock blueprint was used' } }
+ foreach($key in $script:KmcShieldStock.Keys){
+  $item=Get-KmcShieldProperty $stock $key; $want=$script:KmcShieldStock[$key]
+  if($null -eq $item -or $item.stockVerified -ne $true -or [string]$item.guid -cne $want[0] -or [string]$item.armorType -cne $want[1] -or [int]$item.requestedEnhancement -ne $want[2] -or [string]$item.name -cne [string]$item.expectedName){ throw ('Mounted Shield the stock shield '+$key+' is not the verified stock item') }
+ }
  $script:KmcShieldUnrelated=$(if($Scenario -ceq 'sprint6-shield-rt'){ $Rows['MS-check-rt'].evidence.unrelatedMobility }else{ $null })
  if($Scenario -ceq 'sprint6-shield-rt'){
   Assert-KmcShieldSelection $Rows['MS-selection'].evidence $true
@@ -278,8 +309,9 @@ function Assert-KmcSprint6ShieldRows($Measure,$Rows,[string]$Scenario){
 # it wrote and its continuation; the consumer (cold) artifact holds the restored state, the loaded archive and its
 # continuation. Each is read in its own shape. Neither archive may hold a Mounted Shield source tag (the native save turns
 # the fact off before it serializes); the cold rider and mount are bound to the authenticated continuation's actors.
-function Assert-KmcShieldArchive($Scan,[string]$What){
- if($null -eq $Scan -or $null -ne $Scan.error -or [string]::IsNullOrWhiteSpace([string]$Scan.area)){ throw ('Mounted Shield '+$What+' archive was not read') }
+function Assert-KmcShieldArchive($Scan,[string]$What,$Archive,[string]$FileName){
+ if($null -eq $Scan -or $null -ne $Scan.error -or [string]$Scan.area -cnotmatch '^[0-9a-f]{32}$'){ throw ('Mounted Shield '+$What+' archive was not read') }
+ if($null -ne $Archive -and ([string]$Scan.area -cne [string]$Archive.AreaId -or [string]$Scan.file -cne $FileName)){ throw ('Mounted Shield '+$What+' scan is not of the validated archive') }
  foreach($entry in @('party.json',([string]$Scan.area+'.json'))){
   if(@($Scan.entries | Where-Object { [string]$_.entry -ceq $entry -and $_.present -eq $true -and [int]$_.length -gt 0 }).Count -ne 1){ throw ('Mounted Shield '+$What+' archive lacks its nonempty '+$entry) }
  }
@@ -289,24 +321,28 @@ function Assert-KmcShieldOneCurrent($S,[string]$What){
  if($null -eq $S -or $S.mounted -ne $true -or $S.hasFeat -ne $true -or [int]$S.shieldBase -ne 2 -or [int]$S.amount -ne 3 -or [int]$S.ownedCount -ne 1 -or [int]@($S.ownedValues)[0] -ne 3 -or
    @($S.ownedByRiderFact)[0] -ne $true -or [string]$S.ledgerMount -cne [string]$S.mount -or [int]$S.otherMountOwned -ne 0){ throw ('Mounted Shield '+$What+' does not hold exactly one current contribution') }
 }
-function Assert-KmcSprint6ShieldPersistence($Request,$Observations,[bool]$Cold){
+function Assert-KmcSprint6ShieldPersistence($Request,$Observations,[bool]$Cold,$Archive){
  $o=$Observations
+ if($null -eq $Archive){ throw 'Mounted Shield persistence has no validated archive to bind to' }
+ $script:KmcShieldArchive=$Archive
  if(-not $Cold){
   $save=Get-KmcShieldProperty $o 'shieldAtSave'
   if($null -eq $save -or $save.hasShieldFocus -ne $true){ throw 'Mounted Shield source state before the save is missing' }
   Assert-KmcShieldOneCurrent $save 'the source before the save'
-  Assert-KmcShieldArchive (Get-KmcShieldProperty $o 'shieldSavedArchive') 'the written'
+  Assert-KmcShieldArchive (Get-KmcShieldProperty $o 'shieldSavedArchive') 'the written' $Archive ([IO.Path]::GetFileName([string]$o.nativeWrite.path))
   $after=Get-KmcShieldProperty $o 'shieldWarmContinuation'; Assert-KmcShieldOneCurrent $after 'the warm continuation'
   Assert-KmcShieldFirstPair $o $save 'the source before the save'; Assert-KmcShieldFirstPair $o $after 'the warm continuation'
-  if($save.shieldIdentity.stockLoaded -ne $true){ throw 'Mounted Shield the persistence shield is not a loaded stock blueprint' }
+  $want=$script:KmcShieldStock['heavy']
+  if($save.shieldIdentity.stockVerified -ne $true -or [string]$save.shieldIdentity.guid -cne $want[0] -or [string]$save.shieldIdentity.armorType -cne $want[1]){ throw 'Mounted Shield the persistence shield is not the verified stock heavy shield' }
   return
  }
  if($null -ne (Get-KmcShieldProperty $o 'shieldAtSave')){ throw 'Mounted Shield a cold artifact carries producer state' }
  $restore=Get-KmcShieldProperty $o 'shieldColdAtRestore'
  if($null -eq $restore -or $restore.hasFeat -ne $true -or [int]$restore.shieldBase -ne 2 -or [int]$restore.ownedCount -gt 1 -or [int]$restore.otherMountOwned -ne 0){ throw 'Mounted Shield the cold load restored a stale or doubled contribution' }
  # A contribution already present at restoration must itself be the current one (supplemental review PN5-F5).
- if([int]$restore.ownedCount -eq 1 -and ([int]@($restore.ownedValues)[0] -ne 3 -or @($restore.ownedByRiderFact)[0] -ne $true -or [string]$restore.ledgerMount -cne [string]$restore.mount)){ throw 'Mounted Shield the cold load restored a wrong contribution' }
- Assert-KmcShieldArchive $restore.archive 'the loaded'
+ if([int]$restore.ownedCount -eq 1 -and ([int]@($restore.ownedValues)[0] -ne 3 -or @($restore.ownedByRiderFact)[0] -ne $true -or [string]$restore.ledgerMount -cne [string]$restore.mount -or
+   [int]$restore.amount -ne 3 -or $restore.mounted -ne $true -or $restore.hasShieldFocus -ne $true)){ throw 'Mounted Shield the cold load restored a contribution that disagrees with the state at restoration' }
+ Assert-KmcShieldArchive $restore.archive 'the loaded' $Archive ([string]$o.loadedDescriptor.fileName)
  $after=Get-KmcShieldProperty $o 'shieldColdContinuation'; Assert-KmcShieldOneCurrent $after 'the cold continuation'
  Assert-KmcShieldFirstPair $o $restore 'the cold restore'; Assert-KmcShieldFirstPair $o $after 'the cold continuation'
 }
@@ -314,5 +350,7 @@ function Assert-KmcSprint6ShieldPersistence($Request,$Observations,[bool]$Cold){
 # (Chunk7CombatCheckpointDriver); the shield pair is the first pair in those exact roles.
 function Assert-KmcShieldFirstPair($Observations,$S,[string]$What){
  $ids=@($Observations.combatContinuation.actorIds | ForEach-Object { [string]$_ })
- if($ids.Count -ne 4 -or [string]$S.rider -cne $ids[0] -or [string]$S.mount -cne $ids[1]){ throw ('Mounted Shield '+$What+' is not the authenticated first rider on the first mount') }
+ # The first pair as the validated archive records it (the Mammoth profile), so the roles are not taken from the observation.
+ $pair=@($script:KmcShieldArchive.Pairs | Where-Object { [string]$_.ProfileId -ceq 'medium-humanoid-mammoth-v1' })
+ if($ids.Count -ne 4 -or $pair.Count -ne 1 -or [string]$S.rider -cne [string]$pair[0].Rider.Id -or [string]$S.mount -cne [string]$pair[0].Mount.Id -or [string]$S.rider -cne $ids[0] -or [string]$S.mount -cne $ids[1]){ throw ('Mounted Shield '+$What+' is not the validated archive''s first rider on its first mount') }
 }

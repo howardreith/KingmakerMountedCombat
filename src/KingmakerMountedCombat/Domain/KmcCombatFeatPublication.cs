@@ -162,6 +162,29 @@ namespace KingmakerMountedCombat.Domain
 
         public T[] WithoutMountedArchery(T[] current) => Without(current, KmcOptionalCombatFeat.MountedArchery);
 
+        // The inverse of Without for the array as it is now (supplemental review PN6-F1): KMC's own reference to the feat goes
+        // back right after the KMC entry that precedes it in KMC's order (Mounted Combat, Mounted Archery, Mounted Shield), and
+        // every other entry, foreign or KMC, keeps its place, so another mod's edits made meanwhile are never undone. Null when
+        // the array already offers it or holds no KMC entry to place it after. Applied to one of KMC's exact values this yields
+        // the exact value with the feat.
+        public T[] With(T[] current, KmcOptionalCombatFeat feat)
+        {
+            var item = optional[(int)feat];
+            if (current == null || item == null || Offers(current, feat)) return null;
+            var order = new[] { mountedCombat }.Concat(optional).ToArray();
+            var position = Array.IndexOf(order, item);
+            for (var anchor = position - 1; anchor >= 0; anchor--)
+            {
+                if (order[anchor] == null) continue;
+                var at = Array.FindLastIndex(current, entry => ReferenceEquals(entry, order[anchor]));
+                if (at < 0) continue;
+                var value = new List<T>(current);
+                value.Insert(at + 1, item);
+                return value.ToArray();
+            }
+            return null;
+        }
+
         // Disable of an array another mod changed: the same entries in the same order without any of KMC's own references
         // (Mounted Combat and every registered optional feat), or null when it holds none. Nothing stays selectable whose
         // mechanic the disable turned off, and every foreign entry is kept.
@@ -222,11 +245,13 @@ namespace KingmakerMountedCombat.Domain
         // Reversibly closed (supplemental review PN4-F3): the feat's entries leave every array, it is not available and its
         // required paths are not watched, until Resume. Unlike a withdrawal it does not last the session.
         private readonly bool[] suspended = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
-        // For each array the suspension changed: the value before it and the value it left (supplemental review PN5-F1).
-        // Resume puts back exactly the value before wherever the array still holds the value the suspension left, so a list
-        // another mod had changed (its foreign entries and order kept) gets the suspended entry back once, and is never read as
-        // having lost it.
-        private readonly Dictionary<TKey, KeyValuePair<T[], T[]>> suspensionRestores = new Dictionary<TKey, KeyValuePair<T[], T[]>>();
+        // The arrays the suspension took the entry from (supplemental review PN5-F1, PN6-F1). Resume puts KMC's entry back into
+        // each of them as it is then (With), so a list another mod changed, before or during the suspension, keeps all of its
+        // current entries and order, gets the suspended entry back once, and is never read as having lost it.
+        private readonly HashSet<TKey> suspensionKeys = new HashSet<TKey>();
+        // The suspension came before the current publication (a stop before registration finished, or a disable and enable while
+        // suspended): every array's absence of the feat is then the suspension's own, and KMC's exact values get it back.
+        private readonly bool[] suspendedBeforePublication = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
         private bool published;
 
         public KmcCombatFeatPublicationSet(IEnumerable<TKey> selections, IEnumerable<TKey> requiredSelections, T mountedCombat, T mountedArchery,
@@ -269,7 +294,11 @@ namespace KingmakerMountedCombat.Domain
             published = desired;
             // A restore supersedes what a suspension recorded: the arrays return to KMC's originals (or are stripped and rebased).
             // A publication while suspended keeps the records: it leaves the suspended entry out and writes no foreign array.
-            if (!desired) suspensionRestores.Clear();
+            if (!desired)
+            {
+                suspensionKeys.Clear();
+                for (var index = 0; index < suspended.Length; index++) if (suspended[index]) suspendedBeforePublication[index] = true;
+            }
             string error = null;
             foreach (var pair in arrays)
             {
@@ -317,46 +346,49 @@ namespace KingmakerMountedCombat.Domain
         {
             if (!registered[(int)feat] || suspended[(int)feat]) return;
             suspended[(int)feat] = true;
+            suspendedBeforePublication[(int)feat] = !published;
             foreach (var pair in arrays)
             {
                 var before = read(pair.Key);
                 var after = pair.Value.Without(before, feat);
                 if (after == null || ReferenceEquals(after, before)) continue;
                 write(pair.Key, after);
-                suspensionRestores[pair.Key] = new KeyValuePair<T[], T[]>(before, read(pair.Key));
+                suspensionKeys.Add(pair.Key);
                 lastSeen[pair.Key] = read(pair.Key);
             }
         }
 
-        // Reopens a suspended feat. While KMC publishes, its entry returns to every array still holding KMC's exact value (the
-        // drift refusals are returned, as Apply returns them); otherwise the next publication includes it.
+        // Reopens a suspended feat. While KMC publishes, its entry returns where the suspension is the reason it is absent: to each
+        // array the suspension took it from (in place, keeping every current entry), and, when the suspension came before the
+        // current publication, to every array still holding KMC's exact value. Returns the arrays it could not be put back into.
+        // Not publishing, the next publication includes it.
         public string Resume(KmcOptionalCombatFeat feat, Func<TKey, string> name)
         {
             if (!suspended[(int)feat]) return null;
             suspended[(int)feat] = false;
-            if (!published) { suspensionRestores.Clear(); return null; }
+            if (!published) { suspensionKeys.Clear(); suspendedBeforePublication[(int)feat] = false; return null; }
             string error = null;
             foreach (var pair in arrays)
             {
                 var current = read(pair.Key);
-                KeyValuePair<T[], T[]> restore;
-                if (suspensionRestores.TryGetValue(pair.Key, out restore) && SameEntries(current, restore.Value)) { write(pair.Key, restore.Key); continue; }
-                // Not changed by the suspension, or changed again since: KMC's exact values move to the full publication; a
-                // foreign-changed array is left as found and reported.
-                var target = pair.Value.Mask(Offered);
-                T[] value;
-                if (pair.Value.TryMove(current, target, out value)) { if (value != null) write(pair.Key, value); continue; }
                 if (pair.Value.Offers(current, feat)) continue;
-                error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " changed outside KMC while Mounted Shield was suspended; no overwrite was attempted.";
+                // KMC's exact value moves to the full publication (an array first published while suspended, for a stop that
+                // came before registration finished); an array the suspension took the feat from gets it back in place, with all
+                // of its current entries kept. A foreign-changed array the suspension never touched stays as another mod left it.
+                T[] value;
+                var taken = suspensionKeys.Contains(pair.Key);
+                if (!taken && !suspendedBeforePublication[(int)feat]) continue;
+                if (!pair.Value.TryMove(current, pair.Value.Mask(Offered), out value)) value = taken ? pair.Value.With(current, feat) : null;
+                if (value != null) { write(pair.Key, value); continue; }
+                if (!suspensionKeys.Contains(pair.Key)) continue;
+                error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " no longer holds a KMC entry to place the resumed feat after; it was not written.";
             }
-            suspensionRestores.Clear();
+            suspensionKeys.Clear();
+            suspendedBeforePublication[(int)feat] = false;
             lastSeen.Clear();
             Refresh(true);
             return error;
         }
-
-        private static bool SameEntries(T[] left, T[] right) =>
-            ReferenceEquals(left, right) || left != null && right != null && left.Length == right.Length && left.Zip(right, (a, b) => ReferenceEquals(a, b)).All(same => same);
 
         public bool MountedArcheryAvailable() => Available(KmcOptionalCombatFeat.MountedArchery);
         public bool MountedShieldAvailable() => Available(KmcOptionalCombatFeat.MountedShield);
@@ -427,9 +459,6 @@ namespace KingmakerMountedCombat.Domain
                 {
                     write(pair.Key, value);
                     current = read(pair.Key);
-                    // A reference re-removed while suspended: the restore still applies to the value this removal leaves.
-                    KeyValuePair<T[], T[]> restore;
-                    if (suspensionRestores.TryGetValue(pair.Key, out restore)) suspensionRestores[pair.Key] = new KeyValuePair<T[], T[]>(restore.Key, current);
                 }
                 lastSeen[pair.Key] = current;
             }

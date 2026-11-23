@@ -764,6 +764,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             MountedRangedMovementTests.Register(runner);
             MountedArcheryFeatContractTests.Register(runner);
             MountedShieldTests.Register(runner);
+            FixtureHandCustodyTests.Register(runner);
             MountedRiderFallTests.Register(runner);
             HorseCompanionLifeTransitionPolicyTests.Register(runner);
             HorseCompanionProgressionPolicyTests.Register(runner);
