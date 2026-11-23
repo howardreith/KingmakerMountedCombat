@@ -13,9 +13,9 @@ foreground session; the verbatim prompt is kept outside the worktree at
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
 `C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
-`bb0c53d5c9847bb76f11636b6533337d67f3d364` (round-4 corrections; later commits are records only): DLL (gate build,
-deterministic) SHA-256 `5978e285ccc0d6cc3163bd176e5205728b68fb57d2fd52087c36c5e9c63ff6f4`, MVID
-`94c4e4d2-c673-4afd-b4f8-50845118888d`. The final identities and package are in the closing records below. The first
+`fb19d496` (round-5 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
+`70fdc113565e344a1dc477641b855dd894dff3f5c337d82a822c926236ff7108`, MVID `bb2bf2b0-66ac-4526-bb85-3d5445b46119`. Round-4
+source `bb0c53d5`: DLL `5978e285…`, MVID `94c4e4d2…`. The final identities and package are in the closing records below. The first
 continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
 `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
 `ba7f4e4ddaa69fa7f21dde5329ad5b2edcbcd7fb75b172dce9bab0b7106b5e0a`, Info.json `ManagerVersion` 0.31.1. Icon: packet,
@@ -101,8 +101,9 @@ restore helper, both loader binding checks, native inventory reader, frozen-prod
 
 **Review and controller.** Supplemental round 4 on `f4d0078a`: CHANGES REQUIRED, ten findings (PN4-F1–F10), nine fixed
 in `bb0c53d5` and PN4-F7 resolved by documenting the persistence route; see [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md).
-Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18). Round 5 and the controller
-endpoint follow in the same record.
+Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18). Round 5 on `1bac699e`:
+CHANGES REQUIRED, nine findings (PN5-F1–F9), all fixed in `fb19d496` (PN5-F4 in these records); Fast gate on `7661a0ec`: PASS,
+52.8 s. Round 6 and the controller endpoint follow in the review record.
 
 ## 1. Outcome
 

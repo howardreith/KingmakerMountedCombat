@@ -113,3 +113,28 @@ round 4. No game launch, staging, installation or runner/fixture/backup/restorat
 Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18; rollback 57/0, shield readers
 81/0, native contract 80/0). DLL `5978e285ccc0d6cc3163bd176e5205728b68fb57d2fd52087c36c5e9c63ff6f4`, MVID
 `94c4e4d2-c673-4afd-b4f8-50845118888d`. Budget `mounted-shield` 3.33 of 90 min. To be reviewed in round 5.
+
+## Round 5 — candidate `1bac699ec01c003e4aaf7d8317632aa11e488846` (production `bb0c53d5`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-1bac699e`. Started 2026-11-23, 19.87 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS.
+- **Verdict: CHANGES REQUIRED.** Prior findings: PN4-F1, PN4-F5, PN4-F6 resolved; PN4-F2 resolved for the reported double
+  drift; PN4-F3, PN4-F4, PN4-F7, PN4-F8, PN4-F9 and PN4-F10 partial (their remainders are PN5-F1 to PN5-F7). The PN3-F5
+  one-frame race was accepted as a nonblocking compatibility limit.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN5-F1 | Resuming after a suspension rejected a foreign-changed list, and the required-path scan then withdrew Mounted Shield for KMC's own removal. | **Fixed** in `fb19d496`: the suspension records each array's value before and after it; resume writes back exactly the value before wherever the array still holds the value it left (foreign entries and order kept), moves KMC's exact values to the full publication, and reports any list changed again since; a publication while suspended keeps the records, a disable clears them. Component case with persistent appends on a required and an extra list (no withdrawal, exact values back, Mounted Archery untouched). |
+| PN5-F2 | A stop before registration had no publication to record it on, and a toggle that faulted a pending registration kept the requested state. | **Fixed** in `fb19d496`: the stop is kept on the service and applied by the production `LeaseKmcCombatFeatSelections` before the first publication; the pending-to-faulted return restores the stored state. Both through the production methods in `Test-MountedShieldSelectionRollback.ps1` (registration faulted by a genuine locale-key collision; 64/0). |
+| PN5-F3 | Driver setup cleanup could lose ownership (a write throwing before its handle returns, items tracked after insertion, a one-shot drain). | **Fixed** in `fb19d496`: setup modifiers are owned by `Sprint6ShieldSetupModifiers` (recorded before the write, own source component, removed through the stat with `RemoveExact`, kept until verified); created shields tracked before insertion and disposed on release; buffs verified; the drain retries each frame within the Sprint 6 cleanup bound and records residue it could not clear. Native contract on a genuine stat whose callback throws (83/0). |
+| PN5-F4 | The handoff offered a newly qualified Working, which the persistence route's pin refuses. | **Fixed** in the records: the input is the exact historical pair (Working `5eb4e0b4…`, Baseline `c29d965c…`) with its qualification records; the pin is kept. |
+| PN5-F5 | Archive scans accepted one present member; the cold pair could be any authenticated actors; a wrong contribution at restoration passed. | **Fixed** in `fb19d496`: both nonempty `party.json` and the saved area's member are required; warm and cold observations are bound to the authenticated first rider and first mount in those roles; a contribution present at restoration must be the current one. Reader refusals added. |
+| PN5-F6 | The stronger-shield check could borrow another roll's modifier evidence. | **Fixed** in `fb19d496`: each attempt is paired with its own native roll in order (the Sprint 6 pairing, the unrelated check set aside) and the paired roll must match it. Refusal added for the borrowed case. |
+| PN5-F7 | The band credited Mounted Shield's full amount even when a competing Shield reduced its AC effect. | **Fixed** in `fb19d496`: the driver reads the effective AC change from the native modifiers at the band, skips the band when it is zero, and the miss must reach the AC without Mounted Shield. |
+| PN5-F8 | Boundary rows could pass on the commitment label alone. | **Fixed** in `fb19d496`: every attempted Mounted Shield row must show the real-time window and charged Swift, the own-turn spent Swift, or the off-turn borrow, from the record's before/after state. |
+| PN5-F9 | Any equip failure skipped the tower; foreign library items could stand in for stock shields. | **Fixed** in `fb19d496`: only a native `CanInsertItem` refusal skips the tower (other failures propagate); shields are selected from exact stock types loaded from the game's assets (positive Unity instance ids), each identity recorded and required by the reader. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate on `7661a0ec` (production `fb19d496`): PASS, 52.8 s (components 1508/0, Validate-Source 153/0, focused 18/18).
+DLL `70fdc113565e344a1dc477641b855dd894dff3f5c337d82a822c926236ff7108`, MVID `bb2bf2b0-66ac-4526-bb85-3d5445b46119`. Budget
+`mounted-shield` 4.2 of 90 min. To be reviewed in round 6.
