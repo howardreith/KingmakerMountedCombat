@@ -259,9 +259,36 @@ $weaker = $addOther.Invoke($ac, @(1, $null, 'weaker shield', (Descriptor 'Shield
 foreach ($other in @(@(2, 'NaturalArmor'), @(1, 'Deflection'), @(1, 'Dodge'), @(4, 'Armor'))) { [void]$addOther.Invoke($ac, @($other[0], $null, $other[1], (Descriptor $other[1]))) }
 $view = Read-Ac $ac
 Check ($view.Normal -eq 21 -and $view.FlatFooted -eq 20 -and $view.Touch -eq 12) 'independent armor, natural armor, deflection and dodge stay intact: normal 21, flat-footed 20 (no dodge), touch 12 (deflection and dodge only)'
-Check ($mine.Remove() -and -not $mine.Remove()) 'the contribution is removed once by its own record'
+$holds = $shieldService.GetMethod('Holds', $any)
+$removeExact = $shieldService.GetMethod('RemoveExact', $any)
+$identity = $shieldService.GetMethod('IdentityModifiers', $any)
+[void]$removeExact.Invoke($null, @($ac, $mine, $null))
+Check (-not [bool]$holds.Invoke($null, @($ac, $mine)) -and $null -eq $mine.AppliedTo) 'the production removal takes the contribution off through its stat, verified'
 $view = Read-Ac $ac
 Check ($view.Normal -eq 18 -and $view.FlatFooted -eq 17 -and $view.Touch -eq 12) 'after removal only the other sources remain (normal 18, flat-footed 17, touch 12)'
+
+# 2c'. A half-done write (pre-native review finding 1): the installed ModifiableValue.AddModifier puts the modifier into the
+# stat and runs UpdateValue (and its OnChanged callbacks) before it sets AppliedTo. A throwing callback therefore leaves an
+# untracked modifier that Modifier.Remove() cannot remove. The production identity sweep and RemoveExact must still find
+# and remove it, and verify the stat is clean.
+$halfDone = New-Ac
+$changedType = [Action``2].MakeGenericType($mvType, [int])
+$throwing = [Management.Automation.LanguagePrimitives]::ConvertTo([scriptblock]{ param($stat, $previous) throw 'stat-change callback fault' }, $changedType)
+$mvType.GetEvent('OnChanged').AddEventHandler($halfDone, $throwing)
+$threw = $false
+try { [void]$addMount.Invoke($null, @($halfDone, 3, $null)) } catch { $threw = $true }
+$stray = @($identity.Invoke($null, @($halfDone, [string](Const $service 'MountedShieldFeatureGuid'))))
+Check ($threw -and $stray.Count -eq 1 -and $null -eq $stray[0].AppliedTo -and $halfDone.ModifiedValue -eq 13) 'reproduced: a throwing callback leaves the +3 in the stat with no AppliedTo (AC 13)'
+Check (-not $stray[0].Remove()) 'reproduced: the native Modifier.Remove() cannot remove it (returns false)'
+$faults = New-Object 'System.Collections.Generic.List[string]'
+$onFault = [Management.Automation.LanguagePrimitives]::ConvertTo([scriptblock]{ param($fault) $faults.Add($fault.GetType().Name) }.GetNewClosure(), [Action[Exception]])
+[void]$removeExact.Invoke($null, @($halfDone, $stray[0], $onFault))
+Check (-not [bool]$holds.Invoke($null, @($halfDone, $stray[0])) -and @($identity.Invoke($null, @($halfDone, [string](Const $service 'MountedShieldFeatureGuid')))).Count -eq 0 -and
+    $halfDone.ModifiedValue -eq 10 -and $faults.Count -eq 1) 'the production removal removes the untracked modifier through the stat, verifies it, and reports the callback fault'
+$withForeign = New-Ac
+$kept = $addOther.Invoke($withForeign, @(4, $null, 'unrelated', (Descriptor 'Shield')))
+$ours = $addMount.Invoke($null, @($withForeign, 2, $null))
+Check (@($identity.Invoke($null, @($withForeign, [string](Const $service 'MountedShieldFeatureGuid')))).Count -eq 1 -and [bool]$holds.Invoke($null, @($withForeign, $kept))) 'the identity sweep selects only Mounted Shield''s own modifier, never another shield source'
 
 # 2d. The production check write on a genuine RuleSkillCheck, as MountedCombatDefenseService builds it (DC = attack + 1).
 $checkType = GameType 'Kingmaker.RuleSystem.Rules.RuleSkillCheck'

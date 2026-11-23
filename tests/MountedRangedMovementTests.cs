@@ -630,11 +630,14 @@ namespace KingmakerMountedCombat.Tests
                 "A reappearing entry is removed while withdrawn; the foreign entry stays.");
             lists.AssertCoherent("reappearing entry");
 
-            // Every list was changed by another mod, so disable reports them and overwrites none.
+            // Every list was changed by another mod, so disable reports them and restores none. Since the Mounted Shield
+            // pre-native review (finding 4) KMC's own entries still leave them: with the services off, none may stay
+            // selectable. Every foreign entry stays, in order.
             var changedExtra = lists.Arrays["extra"];
             TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the changed lists.");
-            TestRunner.True(ReferenceEquals(lists.Arrays["extra"], changedExtra) && !lists.Arrays.Keys.Any(key => lists.Has(key, lists.MountedArchery)),
-                "Changed lists are left as they are, and none offers Mounted Archery.");
+            TestRunner.True(lists.Arrays["extra"].SequenceEqual(changedExtra.Where(item => !ReferenceEquals(item, lists.MountedCombat))) &&
+                lists.Has("extra", unrelated) && !lists.Arrays.Keys.Any(key => lists.Has(key, lists.MountedArchery) || lists.Has(key, lists.MountedCombat)),
+                "Changed lists keep their foreign entries in order, and none offers a KMC feat.");
         }
 
         // Owner re-review of 713dd621: once withdrawn, another mod writes Mounted Archery into an existing slot of an array

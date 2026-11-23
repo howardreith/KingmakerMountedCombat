@@ -82,7 +82,12 @@ namespace KingmakerMountedCombat
                 removalShortcut = new RemovalPreparationShortcut(removal, new NativeTextDialog(), logger);
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
-                mountedShield = new MountedShieldService(horseCompanion, world, logger);
+                // Event-time writes follow the ordinary update gates; event-time removals only stay clear of an archive
+                // worker serializing the live graphs and of an owned load replacing the world.
+                mountedShield = new MountedShieldService(horseCompanion, world,
+                    () => IsEnabled && !persistence.SaveSuspended && !persistence.AreaTransitionPending && !persistence.CombatRestorationPending &&
+                        !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight,
+                    () => !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight, logger);
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, mountedShield, () => persistence.CombatRestorationPending, logger);
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 var badgeSource = horseCompanion;
@@ -208,7 +213,7 @@ namespace KingmakerMountedCombat
                 IsEnabled = true;
                 mountedCombatDefense.Enabled = true;
                 mountedRangedMovement.Enabled = true;
-                mountedShield.Enabled = true;
+                mountedShield.Enable();
                 pairPresentation.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
@@ -251,16 +256,22 @@ namespace KingmakerMountedCombat
                 logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
                 return false;
             }
+            // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted. A
+            // contribution that could not be removed keeps the services enabled, as other retained residue does.
+            if (!mountedShield.Disable("services disabled"))
+            {
+                logger.Error("Diagnostic services could not be disabled because a Mounted Shield contribution remained on a mount.");
+                return false;
+            }
             if (!horseCompanion.SetSelectionEnabled(false))
             {
+                mountedShield.Enable();
                 logger.Error("Mounted combat services could not disable without overwriting an externally changed Ranger selection.");
                 return false;
             }
             IsEnabled = false;
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
-            // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted.
-            mountedShield.Enabled = false;
             pairPresentation.Enabled = false;
             pairPresentation.ReleaseAtWorldBoundary("disabled");
             persistence.Enabled = false;
@@ -340,7 +351,8 @@ namespace KingmakerMountedCombat
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
-            mountedShield.ReleaseAll("update failure cleanup");
+            if (!mountedShield.ReleaseAll("update failure cleanup"))
+                throw new InvalidOperationException("Update-failure cleanup retained a Mounted Shield contribution.");
             IsEnabled = false;
         }
 
@@ -449,6 +461,10 @@ namespace KingmakerMountedCombat
             if (!lifecycle.HandleModDisable())
             {
                 throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
+            }
+            if (!mountedShield.Disable("unload"))
+            {
+                throw new InvalidOperationException("Composition root cannot dispose while a Mounted Shield contribution remains on a mount.");
             }
 
             movementTelemetry?.Dispose();

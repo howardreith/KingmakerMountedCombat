@@ -75,13 +75,14 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Mounted Shield requires the KMC Mounted Combat feature, which did not register.");
             AssertReservedGuidAbsent(library, blueprintList, MountedShieldFeatureGuid);
             var powerAttack = RequireUniqueNamedBlueprint<BlueprintFeature>(library, "PowerAttackFeature");
-            var ordinary = RequireUniqueNamedBlueprint<BlueprintFeatureSelection>(library, "BasicFeatSelection");
             shieldFocusFeature = RequireBlueprint<BlueprintFeature>(library, ShieldFocusGuid, ShieldFocusName);
             greaterShieldFocusFeature = RequireBlueprint<BlueprintFeature>(library, GreaterShieldFocusGuid, GreaterShieldFocusName);
-            // Another mod's Mounted Shield would be a second identically named choice with a different rule.
-            var existing = ordinary.AllFeatures.FirstOrDefault(feature => feature != null &&
-                (feature.name.IndexOf("MountedShield", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 string.Equals(feature.Name, "Mounted Shield", StringComparison.OrdinalIgnoreCase)));
+            // Another mod's Mounted Shield would be a second identically named choice with a different rule, in any list KMC
+            // publishes to (ordinary, fighter and the other combat-bonus lists Mounted Combat already selected).
+            if (mountedCombatSelectionTargets.Count == 0)
+                throw new InvalidOperationException("Mounted Shield has no Mounted Combat publication targets.");
+            var existing = KmcCombatFeatCollision.FindCompeting(mountedCombatSelectionTargets.Select(selection => selection.AllFeatures),
+                feature => feature.name, feature => feature.Name, "MountedShield", "Mounted Shield");
             if (existing != null)
                 throw new InvalidOperationException("An installed feature already offers Mounted Shield: " + existing.name + "/" + existing.AssetGuid + ".");
 

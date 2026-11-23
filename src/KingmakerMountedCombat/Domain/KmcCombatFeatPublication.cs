@@ -26,6 +26,30 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    // Another mod's version of a KMC feat would be a second, identically named choice with a different rule. It is looked for
+    // in every array KMC will publish the feat to (not only the ordinary list: a fighter-only competitor is still offered
+    // beside KMC's). Returns the first competing entry, or null.
+    public static class KmcCombatFeatCollision
+    {
+        public static T FindCompeting<T>(IEnumerable<T[]> publicationTargets, Func<T, string> assetName, Func<T, string> displayName,
+            string symbol, string display) where T : class
+        {
+            if (publicationTargets == null) throw new ArgumentNullException(nameof(publicationTargets));
+            foreach (var array in publicationTargets)
+            {
+                if (array == null) continue;
+                foreach (var item in array)
+                {
+                    if (item == null) continue;
+                    var name = assetName(item);
+                    if (name != null && name.IndexOf(symbol, StringComparison.OrdinalIgnoreCase) >= 0) return item;
+                    if (string.Equals(displayName(item), display, StringComparison.OrdinalIgnoreCase)) return item;
+                }
+            }
+            return null;
+        }
+    }
+
     // The KMC combat feats that follow Mounted Combat and can each be withdrawn on their own. The value is the feat's index
     // in KMC's fixed publication order.
     public enum KmcOptionalCombatFeat
@@ -42,6 +66,7 @@ namespace KingmakerMountedCombat.Domain
     public sealed class KmcCombatFeatArrayPublication<T> where T : class
     {
         internal const int OptionalCount = 2;
+        private readonly T mountedCombat;
         private readonly T[] optional;
         // Indexed by inclusion mask (bit i: optional feat i is offered); null where the mask names a feat that did not register.
         private readonly ExactAppendOnlyArrayLease<T>[] values;
@@ -50,6 +75,7 @@ namespace KingmakerMountedCombat.Domain
 
         public KmcCombatFeatArrayPublication(T[] source, T mountedCombat, T mountedArchery, T mountedShield)
         {
+            this.mountedCombat = mountedCombat;
             optional = new[] { mountedArchery, mountedShield };
             values = new ExactAppendOnlyArrayLease<T>[1 << OptionalCount];
             for (var mask = 0; mask < values.Length; mask++)
@@ -88,6 +114,17 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public T[] WithoutMountedArchery(T[] current) => Without(current, KmcOptionalCombatFeat.MountedArchery);
+
+        // Disable of an array another mod changed: the same entries in the same order without any of KMC's own references
+        // (Mounted Combat and every registered optional feat), or null when it holds none. Nothing stays selectable whose
+        // mechanic the disable turned off, and every foreign entry is kept.
+        public T[] WithoutKmc(T[] current)
+        {
+            if (current == null) return null;
+            var kmc = new[] { mountedCombat }.Concat(optional.Where(item => item != null)).ToArray();
+            if (!current.Any(entry => kmc.Any(item => ReferenceEquals(item, entry)))) return null;
+            return current.Where(entry => !kmc.Any(item => ReferenceEquals(item, entry))).ToArray();
+        }
 
         public bool IsKmcValue(T[] current) => values[0].MatchesOriginal(current) || values.Any(value => value != null && value.MatchesAppended(current));
 
@@ -181,6 +218,16 @@ namespace KingmakerMountedCombat.Domain
                 T[] value;
                 if (!pair.Value.TryMove(read(pair.Key), target, out value))
                 {
+                    if (!desired)
+                    {
+                        // Restoring is refused for a foreign-changed array, but KMC's own entries leave it: the services are
+                        // off, so none of them may stay selectable. Foreign entries and their order are kept.
+                        var stripped = pair.Value.WithoutKmc(read(pair.Key));
+                        if (stripped != null) write(pair.Key, stripped);
+                        error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) +
+                            " changed outside KMC; it was not restored, and only KMC's own entries were removed from it.";
+                        continue;
+                    }
                     error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " changed outside KMC; no overwrite was attempted.";
                     continue;
                 }

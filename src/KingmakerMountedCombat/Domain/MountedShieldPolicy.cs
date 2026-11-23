@@ -151,6 +151,29 @@ namespace KingmakerMountedCombat.Domain
             return writes;
         }
 
+        // One rider only, as the next native AC read or an equipment change of that rider needs it now: the rider's own record
+        // is kept, replaced or removed exactly as Reconcile would, and no other rider's record is touched. desire null means
+        // the rider wants nothing. A mount another rider's record holds is never written. Returns the number of native writes.
+        public int ReconcileRider(TUnit rider, MountedShieldDesire<TUnit> desire, bool allowAdd)
+        {
+            if (rider == null) return 0;
+            if (desire != null && (!ReferenceEquals(desire.Rider, rider) || desire.Mount == null || desire.Amount <= 0 || ReferenceEquals(desire.Mount, rider)))
+                desire = null;
+            var writes = 0;
+            var entry = entries.FirstOrDefault(value => ReferenceEquals(value.Rider, rider));
+            if (entry != null)
+            {
+                if (desire != null && ReferenceEquals(desire.Mount, entry.Mount) && desire.Amount == entry.Amount && isApplied(entry.Mount, entry.Applied)) return 0;
+                RemoveEntry(entry);
+                writes++;
+            }
+            if (!allowAdd || desire == null || entries.Any(value => ReferenceEquals(value.Mount, desire.Mount))) return writes;
+            var applied = apply(desire.Rider, desire.Mount, desire.Amount);
+            if (applied == null) return writes;
+            entries.Add(new Entry { Rider = desire.Rider, Mount = desire.Mount, Amount = desire.Amount, Applied = applied });
+            return writes + 1;
+        }
+
         // Removes the rider's contribution; true when there was one.
         public bool Release(TUnit rider)
         {

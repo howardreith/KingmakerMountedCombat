@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: withdrawals keep watching the other feat, remove in-place reintroductions and restore exactly", WithdrawalLifecycle);
             runner.Run("kmc publication: a feat that did not register is never offered and the other optional feat is unaffected", PartialRegistration);
             runner.Run("mounted shield contract: the donor contract diagnostics name Mounted Shield; Mounted Archery's text is unchanged", ContractDiagnostics);
+            runner.Run("mounted shield ledger: one rider is reconciled alone at the mount's AC read or its equipment change (review finding 2)", ReconcileOneRider);
+            runner.Run("kmc publication: the per-frame full refresh withdraws an in-place required edit before any selection (review finding 3)", InPlaceRequiredEditWithdrawsWithinAFrame);
+            runner.Run("kmc publication: disable removes only KMC's entries from a foreign-changed list; re-enable stays coherent (review finding 4)", DisableStripsForeignChangedLists);
+            runner.Run("kmc publication: a competing Mounted Shield in any publication target is found, fighter-only included (review finding 5)", CompetingFeatInAnyTarget);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -373,6 +377,85 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedArcheryFeatContract.Violation(forced, donor).StartsWith(MountedArcheryFeatContract.FailurePrefix +
                 ": IsClassFeature=False (expected the stock donor's True); icon is not KMC's Mounted Archery icon. Feature ", StringComparison.Ordinal),
                 "Mounted Archery's diagnostic is unchanged.");
+        }
+
+        private static void ReconcileOneRider()
+        {
+            var ac = new Ac();
+            var ledger = ac.Ledger();
+            object rider = new object(), horse = new object(), other = new object(), otherHorse = new object();
+            ledger.Reconcile(new[] { Want(other, otherHorse, 5) }, true);
+            // The rider equips a heavy shield and is attacked before the next frame: the AC read reconciles it at once.
+            TestRunner.Equal(1, ledger.ReconcileRider(rider, Want(rider, horse, 3), true), "The new value is written before the AC is read.");
+            TestRunner.Equal(0, ledger.ReconcileRider(rider, Want(rider, horse, 3), true), "Unchanged: no write.");
+            TestRunner.Equal(2, ledger.ReconcileRider(rider, Want(rider, horse, 4), true), "A changed amount is replaced, never stacked.");
+            TestRunner.True(ac.On(horse).Count == 1 && ac.Total(horse) == 4, "One current value.");
+            // The shield is unequipped and the mount is attacked before the next frame: the stale value is gone first.
+            TestRunner.Equal(1, ledger.ReconcileRider(rider, null, true), "Removed.");
+            TestRunner.True(ac.On(horse).Count == 0 && ac.On(otherHorse).Count == 1 && ac.Total(otherHorse) == 5, "The other pair is untouched.");
+            // Closed gates: a stale value still goes, nothing new is written.
+            ledger.ReconcileRider(rider, Want(rider, horse, 3), true);
+            TestRunner.True(ledger.ReconcileRider(rider, Want(rider, horse, 2), false) == 1 && ac.On(horse).Count == 0, "Removal only while the gates are closed.");
+            // A mount another rider's record holds is never written, and a malformed desire is treated as none.
+            TestRunner.Equal(0, ledger.ReconcileRider(rider, Want(rider, otherHorse, 3), true), "No second value on another rider's mount.");
+            TestRunner.True(ac.On(otherHorse).Count == 1 && ac.Total(otherHorse) == 5, "The other rider's value stays.");
+            TestRunner.Equal(0, ledger.ReconcileRider(rider, Want(other, horse, 3), true), "A desire naming another rider is ignored.");
+            TestRunner.Equal(0, ledger.ReconcileRider(null, Want(rider, horse, 3), true), "No rider, nothing.");
+        }
+
+        private static void InPlaceRequiredEditWithdrawsWithinAFrame()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var fighter = lists.Arrays["fighter"];
+            fighter[Array.IndexOf(fighter, lists.MountedShield)] = new object(); // another mod edits the array in place
+            // HorseCompanionBlueprintService refreshes with the full comparison every frame; no availability call is needed.
+            TestRunner.True(lists.Set.Refresh(true) && lists.Set.MountedShieldWithdrawn && lists.Set.MountedShieldWithdrawalReason == "fighter",
+                "The next frame's refresh withdraws Mounted Shield.");
+            TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedShield)), "No list offers it to a level-up afterwards.");
+            TestRunner.True(!lists.Set.MountedArcheryWithdrawn && lists.Arrays.Keys.All(key => lists.Has(key, lists.MountedArchery)), "Mounted Archery is unaffected.");
+            lists.AssertCoherent("in-place required edit");
+        }
+
+        private static void DisableStripsForeignChangedLists()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var foreignEntry = new object();
+            var appended = lists.Arrays["ordinary"].Concat(new[] { foreignEntry }).ToArray();
+            lists.Arrays["ordinary"] = appended;
+            TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the foreign-changed list.");
+            TestRunner.True(lists.Arrays["ordinary"].SequenceEqual(appended.Where(item => item != lists.MountedCombat && item != lists.MountedArchery && item != lists.MountedShield)),
+                "The foreign list keeps every foreign entry in order and loses only KMC's three entries.");
+            TestRunner.True(lists.Arrays["fighter"].SequenceEqual(lists.Originals["fighter"]) && lists.Arrays["extra"].SequenceEqual(lists.Originals["extra"]),
+                "Unchanged lists are restored exactly.");
+            TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedCombat) && !lists.Has(key, lists.MountedArchery) && !lists.Has(key, lists.MountedShield)),
+                "Nothing KMC publishes stays selectable while the services are off.");
+            TestRunner.True(lists.Set.Apply(true, key => key) != null, "Re-enable reports the foreign list it cannot publish to.");
+            TestRunner.True(lists.Set.MountedShieldWithdrawn && lists.Set.MountedArcheryWithdrawn, "A required list without them withdraws both optional rules.");
+            TestRunner.True(lists.Has("fighter", lists.MountedCombat) && !lists.Has("fighter", lists.MountedShield) && lists.Has("ordinary", foreignEntry),
+                "Mounted Combat is offered where KMC owns the list; the foreign list is left alone.");
+            lists.AssertCoherent("re-enabled after a foreign change");
+        }
+
+        private sealed class Named
+        {
+            internal string Asset, Display;
+        }
+
+        private static void CompetingFeatInAnyTarget()
+        {
+            var stock = new Named { Asset = "PowerAttackFeature", Display = "Power Attack" };
+            var competitor = new Named { Asset = "OtherModMountedShieldFeat", Display = "Mounted Shield" };
+            var displayOnly = new Named { Asset = "XYZ_123", Display = "mounted shield" };
+            var ordinary = new[] { stock };
+            var fighterOnly = new[] { stock, competitor };
+            TestRunner.True(ReferenceEquals(KmcCombatFeatCollision.FindCompeting(new[] { ordinary, fighterOnly }, item => item.Asset, item => item.Display, "MountedShield", "Mounted Shield"), competitor),
+                "A competitor offered only to fighters is found.");
+            TestRunner.True(ReferenceEquals(KmcCombatFeatCollision.FindCompeting(new[] { ordinary, new[] { displayOnly } }, item => item.Asset, item => item.Display, "MountedShield", "Mounted Shield"), displayOnly),
+                "A competitor found by its display name alone.");
+            TestRunner.True(KmcCombatFeatCollision.FindCompeting(new[] { ordinary, null, new Named[] { null, stock } }, item => item.Asset, item => item.Display, "MountedShield", "Mounted Shield") == null,
+                "Unrelated, empty and null entries are not competitors.");
         }
     }
 }
