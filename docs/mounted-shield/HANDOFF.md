@@ -13,8 +13,8 @@ foreground session; the verbatim prompt is kept outside the worktree at
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
 `C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
-`4092676b` (round-6 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
-`2cc090ed9cbf45a132434cb66a41f6ba1ac74c094c8a4d5bf7a8f7d368e348e7`, MVID `4e4f4e83-bd9f-481b-983d-f2c5aab06a46`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
+`9bf75488` (round-7 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
+`362c2b141429ca5adace316b0497d2de898fc0a6e4447641446c0afc00824cb2`, MVID `50eafd79-0c67-440e-a4e7-aeeb8b93b33a`. Round-6 source `4092676b`: DLL `2cc090ed…`, MVID `4e4f4e83…`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
 source `bb0c53d5`: DLL `5978e285…`, MVID `94c4e4d2…`. The final identities and package are in the closing records below. The first
 continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
 `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
@@ -104,7 +104,9 @@ in `bb0c53d5` and PN4-F7 resolved by documenting the persistence route; see [PRE
 Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18). Round 5 on `1bac699e`:
 CHANGES REQUIRED, nine findings (PN5-F1–F9), all fixed in `fb19d496` (PN5-F4 in these records); Fast gate on `7661a0ec`: PASS,
 52.8 s. Round 6 on `1fc9ddb0`: CHANGES REQUIRED, seven findings (PN6-F1–F7), all fixed in `4092676b`; controller focused gate
-on `4092676b`: PASS, 60.3 s (components 1512/0). Round 7 and the controller endpoint follow in the review record.
+on `4092676b`: PASS, 60.3 s (components 1512/0). Round 7 on `47a882df`: CHANGES REQUIRED, seven findings (PN7-F1–F7), all
+fixed in `9bf75488`; controller focused gate on `9bf75488`: PASS, 57.4 s. The guarded runner now declares 900 s for the two
+shield gameplay rows (PN7-F7). Round 8 and the controller endpoint follow in the review record.
 
 ## 1. Outcome
 

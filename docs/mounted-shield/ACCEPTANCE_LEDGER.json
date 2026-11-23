@@ -226,6 +226,11 @@
         "candidate_source": "bb0c53d5c9847bb76f11636b6533337d67f3d364",
         "change": "A production Mounted Combat check now runs while a competing +4 Shield covers the mount's AC and must carry the rider's +3 (review PN4-F9).",
         "status": "BLOCKED"
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "The check under the stronger shield must carry the competing +4 and Mounted Shield's +3 at the checked attack's own native AC calculation (review PN7-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -343,6 +348,11 @@
         "candidate_source": "4092676b1569eee2cfcfc872b81c90e7b25b2730",
         "change": "The band miss is judged from the AC context recorded with that attack (owned, competing Shield, effective change) (review PN6-F6).",
         "status": "BLOCKED"
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "The band miss's shield terms come from its own nested RuleCalculateAC whose result is its TargetAC, against melee/ranged AC (review PN7-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -368,6 +378,11 @@
       "continuation_3": {
         "candidate_source": "4092676b1569eee2cfcfc872b81c90e7b25b2730",
         "change": "Each commitment must be exactly one native Swift charge or one newly incurred debt from an eligible state (review PN6-F7).",
+        "status": "BLOCKED"
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "Each commitment requires the eligible native before-state and the complete after-state (review PN7-F5).",
         "status": "BLOCKED"
       }
     },
@@ -446,6 +461,11 @@
         "candidate_source": "4092676b1569eee2cfcfc872b81c90e7b25b2730",
         "change": "Archive scans are bound to the validated archive's file and area, the pair to its Mammoth-profile rider and mount, and a restored contribution to the state at restoration (review PN6-F5).",
         "status": "BLOCKED"
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "The observed shield (blueprint, object, enhancement) is required at save, warm continuation, cold restore and cold continuation; the producer's equipment custody is restored after the save work (reviews PN7-F2, PN7-F6).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -512,6 +532,11 @@
       "continuation_3": {
         "candidate_source": "4092676b1569eee2cfcfc872b81c90e7b25b2730",
         "change": "Resume after a terminal suspension keeps current foreign entries and order and reinserts only Mounted Shield (review PN6-F1).",
+        "status": "PASS"
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "A resume after a stop before registration reinserts Mounted Shield into lists KMC published without it, after foreign appends (review PN7-F1).",
         "status": "PASS"
       }
     },
@@ -630,6 +655,11 @@
         "driver_and_reader": "No native run, so no restoration was needed; no accepted controller review at the time of this entry.",
         "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
         "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      },
+      "continuation_4": {
+        "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+        "change": "Setup removal faults are kept for the row; the guarded runner declares 900 s for the shield gameplay rows (reviews PN7-F3, PN7-F7).",
+        "status": "BLOCKED"
       }
     }
   ],
@@ -659,6 +689,14 @@
     "candidate_dll_sha256": "2cc090ed9cbf45a132434cb66a41f6ba1ac74c094c8a4d5bf7a8f7d368e348e7",
     "candidate_dll_mvid": "4e4f4e83-bd9f-481b-983d-f2c5aab06a46",
     "reason": "Supplemental review rounds 5 and 6 corrections (PN5-F1..F9 in fb19d496, PN6-F1..F7 in 4092676b); row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_4": {
+    "recorded": "2026-11-23",
+    "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
+    "candidate_dll_sha256": "362c2b141429ca5adace316b0497d2de898fc0a6e4447641446c0afc00824cb2",
+    "candidate_dll_mvid": "50eafd79-0c67-440e-a4e7-aeeb8b93b33a",
+    "reason": "Supplemental review round 7 corrections (PN7-F1..F7 in 9bf75488); row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }
