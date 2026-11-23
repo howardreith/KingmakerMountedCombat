@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
-                        if (RidingDogCase || FeatDebtCase || ChargeCommitCase)
+                        if (RidingDogCase || FeatDebtCase || ShieldCase || ChargeCommitCase)
                         {
                             // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
                             var progression = secondRider.Descriptor.Progression;
@@ -313,6 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
                         if (FeatDebtCase) CommitFeatDebtBeforeSave();
+                        if (ShieldCase) PrepareShieldBeforeSave();
                         if (ChargeCommitCase) { Next(60); break; }
                         RequestSave(); Next(4); break;
                     case 60:
@@ -331,6 +332,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!checkpoint.UpdateContinuation()) return;
                         if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
+                        if (ShieldCase) ObserveShieldContinuation();
                         Pass("C7-persistence-native-combat-continuation");
                         if (FeatDebtCase && !IntegratedCase && Cold) { Next(21); break; }
                         if (ChargeCommitCase && Cold) { Next(62); break; }

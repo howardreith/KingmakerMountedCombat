@@ -410,6 +410,7 @@ namespace KingmakerMountedCombat.Integration
             }
             if (state != HorseCompanionBlueprintState.Registered)
             {
+                selectionDesired = previousSelectionDesired;
                 return false;
             }
 
@@ -418,10 +419,16 @@ namespace KingmakerMountedCombat.Integration
             {
                 failure = error;
                 logger.Error(error);
-                // The root refuses this enable or disable and keeps its services as they were before the call, so the KMC
-                // combat feats return to the publication state from before the call as well (a repeated disable keeps them
-                // withdrawn). No feat is left selectable without its benefits, or hidden while they apply.
-                ApplyMountedCombatSelectionsReported(previousSelectionDesired);
+                // The root refuses this enable or disable and keeps its services exactly as they were before the call, so the
+                // whole transaction is undone. The stored desired state returns to the one the root keeps (every later call
+                // and its rollback start from it), and each KMC surface this call changed (the Riding Dog lists, the combat-feat
+                // publication, the Divine Bond slots) is applied again at that state. The Ranger list was not written: its
+                // lease refused before any write. No feat is left selectable without its benefits, or hidden while they apply,
+                // however many refused calls follow one another.
+                selectionDesired = previousSelectionDesired;
+                ApplyRidingDogSelectionsReported(selectionDesired);
+                ApplyMountedCombatSelectionsReported(selectionDesired);
+                ApplyDivineBondReported(selectionDesired);
                 return false;
             }
             return true;
@@ -849,13 +856,19 @@ namespace KingmakerMountedCombat.Integration
                 if (desired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
                 if (desired ? !pair.Value.MatchesOriginal(current) : !pair.Value.MatchesAppended(current))
                 {
-                    error = JoinErrors(error, "Companion selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.");
+                    error = JoinErrors(error, "Companion selection " + SelectionName(pair.Key) + " changed outside KMC; no overwrite was attempted.");
                     continue;
                 }
                 pair.Key.AllFeatures = desired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
             }
             return error == null;
         }
+
+        // Read only when a selection is reported, and kept out of line: the selection transaction itself then references no
+        // Unity engine call, so scripts/Test-MountedShieldSelectionRollback.ps1 can run it on genuine blueprints outside the
+        // player (an engine call in a method body fails that method's compilation there).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static string SelectionName(BlueprintFeatureSelection selection) => selection.name;
 
         private bool TryRestoreSelection(out string error)
         {

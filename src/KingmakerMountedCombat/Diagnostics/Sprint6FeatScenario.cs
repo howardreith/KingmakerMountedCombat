@@ -79,23 +79,31 @@ namespace KingmakerMountedCombat.Diagnostics
         public void OnEventDidTrigger(RuleSkillCheck evt)
         {
             if (evt.StatType != StatType.SkillMobility || !watched.Contains(evt.Initiator) || SkillChecks.Count >= 64) return;
-            SkillChecks.Add(new JObject { ["actor"] = evt.Initiator.UniqueId, ["d20"] = (int)evt.D20, ["stat"] = evt.StatValue, ["bonus"] = (int)evt.Bonus, ["result"] = evt.RollResult, ["dc"] = evt.DC, ["passed"] = evt.IsPassed, ["frame"] = Time.frameCount });
+            // Mounted Shield's own modifiers inside this check's native Bonus: how many, and their total (none outside the
+            // hit-negation check, exactly one of the eligible amount inside it).
+            var shield = evt.Bonus.Modifiers.Where(modifier => string.Equals(modifier.SourceComponent, MountedShieldService.CheckSourceComponent, StringComparison.Ordinal)).ToArray();
+            SkillChecks.Add(new JObject { ["actor"] = evt.Initiator.UniqueId, ["d20"] = (int)evt.D20, ["stat"] = evt.StatValue, ["bonus"] = (int)evt.Bonus, ["result"] = evt.RollResult, ["dc"] = evt.DC, ["passed"] = evt.IsPassed, ["frame"] = Time.frameCount,
+                ["kmcShieldModifiers"] = shield.Length, ["kmcShieldTotal"] = shield.Sum(modifier => modifier.ModValue) });
         }
     }
 
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Sprint6FeatRealTime = "sprint6-feat-rt", Sprint6FeatTurnBased = "sprint6-feat-tb", Sprint6FeatForcedHit = "sprint6-feat-forced-rt";
-        internal static bool IsSprint6FeatScenario(string scenario) => scenario == Sprint6FeatRealTime || scenario == Sprint6FeatTurnBased || scenario == Sprint6FeatForcedHit;
+        // The Mounted Shield rows (Sprint6ShieldScenario.cs) are part of this family: same fixture, record and schema.
+        internal static bool IsSprint6FeatScenario(string scenario) => scenario == Sprint6FeatRealTime || scenario == Sprint6FeatTurnBased || scenario == Sprint6FeatForcedHit ||
+            IsSprint6ShieldScenario(scenario);
         private bool IsSprint6Feat => IsSprint6FeatScenario(request.Scenario);
-        private bool Sprint6Tb => request.Scenario == Sprint6FeatTurnBased;
+        private bool Sprint6Tb => request.Scenario == Sprint6FeatTurnBased || request.Scenario == Sprint6ShieldTurnBased;
         internal const int Sprint6SchemaVersion = 50;
         internal const double Sprint6ScenarioDeadlineSeconds = 300.0d, Sprint6HostDeadlineSeconds = 460.0d;
+        internal const double Sprint6ShieldScenarioDeadlineSeconds = 480.0d, Sprint6ShieldHostDeadlineSeconds = 640.0d;
         internal static readonly string[] Sprint6RealTimeCases = { "S6-selection", "S6-rt-defense", "S6-rt-isolation" };
         internal static readonly string[] Sprint6TurnBasedCases = { "S6-rider-feat", "S6-tb-economy" };
         internal static readonly string[] Sprint6ForcedHitCases = { "S6-rider-feat", "S6-forced-hit" };
         private bool Sprint6Forced => request.Scenario == Sprint6FeatForcedHit;
-        private string[] Sprint6Cases => Sprint6Forced ? Sprint6ForcedHitCases : Sprint6Tb ? Sprint6TurnBasedCases : Sprint6RealTimeCases;
+        private string[] Sprint6Cases => Sprint6Shield ? (Sprint6Tb ? Sprint6ShieldTurnBasedCases : Sprint6ShieldRealTimeCases) :
+            Sprint6Forced ? Sprint6ForcedHitCases : Sprint6Tb ? Sprint6TurnBasedCases : Sprint6RealTimeCases;
         private string Sprint6Case => Sprint6Cases[s6CaseIndex];
         private const string Sprint6FighterClassGuid = "48ac8db94d5de7645906c7d0ad3bcfbd";
         private const int Sprint6SettleFrames = 30;
@@ -126,12 +134,13 @@ namespace KingmakerMountedCombat.Diagnostics
             s6Records = new JArray();
             s6Rules = new Sprint6RuleObserver(rider, horse);
             s6Service.Observed += Sprint6Observed;
-            s6Service.ScenarioD20 = Sprint6ForcedD20;
+            s6Service.ScenarioCheckTotal = Sprint6PlannedTotal;
             s6Measure = new JObject { ["contract"] = "native-mounted-combat-feat-v1", ["mode"] = Sprint6Tb ? "TB" : "RT", ["rider"] = rider.UniqueId, ["mount"] = horse.UniqueId,
                 ["mountBlueprint"] = horse.Blueprint.AssetGuid, ["cases"] = new JArray(Sprint6Cases), ["records"] = s6Records, ["attackRules"] = s6Rules.Attacks, ["skillChecks"] = s6Rules.SkillChecks,
                 ["checkD20IsControlled"] = true, ["experienceIsDisclosedSetup"] = true,
                 ["policy"] = "The feat comes through the native level-up controller; each attack rolls natively; a row's forced d20 sets only the check's die." };
             observations["sprint6Feat"] = s6Measure;
+            if (Sprint6Shield) BeginSprint6Shield();
             castingOriginalSlots = new NativeCastingOriginalSlots(rider, castingTrace);
             if (Sprint6Tb) castingRod = AcquireCastingItem(NativeCastingItemLease.LesserQuickenRod);
             CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence));
@@ -144,7 +153,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool DrainSprint6Fixture()
         {
-            if (s6Service != null) { s6Service.ScenarioD20 = null; s6Service.Observed -= Sprint6Observed; s6Service = null; }
+            DrainSprint6ShieldFixture();
+            if (s6Service != null) { s6Service.ScenarioCheckTotal = null; s6Service.Observed -= Sprint6Observed; s6Service = null; }
             if (s6Rules != null) { s6Rules.Dispose(); s6Rules = null; }
             var second = s6Owner == null ? null : relationship.World.Registry.FindActive(s6Owner)?.Boundary;
             if (second?.State == RelationshipState.Mounted)
@@ -155,15 +165,15 @@ namespace KingmakerMountedCombat.Diagnostics
             return DrainSprint4Fixture();
         }
 
-        // The d20 that makes the check's result land exactly where the step's plan says. Null lets the die roll.
-        private int? Sprint6ForcedD20(MountedCombatDefenseRecord record)
+        // The final native check total the step's plan needs: one above, equal to or one below the attack result. The service
+        // chooses the die inside the native roll from it, after Mobility and every bonus (Mounted Shield's included) are fixed,
+        // so "equal" is exact equality of the shield-modified total, never Mobility alone. Null lets the die roll.
+        private int? Sprint6PlannedTotal(MountedCombatDefenseRecord record)
         {
             if (s6NextPlan == null || s6NextPlan == "natural") return null;
             var delta = s6NextPlan == "success" ? 1 : s6NextPlan == "equal" ? 0 : -1;
-            return record.AttackResult + delta - RiderOf(record).Stats.GetStat(StatType.SkillMobility).ModifiedValue;
+            return record.AttackResult + delta;
         }
-
-        private UnitEntityData RiderOf(MountedCombatDefenseRecord record) => record.Rider == rider.UniqueId ? rider : s6Owner;
 
         private void Sprint6Observed(MountedCombatDefenseRecord r)
         {
@@ -172,7 +182,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attackD20"] = r.AttackD20, ["attackBonus"] = r.AttackBonus, ["attackResult"] = r.AttackResult, ["targetAc"] = r.TargetAc, ["resultBefore"] = r.ResultBefore, ["resultAfter"] = r.ResultAfter,
                 ["criticalBefore"] = r.CriticalBefore, ["criticalAfter"] = r.CriticalAfter, ["opportunity"] = r.AttackOfOpportunity, ["riderTurn"] = r.RiderTurn,
                 ["abilityGuid"] = r.AbilityGuid, ["forcedHitContext"] = r.ForcedHitContext, ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["negated"] = r.Negated,
-                ["checkD20"] = r.CheckD20, ["checkStat"] = r.CheckStat, ["checkBonus"] = r.CheckBonus, ["checkResult"] = r.CheckResult, ["checkDc"] = r.CheckDc,
+                ["checkD20"] = r.CheckD20, ["checkStat"] = r.CheckStat, ["checkBonus"] = r.CheckBonus, ["checkResult"] = r.CheckResult, ["checkDc"] = r.CheckDc, ["shieldBonus"] = r.ShieldBonus,
                 ["swiftBefore"] = r.SwiftBefore, ["swiftAfter"] = r.SwiftAfter, ["stateBefore"] = Sprint6StateOf(r.StateBefore), ["stateAfter"] = Sprint6StateOf(r.StateAfter),
                 ["mountSwiftBefore"] = r.MountSwiftBefore, ["mountSwiftAfter"] = r.MountSwiftAfter, ["mountDamageAtRecord"] = horse.Damage });
             ResetLeafClock();
@@ -219,7 +229,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (game.IsPaused) { game.IsPaused = false; return; }
             CastingMeasurement["progress"] = new JObject { ["stage"] = s6Stage, ["caseIndex"] = s6CaseIndex, ["step"] = s6Step, ["plan"] = s6NextPlan };
             if (s6Stage == 0 && s6Facts == null) s6Facts = new JObject { ["case"] = Sprint6Case, ["steps"] = new JObject() };
-            if (s6Stage == 0) { TickSprint6Acquire(); return; }
+            if (s6Stage == 0) { if (Sprint6Shield) TickSprint6ShieldAcquire(); else TickSprint6Acquire(); return; }
             if (s6Stage == 1)
             {
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation) return;
@@ -244,6 +254,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "S6-rt-isolation": TickSprint6RealTimeIsolation(); return;
                 case "S6-tb-economy": TickSprint6TurnBased(turn); return;
                 case "S6-forced-hit": TickSprint6ForcedHit(); return;
+                case "MS-equipment": TickSprint6ShieldEquipment(); return;
+                case "MS-pairs": TickSprint6ShieldPairs(); return;
+                case "MS-check-rt": TickSprint6ShieldCheckRealTime(); return;
+                case "MS-check-tb": TickSprint6ShieldCheckTurnBased(turn); return;
                 default: throw new InvalidOperationException("Unknown Sprint 6 case " + Sprint6Case);
             }
         }

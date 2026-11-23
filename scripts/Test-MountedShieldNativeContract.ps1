@@ -325,6 +325,22 @@ Check ($equalRoll.Result -eq 22 -and $equalRoll.Bonus -eq 3 -and -not $equalRoll
 Check ($higherRoll.Result -eq 23 -and $higherRoll.Passed -and $higherRoll.Negates) 'one higher succeeds'
 Check ($withoutShield.Result -eq 20 -and -not $withoutShield.Negates) 'the same roll without the feat stays 20 and fails'
 Check ($withOther.Result -eq 23 -and $withOther.Bonus -eq 5 -and $withOther.Negates) 'the addition stacks with the check''s other bonuses (untyped), counted once'
+# The gameplay driver's planned total (owner amendment 1): the production ControlledSkillCheck chooses its die inside the
+# native roll after StatValue and every Bonus are fixed (native OnTrigger order), so "equal" is the shield-modified total.
+$controlled = KmcType 'KingmakerMountedCombat.Integration.MountedCombatDefenseService+ControlledSkillCheck'
+$rollD20 = $controlled.GetMethod('RollD20', $any)
+function Planned([int]$Attack, [int]$Total, [int]$Stat, [int]$Shield, [int]$Other) {
+    $check = @($controlled.GetConstructors($any))[0].Invoke(@($null, ($Attack + 1), $Total))
+    if ($Other -ne 0) { [void]$addOther.Invoke($check.Bonus, @($Other, $null, 'other check bonus', (Descriptor 'Competence'))) }
+    if ($Shield -gt 0) { [void]$addCheck.Invoke($null, @($check, $Shield, $riderFact)) }
+    $checkType.GetProperty('StatValue').GetSetMethod($true).Invoke($check, @($Stat)) | Out-Null
+    $checkType.GetProperty('D20').GetSetMethod($true).Invoke($check, @($rollD20.Invoke($check, @()))) | Out-Null
+    [pscustomobject]@{ Result = $check.RollResult; D20 = $check.RollResult - $Stat - [int]$check.Bonus.ModifiedValue; Negates = [bool]$negates.Invoke($null, @($check.RollResult, $Attack)) }
+}
+$plannedEqual = Planned 22 22 10 3 0; $plannedSuccess = Planned 22 23 10 3 2; $mobilityOnly = Roll 22 10 12 3 0
+Check ($plannedEqual.Result -eq 22 -and $plannedEqual.D20 -eq 9 -and -not $plannedEqual.Negates) 'the planned "equal" total is the +3 shield-modified result (die 9) and fails'
+Check ($plannedSuccess.Result -eq 23 -and $plannedSuccess.D20 -eq 8 -and $plannedSuccess.Negates) 'the planned success total lands one above with the shield and another bonus in the roll'
+Check ($mobilityOnly.Result -eq 25) 'a die derived from Mobility alone (12) would have tested 25, three above equality: the trap the planned total removes'
 
 # 2e. Three-feat publication on genuine selection blueprints.
 function Feature-Array([object[]]$Items) { $array = [Array]::CreateInstance($featureType, $Items.Count); for ($i = 0; $i -lt $Items.Count; $i++) { $array.SetValue($Items[$i], $i) }; , $array }

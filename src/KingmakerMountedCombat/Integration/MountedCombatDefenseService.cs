@@ -68,8 +68,10 @@ namespace KingmakerMountedCombat.Integration
         internal int NegatedCount { get; private set; }
         internal int SwiftChargeCount { get; private set; }
         internal MountedCombatDefenseRecord LastRecord { get; private set; }
-        // Test environment only: replaces the check's d20 for one exact equality or failure row. Null in ordinary play.
-        internal Func<MountedCombatDefenseRecord, int?> ScenarioD20 { get; set; }
+        // Test environment only: the final native check total one exact success, equality or failure row needs. The die is
+        // chosen inside the native roll, after the stat value and every bonus (Mounted Shield's included) are fixed, so the
+        // planned total is the check's actual RollResult. Null in ordinary play.
+        internal Func<MountedCombatDefenseRecord, int?> ScenarioCheckTotal { get; set; }
         internal event Action<MountedCombatDefenseRecord> Observed;
 
         internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, MountedShieldService mountedShield,
@@ -162,12 +164,12 @@ namespace KingmakerMountedCombat.Integration
         {
             record.Attempted = true;
             AttemptCount++;
-            var forced = ScenarioD20?.Invoke(record);
-            record.Forced = forced.HasValue;
+            var planned = ScenarioCheckTotal?.Invoke(record);
+            record.Forced = planned.HasValue;
             // The DC is the first passing result, so the native pass/fail and its log line agree with the strict rule.
             // The game's difficulty setting adjusts other DCs, not an attack result.
             var dc = record.AttackResult + 1;
-            var check = forced.HasValue ? new ControlledSkillCheck(rider, dc, forced.Value) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
+            var check = planned.HasValue ? new ControlledSkillCheck(rider, dc, planned.Value) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
             check.IgnoreDifficultyBonusToDC = true;
             // Mounted Shield: the rider's eligible shield amount joins this one rule's native Bonus before it is triggered, so
             // the native roll, its log entry and the strict comparison below all include it. The use is already committed, so
@@ -192,11 +194,13 @@ namespace KingmakerMountedCombat.Integration
             ReportToLog(rider, record);
         }
 
+        // Native RuleSkillCheck.OnTrigger sets StatValue and then rolls; every handler's Bonus was added before OnTrigger. The
+        // die is the planned total less exactly those two, so RollResult (D20 + StatValue + Bonus) is the planned total.
         private sealed class ControlledSkillCheck : RuleSkillCheck
         {
-            private readonly int d20;
-            internal ControlledSkillCheck(UnitEntityData unit, int dc, int d20) : base(unit, StatType.SkillMobility, dc) { this.d20 = d20; }
-            protected override RollEntry RollD20() => d20;
+            private readonly int plannedTotal;
+            internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal) : base(unit, StatType.SkillMobility, dc) { this.plannedTotal = plannedTotal; }
+            protected override RollEntry RollD20() => plannedTotal - StatValue - (int)Bonus;
         }
 
         private void ReportToLog(UnitEntityData rider, MountedCombatDefenseRecord record)
