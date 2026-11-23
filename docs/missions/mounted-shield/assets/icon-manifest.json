@@ -1,0 +1,238 @@
+{
+  "schema": "kmc-mounted-shield.icon.v2",
+  "prepared_date": "2026-11-23",
+  "timezone": "America/New_York",
+  "generation_tool": "OpenAI ImageGen built-in",
+  "transparent_background_requested": true,
+  "generation_calls": 2,
+  "artwork_status": "PREPARED_COLOR_CORRECTED_IMPLEMENTATION_CANDIDATE",
+  "owner_direction": "Design accepted; uniform correct feat color requested using attached Mounted Archery reference.",
+  "owner_final_export_approval": "NOT_PRESUMED",
+  "native_blueprint_and_ui": "NOT_RUN",
+  "reference": {
+    "filename": "MountedArcheryFeat.512.png",
+    "sha256": "d3dab7274f5a9a8a77d2730dc04e16d5a54f7f2deacb69c973e6cd40350b4de3",
+    "color_sampling": "Most common RGB among uploaded reference pixels with alpha >= 250",
+    "sample_count": 6765,
+    "sampled_hex": "#9B4D3A"
+  },
+  "external_reference_pixels_composited": false,
+  "selected_generated_edit": "assets/MountedShieldFeat.generated.png",
+  "normalized_master": "assets/MountedShieldFeat.master.png",
+  "rejected_initial_edit_input": "assets/revisions/MountedShieldFeat.initial-two-color.png",
+  "prompts": [
+    "assets/prompts/01-generation.txt",
+    "assets/prompts/02-color-correction.txt"
+  ],
+  "final_foreground_rgb": [
+    155,
+    77,
+    58
+  ],
+  "export_toolchain": "ImageMagick 7.1.1-43 Q16 x86_64; exact RGB normalization, preserve alpha, Lanczos resize, PNG32",
+  "normalized_master_alpha_equals_generated_edit": true,
+  "runtime_export": "assets/MountedShieldFeat.png",
+  "runtime_destination": "src/KingmakerMountedCombat/Assets/MountedShieldFeat.png",
+  "resource_logical_name": "KingmakerMountedCombat.Assets.MountedShieldFeat.png",
+  "sprite_name": "KMC_MountedShield_Feat_Icon",
+  "proposed_blueprint": "MountedShieldFeature",
+  "guid_status": "UNASSIGNED_VERIFY_UNIQUENESS_BEFORE_REGISTRATION",
+  "localized_name_key": "KMC.MountedShield.Name",
+  "localized_description_key": "KMC.MountedShield.Description",
+  "runtime_effect_status": "NOT_IMPLEMENTED_BY_PACKAGE_PREPARATION",
+  "files": [
+    {
+      "path": "assets/MountedShieldFeat-review.png",
+      "size_bytes": 90365,
+      "sha256": "6902c6ff07a0cc63567c07c937d46376b28ce2128946c99ce1feeff1afdbbd01",
+      "width": 1000,
+      "height": 570,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        0,
+        0,
+        1000,
+        570
+      ],
+      "corner_alpha": [
+        255,
+        255,
+        255,
+        255
+      ],
+      "transparent_pixel_count": 0
+    },
+    {
+      "path": "assets/MountedShieldFeat.512.png",
+      "size_bytes": 58574,
+      "sha256": "958e2d32e753c1aeb5feaffb02fe7313bd09376b6c14fd7c9a90a1ce8fb40d4a",
+      "width": 512,
+      "height": 512,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        15,
+        23,
+        503,
+        504
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "transparent_pixel_count": 178691,
+      "visible_rgb_values": [
+        [
+          155,
+          77,
+          58
+        ]
+      ]
+    },
+    {
+      "path": "assets/MountedShieldFeat.generated.png",
+      "size_bytes": 711113,
+      "sha256": "67d77304b82d743d2683f56884f8f1f25a2c85bb5014d10a242ea2bc41818c1e",
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        0,
+        20,
+        1240,
+        1235
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "transparent_pixel_count": 1090278
+    },
+    {
+      "path": "assets/MountedShieldFeat.master.png",
+      "size_bytes": 218761,
+      "sha256": "c2d2d20cf056080121fe879d7ebb7ee81091d1cd9cec668d3fc4e9066d164581",
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        0,
+        20,
+        1240,
+        1235
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "transparent_pixel_count": 1090278,
+      "visible_rgb_values": [
+        [
+          155,
+          77,
+          58
+        ]
+      ]
+    },
+    {
+      "path": "assets/MountedShieldFeat.png",
+      "size_bytes": 4408,
+      "sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0",
+      "width": 64,
+      "height": 64,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        0,
+        1,
+        63,
+        64
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "transparent_pixel_count": 1967,
+      "visible_rgb_values": [
+        [
+          155,
+          77,
+          58
+        ]
+      ]
+    },
+    {
+      "path": "assets/prompts/01-generation.txt",
+      "size_bytes": 2237,
+      "sha256": "c1cff5f7db10902300cdb7e766f29dfc43b0c1d13f394115b5d3fb070159cfa7"
+    },
+    {
+      "path": "assets/prompts/02-color-correction.txt",
+      "size_bytes": 1350,
+      "sha256": "484bf8fd898035491f67489483e32d3ffe5243bc1ec80e8526d553f951b3a35e"
+    },
+    {
+      "path": "assets/revisions/MountedShieldFeat.initial-two-color.png",
+      "size_bytes": 749572,
+      "sha256": "7149d3d0fa9d202244519b92bc4161f7e4ade9da52be51e9f8c6c30314e1be90",
+      "width": 1254,
+      "height": 1254,
+      "mode": "RGBA",
+      "png_bit_depth": 8,
+      "png_color_type": 6,
+      "alpha_extrema": [
+        0,
+        255
+      ],
+      "alpha_nonzero_bbox": [
+        0,
+        15,
+        1253,
+        1254
+      ],
+      "corner_alpha": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "transparent_pixel_count": 1032403
+    }
+  ]
+}

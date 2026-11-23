@@ -1,0 +1,20 @@
+Original owner request — 23 November 2026
+
+Hey Pro,
+
+I'd like you to create a mission (probably a mission zip package) for implementing the Mounted Shield feat in the Mounted Combat mod.
+
+https://www.d20pfsrd.com/feats/combat-feats/mounted-shield-combat/
+
+This is going to need a new icon for when you select the feat, which should be consistent with the style of other combat feats in the game and as we've implemented - the circle, the colors, etc. I don't think we need a second toggle icon for this. It should just passively affect the AC of the mount and the mobility check for Mounted Combat checks. Could you please create this new icon ahead of time, formatted in a way that can be used by Kingmaker? You are better at this sort of thing than Claude is.
+
+I would also like to try implementing this using the new workflow we've created with the "software factory" sprint we just did.
+
+Could you please create this mission package complete with instructions for claude and the required materials? Thank you Pro.
+
+Owner correction during preparation — governs final icon color
+
+The colors are not correct. They should be uniform and the proper color for feat icons. The design is good though. Please reference the design of the mounted archery feat.
+
+Attachment: MountedArcheryFeat.512.png
+Attachment SHA-256: d3dab7274f5a9a8a77d2730dc04e16d5a54f7f2deacb69c973e6cd40350b4de3
