@@ -4,7 +4,8 @@ Read CURRENT.md's first section and docs/mounted-shield/HANDOFF.md section 0.
 
 - Done: companion `5be0f737` imported; amendment recorded (revision 1, `8ee86965`); rollback, planned check totals and
   the gameplay driver/readers in `cb74ad58`; focused Fast gate and package on `cb74ad58`.
-- Next, once the owner admits a disposable seed through the owner-seed route: guarded startup smoke, then
+- Round 4 corrections in `bb0c53d5` (PN4-F1..F10).
+- Next, once the canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair is back: guarded startup smoke, then
   `sprint6-shield-rt`, `sprint6-shield-tb` and `mounted-shield-tb-manual`, restoring after each; then the final factory
   review. Any production or safety change before that needs another supplemental review.
 - Keep: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, budget id `mounted-shield`

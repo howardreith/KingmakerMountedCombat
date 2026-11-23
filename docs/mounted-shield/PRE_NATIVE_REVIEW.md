@@ -84,3 +84,32 @@ baseline `5be0f737` imported by fast-forward). The three rounds above were not a
 New compiled diagnostic code in `cb74ad58` (the gameplay driver `Sprint6ShieldScenario.cs`, the persistence case
 `Chunk7PersistenceScenario.MountedShield.cs`, the registries and readers) and the imported UMM baseline are in the scope of
 round 4. No game launch, staging, installation or runner/fixture/backup/restoration change is part of this candidate.
+
+## Round 4 — candidate `f4d0078ac769ed0bfb8a6128b39d39bd2bb47b73` (production `cb74ad58`)
+
+- **Transport:** `codex-cli 0.170.0`, the same arguments, fresh snapshot `worktrees/mounted-shield-review-f4d0078a`, prompt
+  rendered from the packet template with the owner amendment, rounds 1–3 and the continuation table supplied. Started
+  2026-11-23T20:39:28Z, 17.25 minutes, exit 0, empty stderr; identity and cleanliness recheck PASS.
+- **Verdict: CHANGES REQUIRED.** The reviewer re-verified the gate receipt, DLL `1a80bc57…`, MVID `d7587812…`, package
+  `ba7f4e4d…` and the single 64×64 icon resource `fd519874…`. Prior findings: PN1-F2, PN1-F5, PN2-F6, PN3-F4, PN3-F6, PN3-F7
+  resolved; PN3-F1 open at initial dispatch (PN4-F1); PN3-F2's selection remainder and the PN3-F5 bypass for a stopped
+  service open (PN4-F3); PN3-F3 complete rollback open (PN4-F2). The PN3-F5 rebuttal was accepted for the between-frame
+  case.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN4-F1 | An update failure during an owned load dismounted pairs (and released Mounted Shield contributions) in the outgoing world before the load guard. | **Fixed** in `bb0c53d5`: the first dispatch latches when an owned save **or load** is in flight (the same single latch store); the retry already waits for the load. Compiled order checked in `Test-MountedShieldNativeContract.ps1` (load read and latch before `PerformFailureCleanup`). The root is not hostable offline. |
+| PN4-F2 | A refused toggle could set a session-long withdrawal (foreign change on a required list plus Ranger drift), losing both optional feats at the next enable. | **Fixed** in `bb0c53d5`: `SetSelectionEnabled` asks the deciding Ranger lease first; a refusal changes no surface and no publication state. `Test-MountedShieldSelectionRollback.ps1` drifts a required combat list and the Ranger list: two refused enables write neither list and leave no withdrawal; the next enable publishes all three feats. |
+| PN4-F3 | After a terminal stop the feat stayed in the lists, so a prerequisite-ignoring selection could still take a stopped feat. | **Fixed** in `bb0c53d5`: the publication set gains a reversible suspension (excluded from offers and from required-path watching, removed from every list, never a withdrawal); the terminal stop suspends Mounted Shield after its benefits stop, and only an explicit enable resumes it. Mounted Combat and Mounted Archery are untouched. Component case (1508/0), the compiled transition on genuine selections with the native `CanSelect` refusing the suspended feat at its membership test, and the compiled order in the root. |
+| PN4-F4 | Equipment cleanup could report success with a two-handed original displaced by the native slot; the reader accepted a missing drain. | **Fixed** in `bb0c53d5`: every hand slot of every set is captured before any change, created shields are verified out of every slot and collection, every original is verified back in its slot and the weapon set restored, failures recorded; the reader requires drain evidence for each actor with no error and no setup-modifier fault. |
+| PN4-F5 | Back reused selection states from a discarded preview. | **Fixed** in `bb0c53d5`: every choice and the Back step resolve states from the controller's current state; the evidence records both prerequisites chosen again on that level and the reader requires them committed there. |
+| PN4-F6 | The second rider lacked the Ranger experience and could already own Shield Focus. | **Fixed** in `bb0c53d5`: the actor must lack Shield Focus, and receives disclosed native experience for the four Ranger levels; every level still passes the native entitlement check. |
+| PN4-F7 | The owned-pairs and owner-seed checkpoint routes do not admit `mounted-shield-tb-manual`. | **Route documented, not connected.** Like `mounted-combat-feat-tb-debt-manual` (run as `chunk7-persistence-save` then `chunk7-persistence-load` on the qualified Working fixture, docs/SPRINT6-MOUNTED-COMBAT-FEAT.md), the shield case is a combat checkpoint of the base persistence route, which admits it (runner, protocol and persistence-case registries). HANDOFF section 0 now names that route and its fixture; the owned-pairs/owner-seed validators are not extended. |
+| PN4-F8 | A genuine cold artifact could not pass the reader (it required producer state), and a post-cleanup sample could not show what was serialized. | **Fixed** in `bb0c53d5`: producer and consumer evidence are read in their own shapes; both the written and the loaded archive are read through a clone of the native saver and must hold no Mounted Shield source tag; the cold pair is bound to the authenticated continuation's actors. Reader cases cover both shapes and the refusals. |
+| PN4-F9 | Planned totals could need an impossible die; no production check ran while a stronger shield covered the AC. | **Fixed** in `bb0c53d5`: before each planned step the hostile's native attack bonus is set to the rider's check base (equal) or one less (success), so the planned die is the attack's own d20; the reader requires 1..20. A production check now runs under a competing +4 Shield on the mount and must carry +3 (one modifier in the native roll). |
+| PN4-F10 | The band probe counted waiting frames and the reader searched the whole run. | **Fixed** in `bb0c53d5`: only strikes count; the qualifying miss is recorded and the reader checks that exact attack (hostile, mount, band, not evaluated). |
+| Optional | Compare the recorded sprite name. | Not done (the sprite reference and dimensions are already checked). |
+
+Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18; rollback 57/0, shield readers
+81/0, native contract 80/0). DLL `5978e285ccc0d6cc3163bd176e5205728b68fb57d2fd52087c36c5e9c63ff6f4`, MVID
+`94c4e4d2-c673-4afd-b4f8-50845118888d`. Budget `mounted-shield` 3.33 of 90 min. To be reviewed in round 5.

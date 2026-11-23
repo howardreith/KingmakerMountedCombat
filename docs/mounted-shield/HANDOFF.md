@@ -12,10 +12,12 @@ foreground session; the verbatim prompt is kept outside the worktree at
 `analysis-cache/mounted-shield-owner-continuation-20261123.md` (sha256 `5fefaedb…`).
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
-`C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Production source `cb74ad5874768d046475b7df179f79edd4eaaaea`;
-later commits on the branch are records only. DLL (gate build, deterministic, identical in the package):
-SHA-256 `1a80bc5768228604dade69f7753392956b4d76b87041d69ee4e064661987350b`, MVID `d7587812-b4a8-48e6-acdf-323f4d58f9bf`.
-Diagnostic package `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
+`C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
+`bb0c53d5c9847bb76f11636b6533337d67f3d364` (round-4 corrections; later commits are records only): DLL (gate build,
+deterministic) SHA-256 `5978e285ccc0d6cc3163bd176e5205728b68fb57d2fd52087c36c5e9c63ff6f4`, MVID
+`94c4e4d2-c673-4afd-b4f8-50845118888d`. The final identities and package are in the closing records below. The first
+continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
+`artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
 `ba7f4e4ddaa69fa7f21dde5329ad5b2edcbcd7fb75b172dce9bab0b7106b5e0a`, Info.json `ManagerVersion` 0.31.1. Icon: packet,
 repository and the packaged DLL's single `KingmakerMountedCombat.Assets.MountedShieldFeat.png` resource all SHA-256
 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` (4,408 bytes).
@@ -53,15 +55,25 @@ synthetic evidence by `scripts/Test-Sprint6ShieldReaders.ps1` (63/0), including 
 equality. None of this is native evidence.
 
 **Fixture: the remaining blocker.** Inspected: the save root (95 files; only KMG_/KBP_ project fixtures and human saves),
-`scripts/runtime/Chunk7OwnerSeedRegistry.json` (five owner-admitted seeds, among them `KMC_C7_NO_MODS_OWNER_SEED`
-`3405d7c8…`), and a search of the lab and user profile. The registered immutable masters under `fixtures/owner-supplied/`
-no longer exist, nor does any KMC fixture or owner seed elsewhere; other projects' fixtures and play saves are not
-relabeled. Native rows therefore stay BLOCKED. **Exact external input needed:** an owner-identified disposable seed (for
-example a fresh copy of `Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks`, sha256 `3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f`, or a new
-save with a Ranger rider and companion in a quiet area), admitted through the owner-seed route (owner provenance, archive
-validation, one isolated native cold load, immutable master outside the save root, fresh copies per run). With that, the
-batch is: startup smoke, `sprint6-shield-rt`, `sprint6-shield-tb`, and the persistence case (which also needs the owned-
-pairs fixture chain), each through `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` and its guards.
+`runtime-state/` (no `fixture-qualification.json`), `scripts/runtime/Chunk7OwnerSeedRegistry.json` (five owner-admitted
+seeds, among them `KMC_C7_NO_MODS_OWNER_SEED` `3405d7c8…`), and a search of the lab and user profile. The registered
+immutable masters under `fixtures/owner-supplied/` no longer exist, nor does any KMC fixture elsewhere; other projects'
+fixtures and play saves are not relabeled. Native rows therefore stay BLOCKED.
+
+**Exact external input needed** (corrected after review round 4). The Sprint 6 family, and so `sprint6-shield-rt`,
+`sprint6-shield-tb` and the persistence case, runs save-backed on the canonical qualified KMC fixture pair: one
+`KMC_AUTOMATION_BASELINE` and one `KMC_AUTOMATION_WORKING` in the save root, with the qualification record
+(`runtime-state/fixture-qualification.json`) and suite snapshot the runner's preflight checks
+(`Assert-KmcQualificationSuiteContinuity`), and the exact stock Mammoth pair idle, unmounted and outside combat that the
+parent intake requires (`Chunk6aMammothScenarioEngine.Start`). The last recorded pair was Baseline `c29d965c…` and Working
+`5eb4e0b4…` (docs/CHUNK5-PERSISTENCE.md); restoring that pair with its qualification, or qualifying a new one through the
+existing fixture route, is the input. An owner seed (for example `Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks`) is admissible
+only through its own owner-seed route and families; it is not a substitute for this pair. The persistence case runs as
+`chunk7-persistence-save` then `chunk7-persistence-load` with `-PersistenceCase mounted-shield-tb-manual` on that Working
+fixture, as `mounted-combat-feat-tb-debt-manual` did (docs/SPRINT6-MOUNTED-COMBAT-FEAT.md); the owned-pairs and owner-seed
+checkpoint routes do not admit it (review PN4-F7). With the pair in place, the batch is a guarded startup smoke, then
+`sprint6-shield-rt`, `sprint6-shield-tb`, and the save/cold-load pair, each through
+`scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` and its guards.
 
 **Impact-to-check map (before testing; budgets read first).** Rollback → Test-MountedShieldSelectionRollback, Ranger
 selection contract, Mounted Archery contract. Planned check total → native contract (planned total on the production
@@ -85,8 +97,10 @@ restore helper, both loader binding checks, native inventory reader, frozen-prod
   chunk7 persistence source 25/0. `chunk7/Test-Chunk7PersistenceWiring.ps1` fails identically on base `5be0f737`
   (`$f2Upgrade` unset).
 
-**Review and controller.** Supplemental round 4 and the controller endpoint are recorded in
-[PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md) and section 0 of the final records.
+**Review and controller.** Supplemental round 4 on `f4d0078a`: CHANGES REQUIRED, ten findings (PN4-F1–F10), nine fixed
+in `bb0c53d5` and PN4-F7 resolved by documenting the persistence route; see [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md).
+Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18). Round 5 and the controller
+endpoint follow in the same record.
 
 ## 1. Outcome
 
