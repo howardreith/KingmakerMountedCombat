@@ -873,6 +873,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration == null && retention == null && saveBoundaryProbe == null && saveWorkerHold == null &&
                 mode == null && ummLease == null && checkpoint == null;
             if (!cleanupReady) { RetainCleanup("Native persistence cleanup postcondition still owns an obligation.", 45); return; }
+            var shieldEquipmentClear = false;
+            TryCleanup("Mounted Shield equipment", () => { shieldEquipmentClear = DrainShieldEquipment(); });
+            if (!shieldEquipmentClear) { RetainCleanup("The Mounted Shield fixture equipment has not been restored.", 45); return; }
             TryCleanup("immutable source archive", () =>
             {
                 if (RepeatedWorldCase && replayInput != null) RequireReplayInput();

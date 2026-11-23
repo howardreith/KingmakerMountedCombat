@@ -41,7 +41,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // rolls natively. The check is native, with its d20 replaced only here, so success, equality and failure are exact without
     // rerolling for a convenient die. The reader owns PASS/FAIL.
     internal sealed class Sprint6RuleObserver : IDisposable, IAttackHandler,
-        IGlobalRulebookHandler<RuleAttackRoll>, IGlobalRulebookHandler<RuleDealDamage>, IGlobalRulebookHandler<RuleSkillCheck>
+        IGlobalRulebookHandler<RuleAttackRoll>, IGlobalRulebookHandler<RuleDealDamage>, IGlobalRulebookHandler<RuleSkillCheck>, IGlobalRulebookHandler<RuleCalculateAC>
     {
         private readonly HashSet<UnitEntityData> watched;
         private readonly IDisposable subscription;
@@ -50,8 +50,14 @@ namespace KingmakerMountedCombat.Diagnostics
         internal readonly JArray SkillChecks = new JArray();
         internal Sprint6RuleObserver(params UnitEntityData[] units) { watched = new HashSet<UnitEntityData>(units); subscription = EventBus.Subscribe(this); }
         internal void Watch(UnitEntityData unit) => watched.Add(unit);
-        // Optional: the target's AC context at the moment of each attack, recorded with that attack (the Mounted Shield band).
+        // Optional: the target's AC context, sampled when the native AC calculation of an attack finishes and recorded with that
+        // attack (supplemental review PN7-F4). Installed 2.1.7b RuleAttackRoll.OnTrigger stores TargetAC from a nested
+        // RuleCalculateAC before RuleCalculateAttackBonus and the hit-roll event, so a modifier that changes in between cannot be
+        // credited: only an AC calculation inside this attack, by its attacker against its target, whose result is the attack's
+        // TargetAC, is bound to it.
         internal Func<UnitEntityData, JObject> TargetAcContext { get; set; }
+        private readonly Dictionary<RuleAttackRoll, JObject> acAtCalculation = new Dictionary<RuleAttackRoll, JObject>();
+        private readonly List<RuleAttackRoll> openAttacks = new List<RuleAttackRoll>();
         public void Dispose() => subscription.Dispose();
         public void HandleAttackHitRoll(RuleAttackRoll rule)
         {
@@ -62,13 +68,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 row = new JObject { ["identity"] = RuntimeHelpers.GetHashCode(rule), ["attacker"] = rule.Initiator.UniqueId, ["target"] = rule.Target.UniqueId, ["frame"] = Time.frameCount,
                     ["d20"] = (int)rule.Roll, ["bonus"] = rule.AttackBonus, ["ac"] = rule.TargetAC, ["autoHit"] = rule.AutoHit, ["opportunity"] = rule.RuleAttackWithWeapon?.IsAttackOfOpportunity == true, ["charge"] = rule.RuleAttackWithWeapon?.IsCharge == true, ["criticalAtEventConfirmed"] = rule.IsCriticalConfirmed, ["attackerCommand"] = rule.Initiator.Commands.Standard?.GetType().Name,
                     ["resultAtEvent"] = rule.Result.ToString(), ["isHitAtEvent"] = rule.IsHit, ["criticalAtEvent"] = rule.IsCriticalConfirmed, ["sneakAtEvent"] = rule.IsSneakAttack, ["damageRules"] = 0, ["damage"] = 0 };
-                var context = TargetAcContext?.Invoke(rule.Target);
-                if (context != null) row["acContext"] = context;
+                JObject context;
+                if (acAtCalculation.TryGetValue(rule, out context) && context.Value<int>("acResult") == rule.TargetAC) { context["attackType"] = rule.AttackType.ToString(); row["acContext"] = context; }
+                acAtCalculation.Remove(rule);
                 rows[rule] = row; if (Attacks.Count < 256) Attacks.Add(row);
             }
         }
-        public void OnEventAboutToTrigger(RuleAttackRoll evt) { }
-        public void OnEventDidTrigger(RuleAttackRoll evt) { JObject row; if (rows.TryGetValue(evt, out row)) { row["resultAfterRule"] = evt.Result.ToString(); row["isHitAfterRule"] = evt.IsHit; } }
+        public void OnEventAboutToTrigger(RuleAttackRoll evt) { if (TargetAcContext != null && watched.Contains(evt.Target)) { openAttacks.Add(evt); acAtCalculation.Remove(evt); } }
+        public void OnEventAboutToTrigger(RuleCalculateAC evt) { }
+        public void OnEventDidTrigger(RuleCalculateAC evt)
+        {
+            if (TargetAcContext == null || openAttacks.Count == 0) return;
+            // The innermost open attack by this attacker on this target owns the calculation; the last one inside it whose
+            // result is the attack's TargetAC is the one the hit roll compares against.
+            var attack = openAttacks.LastOrDefault(open => open.Initiator == evt.Initiator && open.Target == evt.Target);
+            if (attack == null) return;
+            var context = TargetAcContext(evt.Target);
+            if (context == null) return;
+            context["acResult"] = evt.TargetAC; context["acAttackType"] = evt.AttackType.ToString(); context["acFlatFooted"] = evt.IsTargetFlatFooted;
+            context["acFrame"] = Time.frameCount;
+            acAtCalculation[attack] = context;
+        }
+        public void OnEventDidTrigger(RuleAttackRoll evt) { openAttacks.Remove(evt); acAtCalculation.Remove(evt); JObject row; if (rows.TryGetValue(evt, out row)) { row["resultAfterRule"] = evt.Result.ToString(); row["isHitAfterRule"] = evt.IsHit; } }
         public void OnEventAboutToTrigger(RuleDealDamage evt)
         {
             JObject row;
@@ -137,6 +158,8 @@ namespace KingmakerMountedCombat.Diagnostics
             s3Rules = new Chunk4IncomingRuleObserver(rider, horse);
             s6Records = new JArray();
             s6Rules = new Sprint6RuleObserver(rider, horse);
+            // Mounted Shield rows record the mount's shield terms at each attack's own AC calculation (review PN7-F4).
+            if (Sprint6Shield) s6Rules.TargetAcContext = ShieldAcContext;
             s6Service.Observed += Sprint6Observed;
             s6Service.ScenarioCheckTotal = Sprint6PlannedTotal;
             s6Measure = new JObject { ["contract"] = "native-mounted-combat-feat-v1", ["mode"] = Sprint6Tb ? "TB" : "RT", ["rider"] = rider.UniqueId, ["mount"] = horse.UniqueId,

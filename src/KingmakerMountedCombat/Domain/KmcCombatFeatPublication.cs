@@ -249,9 +249,10 @@ namespace KingmakerMountedCombat.Domain
         // each of them as it is then (With), so a list another mod changed, before or during the suspension, keeps all of its
         // current entries and order, gets the suspended entry back once, and is never read as having lost it.
         private readonly HashSet<TKey> suspensionKeys = new HashSet<TKey>();
-        // The suspension came before the current publication (a stop before registration finished, or a disable and enable while
-        // suspended): every array's absence of the feat is then the suspension's own, and KMC's exact values get it back.
-        private readonly bool[] suspendedBeforePublication = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
+        // The arrays KMC itself published while withholding a suspended feat (supplemental review PN7-F1): a stop before
+        // registration finished, or a disable and enable while suspended. The feat's absence there is KMC's own, so Resume puts it
+        // back into each of them as it is then, even after another mod appended to or reordered it.
+        private readonly HashSet<TKey>[] withheldKeys = Enumerable.Range(0, KmcCombatFeatArrayPublication<T>.OptionalCount).Select(index => new HashSet<TKey>()).ToArray();
         private bool published;
 
         public KmcCombatFeatPublicationSet(IEnumerable<TKey> selections, IEnumerable<TKey> requiredSelections, T mountedCombat, T mountedArchery,
@@ -297,7 +298,7 @@ namespace KingmakerMountedCombat.Domain
             if (!desired)
             {
                 suspensionKeys.Clear();
-                for (var index = 0; index < suspended.Length; index++) if (suspended[index]) suspendedBeforePublication[index] = true;
+                foreach (var keys in withheldKeys) keys.Clear();
             }
             string error = null;
             foreach (var pair in arrays)
@@ -324,6 +325,10 @@ namespace KingmakerMountedCombat.Domain
                     continue;
                 }
                 if (value != null) write(pair.Key, value);
+                // KMC's own value now stands in this array without each suspended feat.
+                if (desired)
+                    for (var index = 0; index < suspended.Length; index++)
+                        if (suspended[index] && registered[index] && !withdrawn[index]) withheldKeys[index].Add(pair.Key);
             }
             lastSeen.Clear();
             if (desired) Refresh(true);
@@ -346,7 +351,6 @@ namespace KingmakerMountedCombat.Domain
         {
             if (!registered[(int)feat] || suspended[(int)feat]) return;
             suspended[(int)feat] = true;
-            suspendedBeforePublication[(int)feat] = !published;
             foreach (var pair in arrays)
             {
                 var before = read(pair.Key);
@@ -359,32 +363,29 @@ namespace KingmakerMountedCombat.Domain
         }
 
         // Reopens a suspended feat. While KMC publishes, its entry returns where the suspension is the reason it is absent: to each
-        // array the suspension took it from (in place, keeping every current entry), and, when the suspension came before the
-        // current publication, to every array still holding KMC's exact value. Returns the arrays it could not be put back into.
-        // Not publishing, the next publication includes it.
+        // array the suspension took it from and each array KMC published without it (KMC's exact value moves to the full
+        // publication; a list another mod changed since gets the entry in place, keeping every current entry and order). A list
+        // KMC never wrote without it stays as another mod left it. Returns the arrays it could not be put back into. Not
+        // publishing, the next publication includes it.
         public string Resume(KmcOptionalCombatFeat feat, Func<TKey, string> name)
         {
             if (!suspended[(int)feat]) return null;
             suspended[(int)feat] = false;
-            if (!published) { suspensionKeys.Clear(); suspendedBeforePublication[(int)feat] = false; return null; }
+            if (!published) { suspensionKeys.Clear(); withheldKeys[(int)feat].Clear(); return null; }
             string error = null;
             foreach (var pair in arrays)
             {
                 var current = read(pair.Key);
                 if (pair.Value.Offers(current, feat)) continue;
-                // KMC's exact value moves to the full publication (an array first published while suspended, for a stop that
-                // came before registration finished); an array the suspension took the feat from gets it back in place, with all
-                // of its current entries kept. A foreign-changed array the suspension never touched stays as another mod left it.
                 T[] value;
-                var taken = suspensionKeys.Contains(pair.Key);
-                if (!taken && !suspendedBeforePublication[(int)feat]) continue;
-                if (!pair.Value.TryMove(current, pair.Value.Mask(Offered), out value)) value = taken ? pair.Value.With(current, feat) : null;
+                if (!suspensionKeys.Contains(pair.Key) && !withheldKeys[(int)feat].Contains(pair.Key)) continue;
+                if (!pair.Value.TryMove(current, pair.Value.Mask(Offered), out value)) value = pair.Value.With(current, feat);
                 if (value != null) { write(pair.Key, value); continue; }
-                if (!suspensionKeys.Contains(pair.Key)) continue;
+                if (pair.Value.Matches(current, pair.Value.Mask(Offered))) continue;
                 error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " no longer holds a KMC entry to place the resumed feat after; it was not written.";
             }
             suspensionKeys.Clear();
-            suspendedBeforePublication[(int)feat] = false;
+            withheldKeys[(int)feat].Clear();
             lastSeen.Clear();
             Refresh(true);
             return error;

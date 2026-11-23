@@ -313,6 +313,12 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=600}
     elseif($TimeoutSeconds-lt600){throw 'Selected Chunk 7 native scenarios require the declared 600-second outer worker/cleanup budget.'}
 }
+# Mounted Shield gameplay rows (supplemental review PN7-F7): a 480-second scenario and 640-second host deadline, plus startup,
+# drain and restoration, so the outer budget is declared, never the generic 360-second default.
+if($Scenario-cin@('sprint6-shield-rt','sprint6-shield-tb')){
+    if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
+    elseif($TimeoutSeconds-lt900){throw 'Mounted Shield gameplay rows require the declared 900-second outer host/drain/restoration budget.'}
+}
 # The owner-seed kinds (exploration and the owner-seed-derived Manual producer) add their bounded
 # native SETUP phase (ordinary level-ups) before the measured steps.
 if((Test-KmcChunk7OwnedPairsScenario $Scenario)-and((Test-KmcChunk7OwnedPairsOwnerSeed ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSeedManual ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsSmallThirdHorseSave ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection}))-or(Test-KmcChunk7OwnedPairsFourthHorse ([pscustomobject]@{ownedPairs=$ownedPairsInput.selection})))){

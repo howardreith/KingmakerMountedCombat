@@ -42,11 +42,14 @@ namespace KingmakerMountedCombat.Diagnostics
     // Custody of the driver's setup modifiers (supplemental review PN5-F3). Each one is recorded before it is written and
     // carries its own source component, so a write whose stat-change callback throws before AddModifier returns a handle is
     // still found on its stat and removed through the stat (MountedShieldService.RemoveExact), verified. An obligation stays
-    // until its stat holds no modifier of that identity; Release can be called again for what remains.
+    // until its stat holds no modifier of that identity; Release can be called again for what remains. Every fault (a removal
+    // that threw, or a stat-change callback that threw after the native list removal) is kept for the whole row (supplemental
+    // review PN7-F3): a faulted removal fails the row and stays in the drain evidence even when a later retry finds nothing left.
     internal sealed class Sprint6ShieldSetupModifiers
     {
         internal const string ComponentPrefix = "KMC_Sprint6Shield_Setup_";
         private readonly List<KeyValuePair<ModifiableValue, string>> obligations = new List<KeyValuePair<ModifiableValue, string>>();
+        internal readonly JArray Faults = new JArray();
 
         internal int Outstanding => obligations.Count;
 
@@ -74,7 +77,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 catch (Exception exception) { faults.Add(pair.Value + ": " + exception.Message); }
                 if (!pair.Key.Modifiers.Any(value => string.Equals(value.SourceComponent, pair.Value, StringComparison.Ordinal))) obligations.Remove(pair);
             }
-            return new JObject { ["faults"] = faults, ["remaining"] = new JArray(obligations.Select(pair => pair.Value)) };
+            foreach (var fault in faults) Faults.Add(fault.DeepClone());
+            return new JObject { ["faults"] = faults, ["allFaults"] = Faults.DeepClone(), ["remaining"] = new JArray(obligations.Select(pair => pair.Value)) };
         }
     }
 
@@ -282,7 +286,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (MountedShieldService.Current != null && !MountedShieldService.Current.Enabled) MountedShieldService.Current.Enable();
             if (s9Equipment != null) restore["rider"] = s9Equipment.Restore();
             if (s9OwnerEquipment != null) restore["owner"] = s9OwnerEquipment.Restore();
-            var clean = s9Setup.Outstanding == 0 && s9Buffs.Count == 0 && !s9TemporaryGreater && (s9Equipment == null || s9Equipment.Clean) && (s9OwnerEquipment == null || s9OwnerEquipment.Clean);
+            var clean = s9Setup.Outstanding == 0 && s9Setup.Faults.Count == 0 && s9Buffs.Count == 0 && !s9TemporaryGreater && (s9Equipment == null || s9Equipment.Clean) && (s9OwnerEquipment == null || s9OwnerEquipment.Clean);
             restore["clean"] = clean;
             if (clean || s9DrainAttempts >= Sprint6ShieldDrainAttempts) { restore["final"] = true; return true; }
             return false;
@@ -874,13 +878,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     s6Facts["band"] = new JObject { ["amount"] = amount, ["ac"] = probe, ["otherShield"] = otherShield, ["effectiveDelta"] = effective,
                         ["acWithoutShield"] = probe - effective, ["attackBonusBefore"] = current, ["adjustment"] = adjustment };
                     if (effective < 1) { s6Facts["bandUnavailable"] = "Mounted Shield changes no AC on this mount now; the band cannot be measured."; s6Step = 12; return; }
-                    s6Rules.TargetAcContext = ShieldAcContext;
                     s9BandAttempts = 0; s9BandRulesBefore = s6Rules.Attacks.Count; s6Step = 11; return;
                 case 11:
                     var miss = ShieldBandMiss();
                     if (miss != null || s9BandAttempts >= Sprint6ShieldBandBound)
                     {
-                        s6Rules.TargetAcContext = null;
                         s6Facts["bandMiss"] = miss?.DeepClone(); s6Facts["bandAttempts"] = s9BandAttempts;
                         ShieldRequireReleased("band");
                         ShieldStep("bandDone"); s6Frames = 0; s6Step = 12; return;
@@ -905,7 +907,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (context == null || (string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent")) continue;
                 var ac = row.Value<int>("ac"); var effective = context.Value<int>("effective");
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
-                if (effective >= 1 && row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
+                if (effective >= 1 && context.Value<int>("acResult") == ac && row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
             }
             return null;
         }
@@ -914,8 +916,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ShieldRequireReleased(string name)
         {
             var result = s9Setup.Release(name);
-            if (((JArray)result["remaining"]).Any(value => (string)value == Sprint6ShieldSetupModifiers.ComponentPrefix + name))
-                throw new InvalidOperationException("Setup " + name + " could not be removed: " + result.ToString(Newtonsoft.Json.Formatting.None));
+            if (((JArray)result["remaining"]).Any(value => (string)value == Sprint6ShieldSetupModifiers.ComponentPrefix + name) || ((JArray)result["faults"]).Count != 0)
+                throw new InvalidOperationException("Setup " + name + " was not removed without a fault: " + result.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // Mounted Shield's effect on the mount's AC at the moment of one attack (supplemental review PN6-F6): its own modifier,

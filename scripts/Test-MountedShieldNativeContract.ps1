@@ -410,6 +410,23 @@ $other = $setupType.GetMethod('Release', $any).Invoke($setup, @('calibration'))
 Check (@($other['remaining']).Count -eq 1 -and $faulty.ModifiedValue -eq 14) 'releasing another setup leaves the obligation outstanding'
 $released = $setupType.GetMethod('Release', $any).Invoke($setup, [object[]]@($null))
 Check (@($released['remaining']).Count -eq 0 -and $faulty.ModifiedValue -eq 10 -and [int]$setupType.GetProperty('Outstanding', $any).GetValue($setup) -eq 0) 'the drain removes the handle-less setup modifier through its stat, verified (AC 10), and clears the obligation'
+# PN7-F3: the removal callback's fault is kept for the whole row; a later release that finds nothing left still reports it.
+Check (@($released['faults']).Count -ge 1 -and @($setupType.GetField('Faults', $any).GetValue($setup)).Count -ge 1) 'the removal callback fault is recorded and kept by the setup custody'
+$again = $setupType.GetMethod('Release', $any).Invoke($setup, [object[]]@($null))
+Check (@($again['faults']).Count -eq 0 -and @($again['allFaults']).Count -ge 1 -and @($again['remaining']).Count -eq 0) 'a later release that finds nothing left still reports the earlier fault'
+
+# PN7-F7: the guarded runner declares an outer budget for both Mounted Shield gameplay rows that covers the compiled host
+# deadline plus startup, drain and restoration, instead of the generic 360-second default.
+$trancheType = KmcType 'KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche'
+$hostDeadline = [double]$trancheType.GetField('Sprint6ShieldHostDeadlineSeconds', $any).GetRawConstantValue()
+$runnerPath = Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
+$tokens = $null; $parseErrors = $null
+$runnerAst = [Management.Automation.Language.Parser]::ParseFile($runnerPath, [ref]$tokens, [ref]$parseErrors)
+$shieldIf = @($runnerAst.FindAll({ param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item1.Extent.Text -match "sprint6-shield-rt','sprint6-shield-tb'" }, $true))
+$declared = if ($shieldIf.Count -eq 1 -and $shieldIf[0].Clauses[0].Item2.Extent.Text -match '\$TimeoutSeconds=(\d+)\}') { [int]$Matches[1] } else { 0 }
+$range = @($runnerAst.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -ceq 'TimeoutSeconds' })[0].Attributes | Where-Object { $_.TypeName.Name -ceq 'ValidateRange' }
+Check ($parseErrors.Count -eq 0 -and $hostDeadline -eq 640 -and $declared -ge $hostDeadline + 240 -and $declared -le [int]$range.PositionalArguments[1].Value -and
+    $shieldIf[0].Clauses[0].Item2.Extent.Text -match 'TimeoutSeconds-lt900') ('the runner declares ' + $declared + ' s for the Mounted Shield rows (compiled host deadline ' + $hostDeadline + ' s) and refuses less')
 
 # ---- 3. Embedded icon identity -------------------------------------------------------------------------------------
 $expectedIcon = 'fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0'

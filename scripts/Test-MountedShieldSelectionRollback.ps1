@@ -292,5 +292,29 @@ Check (-not $shieldOffered -and $othersOffered) 'the first publication after a p
 [void]$serviceResume.Invoke($g.service, @())
 Assert-Matches $g $true 'the explicit enable''s resume offers Mounted Shield after a pre-registration stop'
 
+# PN7-F1: the same pre-registration stop, but another mod appends a feat to a required list KMC published without Mounted
+# Shield before the explicit enable resumes it. The resume reinserts only Mounted Shield into that list as it now stands
+# (the foreign append kept, after it nothing moved) and nothing is withdrawn.
+$g = New-Registered $true
+(Field 'mountedCombatPublication').SetValue($g.service, $null)
+[void]$serviceSuspend.Invoke($g.service, @())
+$targets = (Field 'mountedCombatSelectionTargets').GetValue($g.service); foreach ($list in $g.combatLists) { [void]$targets.Add($list) }
+$requiredLists = (Field 'requiredCombatFeatSelections').GetValue($g.service); [void]$requiredLists.Add($g.combatLists[0]); [void]$requiredLists.Add($g.combatLists[1])
+(Field 'mountedCombatFeature').SetValue($g.service, $g.combat); (Field 'mountedArcheryFeature').SetValue($g.service, $g.archery); (Field 'mountedShieldFeature').SetValue($g.service, $g.shield)
+[void]$serviceType.GetMethod('LeaseKmcCombatFeatSelections', $any).Invoke($g.service, @())
+Check (Set-Enabled $g $true) 'the enable after registration succeeds (foreign-append case)'
+$appended = New-Live $featureType
+$withAppend = Feature-Array (@($allFeatures.GetValue($g.combatLists[0])) + @($appended))
+$allFeatures.SetValue($g.combatLists[0], $withAppend)
+[void]$serviceResume.Invoke($g.service, @())
+$publication = (Field 'mountedCombatPublication').GetValue($g.service)
+$first = @($allFeatures.GetValue($g.combatLists[0]))
+$shieldAt = [Array]::IndexOf($first, $g.shield); $archeryAt = [Array]::IndexOf($first, $g.archery); $appendAt = [Array]::IndexOf($first, $appended)
+Check (@($first | Where-Object { [object]::ReferenceEquals($_, $g.shield) }).Count -eq 1 -and $shieldAt -eq $archeryAt + 1 -and $appendAt -ge 0 -and
+    @($first | Where-Object { [object]::ReferenceEquals($_, $appended) }).Count -eq 1) 'the resume reinserts Mounted Shield once after Mounted Archery and keeps the foreign append'
+Check (-not $publication.MountedShieldWithdrawn -and -not $publication.MountedArcheryWithdrawn) 'a foreign append before the resume withdraws nothing'
+$otherOffers = @($allFeatures.GetValue($g.combatLists[1]) | Where-Object { [object]::ReferenceEquals($_, $g.shield) }).Count
+Check ($otherOffers -eq 1) 'the untouched required list offers Mounted Shield once'
+
 Write-Host ('TOTAL PASS=' + $script:passed + ' FAIL=' + $script:failures.Count)
 if ($script:failures.Count -ne 0) { exit 1 }

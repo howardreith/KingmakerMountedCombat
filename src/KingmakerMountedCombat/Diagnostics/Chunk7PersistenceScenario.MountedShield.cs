@@ -30,14 +30,16 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!progression.HasFact(horses.MountedCombatFeature)) progression.AddFeature(horses.MountedCombatFeature);
             if (!progression.HasFact(horses.ShieldFocusFeature)) progression.AddFeature(horses.ShieldFocusFeature);
             if (!progression.HasFact(horses.MountedShieldFeature)) progression.AddFeature(horses.MountedShieldFeature);
-            var equipment = new Sprint6ShieldEquipment(firstRider);
+            // Owned by the scenario from before the first hand change (supplemental review PN7-F2), so a setup that fails part
+            // way is restored by the cleanup, after the save worker has settled.
+            var equipment = shieldEquipment = new Sprint6ShieldEquipment(firstRider);
             equipment.Prepare(heavy);
             equipment.Equip(heavy);
             // The write the service makes each frame, made now, so the save starts from the ordinary mounted state.
             service.Update(true);
             var state = ShieldPersistenceState();
             state["equipment"] = equipment.Evidence;
-            state["shieldBlueprint"] = heavy.AssetGuid;
+            state["requestedShieldBlueprint"] = heavy.AssetGuid;
             state["shieldIdentity"] = identity["heavy"];
             evidence["shieldAtSave"] = state;
             Require(state.Value<int>("ownedCount") == 1, "The first mount does not hold exactly one Mounted Shield contribution before the save.");
@@ -46,6 +48,21 @@ namespace KingmakerMountedCombat.Diagnostics
         // The consumer (cold) observes the restored world before input and reads the loaded archive itself: the native save
         // turned the fact off before serializing, so neither Mounted Shield source tag may appear in its party or area state
         // (supplemental review PN4-F8). The producer (warm) reads the archive it wrote in the same way.
+        private Sprint6ShieldEquipment shieldEquipment;
+
+        // The producer's equipment, restored after the measured warm continuation or a failure, once no save work owns the world
+        // (the cleanup calls this only after its save, worker and scope obligations are clear). The written Manual keeps the
+        // shield it was saved with. True when nothing remains.
+        private bool DrainShieldEquipment()
+        {
+            if (shieldEquipment == null) return true;
+            var restored = shieldEquipment.Restore();
+            evidence["shieldEquipmentCleanup"] = restored;
+            if (!shieldEquipment.Clean) return false;
+            shieldEquipment = null;
+            return true;
+        }
+
         private void ObserveShieldCold(SaveInfo loaded)
         {
             var state = ShieldPersistenceState();
@@ -101,7 +118,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rider"] = firstRider.UniqueId, ["mount"] = firstMount.UniqueId, ["mounted"] = Mounted(firstRider, firstMount),
                 ["hasFeat"] = firstRider.Descriptor.Progression.Features.HasFact(horses.MountedShieldFeature),
                 ["hasShieldFocus"] = firstRider.Descriptor.Progression.Features.HasFact(horses.ShieldFocusFeature),
-                ["shieldBase"] = shield?.ArmorComponent?.Blueprint?.ArmorBonus, ["shieldBlueprint"] = shield?.Blueprint.AssetGuid,
+                // The item the rider actually holds, observed (supplemental review PN7-F6); never replaced by the requested one.
+                ["shieldBase"] = shield?.ArmorComponent?.Blueprint?.ArmorBonus, ["observedShieldBlueprint"] = shield?.Blueprint.AssetGuid,
+                // 2.1.7b items carry no persistent id: the process-local object identity binds observations within one process.
+                ["observedShieldItem"] = shield == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(shield), ["observedShieldEnhancement"] = shield == null ? (int?)null : Sprint6ShieldEquipment.ArmorEnhancement(shield),
                 ["amount"] = service?.Amount(firstRider, firstMount), ["ownedCount"] = owned.Length,
                 ["ownedValues"] = new JArray(owned.Select(modifier => modifier.ModValue)),
                 ["ownedByRiderFact"] = new JArray(owned.Select(modifier => riderFact != null && ReferenceEquals(modifier.Source, riderFact))),
