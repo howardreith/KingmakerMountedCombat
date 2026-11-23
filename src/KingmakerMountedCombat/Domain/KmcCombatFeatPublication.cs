@@ -219,6 +219,9 @@ namespace KingmakerMountedCombat.Domain
         private readonly bool[] registered = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
         private readonly bool[] withdrawn = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
         private readonly string[] reasons = new string[KmcCombatFeatArrayPublication<T>.OptionalCount];
+        // Reversibly closed (supplemental review PN4-F3): the feat's entries leave every array, it is not available and its
+        // required paths are not watched, until Resume. Unlike a withdrawal it does not last the session.
+        private readonly bool[] suspended = new bool[KmcCombatFeatArrayPublication<T>.OptionalCount];
         private bool published;
 
         public KmcCombatFeatPublicationSet(IEnumerable<TKey> selections, IEnumerable<TKey> requiredSelections, T mountedCombat, T mountedArchery,
@@ -252,6 +255,7 @@ namespace KingmakerMountedCombat.Domain
         public bool HasMountedShield => Has(KmcOptionalCombatFeat.MountedShield);
         public bool MountedShieldWithdrawn => Withdrawn(KmcOptionalCombatFeat.MountedShield);
         public string MountedShieldWithdrawalReason => Reason(KmcOptionalCombatFeat.MountedShield);
+        public bool Suspended(KmcOptionalCombatFeat feat) => suspended[(int)feat];
         public IEnumerable<TKey> Selections => arrays.Select(pair => pair.Key);
 
         // Publish (desired) or restore (not desired) every array; returns the drift refusals, or null.
@@ -261,7 +265,7 @@ namespace KingmakerMountedCombat.Domain
             string error = null;
             foreach (var pair in arrays)
             {
-                int? target = desired ? pair.Value.Mask(feat => registered[(int)feat] && !withdrawn[(int)feat]) : (int?)null;
+                int? target = desired ? pair.Value.Mask(Offered) : (int?)null;
                 T[] value;
                 if (!pair.Value.TryMove(read(pair.Key), target, out value))
                 {
@@ -293,7 +297,28 @@ namespace KingmakerMountedCombat.Domain
         public bool Available(KmcOptionalCombatFeat feat)
         {
             Refresh(true);
-            return published && registered[(int)feat] && !withdrawn[(int)feat];
+            return published && Offered(feat);
+        }
+
+        private bool Offered(KmcOptionalCombatFeat feat) => registered[(int)feat] && !withdrawn[(int)feat] && !suspended[(int)feat];
+
+        // Closes one optional feat reversibly: KMC's own entry leaves every array now (exact or foreign-changed, foreign entries
+        // kept) and stays out of every later publication until Resume. A suspended feat is never withdrawn for missing from a
+        // required path, which it is by design.
+        public void Suspend(KmcOptionalCombatFeat feat)
+        {
+            if (!registered[(int)feat]) return;
+            suspended[(int)feat] = true;
+            RemoveClosed();
+        }
+
+        // Reopens a suspended feat. While KMC publishes, its entry returns to every array still holding KMC's exact value (the
+        // drift refusals are returned, as Apply returns them); otherwise the next publication includes it.
+        public string Resume(KmcOptionalCombatFeat feat, Func<TKey, string> name)
+        {
+            if (!suspended[(int)feat]) return null;
+            suspended[(int)feat] = false;
+            return published ? Apply(true, name) : null;
         }
 
         public bool MountedArcheryAvailable() => Available(KmcOptionalCombatFeat.MountedArchery);
@@ -336,7 +361,7 @@ namespace KingmakerMountedCombat.Domain
                     withdrewNow = true;
                 }
             }
-            if (withdrawn.Any(value => value)) RemoveWithdrawn();
+            if (withdrawn.Any(value => value) || suspended.Any(value => value)) RemoveClosed();
             // One occurrence of each KMC entry per array: a copied second reference would be offered twice.
             if (fullComparison) RemoveKmcDuplicates();
             return withdrewNow;
@@ -346,11 +371,11 @@ namespace KingmakerMountedCombat.Domain
 
         public bool Offers(TKey key, KmcOptionalCombatFeat feat) => registered[(int)feat] && Publication(key).Offers(read(key), feat);
 
-        private bool Watched(int index) => registered[index] && !withdrawn[index];
+        private bool Watched(int index) => registered[index] && !withdrawn[index] && !suspended[index];
 
-        // The narrow removal of KMC's own reference to every withdrawn feat from every array that holds it, exact or
-        // foreign-changed.
-        private void RemoveWithdrawn()
+        // The narrow removal of KMC's own reference to every withdrawn or suspended feat from every array that holds it, exact
+        // or foreign-changed.
+        private void RemoveClosed()
         {
             foreach (var pair in arrays)
             {
@@ -358,7 +383,7 @@ namespace KingmakerMountedCombat.Domain
                 var value = current;
                 for (var index = 0; index < withdrawn.Length; index++)
                 {
-                    if (!withdrawn[index]) continue;
+                    if (!withdrawn[index] && !suspended[index]) continue;
                     value = pair.Value.Without(value, (KmcOptionalCombatFeat)index) ?? value;
                 }
                 if (!ReferenceEquals(value, current))

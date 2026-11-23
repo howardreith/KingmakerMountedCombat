@@ -12,8 +12,10 @@ param([string]$Configuration = 'Release')
 # Covers: two consecutive refused disables, two consecutive refused enables, a successful transition after each refusal
 # run, a refusal by a service that is no longer Registered, the same for a registration where Mounted Archery did not register, and the stored desired state reported by the
 # service's own snapshot field. Not covered: the root itself (its services need the live game), a foreign change to a
-# combat-feat list during a refusal (its report names the list through UnityEngine.Object.name, a Unity internal call;
-# the component tests cover that path on the same publication set), native selection UI. Offline only.
+# combat-feat list when the Ranger lease accepts (its report names the list through UnityEngine.Object.name, a Unity
+# internal call; the component tests cover that path on the same publication set), native selection UI. Also: a refused
+# enable with a drifted required combat list and Ranger list (review PN4-F2), and the terminal stop's reversible Mounted
+# Shield suspension and its resume (review PN4-F3). Offline only.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -204,6 +206,47 @@ foreach ($withArchery in @($true, $false)) {
     Assert-Matches $f $true ($variant + ': after a faulted refusal the stored state and every list are unchanged')
     (Field 'state').SetValue($f.service, [Enum]::Parse($stateType, 'Registered'))
 }
+
+# PN4-F2: a refused toggle never changes the combat-feat publication. Start disabled, another mod changes a required combat
+# list and the Ranger list; two refused enables touch neither and set no withdrawal; once both are back, enable publishes all.
+$f = New-Registered $true
+$publication = (Field 'mountedCombatPublication').GetValue($f.service)
+$required = $f.combatLists[0]
+$requiredOriginal = $allFeatures.GetValue($required)
+$requiredDrift = Feature-Array (@($requiredOriginal) + @($f.foreignB))
+$allFeatures.SetValue($required, $requiredDrift)
+Drift-Ranger $f
+Check (-not (Set-Enabled $f $true)) 'both lists drifted: the enable is refused'
+Check (-not (Set-Enabled $f $true)) 'both lists drifted: a second enable is refused'
+Check ([object]::ReferenceEquals($allFeatures.GetValue($required), $requiredDrift) -and (Drift-Kept $f)) 'a refused enable writes neither the drifted combat list nor the Ranger list'
+Check (-not $publication.MountedShieldWithdrawn -and -not $publication.MountedArcheryWithdrawn) 'a refused enable leaves no withdrawal behind'
+Check (-not (Desired $f)) 'the stored desired state stays disabled'
+$allFeatures.SetValue($required, $requiredOriginal); Undo-Drift $f
+Check (Set-Enabled $f $true) 'once both lists are back the enable succeeds'
+Assert-Matches $f $true 'the later successful enable publishes Mounted Combat, Mounted Archery and Mounted Shield'
+
+# PN4-F3: the terminal stop's suspension, through the service's own methods. Mounted Shield leaves every list (so the native
+# CanSelect, whose first test is membership in the selection's own AllFeatures, refuses it on any list, prerequisite-ignoring
+# included); Mounted Combat and Mounted Archery stay; an explicit enable's resume reopens it.
+$selectionMethod = $selectionType.GetMethod('CanSelect')
+$item = $null
+# BlueprintFeature is itself the native IFeatureSelectionItem (its Feature is itself).
+if ((GameType 'Kingmaker.Blueprints.Classes.Selection.IFeatureSelectionItem').IsAssignableFrom($featureType)) { $item = $f.shield }
+$serviceSuspend = $serviceType.GetMethod('SuspendMountedShieldOffers', $any)
+$serviceResume = $serviceType.GetMethod('ResumeMountedShieldOffers', $any)
+$suspendedFlag = $serviceType.GetProperty('MountedShieldOffersSuspended', $any)
+[void]$serviceSuspend.Invoke($f.service, @())
+$noShield = $true; foreach ($list in $f.combatLists) { if (@($allFeatures.GetValue($list) | Where-Object { [object]::ReferenceEquals($_, $f.shield) }).Count -ne 0) { $noShield = $false } }
+$othersKept = $true; foreach ($list in $f.combatLists) { $now = @($allFeatures.GetValue($list)); if (@($now | Where-Object { [object]::ReferenceEquals($_, $f.combat) }).Count -ne 1 -or @($now | Where-Object { [object]::ReferenceEquals($_, $f.archery) }).Count -ne 1) { $othersKept = $false } }
+Check ($noShield -and $othersKept -and [bool]$suspendedFlag.GetValue($f.service)) 'the terminal stop suspends only Mounted Shield: it leaves every list, Mounted Combat and Mounted Archery stay once'
+if ($null -ne $item) { Check (-not [bool]$selectionMethod.Invoke($required, @($null, $null, $null, $item))) 'the native CanSelect refuses the suspended Mounted Shield at its membership test (no prerequisite is consulted)' }
+else { Write-Host 'INFO the native selection item could not be built outside the player; membership is checked directly' }
+Check (Set-Enabled $f $true) 'an ordinary enable call while suspended succeeds'
+$stillOut = $true; foreach ($list in $f.combatLists) { if (@($allFeatures.GetValue($list) | Where-Object { [object]::ReferenceEquals($_, $f.shield) }).Count -ne 0) { $stillOut = $false } }
+Check $stillOut 'an ordinary enable call while suspended does not reopen Mounted Shield'
+[void]$serviceResume.Invoke($f.service, @())
+Assert-Matches $f $true 'the explicit enable''s resume offers Mounted Shield once again in every list'
+Check (-not [bool]$suspendedFlag.GetValue($f.service)) 'the suspension is cleared'
 
 Write-Host ('TOTAL PASS=' + $script:passed + ' FAIL=' + $script:failures.Count)
 if ($script:failures.Count -ne 0) { exit 1 }

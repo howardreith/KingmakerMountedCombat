@@ -415,6 +415,16 @@ namespace KingmakerMountedCombat.Integration
             }
 
             string error;
+            // The Ranger lease decides whether the root accepts this change, so it is asked first (supplemental review
+            // PN4-F2): a refusal then changes no selection surface at all, and no publication state (a withdrawal latch
+            // included) survives a refused call.
+            if (!RangerTransitionPossible(out error))
+            {
+                failure = error;
+                logger.Error(error);
+                selectionDesired = previousSelectionDesired;
+                return false;
+            }
             if (!ApplySelectionDesired(out error))
             {
                 failure = error;
@@ -821,6 +831,20 @@ namespace KingmakerMountedCombat.Integration
         // A native size change, or another mod's permanent size override.
         private static bool SetsSize(BlueprintUnitFact fact) => fact?.ComponentsArray != null && fact.ComponentsArray.Any(component =>
             component is Kingmaker.Designers.Mechanics.Buffs.ChangeUnitSize || component != null && component.GetType().Name.EndsWith("SizeOverride", StringComparison.Ordinal));
+
+        // Whether the exact Ranger lease can take the stored desired state: its current value is KMC's exact original or exact
+        // appended value (ApplyRangerSelection and TryRestoreRangerSelection accept exactly these). Nothing is written.
+        private bool RangerTransitionPossible(out string error)
+        {
+            error = null;
+            if (rangerSelection == null || selectionLease == null) { error = "The exact Ranger selection lease is unavailable."; return false; }
+            var current = rangerSelection.AllFeatures;
+            if (selectionLease.MatchesOriginal(current) || selectionLease.MatchesAppended(current)) return true;
+            error = selectionDesired
+                ? "The Ranger companion AllFeatures selection changed outside KMC before append; no overwrite was attempted."
+                : "Ranger AllFeatures restore rejected: The leased array changed after the exact append; compare-before-restore rejected overwrite.";
+            return false;
+        }
 
         private bool ApplyRangerSelection(out string error)
         {

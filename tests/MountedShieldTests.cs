@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: disable removes only KMC's entries from a foreign-changed list; re-enable republishes them after the foreign entries (review findings PN1-F4, PN2-F5)", DisableStripsForeignChangedLists);
             runner.Run("kmc publication: a copied second reference to a KMC feat is collapsed to one; foreign entries untouched (review finding PN2-F6)", DuplicateKmcReferencesCollapse);
             runner.Run("kmc publication: a competing Mounted Shield in any publication target is found, fighter-only included (review finding 5)", CompetingFeatInAnyTarget);
+            runner.Run("kmc publication: a terminal stop suspends only Mounted Shield's offers, reversibly, and never withdraws it (review finding PN4-F3)", SuspensionIsReversible);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -339,6 +340,36 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(clean.Set.Apply(true, key => key) == null && clean.Arrays.Keys.All(key => clean.Has(key, clean.MountedArchery) && !clean.Has(key, clean.MountedShield)),
                 "Re-enabling after the withdrawal publishes Mounted Combat and Mounted Archery only.");
             clean.AssertCoherent("re-enabled after withdrawal");
+        }
+
+        private static void SuspensionIsReversible()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var foreign = lists.Arrays["extra"].Concat(new[] { new object() }).ToArray();
+            lists.Arrays["extra"] = foreign;
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            TestRunner.True(lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield) && !lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn,
+                "Suspended: not available, not withdrawn.");
+            TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedShield) && lists.Count(key, lists.MountedCombat) == 1 && lists.Count(key, lists.MountedArchery) == 1),
+                "Mounted Shield leaves every list (the foreign-changed one included); Mounted Combat and Mounted Archery stay once.");
+            TestRunner.True(lists.Arrays["extra"].Contains(foreign[foreign.Length - 1]), "The foreign entry stays.");
+            TestRunner.True(!lists.Set.Refresh(true) && !lists.Set.MountedShieldWithdrawn && lists.Set.MountedArcheryAvailable(),
+                "Its absence from the required lists does not withdraw it; Mounted Archery's rule stays on.");
+            var copied = lists.Arrays["fighter"].Concat(new[] { lists.MountedShield }).ToArray();
+            lists.Arrays["fighter"] = copied;
+            lists.Set.Refresh(false);
+            TestRunner.True(!lists.Has("fighter", lists.MountedShield), "A reference another mod copies back is removed again while suspended.");
+            // A refused toggle's re-application keeps the suspension.
+            TestRunner.True(lists.Set.Apply(true, key => key) != null, "The re-application reports the foreign-changed list.");
+            TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedShield)), "Re-publishing while suspended does not offer Mounted Shield.");
+            lists.Arrays["extra"] = lists.Arrays["extra"].Take(lists.Arrays["extra"].Length - 1).ToArray();
+            var resumed = lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(resumed == null && !lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield), "An explicit enable resumes it: " + resumed);
+            TestRunner.True(lists.Set.MountedShieldAvailable() && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedShield) == 1),
+                "Mounted Shield is offered once in every list and available again.");
+            lists.AssertCoherent("resumed");
+            TestRunner.True(lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key) == null, "Resuming an unsuspended feat changes nothing.");
         }
 
         private static void PartialRegistration()

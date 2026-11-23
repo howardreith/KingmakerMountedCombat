@@ -150,7 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
             AssertCombatDebt(saved);
             if (FeatDebtCase) ObserveFeatDebtCold();
-            if (ShieldCase) ObserveShieldCold();
+            if (ShieldCase) ObserveShieldCold(info);
             if (ChargeCommitCase) ObserveChargeCold();
             evidence["worldAfterNativeRestore"] = Chunk7ArchiveNativeSnapshot.Capture(world, saved);
             snapshots.Add(Capture("cold-restored-before-input")); Pass("C7-persistence-cold-all-pair-identity-and-no-prepare");

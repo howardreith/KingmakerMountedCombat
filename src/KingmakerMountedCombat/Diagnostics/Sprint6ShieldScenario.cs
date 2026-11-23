@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints;
+using Kingmaker.Controllers.Combat;
+using Kingmaker.Utility;
 using Kingmaker.Blueprints.Classes;
 using Kingmaker.Blueprints.Classes.Prerequisites;
 using Kingmaker.Blueprints.Classes.Selection;
@@ -37,38 +39,43 @@ namespace KingmakerMountedCombat.Diagnostics
     // defense record's native check and the production MountedShieldService.Amount the service itself writes. Setup is
     // disclosed: experience, shield items created from stock blueprints, Greater Shield Focus and the second pair's feats
     // granted directly, native Shield-descriptor modifiers standing in for another shield source. The reader owns PASS/FAIL.
+    // Custody of the hands of one disposable-fixture actor (supplemental review PN4-F4). Every hand slot of every weapon set
+    // is captured before anything changes, so an original the native slot moves (an off-hand shield makes HandSlot remove a
+    // two-handed primary) is restored as surely as one this class moved itself. Each created shield is released and checked
+    // out of every slot and collection; each original is checked back in its own slot; a failure stays recorded.
     internal sealed class Sprint6ShieldEquipment
     {
         private readonly UnitEntityData owner;
         private readonly List<ItemEntity> created = new List<ItemEntity>();
-        private readonly List<KeyValuePair<ItemSlot, ItemEntity>> displaced = new List<KeyValuePair<ItemSlot, ItemEntity>>();
+        private readonly List<KeyValuePair<HandSlot, ItemEntity>> original = new List<KeyValuePair<HandSlot, ItemEntity>>();
         internal readonly JObject Evidence = new JObject();
         internal int ShieldSet { get; private set; } = -1;
         private int originalSet = -1;
         internal Sprint6ShieldEquipment(UnitEntityData owner) { this.owner = owner; }
 
-        // One shield set whose off-hand takes a shield (a two-handed primary is moved out, and back at release), and every
-        // other set's off-hand cleared of shields, so a set switch has a well-defined shieldless side.
+        // One shield set whose off-hand takes a shield (a primary the native slot will not keep beside it is moved out first),
+        // and every other set's off-hand cleared of shields, so a set switch has a well-defined shieldless side.
         internal void Prepare(BlueprintItemShield probe)
         {
             var sets = owner.Body.HandsEquipmentSets;
             originalSet = owner.Body.CurrentHandEquipmentSetIndex;
+            foreach (var set in sets) { original.Add(new KeyValuePair<HandSlot, ItemEntity>(set.PrimaryHand, set.PrimaryHand.MaybeItem)); original.Add(new KeyValuePair<HandSlot, ItemEntity>(set.SecondaryHand, set.SecondaryHand.MaybeItem)); }
             Evidence["sets"] = sets.Count; Evidence["originalSet"] = originalSet;
+            Evidence["originalHands"] = new JArray(original.Select(pair => pair.Value?.Blueprint.AssetGuid));
             var test = Create(probe);
             for (var index = 0; index < sets.Count && ShieldSet < 0; index++)
             {
                 var slot = sets[index].SecondaryHand;
-                if (slot.HasItem) Displace(slot);
-                if (slot.CanInsertItem(test)) { ShieldSet = index; break; }
-                if (sets[index].PrimaryHand.HasItem) { Displace(sets[index].PrimaryHand); if (slot.CanInsertItem(test)) ShieldSet = index; }
+                if (slot.HasItem) slot.RemoveItem(true);
+                if (!slot.CanInsertItem(test) && sets[index].PrimaryHand.HasItem) sets[index].PrimaryHand.RemoveItem(true);
+                if (slot.CanInsertItem(test)) ShieldSet = index;
             }
             if (ShieldSet < 0) throw new InvalidOperationException("No hand set of the rider takes a shield in its off-hand.");
             for (var index = 0; index < sets.Count; index++)
-                if (index != ShieldSet && sets[index].SecondaryHand.MaybeItem is ItemEntityShield) Displace(sets[index].SecondaryHand);
+                if (index != ShieldSet && sets[index].SecondaryHand.MaybeItem is ItemEntityShield) sets[index].SecondaryHand.RemoveItem(true);
             Release(test);
             owner.Body.CurrentHandEquipmentSetIndex = ShieldSet;
             Evidence["shieldSet"] = ShieldSet;
-            Evidence["displaced"] = new JArray(displaced.Select(pair => pair.Value.Blueprint.AssetGuid));
         }
 
         internal ItemEntityShield Equip(BlueprintItemShield blueprint)
@@ -87,7 +94,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var slot = owner.Body.HandsEquipmentSets[ShieldSet].SecondaryHand;
             var item = slot.MaybeItem;
-            if (item != null) slot.RemoveItem(true);
+            if (item != null && created.Contains(item)) slot.RemoveItem(true);
             return item;
         }
 
@@ -96,40 +103,44 @@ namespace KingmakerMountedCombat.Diagnostics
             var item = blueprint.CreateEntity<ItemEntityShield>();
             if (item == null) throw new InvalidOperationException("The native item factory created no shield for " + blueprint.name + ".");
             item.Identify();
-            owner.Inventory.Add(item, true);
+            var inserted = owner.Inventory.Add(item, true);
+            if (!ReferenceEquals(inserted, item)) throw new InvalidOperationException("The inventory changed the created shield's identity.");
             created.Add(item);
             return item;
         }
 
-        private void Release(ItemEntity item)
+        // Out of every slot and collection, verified; a shield still held stays tracked.
+        private bool Release(ItemEntity item)
         {
             if (item.HoldingSlot != null) item.HoldingSlot.RemoveItem(true);
             if (item.Collection != null) item.Collection.Remove(item);
+            if (item.HoldingSlot != null || item.Collection != null) return false;
             created.Remove(item);
+            return true;
         }
 
-        private void Displace(ItemSlot slot)
-        {
-            var item = slot.MaybeItem;
-            if (item == null) return;
-            slot.RemoveItem(true);
-            displaced.Add(new KeyValuePair<ItemSlot, ItemEntity>(slot, item));
-        }
-
-        // Every created shield leaves the slots and the inventory; every displaced original returns to its own slot.
         internal JObject Restore()
         {
             var errors = new JArray();
-            foreach (var item in created.ToArray()) { try { Release(item); } catch (Exception exception) { errors.Add("release: " + exception.Message); } }
-            foreach (var pair in Enumerable.Reverse(displaced).ToArray())
+            foreach (var item in created.ToArray())
             {
-                try { if (!pair.Key.HasItem && pair.Key.CanInsertItem(pair.Value)) pair.Key.InsertItem(pair.Value); else errors.Add("slot kept: " + pair.Value.Blueprint.AssetGuid); }
+                try { if (!Release(item)) errors.Add("created shield still held: " + item.Blueprint.AssetGuid); }
+                catch (Exception exception) { errors.Add("release: " + exception.Message); }
+            }
+            // Originals back into their own slots: off-hands first, so a two-handed primary is inserted into a free pair.
+            foreach (var pair in original.Where(value => !value.Key.IsPrimaryHand).Concat(original.Where(value => value.Key.IsPrimaryHand)))
+            {
+                if (pair.Value == null || ReferenceEquals(pair.Key.MaybeItem, pair.Value)) continue;
+                try { if (pair.Value.HoldingSlot != null) pair.Value.HoldingSlot.RemoveItem(true); if (!pair.Key.HasItem && pair.Key.CanInsertItem(pair.Value)) pair.Key.InsertItem(pair.Value); }
                 catch (Exception exception) { errors.Add("restore: " + exception.Message); }
             }
-            displaced.Clear();
             try { if (originalSet >= 0 && owner.Body.CurrentHandEquipmentSetIndex != originalSet) owner.Body.CurrentHandEquipmentSetIndex = originalSet; }
             catch (Exception exception) { errors.Add("set: " + exception.Message); }
-            var restored = new JObject { ["errors"] = errors, ["createdLeft"] = created.Count, ["set"] = owner.Body.CurrentHandEquipmentSetIndex, ["originalSet"] = originalSet };
+            foreach (var pair in original)
+                if (!ReferenceEquals(pair.Key.MaybeItem, pair.Value)) errors.Add("hand not restored: expected " + (pair.Value?.Blueprint.AssetGuid ?? "empty") + ", found " + (pair.Key.MaybeItem?.Blueprint.AssetGuid ?? "empty"));
+            if (owner.Body.CurrentHandEquipmentSetIndex != originalSet) errors.Add("weapon set not restored");
+            var restored = new JObject { ["errors"] = errors, ["createdLeft"] = created.Count, ["handsChecked"] = original.Count,
+                ["set"] = owner.Body.CurrentHandEquipmentSetIndex, ["originalSet"] = originalSet };
             Evidence["restored"] = restored;
             return restored;
         }
@@ -177,6 +188,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try { s9Competing?.Remove(); s9Competing = null; } catch (Exception exception) { restore["competingError"] = exception.Message; }
             try { s9RiderSetupShield?.Remove(); s9RiderSetupShield = null; } catch (Exception exception) { restore["riderShieldError"] = exception.Message; }
             try { s9HostileSetup?.Remove(); s9HostileSetup = null; } catch (Exception exception) { restore["hostileError"] = exception.Message; }
+            try { s9Calibration?.Remove(); s9Calibration = null; } catch (Exception exception) { restore["calibrationError"] = exception.Message; }
             try { s9MountSpell?.Remove(); s9MountSpell = null; } catch (Exception exception) { restore["mountSpellError"] = exception.Message; }
             try { s9RiderSpell?.Remove(); s9RiderSpell = null; } catch (Exception exception) { restore["riderSpellError"] = exception.Message; }
             if (MountedShieldService.Current != null && !MountedShieldService.Current.Enabled) MountedShieldService.Current.Enable();
@@ -293,7 +305,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s6Owner = Game.Instance.Player.PartyCharacters.Select(reference => reference.Value).Where(member =>
                         member != null && member != rider && !member.Descriptor.IsPet && member.Descriptor.Pet == null && member.IsInGame && member.Descriptor.State.IsConscious &&
                         member.Descriptor.State.Size == Size.Medium && member.Descriptor.Progression.GetClassLevel(ResourcesLibrary.TryGetBlueprint<BlueprintCharacterClass>(Chunk7OrdinaryBuildDriver.RangerClassGuid)) == 0 &&
-                        !Has(member.Descriptor, horseService.MountedCombatFeature) && !Has(member.Descriptor, MountedShieldFeat))
+                        !Has(member.Descriptor, horseService.MountedCombatFeature) && !Has(member.Descriptor, MountedShieldFeat) && !Has(member.Descriptor, ShieldFocus))
                         .OrderBy(member => member.UniqueId, StringComparer.Ordinal).FirstOrDefault();
                     if (s6Owner == null) { FailSprint6Row("No Medium party member without a companion can take the second pair."); return; }
                     s6Rules.Watch(s6Owner);
@@ -309,6 +321,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     s6Step = 3; return;
                 case 3:
                     var acquisition = new JObject(); s6Facts["ownerCompanion"] = acquisition;
+                    // Disclosed setup (supplemental review PN4-F6): native experience for the four Ranger levels the companion
+                    // needs; every level still passes the native CanLevelUp entitlement check inside the acquisition.
+                    acquisition["experienceBefore"] = s6Owner.Descriptor.Progression.Experience;
+                    Sprint6EnsureLevels(s6Owner, 4);
+                    acquisition["experienceSetup"] = s6Owner.Descriptor.Progression.Experience;
                     var acquired = NativeHorseFixtureAcquisition.Create(s6Owner, horseService, logger, acquisition);
                     acquisition["acquired"] = acquired;
                     if (!acquired) { FailSprint6Row("The second pair's native companion did not commit."); return; }
@@ -395,40 +412,50 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Mounted Combat's own prerequisite (one trained Mobility rank), as Sprint 6 takes it.
                 if (only == null && !Has(unit.Descriptor, horseService.MountedCombatFeature) && controller.Preview.Stats.SkillMobility.BaseValue == 0)
                 { if (!controller.SpendSkillPoint(StatType.SkillMobility)) { record["refused"] = "The native controller refused the Mobility rank."; return record; } choices.Add("skill:SkillMobility"); }
-                var offered = controller.State.Selections.Where(state => !state.Selected && state.Selection is BlueprintFeatureSelection selection &&
-                    (selection.name == "FighterFeatSelection" || selection.name == "BasicFeatSelection")).OrderBy(state => ((BlueprintFeatureSelection)state.Selection).name == "FighterFeatSelection" ? 0 : 1).ToArray();
+                var offered = OfferedFeatStates(controller, false);
                 record["offered"] = new JArray(offered.Select(state => ((BlueprintFeatureSelection)state.Selection).name));
                 ShieldEligibility(eligibility, "start", controller, offered);
-                var picked = new List<KeyValuePair<FeatureSelectionState, BlueprintFeature>>();
-                foreach (var state in offered)
+                // Each choice resolves its selection state from the controller's current state: a native selection rebuilds the
+                // preview and may rebuild the states with it.
+                var picked = new List<KeyValuePair<BlueprintFeatureSelection, BlueprintFeature>>();
+                foreach (var selection in offered.Select(value => (BlueprintFeatureSelection)value.Selection).ToArray())
                 {
-                    var selection = (BlueprintFeatureSelection)state.Selection;
+                    var state = controller.State.Selections.FirstOrDefault(value => !value.Selected && ReferenceEquals(value.Selection, selection));
+                    if (state == null) continue;
                     var wanted = only != null ? (Has(controller.Preview, only) ? null : only) : NextShieldWanted(controller.Preview, unit.Descriptor, offered.Length);
                     if (wanted == null) continue;
                     var item = selection.Items.FirstOrDefault(candidate => ReferenceEquals(candidate.Feature, wanted));
                     if (item == null || !selection.CanSelect(controller.Preview, controller.State, state, item)) { choices.Add("unavailable:" + selection.name + "=" + wanted.name); continue; }
                     if (!controller.SelectFeature(state, item)) { record["refused"] = "The native controller refused " + wanted.name + "."; return record; }
                     choices.Add("selection:" + selection.name + "=" + wanted.name);
-                    picked.Add(new KeyValuePair<FeatureSelectionState, BlueprintFeature>(state, wanted));
-                    ShieldEligibility(eligibility, "after-" + wanted.name, controller, offered);
+                    picked.Add(new KeyValuePair<BlueprintFeatureSelection, BlueprintFeature>(selection, wanted));
+                    ShieldEligibility(eligibility, "after-" + wanted.name, controller, OfferedFeatStates(controller, true));
                 }
                 // Back: the first of two choices made at this level (a prerequisite) is withdrawn; Mounted Shield's eligibility
                 // and any Mounted Shield choice follow the preview, and the same choices are made again in order.
                 if (backOut && picked.Count == 2)
                 {
+                    // Native UnselectFeature rebuilds the preview, its LevelUpState and its selection states (supplemental review
+                    // PN4-F5), so everything after it is read from the controller's current state, never the states held above.
                     var first = picked[0];
-                    controller.UnselectFeature(first.Key);
-                    record["backOut"] = new JObject { ["withdrawn"] = first.Value.name, ["stillSelected"] = picked[1].Key.Selected,
-                        ["previewHasWithdrawn"] = Has(controller.Preview, first.Value), ["previewHasOther"] = Has(controller.Preview, picked[1].Value) };
-                    ShieldEligibility(eligibility, "back-" + first.Value.name, controller, offered);
-                    foreach (var pair in picked.Where(value => !value.Key.Selected))
+                    var picks = picked.ToArray();
+                    var firstState = controller.State.Selections.First(value => value.Selected && ReferenceEquals(value.Selection, first.Key) && ReferenceEquals(value.SelectedItem?.Feature, first.Value));
+                    controller.UnselectFeature(firstState);
+                    record["backOut"] = new JObject { ["withdrawn"] = first.Value.name,
+                        ["stillSelected"] = picks.Skip(1).All(pick => CurrentChoice(controller, pick.Key, pick.Value)),
+                        ["previewHasWithdrawn"] = Has(controller.Preview, first.Value), ["previewHasOther"] = Has(controller.Preview, picks[1].Value) };
+                    ShieldEligibility(eligibility, "back-" + first.Value.name, controller, OfferedFeatStates(controller, true));
+                    foreach (var pick in picks)
                     {
-                        var selection = (BlueprintFeatureSelection)pair.Key.Selection;
-                        var item = selection.Items.First(candidate => ReferenceEquals(candidate.Feature, pair.Value));
-                        if (!controller.SelectFeature(pair.Key, item)) { record["refused"] = "The native controller refused " + pair.Value.name + " again after Back."; return record; }
-                        choices.Add("reselection:" + selection.name + "=" + pair.Value.name);
+                        if (CurrentChoice(controller, pick.Key, pick.Value)) continue;
+                        var state = controller.State.Selections.FirstOrDefault(value => !value.Selected && ReferenceEquals(value.Selection, pick.Key));
+                        var item = state == null ? null : pick.Key.Items.FirstOrDefault(candidate => ReferenceEquals(candidate.Feature, pick.Value));
+                        if (item == null || !controller.SelectFeature(state, item)) { record["refused"] = "The native controller refused " + pick.Value.name + " again after Back."; return record; }
+                        choices.Add("reselection:" + pick.Key.name + "=" + pick.Value.name);
                     }
-                    ShieldEligibility(eligibility, "reselected", controller, offered);
+                    record["afterBack"] = new JObject { ["mountedCombat"] = Has(controller.Preview, horseService.MountedCombatFeature), ["shieldFocus"] = Has(controller.Preview, ShieldFocus),
+                        ["bothChosen"] = picks.All(pick => CurrentChoice(controller, pick.Key, pick.Value)) };
+                    ShieldEligibility(eligibility, "reselected", controller, OfferedFeatStates(controller, true));
                 }
                 NativeHorseFixtureAcquisition.SpendPetSkills(controller, fighter, choices);
                 for (var index = 0; index < 12 && ShieldFillChoice(controller, choices); index++) { }
@@ -449,6 +476,17 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             return record;
         }
+
+        // The ordinary and fighter feat choices of the controller's current state (fighter first); with includeSelected, the ones
+        // already chosen at this level too.
+        private static FeatureSelectionState[] OfferedFeatStates(LevelUpController controller, bool includeSelected) =>
+            controller.State.Selections.Where(state => (includeSelected || !state.Selected) && state.Selection is BlueprintFeatureSelection selection &&
+                (selection.name == "FighterFeatSelection" || selection.name == "BasicFeatSelection"))
+                .OrderBy(state => ((BlueprintFeatureSelection)state.Selection).name == "FighterFeatSelection" ? 0 : 1).ToArray();
+
+        // Whether the current state holds this exact choice in this selection.
+        private static bool CurrentChoice(LevelUpController controller, BlueprintFeatureSelection selection, BlueprintFeature feature) =>
+            controller.State.Selections.Any(state => state.Selected && ReferenceEquals(state.Selection, selection) && ReferenceEquals(state.SelectedItem?.Feature, feature));
 
         // Mounted Combat and Shield Focus together at the first level that offers two feat choices (Mounted Shield is read
         // between them and must refuse without Shield Focus), then Mounted Shield at a later level with a feat choice.
@@ -652,12 +690,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sprint6SpawnTarget("ms-rt"); s6Step = 1; return;
                 case 1:
                     if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return;
-                    ShieldStep("combatStart"); s6NextPlan = "equal"; s6Step = 2; return;
+                    ShieldStep("combatStart"); ShieldCalibrate("equal"); s6NextPlan = "equal"; s6Step = 2; return;
                 // Equality of the shield-modified total fails and the hit stands.
                 case 2:
                     if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
                     ShieldStep("equal"); s6Step = 3; return;
-                case 3: if (!Sprint6RealTimeUsageFree(rider)) return; s6NextPlan = "success"; s6Step = 4; return;
+                case 3: if (!Sprint6RealTimeUsageFree(rider)) return; ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 4; return;
                 case 4:
                     if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
                     ShieldStep("success");
@@ -677,31 +715,39 @@ namespace KingmakerMountedCombat.Diagnostics
                     var unrelated = Rulebook.Trigger(new RuleSkillCheck(rider, StatType.SkillMobility, 10));
                     s6Facts["unrelatedMobility"] = new JObject { ["stat"] = unrelated.StatValue, ["bonus"] = (int)unrelated.Bonus, ["displayed"] = rider.Stats.SkillMobility.ModifiedValue,
                         ["dc"] = unrelated.DC, ["result"] = unrelated.RollResult, ["frame"] = Time.frameCount, ["contributions"] = MountedShieldService.Current.CheckContributionCount };
-                    s9BandAttempts = 0; s9BandRulesBefore = s6Rules.Attacks.Count; s6Step = 8; return;
-                // A hit that Mounted Shield's AC turns into a miss: no check, no use. The setup hostile bonus is replaced by
-                // one that lands near the mount's AC, so a miss inside the shield's band is reached within the bound.
+                    s6Step = 8; return;
+                // A stronger shield source on the mount (+4) covers its AC; the one production check made under it still gets
+                // the rider's full +3 (supplemental review PN4-F9).
                 case 8:
+                    if (!Sprint6RealTimeUsageFree(rider)) return;
+                    s9Competing = horse.Stats.AC.AddModifier(4, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield);
+                    ShieldStep("competingBeforeCheck"); ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 9; return;
+                case 9:
+                    if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
+                    ShieldStep("competingCheck"); s9Competing.Remove(); s9Competing = null; ShieldCalibrate(null);
+                    s6NextPlan = "natural"; s6Step = 10; return;
+                // A hit that Mounted Shield's AC turns into a miss: no check, no use. The hostile's bonus is aimed so a total
+                // inside the shield's band (AC - 3 .. AC - 1) is likely; only actual strikes count against the bound, and the
+                // qualifying attack itself is recorded (supplemental review PN4-F10).
+                case 10:
                     if (!Sprint6RealTimeUsageFree(rider)) return;
                     var amount = MountedShieldService.Current.Amount(rider, horse);
                     var probe = Rulebook.Trigger(new RuleCalculateAC(target, horse, AttackType.Melee)).TargetAC;
-                    // The hostile's latest native attack bonus against the mount (setup included), from the rule observer.
-                    var last = s6Rules.Attacks.OfType<JObject>().LastOrDefault(row => (string)row["target"] == horse.UniqueId && (string)row["attacker"] == target.UniqueId);
-                    if (last == null) { FailSprint6Row("No native attack on the mount recorded the hostile's attack bonus."); return; }
-                    var current = last.Value<int>("bonus");
-                    // Aim the attack total so that d20 11 reaches AC - 1: d20 9..11 then land in [AC - 3, AC - 1] for a +3
-                    // shield, misses that only Mounted Shield's AC caused.
+                    var current = ShieldHostileBonus();
                     var adjustment = probe - 12 - current;
                     s9HostileSetup = target.Stats.AdditionalAttackBonus.AddModifier(adjustment, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.UntypedStackable);
                     s6Facts["band"] = new JObject { ["amount"] = amount, ["ac"] = probe, ["attackBonusBefore"] = current, ["adjustment"] = adjustment };
-                    s6NextPlan = "natural"; s6Step = 9; return;
-                case 9:
-                    if (ShieldBandMissObserved() || ++s9BandAttempts > Sprint6ShieldBandBound)
+                    s9BandAttempts = 0; s9BandRulesBefore = s6Rules.Attacks.Count; s6Step = 11; return;
+                case 11:
+                    var miss = ShieldBandMiss();
+                    if (miss != null || s9BandAttempts >= Sprint6ShieldBandBound)
                     {
-                        s6Facts["bandAttempts"] = s9BandAttempts; s9HostileSetup?.Remove(); s9HostileSetup = null;
-                        ShieldStep("bandDone"); s6Frames = 0; s6Step = 10; return;
+                        s6Facts["bandMiss"] = miss?.DeepClone(); s6Facts["bandAttempts"] = s9BandAttempts;
+                        s9HostileSetup?.Remove(); s9HostileSetup = null;
+                        ShieldStep("bandDone"); s6Frames = 0; s6Step = 12; return;
                     }
-                    if (!Sprint6RealTimeUsageFree(rider)) return;
-                    Sprint6RuleStrike(horse); return;
+                    if (!Sprint6RealTimeUsageFree(rider) || !target.Commands.Empty) return;
+                    s9BandAttempts++; Sprint6RuleStrike(horse); return;
                 default:
                     if (!target.Commands.Empty || ++s6Frames < Sprint6SettleFrames) return;
                     FinishSprint6Row(true, "Mounted Shield check observations recorded.");
@@ -709,18 +755,45 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        // A miss on the mount whose total reached the AC without Mounted Shield's own contribution.
-        private bool ShieldBandMissObserved()
+        // The first miss on the mount, since the band step began, whose total reached the AC without Mounted Shield's own
+        // contribution.
+        private JObject ShieldBandMiss()
         {
             var amount = s6Facts["band"]?.Value<int>("amount") ?? 0;
             for (var index = s9BandRulesBefore; index < s6Rules.Attacks.Count; index++)
             {
                 var row = (JObject)s6Rules.Attacks[index];
-                if ((string)row["target"] != horse.UniqueId || row.Value<bool>("isHitAtEvent")) continue;
+                if ((string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent")) continue;
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
-                if (row.Value<int>("d20") > 1 && total < row.Value<int>("ac") && total >= row.Value<int>("ac") - amount) return true;
+                if (row.Value<int>("d20") > 1 && total < row.Value<int>("ac") && total >= row.Value<int>("ac") - amount) return row;
             }
-            return false;
+            return null;
+        }
+
+        // The hostile's native attack bonus against the mount now (every setup modifier included).
+        private int ShieldHostileBonus()
+        {
+            var weapon = target.GetThreatHand()?.Weapon ?? target.Body.EmptyHandWeapon;
+            return Rulebook.Trigger(new RuleCalculateAttackBonus(target, horse, weapon, 0)).Result;
+        }
+
+        // Aims the hostile's native attack bonus at the rider's expected check base (Mobility plus the Mounted Shield amount),
+        // so a planned total is reachable with a natural die (supplemental review PN4-F9): for "equal" the bonus is that base,
+        // so the die is the attack's own d20 (1..20); for "success" it is one less, so the die is again the attack's d20.
+        // null removes the calibration.
+        private ModifiableValue.Modifier s9Calibration;
+        private void ShieldCalibrate(string plan)
+        {
+            s9Calibration?.Remove(); s9Calibration = null;
+            if (plan == null) return;
+            var checkBase = rider.Stats.SkillMobility.ModifiedValue + MountedShieldService.Current.Amount(rider, horse);
+            var wanted = plan == "equal" ? checkBase : checkBase - 1;
+            var current = ShieldHostileBonus();
+            s9Calibration = target.Stats.AdditionalAttackBonus.AddModifier(wanted - current, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.UntypedStackable);
+            var calibrations = s6Facts["calibrations"] as JArray ?? new JArray();
+            s6Facts["calibrations"] = calibrations;
+            calibrations.Add(new JObject { ["plan"] = plan, ["checkBase"] = checkBase, ["attackBonusBefore"] = current, ["attackBonusAfter"] = ShieldHostileBonus(),
+                ["mountAc"] = Rulebook.Trigger(new RuleCalculateAC(target, horse, AttackType.Melee)).TargetAC, ["step"] = s6Step });
         }
 
         // ---- turn-based ---------------------------------------------------------------------------------------------
@@ -743,7 +816,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!rider.IsInCombat || !horse.IsInCombat) return;
                     if (WaitForNativeCastingPrincipal(true, turn?.Unit == rider, rider.CombatState.CanActInCombat, () => EndCastingNativeTurn(turn))) return;
                     if (!rider.HasSwiftAction() || !Sprint6RiderTurn(turn)) return;
-                    s6Turn = turn; ShieldStep("ownTurnBefore"); s6NextPlan = "success"; s6Step = 2; return;
+                    s6Turn = turn; ShieldStep("ownTurnBefore"); ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 2; return;
                 case 2:
                     if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
                     ShieldStep("ownTurnNegated"); s6NextPlan = "natural"; s6Step = 3; return;
@@ -758,9 +831,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     s6Turn = turn; ShieldStep("renewed"); s6Step = 5; return;
                 case 5:
                     if (!Sprint6AdvanceTo(turn, target)) return;
-                    s6NextPlan = "equal"; s6Step = 6; return;
+                    ShieldCalibrate("equal"); s6NextPlan = "equal"; s6Step = 6; return;
                 case 6:
-                    if (Sprint6RecordSinceStep() != null) { ShieldStep("offTurnEqual"); s6Frames = 0; s6Step = 7; return; }
+                    if (Sprint6RecordSinceStep() != null) { ShieldStep("offTurnEqual"); ShieldCalibrate(null); s6Frames = 0; s6Step = 7; return; }
                     Sprint6HostileTurnStrike(turn);
                     return;
                 default:

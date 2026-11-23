@@ -2,6 +2,7 @@ using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Items.Shields;
+using Kingmaker.EntitySystem.Persistence;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 
@@ -44,9 +45,50 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(state.Value<int>("ownedCount") == 1, "The first mount does not hold exactly one Mounted Shield contribution before the save.");
         }
 
-        private void ObserveShieldCold() => evidence["shieldColdAtRestore"] = ShieldPersistenceState();
+        // The consumer (cold) observes the restored world before input and reads the loaded archive itself: the native save
+        // turned the fact off before serializing, so neither Mounted Shield source tag may appear in its party or area state
+        // (supplemental review PN4-F8). The producer (warm) reads the archive it wrote in the same way.
+        private void ObserveShieldCold(SaveInfo loaded)
+        {
+            var state = ShieldPersistenceState();
+            state["archive"] = ShieldArchiveScan(loaded, saved?.AreaId);
+            evidence["shieldColdAtRestore"] = state;
+        }
 
-        private void ObserveShieldContinuation() => evidence[Cold ? "shieldColdContinuation" : "shieldWarmContinuation"] = ShieldPersistenceState();
+        private void ObserveShieldContinuation()
+        {
+            if (Cold) { evidence["shieldColdContinuation"] = ShieldPersistenceState(); return; }
+            evidence["shieldWarmContinuation"] = ShieldPersistenceState();
+            evidence["shieldSavedArchive"] = ShieldArchiveScan(savedDescriptor, saved?.AreaId);
+        }
+
+        // Read-only: a clone of the descriptor's native saver reads party.json and the saved area's state; nothing is written.
+        private static JObject ShieldArchiveScan(SaveInfo descriptor, string area)
+        {
+            var entries = new JArray(); var mountTags = 0; var checkTags = 0; string error = null;
+            try
+            {
+                if (descriptor?.Saver == null) throw new System.InvalidOperationException("The archive descriptor has no native saver.");
+                using (var saver = descriptor.Saver.Clone())
+                    foreach (var entry in new[] { "party", area }.Where(value => !string.IsNullOrEmpty(value)))
+                    {
+                        var json = saver.ReadJson(entry);
+                        entries.Add(new JObject { ["entry"] = entry + ".json", ["present"] = json != null, ["length"] = json?.Length ?? 0 });
+                        if (json == null) continue;
+                        mountTags += Occurrences(json, MountedShieldService.MountSourceComponent);
+                        checkTags += Occurrences(json, MountedShieldService.CheckSourceComponent);
+                    }
+            }
+            catch (System.Exception exception) { error = exception.GetType().FullName + ": " + exception.Message; }
+            return new JObject { ["file"] = descriptor?.FileName, ["entries"] = entries, ["mountTags"] = mountTags, ["checkTags"] = checkTags, ["error"] = error };
+        }
+
+        private static int Occurrences(string text, string value)
+        {
+            var count = 0;
+            for (var index = text.IndexOf(value, System.StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, System.StringComparison.Ordinal)) count++;
+            return count;
+        }
 
         private JObject ShieldPersistenceState()
         {

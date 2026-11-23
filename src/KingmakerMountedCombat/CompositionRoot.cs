@@ -217,6 +217,7 @@ namespace KingmakerMountedCombat
                 mountedCombatDefense.Enabled = true;
                 mountedRangedMovement.Enabled = true;
                 mountedShield.Enable();
+                horseCompanion.ResumeMountedShieldOffers();
                 pairPresentation.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
@@ -308,10 +309,12 @@ namespace KingmakerMountedCombat
             // save is in flight it is latched, not skipped: persistence.Update
             // runs first in every frame and keeps draining, and the cleanup runs
             // on the first frame after the save settles.
-            if (persistence.SaveSuspended)
+            // The same for an owned load (supplemental review PN4-F1): the pair cleanup would dismount pairs, and release
+            // Mounted Shield contributions, in the outgoing world. The retry below waits for the load to settle.
+            if (persistence.SaveSuspended || persistence.LoadInFlight)
             {
                 failureCleanupPending = true;
-                logger.Warning("Update failure latched: an owned save is still in flight; mounted cleanup runs once it settles.");
+                logger.Warning("Update failure latched: an owned save or load is still in flight; mounted cleanup runs once it settles.");
                 if (first != null)
                 {
                     throw new InvalidOperationException("Runtime update failure could not be handled without residue.", first);
@@ -358,6 +361,8 @@ namespace KingmakerMountedCombat
                 if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
                 throw new InvalidOperationException("Update-failure cleanup is waiting for the Mounted Shield stop (retained contribution or owned load); it is retried.");
             }
+            // With its benefits stopped, Mounted Shield's offers close too (reopened by an explicit enable).
+            horseCompanion.SuspendMountedShieldOffers();
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");

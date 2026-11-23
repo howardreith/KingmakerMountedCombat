@@ -369,6 +369,33 @@ Check ($null -eq $set.Apply($false, $label)) 'disable restores every genuine sel
 $changed = @(@($ordinary, $fighter, $extra) | Where-Object { $now = $allFeatures.GetValue($_); $now.Count -ne 2 -or -not [object]::ReferenceEquals($now[0], $donor) -or -not [object]::ReferenceEquals($now[1], $foreign) })
 Check ($changed.Count -eq 0) 'every selection returns to its exact original entries'
 
+# 2f. Compiled lifecycle order in CompositionRoot (supplemental review PN4-F1, PN4-F3). The root needs the live game, so
+# the order is read from the product's own IL: the first update-failure dispatch reads the owned-load state before any pair
+# cleanup (the cleanup is latched instead), the terminal stop suspends Mounted Shield's offers only after its benefits stop,
+# and only an explicit enable resumes them.
+$rootType = KmcType 'KingmakerMountedCombat.CompositionRoot'
+function Calls([Reflection.MethodBase]$Method) {
+    $il = $Method.GetMethodBody().GetILAsByteArray(); $module = $Method.Module; $rows = New-Object 'System.Collections.Generic.List[string]'
+    for ($i = 0; $i -lt $il.Length - 4; $i++) {
+        if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F -or $il[$i] -eq 0x7D) {
+            $token = [BitConverter]::ToInt32($il, $i + 1); $table = $token -shr 24
+            if ($table -ne 0x06 -and $table -ne 0x0A -and $table -ne 0x04) { continue }
+            try { $member = $module.ResolveMember($token); $rows.Add($member.DeclaringType.Name + '.' + $member.Name); $i += 4 } catch { }
+        }
+    }
+    , $rows.ToArray()
+}
+function At([string[]]$Rows, [string]$Name) { [Array]::IndexOf($Rows, $Name) }
+$handle = Calls ($rootType.GetMethod('HandleUpdateFailure', $any))
+$load = At $handle 'MountedPersistenceService.get_LoadInFlight'; $cleanup = At $handle 'CompositionRoot.PerformFailureCleanup'; $latch = At $handle 'CompositionRoot.failureCleanupPending'
+Check ($load -ge 0 -and $latch -gt $load -and $cleanup -gt $latch) 'the first update-failure dispatch reads the owned load and latches before any pair cleanup (PN4-F1)'
+$perform = Calls ($rootType.GetMethod('PerformFailureCleanup', $any))
+$disable = At $perform 'MountedShieldService.Disable'; $suspend = At $perform 'HorseCompanionBlueprintService.SuspendMountedShieldOffers'; $stopped = At $perform 'CompositionRoot.set_IsEnabled'
+Check ($disable -ge 0 -and $suspend -gt $disable -and $stopped -gt $suspend) 'the terminal stop suspends Mounted Shield''s offers after its benefits stop and before the root reports disabled (PN4-F3)'
+$enable = Calls ($rootType.GetMethod('SetEnabled', $any))
+$resume = At $enable 'HorseCompanionBlueprintService.ResumeMountedShieldOffers'; $selection = At $enable 'HorseCompanionBlueprintService.SetSelectionEnabled'
+Check ($resume -gt $selection -and @($enable | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -eq 1) 'only the explicit enable resumes the offers, after its selection transaction succeeds'
+
 # ---- 3. Embedded icon identity -------------------------------------------------------------------------------------
 $expectedIcon = 'fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0'
 function Sha([byte[]]$Bytes) { $sha = [Security.Cryptography.SHA256]::Create(); try { ([BitConverter]::ToString($sha.ComputeHash($Bytes)) -replace '-', '').ToLowerInvariant() } finally { $sha.Dispose() } }
