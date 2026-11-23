@@ -68,7 +68,7 @@ line names the addition (`(Mounted Shield +3)`). No rider stat, reaction state, 
 
 **Registration.** `MountedShieldFeature`, fresh GUID `671a301bd1774677a8bfa2873d33b191`, built from the stock Power Attack
 donor (one rank, Feat + CombatFeat, the donor's `IsClassFeature = true` retained), prerequisites exactly Mounted Combat
-and Shield Focus in the native ALL group, localized `KMC.MountedShield.Name/Description`, sprite
+and Shield Focus in the native ALL group (plus the hidden availability check above, which shows no text), localized `KMC.MountedShield.Name/Description`, sprite
 `KMC_MountedShield_Feat_Icon` from the embedded `KingmakerMountedCombat.Assets.MountedShieldFeat.png`. Registered after
 Mounted Archery; its faults (icon, prerequisite blueprints, GUID collision, a competing Mounted Shield in any list KMC
 publishes to) withdraw only this feat with a logged diagnostic. Removal preparation knows the new GUID and reference.
@@ -77,8 +77,11 @@ publishes to) withdraw only this feat with a logged diagnostic. Removal preparat
 one lease per array, in that order, with independent withdrawal: a required list (ordinary or fighter) losing one
 optional feat withdraws only that feat everywhere; Mounted Combat, the other optional feat and foreign entries stay. The
 two-feat constructor and Mounted Archery's API and diagnostics are unchanged. The per-frame refresh is a full membership
-check, so another mod's in-place edit of a required list withdraws within a frame. Disabling restores KMC-owned arrays
-exactly and removes only KMC's own entries from an array another mod changed.
+check, so another mod's in-place edit of a required list withdraws within a frame, and it collapses a copied second
+reference to a KMC feat. Disabling restores KMC-owned arrays exactly and removes only KMC's own entries from an array
+another mod changed; that stripped foreign value becomes the list's original, so re-enabling republishes after it. A
+refused enable or disable returns the combat-feat publication to agree with the services. A hidden native prerequisite
+refuses Mounted Shield at the selection decision whenever its rule is unavailable (never affecting existing owners).
 
 **Icon.** The supplied 64x64 RGBA PNG, byte-for-byte (SHA-256 `fd519874…`), is the only new embedded resource. The full
 packet (master, 512px export, generated image, review sheet, prompts, rejected revision, manifest) is preserved under
@@ -126,7 +129,10 @@ Executed (all offline; none is native evidence):
   - On `16a4cc56` (after the review corrections): PASS, 23.7 s; components 1506/0, Validate-Source 153/0, focused 3 of 3
     (native contract 72/0, Mounted Archery donor 54/0, ranged movement 5/0). Receipt
     `gate-focused-16a4cc5625ff-…-20261123T173406517396Z.log`.
-  - Budget `mounted-shield`: 0.71 of 90 minutes after both.
+  - On `1f1bb814` (after the round-2 corrections): PASS, 21.7 s; components 1507/0, Validate-Source 153/0, focused 3 of
+    3 (native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0). Receipt
+    `gate-focused-1f1bb814ca5e-…-20261123T175456604438Z.log`.
+  - Budget `mounted-shield`: 1.05 of 90 minutes after all three.
 - `docs/missions/mounted-shield/tools/verify_packet.py`: 26 files, runtime PNG checks PASS.
 
 Not selected: the Candidate tier (it stops on the recorded `Test-Harness.ps1` 278/3 baseline failures, docs/CITY-AND-
@@ -134,8 +140,9 @@ PRONE-HANDOFF.md section 10), Full, packaging and every native campaign.
 
 ## 5. Independent review of the coherent change
 
-Round 1 on `1c49cb20`: CHANGES REQUIRED, five findings, all fixed in `16a4cc56`; the record and dispositions are in
-[PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md). Round 2 on the corrected candidate: section 9.
+Round 1 on `1c49cb20`: CHANGES REQUIRED, five findings, fixed in `16a4cc56`. Round 2 on `70ac70c0`: CHANGES REQUIRED,
+six findings, fixed in `1f1bb814`. Records and dispositions: [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md). Round 3:
+section 9.
 
 ## 6. Native evidence: blocked, and what would run
 
@@ -160,10 +167,10 @@ general Mobility alone and would be three high with a +3 shield (review note).
 
 ## 7. Artifact identities
 
-- Production source `16a4cc5625ffb3d2d2a58c5af845b1694fd1d619` (after the review corrections); later commits are records
-  only. The first candidate's production source was `801e1cd3` (DLL `ae4f8a92…`, MVID `5fd8fafa…`), superseded.
-- DLL (gate build, `bin\Release`): SHA-256 `30bf64ab0ec4bf350e79cec8485bd7ee6cd69bcf6a37ed05e72750298fde8668`, MVID
-  `a0761478-0327-4e98-9818-fe171ad07c66`, 9,584,640 bytes.
+- Production source `1f1bb814ca5e908e8128b35ecef4147ee2868562` (after both review correction batches); later commits are
+  records only. Superseded production sources: `801e1cd3` (DLL `ae4f8a92…`) and `16a4cc56` (DLL `30bf64ab…`).
+- DLL (gate build, `bin\Release`): SHA-256 `8c40a66c0f3b9a2c37b86006dd5c795f849313171bba74b1cf9cc04b759e4b36`, MVID
+  `2c971267-831e-409e-8029-cb2d1aed6f31`, 9,586,688 bytes.
 - Icon: packet, `src/KingmakerMountedCombat/Assets/MountedShieldFeat.png` and the extracted resource all SHA-256
   `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0`.
 - No package was built (no native candidate).
