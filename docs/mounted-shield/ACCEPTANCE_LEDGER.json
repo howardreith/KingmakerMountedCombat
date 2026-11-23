@@ -1,0 +1,377 @@
+{
+  "schema": "kmc-mounted-shield.acceptance.v1",
+  "mission_id": "KMC-MOUNTED-SHIELD-2026-11-23",
+  "status": "EXECUTED_OFFLINE_NATIVE_BLOCKED",
+  "candidate_source": "801e1cd34fc863060fcc6dbfbd6a0a64d8a35990",
+  "candidate_dll_sha256": "ae4f8a923bd2195ac7041aa8fa5d0d22d3bb459556f1563d20386588a69043a4",
+  "runtime_platform": "Not used: Kingmaker 2.1.7b with UMM 0.33.0 installed; repository platform pin UMM 0.33.2 (owner decision); no KMC_AUTOMATION_WORKING or KMC_AUTOMATION_BASELINE fixture.",
+  "rows": [
+    {
+      "id": "MS-01",
+      "behavior": "Native prerequisite and preview behavior",
+      "required": true,
+      "expected": "Eligibility follows both native ALL prerequisites; preview rolls back correctly; no extra rank/BAB/mount-owner rule.",
+      "evidence_layer": "Native blueprint/level-up; production contract tests",
+      "status": "BLOCKED",
+      "observed": "Source: exactly two PrerequisiteFeature components (Mounted Combat, Shield Focus ac57069b...), Group=All; no rank, BAB or mount prerequisite. Native level-up preview, same-level picks, Back/cancel and respec not observed.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Production construction only; native prerequisite evaluation and level-up UI not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-02",
+      "behavior": "Feat identity and donor contract",
+      "required": true,
+      "expected": "One stable single-rank Feat+CombatFeat feature, donor flags retained, no duplicate, expected native respec behavior.",
+      "evidence_layer": "Genuine blueprint contract; native selection/respec",
+      "status": "PARTIAL",
+      "observed": "Production BuildMountedShieldContract + MountedShieldContractViolation on genuine BlueprintFeature objects with the installed Power Attack donor: Feat+CombatFeat, 1 rank, IsClassFeature=True retained, visible, DlcType None; forcing IsClassFeature=false is refused. Fresh GUID 671a301bd1774677a8bfa2873d33b191; a collision is refused at registration.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native selection, acquisition and respec not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-03",
+      "behavior": "Native base-shield amount",
+      "required": true,
+      "expected": "Eligible contributions +2/+2/+3/+5, derived from native base data and used by both actual consumers.",
+      "evidence_layer": "Production policy+native adapter; native spot checks of supported categories",
+      "status": "PARTIAL",
+      "observed": "Installed stock shield types decoded: Buckler/Light/Heavy/Tower base +1/+1/+2/+4 (cross-checked proficiency group, ACP, ASF, IsShield). Production ShieldBaseBonus on genuine item objects returns those values; production Amount with Shield Focus gives +2/+2/+3/+5. Both consumers call the same Amount.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Effective-shield read on a live unit and native spot checks not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-04",
+      "behavior": "Enhancement exclusion",
+      "required": true,
+      "expected": "Equal base produces equal feat contribution; no enhancement or unrelated item property passes through.",
+      "evidence_layer": "Production-path cases; native enchanted example",
+      "status": "PARTIAL",
+      "observed": "The production read is ArmorComponent.Blueprint.ArmorBonus, the armor-type value ItemEntityArmor.RecalculateStats adds before GameHelper.GetItemEnhancementBonus; on genuine objects a +5-enchanted item blueprint with a shield weapon component returns the same base. Enhancement is not an input to Amount.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "No native enchanted shield or temporary enhancement observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-05",
+      "behavior": "Greater Shield Focus",
+      "required": true,
+      "expected": "Both contributions change +3 to +4 and back; each focus counted once, in line with the mission ruling.",
+      "evidence_layer": "Production policy/adapter; native fact change",
+      "status": "PARTIAL",
+      "observed": "Production Amount: heavy +3 with Shield Focus, +4 with Greater Shield Focus (afd05ca5..., resolved by GUID and name), each counted once; the ledger replaces +3 with +4 without stacking.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native fact add/remove not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-06",
+      "behavior": "No qualifying physical shield",
+      "required": true,
+      "expected": "Both benefits are zero; unrelated magical defense stays on its actual owner.",
+      "evidence_layer": "Production adapter; native equipment/effect check",
+      "status": "PARTIAL",
+      "observed": "Amount is zero without an effective shield, focus included. Effective shield = ItemEntityShield in the active off-hand of the current set whose own native Shield AC modifier applies; inventory, an inactive set and Shield-descriptor spells never qualify (source).",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native equipment/effect check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-07",
+      "behavior": "Live equipment changes",
+      "required": true,
+      "expected": "Next relevant AC/check uses current eligible shield, sheet refreshes, no remount required and no reaction recharge.",
+      "evidence_layer": "Native equipment and check observations",
+      "status": "PARTIAL",
+      "observed": "The reconcile reads the live rider every ordinary frame and rewrites only on change (ledger tests: amount change, swap, unequip); no reaction state is read or written.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native equip/swap/set-switch and sheet refresh not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-08",
+      "behavior": "Effective shield suppression",
+      "required": true,
+      "expected": "Tracks native effective availability/restoration; does not create a second shield-rules engine. Document actual platform behavior.",
+      "evidence_layer": "Installed native contract plus relevant guarded case",
+      "status": "PARTIAL",
+      "observed": "Installed contract read: ItemSlot.OnActiveChanged -> OnWillUnequip removes the armor component's modifiers for an inactive or disabled slot, and the adapter requires that native modifier; HandSlot.MaybeWeapon exposes the shield weapon for a bash without touching the armor modifiers, so in 2.1.7b a bash keeps protection and eligibility. No second shield-rules engine.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Behavior read from installed code, not observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-09",
+      "behavior": "Shield stacking and independent check amount",
+      "required": true,
+      "expected": "Native highest shield result, no additive untyped AC; check still receives +3 even when AC delta is zero.",
+      "evidence_layer": "Native AC and actual Mobility rule",
+      "status": "PARTIAL",
+      "observed": "Production AddMountShieldBonus on a genuine ModifiableValue: +3 alone gives 13; with a stronger +4 Shield source 14 (not 17) and the display list shows the +4 alone; equal or weaker sources keep 13. The check amount is computed independently of the mount's AC and stays +3.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native mount AC in an attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-10",
+      "behavior": "AC contexts and presentation",
+      "required": true,
+      "expected": "Ordinary/flat-footed shield behavior retained; normal touch excludes shield; sheet reflects real defense. Existing reaction eligibility remains separate.",
+      "evidence_layer": "Native AC rules and UI",
+      "status": "PARTIAL",
+      "observed": "Installed ModifiableValueArmorClass predicates through the native ApplyModifiersFiltered: touch excludes the contribution (10), flat-footed keeps it (13); with armor, natural armor, deflection and dodge: 21/20/12. Sheet and tooltip read the same stat and name the source fact (StatModifiersBreakdown uses Modifier.Source).",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native sheet/tooltip and attack contexts not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-11",
+      "behavior": "Actual check boundary and attribution",
+      "required": true,
+      "expected": "Equality fails; greater succeeds. Native Bonus/RollResult/DC/log agree; shield contribution counted once before trigger; ordinary penalties remain.",
+      "evidence_layer": "Actual production RuleSkillCheck; identify controlled rolls",
+      "status": "PARTIAL",
+      "observed": "Production AddCheckBonus on a genuine RuleSkillCheck (DC = attack + 1): stat 10 + d20 9 + 3 = 22 against attack 22 fails (native IsPassed and the production strict rule agree); d20 10 gives 23 and succeeds; the untyped addition stacks with another check bonus and counts once; it is added before Rulebook.Trigger in MountedCombatDefenseService.RollCheck.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Forced-roll native trigger and combat log not run (the existing ScenarioD20 seam is unchanged). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-12",
+      "behavior": "No general Mobility increase",
+      "required": true,
+      "expected": "No new persistent skill stat or bonus outside designated hit-negation rule.",
+      "evidence_layer": "Native skill stat/ordinary rule",
+      "status": "PARTIAL",
+      "observed": "By construction the only check write is to the one RuleSkillCheck instance MountedCombatDefenseService creates; no rider stat, buff or other rule is modified.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native displayed Mobility and unrelated checks not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-13",
+      "behavior": "Reaction preference and spent state",
+      "required": true,
+      "expected": "Passive mount AC persists; no new toggle exists; check only occurs when existing reaction permits it.",
+      "evidence_layer": "Native preference/use-state behavior",
+      "status": "PARTIAL",
+      "observed": "The AC desire never reads the Mounted Combat toggle or the Spent/Owed/Window buffs; no new toggle, ability or resource exists. The check still occurs only where the existing policy permits it.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native preference and use-state behavior not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-14",
+      "behavior": "AC already prevented hit",
+      "required": true,
+      "expected": "No Mounted Combat attempt, use or Swift charge for an already-missed attack.",
+      "evidence_layer": "Native attack and existing reaction record",
+      "status": "PARTIAL",
+      "observed": "ResolveAttack still returns on !rule.IsHit; the contribution is part of the native AC the attack rule reads, so an attack it turns into a miss never reaches the reaction.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-15",
+      "behavior": "Existing reaction mechanics",
+      "required": true,
+      "expected": "Unchanged refusal/strict comparison/once-per-round/Swift-debt/failure consumption; shield changes do not refund use.",
+      "evidence_layer": "Existing policy regressions plus bounded native TB/RT evidence",
+      "status": "PARTIAL",
+      "observed": "MountedCombatDefensePolicy and its tests are unchanged and passing (component runner 1502/0); the only seam change is the Bonus addition before Trigger and the log text.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Bounded native TB/RT evidence not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-16",
+      "behavior": "Multiple pair isolation",
+      "required": true,
+      "expected": "Each actual mount receives only its own rider contribution; UI-selected pair is irrelevant.",
+      "evidence_layer": "Production adapters and native multi-pair spot check",
+      "status": "PARTIAL",
+      "observed": "Ledger tests: two pairs supplying +3 and +5 each receive only their own value; one rider's change rewrites only its mount; a contested mount receives neither. Desires come from world.Pairs; Selected is never read.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native multi-pair spot check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-17",
+      "behavior": "Relationship teardown and replacement",
+      "required": true,
+      "expected": "Old mount is clean, next mount gets current amount once; no cross-owner leakage or exceptions.",
+      "evidence_layer": "Production lifecycle path and guarded teardown case",
+      "status": "PARTIAL",
+      "observed": "Ledger tests: a mount swap leaves the old mount clean and the new one with one value; dismount releases (PairDismounting); dead or invalid units read as ineligible and are removed by the next pass.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Guarded native teardown case not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-18",
+      "behavior": "Save/load and area lifecycle",
+      "required": true,
+      "expected": "One current contribution; no serialized stale/doubled bonus; no new save/door failure attributable to this feature.",
+      "evidence_layer": "Guarded native fixture with baseline distinction",
+      "status": "BLOCKED",
+      "observed": "Design: the feat fact's MountedShieldFeatureLogic.OnTurnOff releases the value when the native save path turns the party and area off before serialization; a stray value is dropped by the native load CleanupModifiers (the mount does not own the source fact); the ordinary pass restores one value after load.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "No save/load or area transition observed; no X05 interaction claimed either way. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-19",
+      "behavior": "Fact and service lifecycle",
+      "required": true,
+      "expected": "Exactly-owned cleanup; other shield sources untouched; reacquisition works; no subscription or modifier leak.",
+      "evidence_layer": "Production lifecycle tests; native user-visible subset",
+      "status": "PARTIAL",
+      "observed": "Ledger tests for release, ReleaseAll and the retry after a failed removal; the composition root wires Enabled false, update-failure cleanup, dispose and construction rollback; ReleaseAll also sweeps loaded units for this feature's own modifier identity only.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native fact removal, respec and disable not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-20",
+      "behavior": "Three-feat coordinated publication",
+      "required": true,
+      "expected": "Each once in deterministic order; one coordinated ownership mechanism; no independent-lease clobbering.",
+      "evidence_layer": "Real production publication component",
+      "status": "PASS",
+      "observed": "One KmcCombatFeatPublicationSet now owns Mounted Combat, Mounted Archery and Mounted Shield: each once, in fixed order, foreign entries kept; component tests and the production set on genuine BlueprintFeatureSelection arrays (publish and exact restore).",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)"
+      ],
+      "scope_and_limits": "Offline production component, as the row requires; native library membership is observed only after the gates open."
+    },
+    {
+      "id": "MS-21",
+      "behavior": "Foreign array changes",
+      "required": true,
+      "expected": "Preserve foreign entries/order; required availability agrees with selectable presence; safe narrow withdrawal and disable restoration.",
+      "evidence_layer": "Existing and extended production publication tests",
+      "status": "PASS",
+      "observed": "Component tests: foreign append/reorder keep both rules; an in-place reintroduction is removed while withdrawn; a replaced required list is examined before any removal; disable restores exact originals; re-enabling after a withdrawal publishes the remaining feats; the existing Mounted Archery publication tests are unchanged and pass.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)"
+      ],
+      "scope_and_limits": "Offline production component."
+    },
+    {
+      "id": "MS-22",
+      "behavior": "Isolated readiness/asset failures",
+      "required": true,
+      "expected": "Clear diagnostic and feature-specific safe withdrawal; existing other feat unaffected; never selectable-but-inoperative new feat.",
+      "evidence_layer": "Production registration/publication failure paths",
+      "status": "PARTIAL",
+      "observed": "Registration faults (icon missing or undecodable, prerequisite blueprints, GUID collision, a duplicate Mounted Shield) withdraw only Mounted Shield with a logged diagnostic; withdrawal from a required list removes only Mounted Shield (component tests) and IsMountedShieldAvailable turns both benefits off; losing Mounted Archery never disables Mounted Shield.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Registration-fault paths verified by inspection and component tests, not by an injected native fault (no fault injection was added to production). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-23",
+      "behavior": "Exact icon packaging",
+      "required": true,
+      "expected": "SHA-256 equal, 64x64 RGBA, one intended runtime resource; no master/review image embedded.",
+      "evidence_layer": "Binary resource extraction plus actual blueprint binding",
+      "status": "PARTIAL",
+      "observed": "SHA-256 fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0 for the packet PNG, src/KingmakerMountedCombat/Assets/MountedShieldFeat.png and the extracted DLL resource KingmakerMountedCombat.Assets.MountedShieldFeat.png; 64x64 RGBA8; the only Mounted Shield resource in the DLL. Registration binds the sprite KMC_MountedShield_Feat_Icon and logs its texture size.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)"
+      ],
+      "scope_and_limits": "The loaded blueprint sprite in the live game is not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-24",
+      "behavior": "Native UI and copy",
+      "required": true,
+      "expected": "Horse/shield/circle recognizable; description has both benefits and enhancement exclusion; no second active icon/button.",
+      "evidence_layer": "Native screenshots/observations, distinct from desktop review sheet",
+      "status": "BLOCKED",
+      "observed": "The localized name and description (both benefits, enhancement exclusion, passive) are registered; no second icon, toggle or action-bar button exists.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native UI not observed; the owner aesthetic assessment is pending. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    },
+    {
+      "id": "MS-25",
+      "behavior": "Target build and gated candidate",
+      "required": true,
+      "expected": "Successful target binary/receipt with honest source linkage; no unsupported skip-build shortcut or new library.",
+      "evidence_layer": "Actual build/gate/package receipts",
+      "status": "PARTIAL",
+      "observed": "Kingmaker target build (MSBuild Release) and controller gate focused PASS on 801e1cd3; DLL ae4f8a923bd2195ac7041aa8fa5d0d22d3bb459556f1563d20386588a69043a4, MVID 5fd8fafa-0f18-42ba-870e-c10fd25e4be0, 9,577,472 bytes; no new library.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "No qualification package built: Package.ps1 belongs to the native candidate the blocked platform gate prevents. The Candidate tier was not selected (it stops on the recorded Test-Harness 278/3 baseline)."
+    },
+    {
+      "id": "MS-26",
+      "behavior": "Affected regression neighbors",
+      "required": true,
+      "expected": "Existing behavior preserved; targeted checks only, no redundant historical full campaign.",
+      "evidence_layer": "Impact map and named existing checks",
+      "status": "PASS",
+      "observed": "Impact map and neighbors: the component runner (defense policy, Mounted Archery contract and publication), Validate-Source 153/0, Test-MountedArcheryFeatContract 54/0 and Test-MountedRangedMovementContracts 5/0, all through the controller focused gate.",
+      "evidence_refs": [
+        "component runner TOTAL 1502/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 68/0; controller gate focused on 801e1cd3 (TIER FAST 4/0)",
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Targeted checks only; no historical Full campaign."
+    },
+    {
+      "id": "MS-27",
+      "behavior": "Restoration and complete handoff",
+      "required": true,
+      "expected": "Protected surfaces restored; required rows evidenced or explicitly blocked; current draft/handoff and exact identities, no merge/release/normal install.",
+      "evidence_layer": "Runtime receipts; accepted review; status --remote",
+      "status": "BLOCKED",
+      "observed": "No native transaction ran, so nothing was staged and no restoration was needed. The controller endpoint is a documented blocker, not AWAITING_OWNER_REVIEW.",
+      "evidence_refs": [
+        "docs/mounted-shield/HANDOFF.md"
+      ],
+      "scope_and_limits": "Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+    }
+  ]
+}

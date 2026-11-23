@@ -1,6 +1,22 @@
-# RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
+# MOUNTED SHIELD FEAT (2026-11-23, BRANCH codex/mounted-shield, PR #61)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Mission:** [docs/missions/mounted-shield/MISSION.md](docs/missions/mounted-shield/MISSION.md), the owner's packet,
+  byte-identical. Software factory, foreground: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, plan `single`.
+- **Feature:** a passive combat feat (prerequisites Mounted Combat and Shield Focus). The rider's shield base bonus plus
+  Shield Focus and Greater Shield Focus, never enhancement, becomes a native shield bonus on the current mount's AC and an
+  addition to the Mounted Combat hit-negation Mobility check. Three-feat coordinated publication with independent
+  withdrawal. Supplied icon embedded byte-for-byte.
+- **Offline:** controller focused Fast gate PASS on `801e1cd3` (components 1502/0, Validate-Source 153/0, focused 3 of 3:
+  native contract 68/0, Mounted Archery donor 54/0, ranged movement 5/0). DLL `ae4f8a92…`, MVID `5fd8fafa…`.
+- **Native:** BLOCKED. UMM 0.33.0 installed against the 0.33.2 pin (owner decision) and no KMC Working fixture. No game
+  launch, staging or install.
+- **Read:** [docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) and its
+  [acceptance ledger](docs/mounted-shield/ACCEPTANCE_LEDGER.json).
+- **Not authorized:** merge, release, install.
+
+# RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
 
 - **Release:** 0.2.15, by owner order on 2026-11-22, from main after PR #59 (merged as `d409bffc`). Notes:
   [docs/RELEASE-NOTES-0.2.15.md](docs/RELEASE-NOTES-0.2.15.md). The package identity is recorded on the GitHub release.

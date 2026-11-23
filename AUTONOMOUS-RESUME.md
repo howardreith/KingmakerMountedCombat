@@ -1,3 +1,17 @@
+# Mounted Shield feat (2026-11-23, branch codex/mounted-shield, PR #61)
+
+Factory mission KMC-MOUNTED-SHIELD-2026-11-23 (foreground enrollment `kmc-codex-mounted-shield-20261123114646-4433`). Read
+CURRENT.md (its first section) and docs/mounted-shield/HANDOFF.md.
+
+- **Rules:**
+  - One calculation (`MountedShieldPolicy.Amount` over `MountedShieldService.ReadFacts`) serves the mount AC and the check;
+    never snapshot it, never read enhancement, never add a parallel test-only formula.
+  - The mount value is a native `Shield` modifier owned by `MountedShieldContributionLedger`; it is released by the fact's
+    turn-off (the native save path) and must never be written into a save or survive its pair.
+  - Mounted Archery and Mounted Shield are withdrawn independently by the one `KmcCombatFeatPublicationSet`.
+- **Open:** every native/UI acceptance row (UMM 0.33.0/0.33.2 pin and no KMC Working fixture; owner decisions).
+- **Not authorized:** merge, release, install.
+
 # Release 0.2.15 (owner order, 2026-11-22)
 
 0.2.15 releases PR #59 (merged as `d409bffc`): X05's save-wait diagnostics and accurate save messages. Read CURRENT.md
