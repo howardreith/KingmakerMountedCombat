@@ -13,8 +13,8 @@ foreground session; the verbatim prompt is kept outside the worktree at
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
 `C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
-`fb19d496` (round-5 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
-`70fdc113565e344a1dc477641b855dd894dff3f5c337d82a822c926236ff7108`, MVID `bb2bf2b0-66ac-4526-bb85-3d5445b46119`. Round-4
+`4092676b` (round-6 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
+`2cc090ed9cbf45a132434cb66a41f6ba1ac74c094c8a4d5bf7a8f7d368e348e7`, MVID `4e4f4e83-bd9f-481b-983d-f2c5aab06a46`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
 source `bb0c53d5`: DLL `5978e285…`, MVID `94c4e4d2…`. The final identities and package are in the closing records below. The first
 continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
 `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
@@ -103,7 +103,8 @@ restore helper, both loader binding checks, native inventory reader, frozen-prod
 in `bb0c53d5` and PN4-F7 resolved by documenting the persistence route; see [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md).
 Fast gate on `bb0c53d5`: PASS, 61.6 s (components 1508/0, Validate-Source 153/0, focused 18/18). Round 5 on `1bac699e`:
 CHANGES REQUIRED, nine findings (PN5-F1–F9), all fixed in `fb19d496` (PN5-F4 in these records); Fast gate on `7661a0ec`: PASS,
-52.8 s. Round 6 and the controller endpoint follow in the review record.
+52.8 s. Round 6 on `1fc9ddb0`: CHANGES REQUIRED, seven findings (PN6-F1–F7), all fixed in `4092676b`; controller focused gate
+on `4092676b`: PASS, 60.3 s (components 1512/0). Round 7 and the controller endpoint follow in the review record.
 
 ## 1. Outcome
 
