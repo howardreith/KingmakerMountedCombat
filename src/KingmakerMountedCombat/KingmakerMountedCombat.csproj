@@ -150,6 +150,9 @@
     <EmbeddedResource Include="Assets\MountedArcheryFeat.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedArcheryFeat.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedShieldFeat.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedShieldFeat.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Assets\MountedCombatReaction.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedCombatReaction.png</LogicalName>
     </EmbeddedResource>
@@ -455,6 +458,7 @@
     <Compile Include="Domain\MountedRangedMovementPolicy.cs" />
     <Compile Include="Domain\KmcCombatFeatPublication.cs" />
     <Compile Include="Domain\MountedArcheryFeatContract.cs" />
+    <Compile Include="Domain\MountedShieldPolicy.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
@@ -598,12 +602,14 @@
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.MountedShieldFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\MountedRangedMovementService.cs" />
+    <Compile Include="Integration\MountedShieldService.cs" />
     <Compile Include="Integration\MountedRiderFallService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />

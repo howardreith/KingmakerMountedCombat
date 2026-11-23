@@ -34,6 +34,8 @@ namespace KingmakerMountedCombat
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
         private readonly MountedRangedMovementService mountedRangedMovement;
+        // Mounted Shield: the passive mount AC contribution and the Mounted Combat check addition (one calculation).
+        private readonly MountedShieldService mountedShield;
         // Known issues Sprint 7 (U04): the mounted badge and the folded mount's tracker hover; presentation only.
         private readonly MountedPairPresentation pairPresentation;
         private readonly MountedRiderFallService riderFalls;
@@ -80,7 +82,8 @@ namespace KingmakerMountedCombat
                 removalShortcut = new RemovalPreparationShortcut(removal, new NativeTextDialog(), logger);
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
-                mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
+                mountedShield = new MountedShieldService(horseCompanion, world, logger);
+                mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, mountedShield, () => persistence.CombatRestorationPending, logger);
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 var badgeSource = horseCompanion;
                 pairPresentation = new MountedPairPresentation(world, () => badgeSource.MountSaddleIcon, logger);
@@ -140,6 +143,7 @@ namespace KingmakerMountedCombat
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedRangedMovement?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { mountedShield?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { pairPresentation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { riderFalls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -204,6 +208,7 @@ namespace KingmakerMountedCombat
                 IsEnabled = true;
                 mountedCombatDefense.Enabled = true;
                 mountedRangedMovement.Enabled = true;
+                mountedShield.Enabled = true;
                 pairPresentation.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
@@ -254,6 +259,8 @@ namespace KingmakerMountedCombat
             IsEnabled = false;
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
+            // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted.
+            mountedShield.Enabled = false;
             pairPresentation.Enabled = false;
             pairPresentation.ReleaseAtWorldBoundary("disabled");
             persistence.Enabled = false;
@@ -333,6 +340,7 @@ namespace KingmakerMountedCombat
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
+            mountedShield.ReleaseAll("update failure cleanup");
             IsEnabled = false;
         }
 
@@ -365,6 +373,12 @@ namespace KingmakerMountedCombat
             // Known issues sprint 3 (review of 25cbdbe2): retained stick-movement cleanup is retried here too, so its
             // recovery does not depend on the ordinary pair update below, which stops when the services are disabled.
             if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Relationship.RecoverContinuousDriveCleanup());
+            // Mounted Shield: stale mount contributions are removed here, ahead of the ordinary gates, so a changed shield,
+            // feat or pair never keeps its bonus while a save, area transition or restoration suspends ordinary updates. New
+            // contributions are written only by the ordinary pass below. Not while an archive worker serializes the live
+            // graphs or an owned load replaces the world (the native save path has already released the contributions,
+            // and the loaded world carries none).
+            if (!persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight) mountedShield.Update(false);
             removal.Update();
             removalShortcut.Update();
             // A latched update-failure cleanup runs on the first frame after the
@@ -399,6 +413,7 @@ namespace KingmakerMountedCombat
             var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { world.UpdatePairs(); }
             finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
+            mountedShield.Update(true);
             explorationObserver.Update();
             var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { unifiedTurn.Update(); }
@@ -444,6 +459,7 @@ namespace KingmakerMountedCombat
             Integration.NativeCommandTerminalBranches.Reset();
             mountedCombatDefense.Dispose();
             mountedRangedMovement.Dispose();
+            mountedShield.Dispose();
             pairPresentation.Dispose();
             riderFalls.Dispose();
             ridingDogTack.Dispose();

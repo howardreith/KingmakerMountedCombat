@@ -127,6 +127,8 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." },
             { "KMC.MountedArchery.Name", "Mounted Archery" },
             { "KMC.MountedArchery.Description", "In turn-based combat, this feat reduces the penalty on your ranged weapon attacks from -4 to -2 after your mount has used more than one move action's worth of normal movement in its current turn. Five-foot steps and charges are not normal movement. The penalty is determined when each attack is made; it does not change attacks already resolved. It does not apply in real-time combat." },
+            { "KMC.MountedShield.Name", "Mounted Shield" },
+            { "KMC.MountedShield.Description", "While you are mounted and using a shield, your mount gains a shield bonus to AC equal to your shield's base bonus, including Shield Focus and Greater Shield Focus but excluding enhancement bonuses. You also add this amount to Mobility checks made by Mounted Combat to negate hits against your mount. This benefit is passive." },
             { "KMC.MountedRangedMovement.Name", "Mounted movement" },
             { "KMC.MountedRangedMovement.Description", "A ranged weapon attack made after your mount has used more than one move action's worth of normal movement this turn takes a -4 penalty." },
             { "KMC.MountedRangedMovement.Reduced.Name", "Mounted movement (Mounted Archery)" },
@@ -1256,6 +1258,7 @@ namespace KingmakerMountedCombat.Integration
             }
             RemoveDivineMount(library);
             RemoveRidingDog(library);
+            RemoveMountedShieldFeat(library);
             RemoveMountedArcheryFeat(library);
             RemoveMountedCombatFeat(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);

@@ -28,6 +28,8 @@ namespace KingmakerMountedCombat.Integration
         internal MountedCombatDefenseRefusal Refusal;
         internal MountedCombatDefenseCommitment Commitment;
         internal int AttackD20, AttackBonus, AttackResult, TargetAc, CheckD20, CheckStat, CheckBonus, CheckResult, CheckDc, Round, Frame;
+        // Mounted Shield's addition to this check's native Bonus (already inside CheckBonus and CheckResult); 0 when none.
+        internal int ShieldBonus;
         internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced, ForcedHitContext;
         internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
@@ -54,6 +56,7 @@ namespace KingmakerMountedCombat.Integration
 
         private readonly HorseCompanionBlueprintService blueprints;
         private readonly MountedWorldService world;
+        private readonly MountedShieldService mountedShield;
         private readonly Func<bool> restorationPending;
         private readonly IModLogger logger;
         private bool resolving, disposed;
@@ -69,10 +72,12 @@ namespace KingmakerMountedCombat.Integration
         internal Func<MountedCombatDefenseRecord, int?> ScenarioD20 { get; set; }
         internal event Action<MountedCombatDefenseRecord> Observed;
 
-        internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, Func<bool> restorationPending, IModLogger logger)
+        internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, MountedShieldService mountedShield,
+            Func<bool> restorationPending, IModLogger logger)
         {
             this.blueprints = blueprints ?? throw new ArgumentNullException(nameof(blueprints));
             this.world = world ?? throw new ArgumentNullException(nameof(world));
+            this.mountedShield = mountedShield ?? throw new ArgumentNullException(nameof(mountedShield));
             this.restorationPending = restorationPending ?? throw new ArgumentNullException(nameof(restorationPending));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             EventBus.Subscribe(this);
@@ -141,7 +146,7 @@ namespace KingmakerMountedCombat.Integration
             if (record.Refusal == MountedCombatDefenseRefusal.None)
             {
                 // Committed before the roll: a failed check still spends the use and the action.
-                if (Apply(rider, before, MountedCombatDefensePolicy.Commit(before, commitment))) RollCheck(rule, rider, record);
+                if (Apply(rider, before, MountedCombatDefensePolicy.Commit(before, commitment))) RollCheck(rule, rider, mount, record);
                 else record.Refusal = MountedCombatDefenseRefusal.RiderCannotAct;
             }
             record.ResultAfter = rule.Result.ToString();
@@ -153,7 +158,7 @@ namespace KingmakerMountedCombat.Integration
             Observed?.Invoke(record);
         }
 
-        private void RollCheck(RuleAttackRoll rule, UnitEntityData rider, MountedCombatDefenseRecord record)
+        private void RollCheck(RuleAttackRoll rule, UnitEntityData rider, UnitEntityData mount, MountedCombatDefenseRecord record)
         {
             record.Attempted = true;
             AttemptCount++;
@@ -164,6 +169,11 @@ namespace KingmakerMountedCombat.Integration
             var dc = record.AttackResult + 1;
             var check = forced.HasValue ? new ControlledSkillCheck(rider, dc, forced.Value) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
             check.IgnoreDifficultyBonusToDC = true;
+            // Mounted Shield: the rider's eligible shield amount joins this one rule's native Bonus before it is triggered, so
+            // the native roll, its log entry and the strict comparison below all include it. The use is already committed, so
+            // a fault here costs only the addition, never the check.
+            try { record.ShieldBonus = mountedShield.ContributeToCheck(check, rider, mount); }
+            catch (Exception exception) { logger.Exception("Mounted Shield check contribution", exception); }
             Rulebook.Trigger<RuleSkillCheck>(check);
             record.CheckD20 = check.D20; record.CheckStat = check.StatValue; record.CheckBonus = (int)check.Bonus; record.CheckResult = check.RollResult; record.CheckDc = check.DC;
             record.Negated = MountedCombatDefensePolicy.Negates(check.RollResult, record.AttackResult);
@@ -191,7 +201,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void ReportToLog(UnitEntityData rider, MountedCombatDefenseRecord record)
         {
-            var text = "Mounted Combat: " + rider.CharacterName + " rolls Mobility " + record.CheckResult + " against attack " + record.AttackResult +
+            var text = "Mounted Combat: " + rider.CharacterName + " rolls Mobility " + record.CheckResult +
+                (record.ShieldBonus > 0 ? " (Mounted Shield +" + record.ShieldBonus + ")" : "") + " against attack " + record.AttackResult +
                 (record.Negated ? " and negates the hit on the mount." : "; the hit stands.");
             logger.Info(text);
             try { Game.Instance.UI?.BattleLogManager?.LogView?.AddLogEntry(text, new Color32(52, 40, 28, 255), LogChannel.Combat); }

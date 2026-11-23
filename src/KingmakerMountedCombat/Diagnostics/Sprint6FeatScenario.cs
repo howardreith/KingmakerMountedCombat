@@ -307,13 +307,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["lastIsFeat"] = ReferenceEquals(selection.AllFeatures.Last(), horseService.MountedCombatFeature), ["kmcTailExact"] = Sprint6KmcTailExact(selection.AllFeatures), ["occurrences"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedCombatFeature)) }));
         }
 
-        // Mounted Archery follows Mounted Combat in the one coordinated KMC lease, so Mounted Combat is last only when Mounted
-        // Archery did not register. The exact appended tail is the publication contract in both cases.
+        // Mounted Archery and Mounted Shield follow Mounted Combat in the one coordinated KMC lease, so Mounted Combat is last
+        // only when neither is offered. The exact appended tail is the publication contract in every case.
         private bool Sprint6KmcTailExact(BlueprintFeature[] features)
         {
             if (horseService.MountedCombatFeature == null || features == null) return false;
             var tail = KmcCombatFeatPublication.Items(horseService.MountedCombatFeature,
-                horseService.MountedArcheryWithdrawn ? null : horseService.MountedArcheryFeature);
+                horseService.MountedArcheryWithdrawn ? null : horseService.MountedArcheryFeature,
+                horseService.MountedShieldWithdrawn ? null : horseService.MountedShieldFeature);
             if (features.Length < tail.Length) return false;
             for (var index = 0; index < tail.Length; index++)
                 if (!ReferenceEquals(features[features.Length - tail.Length + index], tail[index])) return false;

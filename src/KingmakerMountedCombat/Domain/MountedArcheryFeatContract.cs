@@ -24,39 +24,60 @@ namespace KingmakerMountedCombat.Domain
             " HideInUI=" + HideInUI + " HideInCharacterSheetAndLevelUp=" + HideInCharacterSheetAndLevelUp + " HideNotAvailibleInUI=" + HideNotAvailibleInUI;
     }
 
-    // Mounted Archery's registration contract: a stock-shaped combat feat with the Feat and CombatFeat groups, one rank,
-    // KMC's own icon, and the IsClassFeature value of the stock combat feat it is built from (Power Attack).
+    // The registration contract of a KMC passive combat feat: a stock-shaped combat feat with the Feat and CombatFeat
+    // groups, one rank, KMC's own icon, and the IsClassFeature value of the stock combat feat it is built from (Power
+    // Attack). Mounted Archery and Mounted Shield hold the same contract; only the name in the diagnostic differs.
     //
     // Kingmaker 2.1.7b's IsClassFeature does not mean "granted by a class". Every stock feat holds true (Power Attack,
     // Dodge, Mobility, Point Blank Shot, Precise Shot, Rapid Shot, Deadly Aim, Combat Reflexes, Toughness, Iron Will),
     // and so do class features. Its only native readers are in Player.RespecCompanion, where true means "rebuilt by the
     // respec, not carried over as an extra fact". KMC's Mounted Combat already holds the copied value. Release 0.2.9
     // required false, which rejected the inherited stock value on every installation and removed Mounted Archery.
-    public static class MountedArcheryFeatContract
+    public static class KmcCombatFeatContract
     {
         public const string FeatGroup = "Feat";
         public const string CombatFeatGroup = "CombatFeat";
-        public const string FailurePrefix = "Mounted Archery did not retain the single-rank combat-feat contract";
+
+        public static string FailurePrefix(string featName) => featName + " did not retain the single-rank combat-feat contract";
 
         // Null when the feature holds the contract. Otherwise every failed invariant with its observed and expected value,
         // then both fact sets, so one registration log line identifies the cause.
-        public static string Violation(KmcFeatContractFacts feature, KmcFeatContractFacts donor)
+        public static string Violation(KmcFeatContractFacts feature, KmcFeatContractFacts donor, string featName)
         {
             if (feature == null) throw new ArgumentNullException(nameof(feature));
             if (donor == null) throw new ArgumentNullException(nameof(donor));
+            if (string.IsNullOrEmpty(featName)) throw new ArgumentNullException(nameof(featName));
             var failed = new List<string>();
             if (!Holds(feature.Groups, FeatGroup)) failed.Add("groups lack " + FeatGroup);
             if (!Holds(feature.Groups, CombatFeatGroup)) failed.Add("groups lack " + CombatFeatGroup);
             if (feature.Ranks != 1) failed.Add("ranks=" + feature.Ranks + " (expected 1)");
             if (feature.IsClassFeature != donor.IsClassFeature)
                 failed.Add("IsClassFeature=" + feature.IsClassFeature + " (expected the stock donor's " + donor.IsClassFeature + ")");
-            if (!feature.HasIcon) failed.Add("icon absent (expected KMC's Mounted Archery icon)");
-            else if (!feature.IconIsKmc) failed.Add("icon is not KMC's Mounted Archery icon");
+            if (!feature.HasIcon) failed.Add("icon absent (expected KMC's " + featName + " icon)");
+            else if (!feature.IconIsKmc) failed.Add("icon is not KMC's " + featName + " icon");
             if (failed.Count == 0) return null;
-            return FailurePrefix + ": " + string.Join("; ", failed.ToArray()) + ". Feature " + feature.Describe() +
+            return FailurePrefix(featName) + ": " + string.Join("; ", failed.ToArray()) + ". Feature " + feature.Describe() +
                 "; donor PowerAttackFeature " + donor.Describe() + ".";
         }
 
         private static bool Holds(string[] groups, string group) => groups != null && groups.Contains(group, StringComparer.Ordinal);
+    }
+
+    public static class MountedArcheryFeatContract
+    {
+        public const string FeatGroup = KmcCombatFeatContract.FeatGroup;
+        public const string CombatFeatGroup = KmcCombatFeatContract.CombatFeatGroup;
+        public const string FailurePrefix = "Mounted Archery did not retain the single-rank combat-feat contract";
+
+        public static string Violation(KmcFeatContractFacts feature, KmcFeatContractFacts donor) =>
+            KmcCombatFeatContract.Violation(feature, donor, "Mounted Archery");
+    }
+
+    public static class MountedShieldFeatContract
+    {
+        public const string FailurePrefix = "Mounted Shield did not retain the single-rank combat-feat contract";
+
+        public static string Violation(KmcFeatContractFacts feature, KmcFeatContractFacts donor) =>
+            KmcCombatFeatContract.Violation(feature, donor, "Mounted Shield");
     }
 }
