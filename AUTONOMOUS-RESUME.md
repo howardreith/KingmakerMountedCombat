@@ -1,3 +1,15 @@
+# Mounted Shield continuation (2026-11-23, owner amendment 1)
+
+Read CURRENT.md's first section and docs/mounted-shield/HANDOFF.md section 0.
+
+- Done: companion `5be0f737` imported; amendment recorded (revision 1, `8ee86965`); rollback, planned check totals and
+  the gameplay driver/readers in `cb74ad58`; focused Fast gate and package on `cb74ad58`.
+- Next, once the owner admits a disposable seed through the owner-seed route: guarded startup smoke, then
+  `sprint6-shield-rt`, `sprint6-shield-tb` and `mounted-shield-tb-manual`, restoring after each; then the final factory
+  review. Any production or safety change before that needs another supplemental review.
+- Keep: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, budget id `mounted-shield`
+  (set `KMC_WORKFLOW_BUDGET_ID=mounted-shield` for verify), draft PR #61, no merge/release/installation.
+
 # UMM baseline follow-up (2026-11-23, owner decision)
 
 Read the first two sections of CURRENT.md and the 2026-11-23 entry in docs/CHUNK7-NATIVE-LOADER-IDENTITY.md.

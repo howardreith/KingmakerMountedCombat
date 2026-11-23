@@ -17,7 +17,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Production construction only; native prerequisite evaluation and level-up UI not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Production construction only; native prerequisite evaluation and level-up UI not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-selection (and sprint6-shield-tb MS-rider-feat): native LevelUpController levels with Mounted Shield's native CanSelect read in every offered list before and after each choice: refused without Shield Focus (Mounted Combat taken first), refused without Mounted Combat (after Back, and on the second rider's Shield Focus level), eligible with both; Mounted Combat and Shield Focus chosen at one level with a Back (UnselectFeature) the preview follows; every level first chosen and cancelled with no fact or level kept; offered in both the ordinary and fighter lists. Reader: Assert-KmcShieldSelection.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native respec is not driven: Player.RespecCompanion builds a replacement unit through the character-generation UI and doll room, outside the controller-level driver; it remains an owner playtest item. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-02",
@@ -31,7 +38,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native selection, acquisition and respec not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native selection, acquisition and respec not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-selection records the registration (GUID, Feat+CombatFeat, one rank, IsClassFeature retained, visible) and each feat exactly once after acquisition; MS-pairs removes and reacquires the fact.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native respec not driven (see MS-01). Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-03",
@@ -45,7 +59,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Effective-shield read on a live unit and native spot checks not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Effective-shield read on a live unit and native spot checks not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment equips stock buckler, light, heavy and tower shields (created from the library, disclosed) and compares the production amount, the mount's AC modifiers and native AC with +2/+2/+3/+5 and the stock base data.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "A tower shield the native slot refuses for a non-proficient rider is recorded, not forced, and then not required. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-04",
@@ -59,7 +80,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "No native enchanted shield or temporary enhancement observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "No native enchanted shield or temporary enhancement observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment equips every enhanced stock heavy shield found (single armor enchantment) and requires the heavy amount (+3) with the item's native enhancement of at least 1.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Temporary enhancement and shield-weapon enhancement are not driven. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-05",
@@ -73,7 +101,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native fact add/remove not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native fact add/remove not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment adds and removes Greater Shield Focus (fact, disclosed) with a heavy shield: +3, +4, +3.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-06",
@@ -87,7 +122,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native equipment/effect check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native equipment/effect check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment: unequipped (shield kept in the inventory), inactive weapon set, and a rider-only Shield effect (stock Shield-descriptor buff or a native Shield modifier) all give 0 with no contribution.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-07",
@@ -101,7 +143,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native equip/swap/set-switch and sheet refresh not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native equip/swap/set-switch and sheet refresh not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment changes shields and the active weapon set while mounted, observed after the per-frame reconcile; MS-check-rt unequips and re-equips during a running use and requires an unchanged use state.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "The character-sheet refresh itself (UI) is not observed; the native stat values it shows are. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-08",
@@ -114,7 +163,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Behavior read from installed code, not observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Behavior read from installed code, not observed in game. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "No driver case. Effective availability follows the shield's own native AC modifier (the MS-06/MS-07 cases exercise the inactive set and slot).",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Bash/buckler suppression and Improved Shield Bash are not driven. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-09",
@@ -128,7 +184,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native mount AC in an attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native mount AC in an attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-equipment: native Shield modifiers +2/+3/+4 on the mount (disclosed) and the stock Shield spell buff on the mount; the reader requires the highest Shield bonus in native AC and the full +3 amount for the check.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-10",
@@ -142,7 +205,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native sheet/tooltip and attack contexts not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native sheet/tooltip and attack contexts not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "Every MS-equipment/MS-pairs snapshot records ordinary, touch, flat-footed and flat-footed-touch AC and native RuleCalculateAC melee/touch; the reader requires touch unchanged and ordinary/flat-footed raised by the highest Shield bonus. The contribution's source is the rider's Mounted Shield fact (its name is recorded).",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "The mount sheet/tooltip UI is not observed. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-11",
@@ -156,7 +226,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Forced-roll native trigger and combat log not run (the existing ScenarioD20 seam is unchanged). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Forced-roll native trigger and combat log not run (the existing ScenarioD20 seam is unchanged). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-check-rt: planned equality fails and planned +1 succeeds; the observer counts exactly one +3 Mounted Shield modifier inside the native roll; the planned total is the final native total (the die is chosen inside the roll after every bonus).",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "The combat-log text is not captured; the record's ShieldBonus is the value the log line prints. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-12",
@@ -169,7 +246,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native displayed Mobility and unrelated checks not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native displayed Mobility and unrelated checks not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-check-rt triggers an unrelated native Mobility check (no Mounted Shield modifier, bonus 0); every snapshot requires no Mounted Shield modifier on the rider's Mobility stat.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-13",
@@ -182,7 +266,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native preference and use-state behavior not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native preference and use-state behavior not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-check-rt: preference off and spent use refuse while the mount keeps its +3 contribution; sprint6-shield-tb spent use likewise.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-14",
@@ -195,7 +286,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native attack not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-check-rt aims the hostile's attack at the mount's AC and requires a miss inside the shield's band with no Mounted Combat record.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-15",
@@ -209,7 +307,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Bounded native TB/RT evidence not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Bounded native TB/RT evidence not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt equality, success and spent use; sprint6-shield-tb own-turn success (current Swift), second refused, off-turn equality (borrow).",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Mode switch not exercised (seam unchanged). Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-16",
@@ -223,7 +328,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native multi-pair spot check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native multi-pair spot check not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-pairs: two pairs (+3 heavy, +2 light), cross-reads, UI selection on the second rider.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-17",
@@ -237,7 +349,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Guarded native teardown case not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Guarded native teardown case not run. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-pairs: dismount clears, remount restores once; the second pair is untouched.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Death/invalidation and a different mount are not driven. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-18",
@@ -250,7 +369,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "No save/load or area transition observed; no X05 interaction claimed either way. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "No save/load or area transition observed; no X05 interaction claimed either way. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "mounted-shield-tb-manual: exactly one contribution before the native Manual save, never two at cold restore, exactly one in the warm and cold continuation, owned by the rider's fact, on the first mount only. Reader: Assert-KmcSprint6ShieldPersistence.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Area transition is not driven. The case also needs the persistence family's owned-pairs fixture chain. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-19",
@@ -264,7 +390,14 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native fact removal, respec and disable not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native fact removal, respec and disable not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "sprint6-shield-rt MS-pairs: feat removed (contribution released) and reacquired; MountedShieldService disable/enable (none while disabled, restored after).",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native respec not driven; root disable/dispose not driven natively (offline: Test-MountedShieldSelectionRollback.ps1). Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-20",
@@ -277,7 +410,12 @@
       "evidence_refs": [
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)"
       ],
-      "scope_and_limits": "Offline production component, as the row requires; native library membership is observed only after the gates open."
+      "scope_and_limits": "Offline production component, as the row requires; native library membership is observed only after the gates open.",
+      "continuation_1": {
+        "status": "PASS",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "observed": "Unchanged; three-feat publication re-run in Test-MountedShieldNativeContract.ps1 (77/0) and Test-MountedShieldSelectionRollback.ps1 (44/0)."
+      }
     },
     {
       "id": "MS-21",
@@ -290,7 +428,12 @@
       "evidence_refs": [
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)"
       ],
-      "scope_and_limits": "Offline production component."
+      "scope_and_limits": "Offline production component.",
+      "continuation_1": {
+        "status": "PASS",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "observed": "Unchanged; component tests in the Fast gate."
+      }
     },
     {
       "id": "MS-22",
@@ -304,7 +447,12 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Registration-fault paths verified by inspection and component tests, not by an injected native fault (no fault injection was added to production). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Registration-fault paths verified by inspection and component tests, not by an injected native fault (no fault injection was added to production). Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "PARTIAL",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "observed": "Unchanged."
+      }
     },
     {
       "id": "MS-23",
@@ -317,7 +465,14 @@
       "evidence_refs": [
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)"
       ],
-      "scope_and_limits": "The loaded blueprint sprite in the live game is not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "The loaded blueprint sprite in the live game is not observed. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "PARTIAL",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "Packet, repository, built DLL and packaged DLL resource all SHA-256 fd519874... (one resource). sprint6-shield-rt MS-selection records the loaded blueprint's icon reference and its 64x64 sprite texture.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Loaded sprite in a live game not observed. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-24",
@@ -330,7 +485,14 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native UI not observed; the owner aesthetic assessment is pending. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native UI not observed; the owner aesthetic assessment is pending. Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "No tooling: native feat row/details screenshots are UI acceptance for an owner playtest or a separate UI driver.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     },
     {
       "id": "MS-25",
@@ -344,7 +506,12 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "No qualification package built: Package.ps1 belongs to the native candidate the blocked platform gate prevents. The Candidate tier was not selected (it stops on the recorded Test-Harness 278/3 baseline)."
+      "scope_and_limits": "No qualification package built: Package.ps1 belongs to the native candidate the blocked platform gate prevents. The Candidate tier was not selected (it stops on the recorded Test-Harness 278/3 baseline).",
+      "continuation_1": {
+        "status": "PASS",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "observed": "Fresh Windows build against the genuine pinned UMM 0.31.1 reference (restored from the verified NuGet archive); controller focused Fast gate PASS on pushed cb74ad58 (components 1507/0, Validate-Source 153/0, focused 18/18); diagnostic package built and validated (Validate-Package 11/0, ManagerVersion 0.31.1, loader DLLs excluded): KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip SHA-256 ba7f4e4d.... Candidate tier: Test-Harness 280/2 (both failures read a historical artifact zip absent from the lab), Test-RuntimeArtifactManifestContract fails identically on the unmodified base (cleared run directory), paired activation 40/0, assembly contracts 837/0."
+      }
     },
     {
       "id": "MS-26",
@@ -358,7 +525,12 @@
         "component runner TOTAL 1507/0 (tests/MountedShieldTests.cs); scripts/Test-MountedShieldNativeContract.ps1 74/0; controller gate focused on 9bbd6112 (TIER FAST 4/0, focused 7 of 7)",
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Targeted checks only; no historical Full campaign."
+      "scope_and_limits": "Targeted checks only; no historical Full campaign.",
+      "continuation_1": {
+        "status": "PASS",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "observed": "Neighbors: Sprint 6 readers 84/0, chunk7 combat persistence reader 90/0 and persistence reader 41/0, profile areas 39/0, Ranger selection 183/0, Mounted Archery 54/0, ranged movement 5/0, continuous drive 59/0, replay subscribers 21/0; Sprint 7 readers 92/0 and combat persistence observation 190/0 run locally."
+      }
     },
     {
       "id": "MS-27",
@@ -371,7 +543,26 @@
       "evidence_refs": [
         "docs/mounted-shield/HANDOFF.md"
       ],
-      "scope_and_limits": "Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6."
+      "scope_and_limits": "Native/UI part BLOCKED: UMM 0.33.0 installed vs the 0.33.2 platform pin (owner decision) and no KMC_AUTOMATION Working fixture on this machine; see docs/mounted-shield/HANDOFF.md section 6.",
+      "continuation_1": {
+        "status": "BLOCKED",
+        "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+        "driver_and_reader": "No native run, so no restoration was needed; no accepted controller review at the time of this entry.",
+        "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
+        "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      }
     }
-  ]
+  ],
+  "continuation_1": {
+    "recorded": "2026-11-23",
+    "amendment": "owner amendments revision 1 sha256 8ee86965ae34836f17108c6a0d17faf19d06257ea8eff899492eda57b7b1dd6a",
+    "status": "DRIVER_READY_OFFLINE_NATIVE_BLOCKED_ON_FIXTURE",
+    "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
+    "candidate_dll_sha256": "1a80bc5768228604dade69f7753392956b4d76b87041d69ee4e064661987350b",
+    "candidate_dll_mvid": "d7587812-b4a8-48e6-acdf-323f4d58f9bf",
+    "package": "KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip sha256 ba7f4e4ddaa69fa7f21dde5329ad5b2edcbcd7fb75b172dce9bab0b7106b5e0a",
+    "runtime_platform": "Build reference and declared minimum UMM 0.31.1 (pinned, imported 5be0f737); native target the installed UMM 0.33.0 (exact identity in planning/ENVIRONMENT-FINGERPRINT.json). Not used: no native run.",
+    "blocker": "No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target).",
+    "note": "Earlier row fields record the original run on 9bbd6112 and are kept unchanged; each row's continuation_1 is the current state."
+  }
 }

@@ -1,3 +1,13 @@
+# MOUNTED SHIELD CONTINUATION (2026-11-23, OWNER AMENDMENT 1, PR #61)
+
+The UMM 0.31.1 baseline below (companion commit `5be0f737`) is incorporated in `codex/mounted-shield`. Production
+`cb74ad58` adds the complete selection rollback (PN3-F3 remainder), planned final check totals for forced rolls, and the
+Mounted Shield gameplay driver (`sprint6-shield-rt`, `sprint6-shield-tb`, persistence case `mounted-shield-tb-manual`)
+with its reader; PN3-F5 is recorded as an optional compatibility limitation. Offline gates pass (focused Fast on
+`cb74ad58`); the diagnostic package validates. Native acceptance is still BLOCKED, now only by the fixture: the registered
+owner-seed masters are absent and no KMC fixture exists. Read section 0 of
+[docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) for identities, receipts, the review and the exact input needed.
+
 # UMM COMPATIBILITY BASELINE (2026-11-23, OWNER DECISION)
 
 The owner confirmed the older baseline used by the sibling mods: **UMM 0.31.1**. This development branch pins that

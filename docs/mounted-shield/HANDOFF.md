@@ -3,6 +3,91 @@
 Mission: [docs/missions/mounted-shield/MISSION.md](../missions/mounted-shield/MISSION.md) (packet byte-identical to the
 supplied ZIP; `tools/verify_packet.py` passes in place). Acceptance ledger: [ACCEPTANCE_LEDGER.json](ACCEPTANCE_LEDGER.json).
 
+## 0. Current state — continuation under owner amendment 1 (2026-11-23)
+
+Sections 1–9 below are the original run on production `9bbd6112` and are kept as recorded; this section supersedes them
+where they differ (the UMM pin and the gameplay driver above all). Amendment: owner amendments revision 1, sha256
+`8ee86965ae34836f17108c6a0d17faf19d06257ea8eff899492eda57b7b1dd6a`, recorded with `resume --amend-mission` in this
+foreground session; the verbatim prompt is kept outside the worktree at
+`analysis-cache/mounted-shield-owner-continuation-20261123.md` (sha256 `5fefaedb…`).
+
+**Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
+`C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Production source `cb74ad5874768d046475b7df179f79edd4eaaaea`;
+later commits on the branch are records only. DLL (gate build, deterministic, identical in the package):
+SHA-256 `1a80bc5768228604dade69f7753392956b4d76b87041d69ee4e064661987350b`, MVID `d7587812-b4a8-48e6-acdf-323f4d58f9bf`.
+Diagnostic package `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
+`ba7f4e4ddaa69fa7f21dde5329ad5b2edcbcd7fb75b172dce9bab0b7106b5e0a`, Info.json `ManagerVersion` 0.31.1. Icon: packet,
+repository and the packaged DLL's single `KingmakerMountedCombat.Assets.MountedShieldFeat.png` resource all SHA-256
+`fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` (4,408 bytes).
+
+**UMM baseline (companion PR #63).** Commit `5be0f737b1d40df6df4da886707d721801557ee9` (parent `f19c8333`, this branch's
+head) was incorporated by fast-forward, unchanged, and pushed through the enrollment's guarded push. Policy, as the owner
+set it: UMM 0.31.1 is the pinned build reference and declared minimum (planning/UMM-BUILD-REFERENCE.json; archive and
+DLL hashes checked on restore and in MSBuild, no installed-loader fallback); UMM 0.33.0 is the recorded Windows native
+target (planning/ENVIRONMENT-FINGERPRINT.json); the stale 0.33.2 expectation is gone. The installed loader was not
+changed. Verified here on Windows: the restore helper on the genuine archive under Windows PowerShell 5.1 (9/0), a fresh
+product build against the restored 0.31.1 reference, the compiled product's loader bindings against 0.31.1 and against the
+installed 0.33.0 with their reviewed profiles (25/0 each), the native inventory reader (101/0), build provenance
+(frozen-product source 23/0), and packaging (Validate-Package 11/0). A 0.31.1 build does not prove native gameplay on 0.31.1.
+
+**Selection rollback (PN3-F3 remainder).** Fixed in `cb74ad58` and reproduced through the compiled method; see
+[PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md), continuation table. **PN3-F5:** reassessed as an optional compatibility
+limitation, not a blocking violation, with the installed `CanSelect` order as evidence (same table).
+
+**Gameplay driver.** In the Sprint 6 feat family (schema 50), reusing its fixture, level-up controller, rule observer,
+defense record and readers:
+
+| Scenario / case | Covers (ledger rows) |
+| --- | --- |
+| `sprint6-shield-rt`: MS-selection | Native eligibility without each prerequisite and with both; Mounted Combat and Shield Focus at one level with a Back; every level chosen and cancelled first; ordinary and fighter lists; registration, icon binding, three-feat tails; a second pair (Shield Focus natively, native Ranger companion) (MS-01, MS-02, MS-20, MS-23) |
+| MS-equipment | Stock buckler/light/heavy/tower, enhanced heavy shields, Greater Shield Focus on/off, competing +2/+3/+4 and the stock Shield spell on the mount, inactive weapon set, unequip, rider-only Shield effect; native AC, touch, flat-footed and AC rules each step (MS-03–MS-07, MS-09, MS-10, MS-12) |
+| MS-pairs | Two pairs (+3/+2), cross-reads, UI selection, dismount/remount, feat removal/reacquisition, service disable/enable (MS-16, MS-17, MS-19) |
+| MS-check-rt | Planned equality fails and +1 succeeds on the shield-modified total with exactly one +3 modifier in the native roll; spent and preference-off refusals keep the passive AC; equipment changes during a use refund nothing; an unrelated Mobility check gets nothing; a miss caused by the shield's AC gets no check (MS-11–MS-15) |
+| `sprint6-shield-tb`: MS-rider-feat, MS-check-tb | Turn-based own-turn success, refusal and off-turn borrowed equality (MS-15) |
+| `mounted-shield-tb-manual` (persistence) | One contribution before a native Manual save, never two at cold restore, exactly one after (MS-18) |
+
+Not driven: native respec (it rebuilds the unit through the character-generation UI), bash/buckler suppression (MS-08),
+temporary and shield-weapon enhancement, death and a different mount, area transition, the mount sheet and feat UI (MS-24).
+The reader (`scripts/runtime/Sprint6ShieldEvidence.ps1`) derives every expectation from the mission's rule and is proven on
+synthetic evidence by `scripts/Test-Sprint6ShieldReaders.ps1` (63/0), including the refusal of an "equal" row three above
+equality. None of this is native evidence.
+
+**Fixture: the remaining blocker.** Inspected: the save root (95 files; only KMG_/KBP_ project fixtures and human saves),
+`scripts/runtime/Chunk7OwnerSeedRegistry.json` (five owner-admitted seeds, among them `KMC_C7_NO_MODS_OWNER_SEED`
+`3405d7c8…`), and a search of the lab and user profile. The registered immutable masters under `fixtures/owner-supplied/`
+no longer exist, nor does any KMC fixture or owner seed elsewhere; other projects' fixtures and play saves are not
+relabeled. Native rows therefore stay BLOCKED. **Exact external input needed:** an owner-identified disposable seed (for
+example a fresh copy of `Manual_303_KMC_C7_NO_MODS_OWNER_SEED.zks`, sha256 `3405d7c813668ad646788efd746a62c1b16e1438fad1bc4bcbebc961821b924f`, or a new
+save with a Ranger rider and companion in a quiet area), admitted through the owner-seed route (owner provenance, archive
+validation, one isolated native cold load, immutable master outside the save root, fresh copies per run). With that, the
+batch is: startup smoke, `sprint6-shield-rt`, `sprint6-shield-tb`, and the persistence case (which also needs the owned-
+pairs fixture chain), each through `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` and its guards.
+
+**Impact-to-check map (before testing; budgets read first).** Rollback → Test-MountedShieldSelectionRollback, Ranger
+selection contract, Mounted Archery contract. Planned check total → native contract (planned total on the production
+class), Sprint 6 readers, components. Driver, persistence case, registries → Sprint 6 shield readers, Sprint 6 readers,
+chunk7 combat persistence and persistence readers, profile-area isolation, Validate-Source, Candidate harness. UMM import →
+restore helper, both loader binding checks, native inventory reader, frozen-product source, packaging. All are in
+`scripts/Test-MountedShieldFocused.ps1` (18 children) except packaging and the Candidate scripts.
+
+**Receipts.**
+- Controller focused gate, Fast, on pushed `cb74ad58`: PASS, 50.1 s (build, components 1507/0, Validate-Source 153/0,
+  focused 18/18 in 35.6 s); receipt `gate-focused-cb74ad587476-…-20261123T203236957932Z`. Budget `mounted-shield`: 2.32 of
+  90 min after it.
+- Controller focused gate, Candidate, on `cb74ad58`: FAIL at `Test-Harness.ps1` (280 pass, 2 fail), 247.6 s. Both failures
+  open `artifacts/KingmakerMountedCombat-0.1.0-phase3e-fallback.1-…-diagnostic.zip`, a historical package absent from the
+  lab (archives were cleared before 2026-11-20); no code change touches them. The tier stops there, so the remaining
+  Candidate scripts were run directly: paired activation 40/0, assembly contracts (Kingmaker) 837/0,
+  `Test-RuntimeArtifactManifestContract.ps1` fails identically on the unmodified base `5be0f737` (cleared run directory).
+  This run was charged to the shared `development` budget (79.63 → 83.75 of 90 min), because `KMC_WORKFLOW_BUDGET_ID` was
+  not set in this shell; later runs set it to `mounted-shield`. The spent allowance is recorded, not reassigned.
+- Neighbors run locally (not in the gate): Sprint 7 readers 92/0, chunk7 combat persistence observation 190/0,
+  chunk7 persistence source 25/0. `chunk7/Test-Chunk7PersistenceWiring.ps1` fails identically on base `5be0f737`
+  (`$f2Upgrade` unset).
+
+**Review and controller.** Supplemental round 4 and the controller endpoint are recorded in
+[PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md) and section 0 of the final records.
+
 ## 1. Outcome
 
 - **Source and offline work: complete.** Both benefits, registration, three-feat publication, lifecycle and the icon are
