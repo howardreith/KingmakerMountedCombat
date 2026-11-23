@@ -88,6 +88,9 @@ namespace KingmakerMountedCombat
                     () => IsEnabled && !persistence.SaveSuspended && !persistence.AreaTransitionPending && !persistence.CombatRestorationPending &&
                         !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight,
                     () => !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight, logger);
+                // Mounted Shield is selectable only while both its benefits can apply (services on, the service enabled).
+                var shieldService = mountedShield;
+                horseCompanion.MountedShieldServiceActive = () => IsEnabled && shieldService.Enabled;
                 mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, mountedShield, () => persistence.CombatRestorationPending, logger);
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 var badgeSource = horseCompanion;
@@ -257,7 +260,9 @@ namespace KingmakerMountedCombat
                 return false;
             }
             // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted. A
-            // contribution that could not be removed keeps the services enabled, as other retained residue does.
+            // contribution that could not be removed keeps the services enabled, as other retained residue does. A refused
+            // disable below restores the service exactly as it was before this call (enabled or not).
+            var shieldWasEnabled = mountedShield.Enabled;
             if (!mountedShield.Disable("services disabled"))
             {
                 logger.Error("Diagnostic services could not be disabled because a Mounted Shield contribution remained on a mount.");
@@ -265,7 +270,7 @@ namespace KingmakerMountedCombat
             }
             if (!horseCompanion.SetSelectionEnabled(false))
             {
-                mountedShield.Enable();
+                if (shieldWasEnabled) mountedShield.Enable();
                 logger.Error("Mounted combat services could not disable without overwriting an externally changed Ranger selection.");
                 return false;
             }
@@ -341,23 +346,21 @@ namespace KingmakerMountedCombat
                     throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
                 }
             });
-            if (errors.Length != 0)
+            // The Mounted Shield stop closes its selection and both benefits together and releases every contribution,
+            // verified. It never runs while an owned load replaces the world (the outgoing world's stats are not touched).
+            var shieldStopped = errors.Length == 0 && !persistence.LoadInFlight && mountedShield.Disable("update failure cleanup");
+            if (errors.Length != 0 || !shieldStopped)
             {
-                // Held back by retained stick-movement cleanup alone, the stop is not abandoned: Update takes it again
-                // once that cleanup is established.
+                // Held back by retained stick-movement cleanup alone, or by a Mounted Shield stop that must wait (a
+                // contribution not yet removed, or an owned load in progress), the stop is not abandoned: Update takes it
+                // again once that is settled.
                 if (awaitingStickMovement == errors.Length) failureCleanupPending = true;
-                throw new AggregateException("World update cleanup retained owners.", errors);
+                if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
+                throw new InvalidOperationException("Update-failure cleanup is waiting for the Mounted Shield stop (retained contribution or owned load); it is retried.");
             }
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
-            // A Mounted Shield contribution that could not be removed keeps this cleanup pending: Update retries it once the
-            // owned save has settled, and the shutdown below completes only after a verified release.
-            if (!mountedShield.ReleaseAll("update failure cleanup"))
-            {
-                failureCleanupPending = true;
-                throw new InvalidOperationException("Update-failure cleanup retained a Mounted Shield contribution; it is retried.");
-            }
             IsEnabled = false;
         }
 
@@ -401,7 +404,7 @@ namespace KingmakerMountedCombat
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled, and after retained
             // stick-movement cleanup that held it back is established.
-            if (failureCleanupPending && !persistence.SaveSuspended && !world.AnyContinuousDriveCleanupPending)
+            if (failureCleanupPending && !persistence.SaveSuspended && !world.AnyContinuousDriveCleanupPending && !persistence.LoadInFlight)
             {
                 failureCleanupPending = false;
                 PerformFailureCleanup();

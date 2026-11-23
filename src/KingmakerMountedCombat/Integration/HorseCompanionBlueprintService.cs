@@ -401,6 +401,7 @@ namespace KingmakerMountedCombat.Integration
         public bool SetSelectionEnabled(bool enabled)
         {
             if (disposed) { return false; }
+            var previousSelectionDesired = selectionDesired;
             selectionDesired = enabled;
             if (state == HorseCompanionBlueprintState.Pending)
             {
@@ -417,10 +418,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 failure = error;
                 logger.Error(error);
-                // The root refuses this enable or disable and keeps its services as they were, so the KMC combat feats
-                // return to agree with them: published when the services stay on, withdrawn when they stay off. No feat is
-                // left selectable without its benefits, or hidden while they apply.
-                ApplyMountedCombatSelectionsReported(!enabled);
+                // The root refuses this enable or disable and keeps its services as they were before the call, so the KMC
+                // combat feats return to the publication state from before the call as well (a repeated disable keeps them
+                // withdrawn). No feat is left selectable without its benefits, or hidden while they apply.
+                ApplyMountedCombatSelectionsReported(previousSelectionDesired);
                 return false;
             }
             return true;
@@ -488,6 +489,8 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // Successful teardown only: the Mounted Shield selection check no longer names this service.
+            ReleaseMountedShieldSelectable();
             // Blueprint facts may already be serialized into the active Working
             // process. Keep the exact KMC definitions in the in-memory library
             // until process exit; only the selectable Ranger surface is leased.
@@ -1164,6 +1167,8 @@ namespace KingmakerMountedCombat.Integration
             return localization.TryGetValue(key, out value) ? value : key;
         }
 
+        private const string MountedShieldLocalizationPrefix = "KMC.MountedShield.";
+
         private bool EnsureLocalization()
         {
             var pack = LocalizationManager.CurrentPack;
@@ -1175,6 +1180,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (!string.Equals(current, entry.Value, StringComparison.Ordinal))
                     {
+                        // A pack that already translates a Mounted Shield key keeps its own text: a translation never
+                        // faults the shared registration (review finding PN3-F6).
+                        if (entry.Key.StartsWith(MountedShieldLocalizationPrefix, StringComparison.Ordinal)) continue;
                         throw new InvalidOperationException("A localization key collision exists for " + entry.Key + ".");
                     }
                     continue;

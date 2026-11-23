@@ -8,7 +8,6 @@ using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Stats;
 using Kingmaker.Enums;
 using Kingmaker.Items;
-using Kingmaker.Items.Slots;
 using Kingmaker.PubSubSystem;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UnitLogic;
@@ -25,8 +24,9 @@ namespace KingmakerMountedCombat.Integration
     //    modifier from touch AC and keeps it in flat-footed AC; the character sheet and AC tooltip read the same stat and
     //    name the source fact. Ownership: MountedShieldContributionLedger records the exact modifier per rider and writes
     //    only on change (no per-frame churn). The rider's pair is also reconciled at the moment native AC is consumed (the
-    //    mount's RuleCalculateAC, before it reads the stat) and when the rider's equipment or weapon set changes, so neither
-    //    an attack nor the sheet ever sees the previous equipment's value. Release paths: the pair's dismount, the service's
+    //    mount's RuleCalculateAC, before it reads the stat), so no attack sees the previous equipment's value; the sheet
+    //    follows within a frame. (Only that rulebook handler is subscribed: a plain EventBus subscriber would change the
+    //    reviewed global-subscriber inventory, Diagnostics/Chunk7ReplaySubscriberContract.) Release paths: the pair's dismount, the service's
     //    disable/dispose/failure cleanup, the rider fact's own turn-off (MountedShieldFeatureLogic: feat removal, respec,
     //    unit teardown, and the native save path, which turns the party and area off before serializing them), and the next
     //    reconcile when the shield, the feat or the pair changed. Every removal goes through the owning stat by reference
@@ -35,7 +35,7 @@ namespace KingmakerMountedCombat.Integration
     //    (CharacterStats.CleanupModifiers removes a modifier whose source fact the mount does not own).
     // 2. The Mounted Combat check. MountedCombatDefenseService adds the same amount to its own RuleSkillCheck's native Bonus
     //    before Rulebook.Trigger (ContributeToCheck). It is part of that one rule: no rider stat changes.
-    internal sealed class MountedShieldService : IGlobalRulebookHandler<RuleCalculateAC>, IUnitEquipmentHandler, IUnitActiveEquipmentSetHandler, IDisposable
+    internal sealed class MountedShieldService : IGlobalRulebookHandler<RuleCalculateAC>, IDisposable
     {
         // The identity of the modifiers this service writes (with the source fact's blueprint).
         internal const string MountSourceComponent = "KMC_MountedShield_MountShieldBonus";
@@ -248,11 +248,6 @@ namespace KingmakerMountedCombat.Integration
         }
 
         public void OnEventDidTrigger(RuleCalculateAC evt) { }
-
-        // The rider's equipment or weapon set changed: the mount's value and sheet follow at once.
-        public void HandleEquipmentSlotUpdated(ItemSlot slot, ItemEntity previousItem) => ReconcileRider(slot?.Owner?.Unit, "equipment change");
-
-        public void HandleUnitChangeActiveEquipmentSet(UnitDescriptor unit) => ReconcileRider(unit?.Unit, "weapon set change");
 
         // The rider fact turned off (or the rider left): its contribution goes now, outside every update gate.
         internal void ReleaseRider(UnitEntityData rider, string reason)

@@ -110,20 +110,27 @@ namespace KingmakerMountedCombat.Domain
         public T[] WithoutKmcDuplicates(T[] current)
         {
             if (current == null) return null;
+            var duplicated = false;
+            foreach (var item in new[] { mountedCombat }.Concat(optional))
+            {
+                if (item == null) continue;
+                var first = Array.IndexOf(current, item);
+                if (first >= 0 && Array.IndexOf(current, item, first + 1) >= 0) { duplicated = true; break; }
+            }
+            if (!duplicated) return null;
             var kmc = new[] { mountedCombat }.Concat(optional.Where(item => item != null)).ToArray();
             var seen = new List<T>();
             var result = new List<T>(current.Length);
-            var removed = false;
             foreach (var entry in current)
             {
                 if (kmc.Any(item => ReferenceEquals(item, entry)))
                 {
-                    if (seen.Any(item => ReferenceEquals(item, entry))) { removed = true; continue; }
+                    if (seen.Any(item => ReferenceEquals(item, entry))) continue;
                     seen.Add(entry);
                 }
                 result.Add(entry);
             }
-            return removed ? result.ToArray() : null;
+            return result.ToArray();
         }
 
         // The mask that offers every registered optional feat the predicate accepts.

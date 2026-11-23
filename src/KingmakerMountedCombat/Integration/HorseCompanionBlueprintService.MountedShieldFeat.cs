@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Integration
         internal const string GreaterShieldFocusName = "ShieldFocusGreater";
 
         private BlueprintFeature mountedShieldFeature, shieldFocusFeature, greaterShieldFocusFeature;
+        private Func<bool> mountedShieldSelectable;
         private UnityEngine.Sprite mountedShieldIcon;
         private string mountedShieldFailure;
         private bool mountedShieldWithdrawalReported;
@@ -36,6 +37,8 @@ namespace KingmakerMountedCombat.Integration
         internal UnityEngine.Sprite MountedShieldIcon => mountedShieldIcon;
         internal string MountedShieldFailure => mountedShieldFailure;
         internal bool MountedShieldWithdrawn => mountedCombatPublication?.MountedShieldWithdrawn == true;
+        // Set by the composition root: the services are on and the Mounted Shield service is enabled, so both benefits apply.
+        internal Func<bool> MountedShieldServiceActive { get; set; }
 
         // Both benefits exist together. They are available while KMC publishes the feat and both required paths (ordinary
         // and fighter feats) still hold it; otherwise the publication removes KMC's own Mounted Shield entry from every
@@ -111,7 +114,8 @@ namespace KingmakerMountedCombat.Integration
             var available = CreateOwned<MountedShieldAvailabilityPrerequisite>("KMC_MountedShield_Available");
             available.Group = Prerequisite.GroupType.All;
             available.HideInUI = true;
-            MountedShieldAvailabilityPrerequisite.Available = IsMountedShieldAvailable;
+            mountedShieldSelectable = () => MountedShieldServiceActive?.Invoke() == true && IsMountedShieldAvailable();
+            MountedShieldAvailabilityPrerequisite.Available = mountedShieldSelectable;
             mountedShieldFeature.ComponentsArray = new BlueprintComponent[] { mountedCombat, shieldFocus, available, logic };
 
             AddExactBlueprintRegistration(library, mountedShieldFeature);
@@ -137,10 +141,19 @@ namespace KingmakerMountedCombat.Integration
         internal static string MountedShieldContractViolation(BlueprintFeature feature, BlueprintFeature donor, UnityEngine.Sprite icon) =>
             MountedShieldFeatContract.Violation(ReadFeatContractFacts(feature, icon), ReadFeatContractFacts(donor, icon));
 
+        // The selection check stops naming this service (it would keep a disposed service and its leases reachable); a
+        // check another registration owns is left alone.
+        private void ReleaseMountedShieldSelectable()
+        {
+            if (mountedShieldSelectable != null && ReferenceEquals(MountedShieldAvailabilityPrerequisite.Available, mountedShieldSelectable))
+                MountedShieldAvailabilityPrerequisite.Available = null;
+            mountedShieldSelectable = null;
+        }
+
         private void RemoveMountedShieldFeat(LibraryScriptableObject library)
         {
             RemoveExact(library, blueprintList, MountedShieldFeatureGuid, mountedShieldFeature);
-            MountedShieldAvailabilityPrerequisite.Available = null;
+            ReleaseMountedShieldSelectable();
             mountedShieldFeature = null;
             mountedShieldIcon = null;
             shieldFocusFeature = null;
