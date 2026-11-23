@@ -176,6 +176,22 @@ $iconField.SetValue($shield, (New-Native $spriteType))
 Check (([string]$validate.Invoke($null, @($shield, $donor, $icon))).Contains('icon is not KMC''s Mounted Shield icon')) 'a substituted icon is refused, never accepted as the required one'
 $iconField.SetValue($shield, $icon)
 
+# The hidden availability prerequisite (pre-native review PN2-F3): the native selection decision asks it, and it answers
+# exactly what the publication's full comparison says; unset, it refuses.
+$prereqType = KmcType 'KingmakerMountedCombat.Integration.MountedShieldAvailabilityPrerequisite'
+Check ($prereqType.BaseType.FullName -ceq 'Kingmaker.Blueprints.Classes.Prerequisites.Prerequisite') 'the availability check is a native Prerequisite (evaluated by BlueprintFeature.MeetsPrerequisites)'
+$prereq = New-Native $prereqType
+$availableField = $prereqType.GetField('Available', $any)
+$prereqCheck = $prereqType.GetMethod('Check')
+$availableField.SetValue($null, $null)
+$unset = [bool]$prereqCheck.Invoke($prereq, @($null, $null, $null))
+$availableField.SetValue($null, [Func[bool]]{ $true })
+$open = [bool]$prereqCheck.Invoke($prereq, @($null, $null, $null))
+$availableField.SetValue($null, [Func[bool]]{ $false })
+$closed = [bool]$prereqCheck.Invoke($prereq, @($null, $null, $null))
+$availableField.SetValue($null, $null)
+Check (-not $unset -and $open -and -not $closed -and $prereq.GetUIText() -ceq '') 'the prerequisite passes only while the rule is available, refuses when unset, and adds no prerequisite text'
+
 # 2b. Base bonus read and amount on genuine item objects built from the installed values.
 $armorTypeType = GameType 'Kingmaker.Blueprints.Items.Armors.BlueprintArmorType'
 $itemArmorType = GameType 'Kingmaker.Blueprints.Items.Armors.BlueprintItemArmor'

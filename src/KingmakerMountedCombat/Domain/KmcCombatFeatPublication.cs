@@ -69,7 +69,8 @@ namespace KingmakerMountedCombat.Domain
         private readonly T mountedCombat;
         private readonly T[] optional;
         // Indexed by inclusion mask (bit i: optional feat i is offered); null where the mask names a feat that did not register.
-        private readonly ExactAppendOnlyArrayLease<T>[] values;
+        // Rebased once disable has stripped KMC's entries from an array another mod changed (Rebase).
+        private ExactAppendOnlyArrayLease<T>[] values;
 
         public KmcCombatFeatArrayPublication(T[] source, T mountedCombat, T mountedArchery) : this(source, mountedCombat, mountedArchery, null) { }
 
@@ -77,13 +78,52 @@ namespace KingmakerMountedCombat.Domain
         {
             this.mountedCombat = mountedCombat;
             optional = new[] { mountedArchery, mountedShield };
-            values = new ExactAppendOnlyArrayLease<T>[1 << OptionalCount];
-            for (var mask = 0; mask < values.Length; mask++)
+            values = Leases(source);
+        }
+
+        private ExactAppendOnlyArrayLease<T>[] Leases(T[] source)
+        {
+            var leases = new ExactAppendOnlyArrayLease<T>[1 << OptionalCount];
+            for (var mask = 0; mask < leases.Length; mask++)
             {
                 if (!Registered(mask)) continue;
-                values[mask] = new ExactAppendOnlyArrayLease<T>(source, KmcCombatFeatPublication.Items(mountedCombat,
+                leases[mask] = new ExactAppendOnlyArrayLease<T>(source, KmcCombatFeatPublication.Items(mountedCombat,
                     Pick(KmcOptionalCombatFeat.MountedArchery, mask), Pick(KmcOptionalCombatFeat.MountedShield, mask)));
             }
+            return leases;
+        }
+
+        // After disable stripped KMC's own entries from an array another mod changed, that stripped value becomes the
+        // array's original: re-enabling appends KMC's entries after the foreign entries (only while the array still holds
+        // exactly that value) and disabling again restores it exactly. False, with nothing changed, when the value cannot
+        // be leased (it holds a null or a KMC entry).
+        public bool Rebase(T[] stripped)
+        {
+            if (stripped == null) return false;
+            try { values = Leases(stripped); return true; }
+            catch (ArgumentException) { return false; }
+        }
+
+        // A second reference to one of KMC's own entries (another mod copied it into another slot): the same entries in the
+        // same order keeping only the first occurrence of each KMC entry, or null when there is no such duplicate. Foreign
+        // entries, including foreign duplicates, are untouched.
+        public T[] WithoutKmcDuplicates(T[] current)
+        {
+            if (current == null) return null;
+            var kmc = new[] { mountedCombat }.Concat(optional.Where(item => item != null)).ToArray();
+            var seen = new List<T>();
+            var result = new List<T>(current.Length);
+            var removed = false;
+            foreach (var entry in current)
+            {
+                if (kmc.Any(item => ReferenceEquals(item, entry)))
+                {
+                    if (seen.Any(item => ReferenceEquals(item, entry))) { removed = true; continue; }
+                    seen.Add(entry);
+                }
+                result.Add(entry);
+            }
+            return removed ? result.ToArray() : null;
         }
 
         // The mask that offers every registered optional feat the predicate accepts.
@@ -224,8 +264,12 @@ namespace KingmakerMountedCombat.Domain
                         // off, so none of them may stay selectable. Foreign entries and their order are kept.
                         var stripped = pair.Value.WithoutKmc(read(pair.Key));
                         if (stripped != null) write(pair.Key, stripped);
+                        // The stripped value becomes the array's original, so re-enabling republishes KMC's entries after the
+                        // foreign ones instead of treating KMC's own removal as a lost required offer.
+                        var rebased = pair.Value.Rebase(read(pair.Key));
                         error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) +
-                            " changed outside KMC; it was not restored, and only KMC's own entries were removed from it.";
+                            " changed outside KMC; only KMC's own entries were removed from it" +
+                            (rebased ? ", and its foreign contents are kept as its original." : ".");
                         continue;
                     }
                     error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " changed outside KMC; no overwrite was attempted.";
@@ -286,6 +330,8 @@ namespace KingmakerMountedCombat.Domain
                 }
             }
             if (withdrawn.Any(value => value)) RemoveWithdrawn();
+            // One occurrence of each KMC entry per array: a copied second reference would be offered twice.
+            if (fullComparison) RemoveKmcDuplicates();
             return withdrewNow;
         }
 
@@ -314,6 +360,17 @@ namespace KingmakerMountedCombat.Domain
                     current = read(pair.Key);
                 }
                 lastSeen[pair.Key] = current;
+            }
+        }
+
+        private void RemoveKmcDuplicates()
+        {
+            foreach (var pair in arrays)
+            {
+                var value = pair.Value.WithoutKmcDuplicates(read(pair.Key));
+                if (value == null) continue;
+                write(pair.Key, value);
+                lastSeen[pair.Key] = read(pair.Key);
             }
         }
 

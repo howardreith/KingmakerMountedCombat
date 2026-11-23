@@ -417,6 +417,10 @@ namespace KingmakerMountedCombat.Integration
             {
                 failure = error;
                 logger.Error(error);
+                // The root refuses this enable or disable and keeps its services as they were, so the KMC combat feats
+                // return to agree with them: published when the services stay on, withdrawn when they stay off. No feat is
+                // left selectable without its benefits, or hidden while they apply.
+                ApplyMountedCombatSelectionsReported(!enabled);
                 return false;
             }
             return true;

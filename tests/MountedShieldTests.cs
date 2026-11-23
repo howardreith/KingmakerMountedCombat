@@ -29,7 +29,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted shield contract: the donor contract diagnostics name Mounted Shield; Mounted Archery's text is unchanged", ContractDiagnostics);
             runner.Run("mounted shield ledger: one rider is reconciled alone at the mount's AC read or its equipment change (review finding 2)", ReconcileOneRider);
             runner.Run("kmc publication: the per-frame full refresh withdraws an in-place required edit before any selection (review finding 3)", InPlaceRequiredEditWithdrawsWithinAFrame);
-            runner.Run("kmc publication: disable removes only KMC's entries from a foreign-changed list; re-enable stays coherent (review finding 4)", DisableStripsForeignChangedLists);
+            runner.Run("kmc publication: disable removes only KMC's entries from a foreign-changed list; re-enable republishes them after the foreign entries (review findings PN1-F4, PN2-F5)", DisableStripsForeignChangedLists);
+            runner.Run("kmc publication: a copied second reference to a KMC feat is collapsed to one; foreign entries untouched (review finding PN2-F6)", DuplicateKmcReferencesCollapse);
             runner.Run("kmc publication: a competing Mounted Shield in any publication target is found, fighter-only included (review finding 5)", CompetingFeatInAnyTarget);
         }
 
@@ -431,11 +432,44 @@ namespace KingmakerMountedCombat.Tests
                 "Unchanged lists are restored exactly.");
             TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedCombat) && !lists.Has(key, lists.MountedArchery) && !lists.Has(key, lists.MountedShield)),
                 "Nothing KMC publishes stays selectable while the services are off.");
-            TestRunner.True(lists.Set.Apply(true, key => key) != null, "Re-enable reports the foreign list it cannot publish to.");
-            TestRunner.True(lists.Set.MountedShieldWithdrawn && lists.Set.MountedArcheryWithdrawn, "A required list without them withdraws both optional rules.");
-            TestRunner.True(lists.Has("fighter", lists.MountedCombat) && !lists.Has("fighter", lists.MountedShield) && lists.Has("ordinary", foreignEntry),
-                "Mounted Combat is offered where KMC owns the list; the foreign list is left alone.");
+            var stripped = lists.Arrays["ordinary"];
+            TestRunner.True(lists.Set.Apply(true, key => key) == null, "Re-enable publishes again: the stripped foreign value became the list's original.");
+            TestRunner.True(lists.Arrays["ordinary"].SequenceEqual(stripped.Concat(new[] { lists.MountedCombat, lists.MountedArchery, lists.MountedShield })),
+                "The foreign append is kept and KMC's three entries follow it once each.");
+            TestRunner.True(!lists.Set.MountedShieldWithdrawn && !lists.Set.MountedArcheryWithdrawn && lists.Set.MountedShieldAvailable() && lists.Set.MountedArcheryAvailable(),
+                "Neither mechanic is withdrawn by KMC's own disable and re-enable.");
             lists.AssertCoherent("re-enabled after a foreign change");
+            TestRunner.True(lists.Set.Apply(false, key => key) == null && lists.Arrays["ordinary"].SequenceEqual(stripped),
+                "Disabling again restores the rebased list exactly, foreign append included.");
+            // A further foreign change after the strip is drift again: re-enable refuses it and writes nothing.
+            var changedAgain = lists.Arrays["ordinary"].Concat(new[] { new object() }).ToArray();
+            lists.Arrays["ordinary"] = changedAgain;
+            TestRunner.True(lists.Set.Apply(true, key => key) != null, "A list changed again after the strip is reported.");
+            lists.AssertCoherent("re-enabled after a second foreign change");
+        }
+
+        private static void DuplicateKmcReferencesCollapse()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var foreignTwice = new object();
+            var extra = lists.Arrays["extra"].Concat(new[] { foreignTwice, lists.MountedShield, foreignTwice, lists.MountedCombat }).ToArray();
+            lists.Arrays["extra"] = extra;
+            var ordinary = lists.Arrays["ordinary"];
+            ordinary[0] = lists.MountedShield; // an in-place copy while Mounted Shield is still active
+            TestRunner.True(!lists.Set.Refresh(true) && !lists.Set.MountedShieldWithdrawn, "A duplicate is not a loss: nothing is withdrawn.");
+            TestRunner.True(lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedShield) == 1 && lists.Count(key, lists.MountedCombat) == 1 && lists.Count(key, lists.MountedArchery) == 1),
+                "Each KMC feat is offered once in every list.");
+            TestRunner.True(lists.Count("extra", foreignTwice) == 2, "A foreign entry's own duplicate is not KMC's to remove.");
+            var expectedExtra = new List<object>();
+            foreach (var entry in extra)
+            {
+                var isKmc = entry == lists.MountedCombat || entry == lists.MountedArchery || entry == lists.MountedShield;
+                if (isKmc && expectedExtra.Contains(entry)) continue;
+                expectedExtra.Add(entry);
+            }
+            TestRunner.True(lists.Arrays["extra"].SequenceEqual(expectedExtra), "The first occurrence of each KMC entry and every foreign entry keep their order.");
+            lists.AssertCoherent("duplicates collapsed");
         }
 
         private sealed class Named

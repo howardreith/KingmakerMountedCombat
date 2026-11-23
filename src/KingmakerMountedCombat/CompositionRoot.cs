@@ -351,8 +351,13 @@ namespace KingmakerMountedCombat
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
+            // A Mounted Shield contribution that could not be removed keeps this cleanup pending: Update retries it once the
+            // owned save has settled, and the shutdown below completes only after a verified release.
             if (!mountedShield.ReleaseAll("update failure cleanup"))
-                throw new InvalidOperationException("Update-failure cleanup retained a Mounted Shield contribution.");
+            {
+                failureCleanupPending = true;
+                throw new InvalidOperationException("Update-failure cleanup retained a Mounted Shield contribution; it is retried.");
+            }
             IsEnabled = false;
         }
 
@@ -425,7 +430,8 @@ namespace KingmakerMountedCombat
             var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { world.UpdatePairs(); }
             finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
-            mountedShield.Update(true);
+            // The ordinary pass shares the removal pass's guards: no archive worker, no owned load replacing the world.
+            if (!persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight) mountedShield.Update(true);
             explorationObserver.Update();
             var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { unifiedTurn.Update(); }

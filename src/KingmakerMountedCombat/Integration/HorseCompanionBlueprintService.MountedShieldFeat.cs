@@ -104,7 +104,15 @@ namespace KingmakerMountedCombat.Integration
             // The fact's own logic: its turn-off (feat removal, respec, unit teardown, and the native save path's TurnOff
             // before serialization) releases the mount contribution this rider owns.
             var logic = CreateOwned<MountedShieldFeatureLogic>("KMC_MountedShield_FeatureLogic");
-            mountedShieldFeature.ComponentsArray = new BlueprintComponent[] { mountedCombat, shieldFocus, logic };
+            // Checked by the native selection decision itself (BlueprintFeature.MeetsPrerequisites), with the publication's
+            // full comparison: a choice is never committed while a required list no longer offers the feat, even between two
+            // frame refreshes. Hidden from the prerequisite list; owned features are never re-checked against it (the engine
+            // re-validates owned features only for stat prerequisites).
+            var available = CreateOwned<MountedShieldAvailabilityPrerequisite>("KMC_MountedShield_Available");
+            available.Group = Prerequisite.GroupType.All;
+            available.HideInUI = true;
+            MountedShieldAvailabilityPrerequisite.Available = IsMountedShieldAvailable;
+            mountedShieldFeature.ComponentsArray = new BlueprintComponent[] { mountedCombat, shieldFocus, available, logic };
 
             AddExactBlueprintRegistration(library, mountedShieldFeature);
             var violation = MountedShieldContractViolation(mountedShieldFeature, powerAttack, mountedShieldIcon);
@@ -132,10 +140,23 @@ namespace KingmakerMountedCombat.Integration
         private void RemoveMountedShieldFeat(LibraryScriptableObject library)
         {
             RemoveExact(library, blueprintList, MountedShieldFeatureGuid, mountedShieldFeature);
+            MountedShieldAvailabilityPrerequisite.Available = null;
             mountedShieldFeature = null;
             mountedShieldIcon = null;
             shieldFocusFeature = null;
             greaterShieldFocusFeature = null;
         }
+    }
+
+    // Mounted Shield is selectable only while its rule is available (registered, published and offered by every required
+    // list). Unset (null) it refuses: no registered service, no selectable feat.
+    internal sealed class MountedShieldAvailabilityPrerequisite : Prerequisite
+    {
+        internal static Func<bool> Available;
+
+        public override bool Check(Kingmaker.UnitLogic.Class.LevelUp.FeatureSelectionState selectionState, Kingmaker.UnitLogic.UnitDescriptor unit,
+            Kingmaker.UnitLogic.Class.LevelUp.LevelUpState state) => Available?.Invoke() == true;
+
+        public override string GetUIText() => string.Empty;
     }
 }

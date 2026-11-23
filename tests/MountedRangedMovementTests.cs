@@ -674,9 +674,12 @@ namespace KingmakerMountedCombat.Tests
             lists.AssertCoherent("re-enabled");
             lists.Arrays["ordinary"] = new[] { lists.Power, lists.Dodge, lists.MountedCombat, new object() };
             TestRunner.True(!lists.Set.MountedArcheryAvailable(), "Withdrawn after required drift.");
-            TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the foreign ordinary list and leaves it.");
-            TestRunner.True(lists.Set.Apply(true, key => key) != null && !lists.Has("fighter", lists.MountedArchery) && lists.Has("fighter", lists.MountedCombat),
-                "Re-enabling after a withdrawal publishes Mounted Combat only.");
+            TestRunner.True(lists.Set.Apply(false, key => key) != null, "Disable reports the foreign ordinary list.");
+            // Since the Mounted Shield pre-native review (PN1-F4, PN2-F5) disable removes only KMC's entries from the foreign
+            // list and keeps its foreign contents as the list's original, so re-enabling publishes there again.
+            TestRunner.True(lists.Set.Apply(true, key => key) == null && !lists.Has("fighter", lists.MountedArchery) && lists.Has("fighter", lists.MountedCombat) &&
+                lists.Has("ordinary", lists.MountedCombat) && !lists.Has("ordinary", lists.MountedArchery),
+                "Re-enabling after a withdrawal publishes Mounted Combat only, the foreign ordinary list included.");
             lists.AssertCoherent("re-enabled after withdrawal");
 
             var noArchery = new Lists(false);
