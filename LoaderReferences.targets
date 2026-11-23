@@ -1,0 +1,10 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PinnedLoaderReferenceDir>$(MSBuildThisFileDirectory)obj\loader-references</PinnedLoaderReferenceDir>
+    <PinnedLoaderReferenceCheck>$(MSBuildThisFileDirectory)scripts\Get-PinnedLoaderReferences.ps1</PinnedLoaderReferenceCheck>
+    <LoaderReferencePowerShell Condition="'$(LoaderReferencePowerShell)' == ''">powershell.exe</LoaderReferencePowerShell>
+  </PropertyGroup>
+  <Target Name="ValidatePinnedLoaderReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Exec Command="&quot;$(LoaderReferencePowerShell)&quot; -NoLogo -NoProfile -ExecutionPolicy Bypass -File &quot;$(PinnedLoaderReferenceCheck)&quot; -VerifyOnly -ReferenceDirectory &quot;$(PinnedLoaderReferenceDir)&quot;" />
+  </Target>
+</Project>

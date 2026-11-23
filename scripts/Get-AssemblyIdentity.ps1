@@ -15,5 +15,8 @@ $value=[ordered]@{
     mvid=$assembly.ManifestModule.ModuleVersionId.ToString()
     targetFramework=if($target.Count-eq1){[string]$target[0].ConstructorArguments[0].Value}else{$null}
     references=@($assembly.GetReferencedAssemblies()|ForEach-Object Name|Sort-Object)
+    referenceIdentities=@($assembly.GetReferencedAssemblies()|Sort-Object Name|ForEach-Object {
+        [ordered]@{name=$_.Name;version=$_.Version.ToString()}
+    })
 }
 [Console]::Out.Write(($value|ConvertTo-Json -Compress -Depth 5))

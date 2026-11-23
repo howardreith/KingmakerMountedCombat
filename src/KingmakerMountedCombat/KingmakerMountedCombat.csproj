@@ -61,7 +61,7 @@
     <LangVersion>7.3</LangVersion>
     <Prefer32Bit>false</Prefer32Bit>
     <Deterministic>true</Deterministic>
-    <!-- UMM 0.28.2 itself references its co-installed net48 Harmony2, but KMC
+    <!-- UMM itself references net48 Harmony2, but KMC
          targets net47 and references only the legacy Harmony12 API surface. -->
     <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
     <FileAlignment>512</FileAlignment>
@@ -83,9 +83,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <Import Project="..\..\LocalGamePaths.props" Condition="Exists('..\..\LocalGamePaths.props')" />
+  <Import Project="..\..\LoaderReferences.targets" />
   <Target Name="RequireLocalGamePaths" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(KingmakerManagedDir)\Assembly-CSharp.dll')" Text="LocalGamePaths.props must point to the exact local Kingmaker Managed directory." />
-    <Error Condition="!Exists('$(UnityModManagerDir)\UnityModManager.dll')" Text="UnityModManagerDir must contain the exact installed UnityModManager.dll." />
+    <Error Condition="!Exists('$(PinnedLoaderReferenceDir)\UnityModManager.dll')" Text="Run scripts\Get-PinnedLoaderReferences.ps1 to acquire the pinned UMM 0.31.1 build reference." />
   </Target>
   <ItemGroup>
     <Reference Include="System" />
@@ -119,7 +120,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityModManager">
-      <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
+      <HintPath>$(PinnedLoaderReferenceDir)\UnityModManager.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
@@ -127,7 +128,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="0Harmony12">
-      <HintPath>$(UnityModManagerDir)\0Harmony12.dll</HintPath>
+      <HintPath>$(PinnedLoaderReferenceDir)\0Harmony12.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

@@ -6,11 +6,13 @@ param(
 
 # The removal observer is a separate minimal UMM mod. Its package must carry
 # exactly its own two files, its Info.json must be the observer's own identity,
-# and its DLL must reference the installed game/UMM/Harmony12 surface and
+# and its DLL must reference the installed game and pinned UMM/Harmony12 surface and
 # NEVER the KingmakerMountedCombat assembly.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+. (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
+$loaderPins = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'loader-reference-pins.json') | ConvertFrom-Json
 $identityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'tools\KmcRemovalObserver\ObserverIdentity.cs')
 $identityMatch = [Regex]::Match($identityText, 'internal const string ProductVersion = "([^"]+)";')
 if (-not $identityMatch.Success) { throw 'Observer identity source lacks its product version.' }
@@ -55,7 +57,7 @@ try {
     $requiredInfo = @('Id','DisplayName','Author','Version','ManagerVersion','GameVersion','AssemblyName','EntryMethod','Requirements')
     if ((@($info.PSObject.Properties.Name | Sort-Object) -join "`n") -cne (($requiredInfo | Sort-Object) -join "`n") -or
         [string]$info.Id -cne 'KmcRemovalObserver' -or [string]$info.Version -cne $expectedVersion -or
-        [string]$info.ManagerVersion -cne '0.28.2' -or [string]$info.GameVersion -cne '2.1.7' -or
+        [string]$info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
         [string]$info.AssemblyName -cne 'KmcRemovalObserver.dll' -or
         [string]$info.EntryMethod -cne 'KmcRemovalObserver.Main.Load' -or @($info.Requirements).Count -ne 0) {
         throw 'Packaged observer Info.json identity is not exact.'
@@ -72,6 +74,8 @@ try {
     $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dllPath
     if ($LASTEXITCODE -ne 0) { throw 'Isolated observer assembly inspection failed.' }
     $identity = $identityJson | ConvertFrom-Json
+    Assert-KmcPinnedLoaderPackageReferences $identity $loaderPins
+    $checks++
     if ([string]$identity.name -cne 'KmcRemovalObserver' -or [string]$identity.version -cne '0.1.0.0') { throw 'Observer DLL assembly identity is not exact.' }
     if ([string]$identity.informationalVersion -cne $expectedVersion) { throw 'Observer DLL product version does not match its identity source.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Observer DLL does not target exact .NET Framework 4.7.' }

@@ -3,10 +3,22 @@
   "purpose": "Reviewed Unity Mod Manager loader identities for scripts/UmmLoaderContracts.ps1. A profile is an exact identity (version, SHA-256, MVID) of one genuine UnityModManager.dll with the record it came from. Identity is checked against one selected profile; API compatibility is checked separately against the reference binary itself. A profile is added only from a genuine binary or an existing repository record, never to make a check pass. No loader binary is stored in this repository.",
   "declaredMinimum": {
     "source": "Info.json ManagerVersion",
-    "value": "0.28.2",
-    "note": "The minimum the mod declares to the loader. It is a support declaration, not an identity pin, and is not raised to match the installed loader."
+    "value": "0.31.1",
+    "note": "Owner-selected support and compile baseline of 2026-11-23. Exact build inputs are pinned separately in scripts/loader-reference-pins.json. Profile identity and API checks do not establish native compatibility."
   },
+  "primaryCompatibilityTarget": "umm-0.31.1",
+  "newerCompatibilityTargets": ["umm-0.32.4", "umm-0.33.0", "umm-0.33.2", "umm-0.33.4"],
   "profiles": [
+    {
+      "id": "umm-0.31.1",
+      "version": "0.31.1.0",
+      "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4",
+      "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+      "length": 204288,
+      "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
+      "provenance": "Inspected on 2026-11-23 from lib/net35/UnityModManager.dll in the genuine NuGet UnityModManager 0.31.1 package (archive SHA-256 05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9). The DLL hash matches the existing Tabletop Rules Expansion and Cutscene Skip build pins. MVID, length and UI method tokens were read from PE/CLI metadata; this is not a Mounted Combat API-binding or native result.",
+      "lastInspected": "2026-11-23"
+    },
     {
       "id": "umm-0.28.2",
       "version": "0.28.2.0",

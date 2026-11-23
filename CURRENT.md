@@ -1,3 +1,16 @@
+# UMM 0.31.1 BASELINE (2026-11-23, UNRELEASED)
+
+Owner direction: use UMM 0.31.x consistently across the Kingmaker mods, checking newer loaders separately.
+The existing Tabletop Rules Expansion/Cutscene Skip baseline is exactly 0.31.1. Main and removal observer
+manifests now declare it, and both projects use hash-verified 0.31.1/Harmony12 build references rather than the
+installed loader. Direct MSBuild validates the same pins. The genuine 0.31.1 identity is recorded separately
+from the historical 0.28.2 and newer 0.33.0/0.33.2 profiles.
+
+Read [docs/UMM-0311-BASELINE.md](docs/UMM-0311-BASELINE.md) for exact scope and remaining checks. No baseline
+production build, API binding sweep or native run has completed here. The Windows device is unavailable.
+The historical native environment fingerprint is unchanged; it is evidence of its original environment, not
+evidence of a 0.31.1 run. No release, merge, installation or game/save mutation is part of this checkpoint.
+
 # RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
 
 Start here. The sections below this one are dated history, newest first.

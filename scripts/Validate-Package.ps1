@@ -7,6 +7,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+. (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
+$loaderPins = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'loader-reference-pins.json') | ConvertFrom-Json
 $version = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json
 $expectedProductVersion = [string]$version.productVersion
 $expectedAssemblyVersion = [string]$version.assemblyVersion
@@ -51,7 +53,7 @@ try {
     $requiredInfo = @('Id','DisplayName','Author','Version','ManagerVersion','GameVersion','AssemblyName','EntryMethod','Requirements')
     if ((@($info.PSObject.Properties.Name | Sort-Object) -join "`n") -cne (($requiredInfo | Sort-Object) -join "`n") -or
         [string]$info.Id -cne 'KingmakerMountedCombat' -or [string]$info.Version -cne $expectedProductVersion -or
-        [string]$info.ManagerVersion -cne '0.28.2' -or [string]$info.GameVersion -cne '2.1.7' -or
+        [string]$info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
         [string]$info.AssemblyName -cne 'KingmakerMountedCombat.dll' -or
         [string]$info.EntryMethod -cne 'KingmakerMountedCombat.Main.Load' -or @($info.Requirements).Count -ne 0) {
         throw 'Packaged Info.json identity is not exact.'
@@ -67,6 +69,7 @@ try {
     $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dllPath
     if ($LASTEXITCODE -ne 0) { throw 'Isolated packaged assembly inspection failed.' }
     $identity = $identityJson | ConvertFrom-Json
+    Assert-KmcPinnedLoaderPackageReferences $identity $loaderPins
     if ([string]$identity.name -cne 'KingmakerMountedCombat' -or [string]$identity.version -cne $expectedAssemblyVersion) { throw 'Packaged DLL assembly identity is not exact.' }
     if ([string]$identity.informationalVersion -cne $expectedProductVersion) { throw 'Packaged DLL product version does not match the candidate.' }
     if ([string]$identity.targetFramework -cne '.NETFramework,Version=v4.7') { throw 'Packaged DLL does not target exact .NET Framework 4.7.' }
@@ -90,7 +93,7 @@ finally {
     }
 }
 
-Write-Host 'TOTAL PASS=11 FAIL=0'
+Write-Host 'TOTAL PASS=12 FAIL=0'
 Write-Host "PACKAGE=$resolvedPackage"
 Write-Host "SHA256=$($result.packageSha256)"
 if ($PassThru) { return $result }
