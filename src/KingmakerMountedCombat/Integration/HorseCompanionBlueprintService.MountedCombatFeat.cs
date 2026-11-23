@@ -163,6 +163,8 @@ namespace KingmakerMountedCombat.Integration
             mountedCombatPublication = new KmcCombatFeatPublicationSet<BlueprintFeatureSelection, BlueprintFeature>(
                 mountedCombatSelectionTargets, requiredCombatFeatSelections, mountedCombatFeature, mountedArcheryFeature, mountedShieldFeature,
                 selection => selection.AllFeatures, (selection, value) => selection.AllFeatures = value);
+            // A terminal stop that came before registration finished keeps Mounted Shield out of the first publication.
+            if (mountedShieldOffersSuspended) mountedCombatPublication.Suspend(KmcOptionalCombatFeat.MountedShield);
         }
 
         private BlueprintBuff CreateMountedCombatBuff(string name, string guid, Kingmaker.Localization.LocalizedString displayName,

@@ -396,6 +396,21 @@ $enable = Calls ($rootType.GetMethod('SetEnabled', $any))
 $resume = At $enable 'HorseCompanionBlueprintService.ResumeMountedShieldOffers'; $selection = At $enable 'HorseCompanionBlueprintService.SetSelectionEnabled'
 Check ($resume -gt $selection -and @($enable | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -eq 1) 'only the explicit enable resumes the offers, after its selection transaction succeeds'
 
+# 2g. The gameplay driver's setup custody (supplemental review PN5-F3) on a genuine stat whose change callback throws: the
+# write installs the modifier and throws before a handle returns, and the obligation still finds it, removes it through the
+# stat (verified) and is released; a release of another setup leaves it outstanding.
+$setupType = KmcType 'KingmakerMountedCombat.Diagnostics.Sprint6ShieldSetupModifiers'
+$setup = [Activator]::CreateInstance($setupType, $true)
+$faulty = New-Ac
+$mvType.GetEvent('OnChanged').AddEventHandler($faulty, $throwing)
+$addFaulted = $false
+try { [void]$setupType.GetMethod('Add', $any).Invoke($setup, @($faulty, 4, 'competing', (Descriptor 'Shield'))) } catch { $addFaulted = $true }
+Check ($addFaulted -and $faulty.ModifiedValue -eq 14 -and [int]$setupType.GetProperty('Outstanding', $any).GetValue($setup) -eq 1) 'a setup write whose callback throws is installed and still owned (AC 14, one obligation)'
+$other = $setupType.GetMethod('Release', $any).Invoke($setup, @('calibration'))
+Check (@($other['remaining']).Count -eq 1 -and $faulty.ModifiedValue -eq 14) 'releasing another setup leaves the obligation outstanding'
+$released = $setupType.GetMethod('Release', $any).Invoke($setup, [object[]]@($null))
+Check (@($released['remaining']).Count -eq 0 -and $faulty.ModifiedValue -eq 10 -and [int]$setupType.GetProperty('Outstanding', $any).GetValue($setup) -eq 0) 'the drain removes the handle-less setup modifier through its stat, verified (AC 10), and clears the obligation'
+
 # ---- 3. Embedded icon identity -------------------------------------------------------------------------------------
 $expectedIcon = 'fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0'
 function Sha([byte[]]$Bytes) { $sha = [Security.Cryptography.SHA256]::Create(); try { ([BitConverter]::ToString($sha.ComputeHash($Bytes)) -replace '-', '').ToLowerInvariant() } finally { $sha.Dispose() } }

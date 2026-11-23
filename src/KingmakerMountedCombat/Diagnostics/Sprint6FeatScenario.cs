@@ -153,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool DrainSprint6Fixture()
         {
-            DrainSprint6ShieldFixture();
+            if (!DrainSprint6ShieldFixture()) return false;
             if (s6Service != null) { s6Service.ScenarioCheckTotal = null; s6Service.Observed -= Sprint6Observed; s6Service = null; }
             if (s6Rules != null) { s6Rules.Dispose(); s6Rules = null; }
             var second = s6Owner == null ? null : relationship.World.Registry.FindActive(s6Owner)?.Boundary;

@@ -24,7 +24,10 @@ function Add-Attack($M,[string]$Case,[int]$Step,[string]$Plan,[string]$Refusal,[
  if($attempted){ $M.skillChecks+=[pscustomobject]@{actor=$rider;d20=$check-$stat-$bonus;stat=$stat;bonus=$bonus;result=$check;dc=$total+1;passed=$negated;frame=$script:id;kmcShieldModifiers=1;kmcShieldTotal=3} }
 }
 function New-Measure($Scenario){ [pscustomobject]@{contract='native-mounted-combat-feat-v1';rider=$rider;mount=$mount;cases=@(Get-KmcSprint6Cases $Scenario);checkD20IsControlled=$true;experienceIsDisclosedSetup=$true;records=@();attackRules=@();skillChecks=@()
-  mountedShield=[pscustomobject]@{contract='native-mounted-shield-v1';featGuid=$feat;setupDisclosure='disclosed';drain=[pscustomobject]@{rider=(New-Restored);owner=(New-Restored)}}} }
+  mountedShield=[pscustomobject]@{contract='native-mounted-shield-v1';featGuid=$feat;setupDisclosure='disclosed'
+  shieldBlueprints=[pscustomobject]@{mundane=[pscustomobject]@{buckler=(New-Stock);light=(New-Stock);heavy=(New-Stock);tower=(New-Stock)};enhancedCandidates=@((New-Stock),(New-Stock))}
+  drain=[pscustomobject]@{attempts=1;setup=[pscustomobject]@{faults=@();remaining=@()};buffsLeft=@();rider=(New-Restored);owner=(New-Restored);clean=$true;final=$true}}} }
+function New-Stock { [pscustomobject]@{guid='a';name='HeavyShieldItem';instanceId=1200;armorType='d1b05b901bab9524388ebfa0435902a6';stockLoaded=$true} }
 function New-Restored { [pscustomobject]@{errors=@();createdLeft=0;handsChecked=4;set=0;originalSet=0} }
 function New-Envelope($M,$Rows){ [pscustomobject]@{schemaVersion=50;status='PASS';errors=@();subscenarioFailCount=0;rows=$Rows;observations=[pscustomobject]@{riderId=$rider;horseId=$mount;sprint6Feat=$M}} }
 
@@ -98,7 +101,7 @@ function New-Real {
  $check=[pscustomobject]@{steps=[pscustomobject]@{combatStart=(New-Snap 3);equal=(New-Snap 3);success=(New-Snap 3);spentRefused=(New-Snap 3);preferenceOffRefused=(New-Snap 3);competingBeforeCheck=(New-Snap 3 4 -Others @(4));competingCheck=(New-Snap 3 4 -Others @(4));bandDone=(New-Snap 3)}
   bandMiss=[pscustomobject]@{identity=$bandId;attacker=$hostile;target=$mount;d20=10;bonus=12;ac=24;isHitAtEvent=$false}
   equipmentDuringUse=[pscustomobject]@{before=$win;unequipped=$win;reequipped=$win};unrelatedMobility=[pscustomobject]@{stat=12;bonus=0;displayed=12;dc=10;result=20;frame=900;contributions=2}
-  band=[pscustomobject]@{amount=3;ac=24;attackBonusBefore=30;adjustment=-18};bandAttempts=9}
+  band=[pscustomobject]@{amount=3;ac=24;otherShield=0;effectiveDelta=3;acWithoutShield=21;attackBonusBefore=30;adjustment=-18};bandAttempts=9}
  New-Envelope $m @([pscustomobject]@{name='MS-selection';status='PASS';evidence=(New-Selection $true)},[pscustomobject]@{name='MS-equipment';status='PASS';evidence=(New-Equipment)},
   [pscustomobject]@{name='MS-pairs';status='PASS';evidence=(New-Pairs)},[pscustomobject]@{name='MS-check-rt';status='PASS';evidence=$check})
 }
@@ -187,6 +190,18 @@ $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.PSObject.Prope
 $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.rider.errors=@('hand not restored'); Reject $r $rs 'an unrestored original hand refuses (PN4-F4)'
 $r=Copy-MS $real; (RowOf $r 'MS-selection').levels[0].pass.afterBack.bothChosen=$false; Reject $r $rs 'Back whose withdrawn choice was not chosen again refuses (PN4-F5)'
 $r=Copy-MS $real; (RowOf $r 'MS-selection').ownerCompanion.PSObject.Properties.Remove('experienceSetup'); Reject $r $rs 'undisclosed second-rider experience refuses (PN4-F6)'
+# Supplemental review round 5.
+$r=Copy-MS $real; $checks=@($r.observations.sprint6Feat.skillChecks | Where-Object { [int]$_.frame -ne 900 }); $checks[2].kmcShieldModifiers=0; $checks[2].kmcShieldTotal=0; Reject $r $rs 'a check under a stronger shield borrowing another roll''s +3 refuses (PN5-F6)'
+$r=Copy-MS $real; $b=(RowOf $r 'MS-check-rt').band; $b.otherShield=2; $b.effectiveDelta=1; $b.acWithoutShield=23; Reject $r $rs 'a miss that already missed the AC without Mounted Shield refuses (PN5-F7)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').band.effectiveDelta=3; (RowOf $r 'MS-check-rt').band.otherShield=2; Reject $r $rs 'an effective AC change not derived from the native modifiers refuses (PN5-F7)'
+$r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 4).swiftAfter=0; Reject $r $rs 'a real-time success that charged no Swift action refuses (PN5-F8)'
+$r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 2).stateAfter.window=$false; Reject $r $rs 'a real-time equality that consumed no use refuses (PN5-F8)'
+$r=Copy-MS $real; (RowOf $r 'MS-equipment') | Add-Member towerRefused 'item factory failed'; Reject $r $rs 'a tower skipped for anything but a native slot refusal refuses (PN5-F9)'
+$r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.shieldBlueprints.enhancedCandidates[0].stockLoaded=$false; Reject $r $rs 'a shield that is not a loaded stock blueprint refuses (PN5-F9)'
+$r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.clean=$false; Reject $r $rs 'a drain that is not clean refuses (PN5-F3)'
+$r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.setup.remaining=@('KMC_Sprint6Shield_Setup_band'); Reject $r $rs 'a setup obligation left at the drain refuses (PN5-F3)'
+$r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 2).swiftAfter=0; Reject $r $ts 'an own-turn success that spent no Swift action refuses (PN5-F8)'
+$r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 6).stateAfter.owed=$false; Reject $r $ts 'an off-turn equality with no debt refuses (PN5-F8)'
 # Turn-based.
 $r=Copy-MS $turn; $x=RecordOf $r 'MS-check-tb' 6; $x.checkResult=28; $x.checkD20=15; (CheckOf $r $x).result=28; Reject $r $ts 'a turn-based "equal" three above equality refuses'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 6).commitment='SpendCurrentSwift'; Reject $r $ts 'an off-turn use that did not borrow refuses'
@@ -197,12 +212,14 @@ $r=Copy-MS $turn; $r.status='FAIL'; $r.subscenarioFailCount=1; $threw=$false; tr
 # Persistence (mounted-shield-tb-manual).
 function New-Persist([int]$Owned,[bool]$Cold){
  $s={ param($n) [pscustomobject]@{rider=$rider;mount=$mount;mounted=$true;hasFeat=$true;hasShieldFocus=$true;shieldBase=2;amount=3;ownedCount=$n;ownedValues=@(@(3)*$n);ownedByRiderFact=@(@($true)*$n);otherMountOwned=0;ledgerMount=$(if($n -gt 0){$mount}else{$null});ac=23} }
- $scan={ [pscustomobject]@{file='Manual_1.zks';entries=@([pscustomobject]@{entry='party.json';present=$true;length=900});mountTags=0;checkTags=0;error=$null} }
+ $scan={ [pscustomobject]@{file='Manual_1.zks';area='b10e86516b6437d45a629931c30936fe';entries=@([pscustomobject]@{entry='party.json';present=$true;length=900},[pscustomobject]@{entry='b10e86516b6437d45a629931c30936fe.json';present=$true;length=4000});mountTags=0;checkTags=0;error=$null} }
+ $continuation=[pscustomobject]@{actorIds=@($rider,$mount,$owner,$pet)}
  if($Cold){
   $restore=& $s 0; $restore | Add-Member archive (& $scan)
-  return [pscustomobject]@{shieldColdAtRestore=$restore;shieldColdContinuation=(& $s $Owned);combatContinuation=[pscustomobject]@{actorIds=@($rider,$mount,$owner,$pet)}}
+  return [pscustomobject]@{shieldColdAtRestore=$restore;shieldColdContinuation=(& $s $Owned);combatContinuation=$continuation}
  }
- [pscustomobject]@{shieldAtSave=(& $s 1);shieldSavedArchive=(& $scan);shieldWarmContinuation=(& $s $Owned)}
+ $save=& $s 1; $save | Add-Member shieldIdentity (New-Stock)
+ [pscustomobject]@{shieldAtSave=$save;shieldSavedArchive=(& $scan);shieldWarmContinuation=(& $s $Owned);combatContinuation=$continuation}
 }
 function Persist($Value,[bool]$Cold){ try { Assert-KmcSprint6ShieldPersistence ([pscustomobject]@{}) $Value $Cold; $true } catch { $false } }
 Check (Persist (New-Persist 1 $true) $true) 'cold load with exactly one current contribution accepted'
@@ -218,6 +235,12 @@ $p=New-Persist 1 $true; $p.shieldColdAtRestore.archive.error='read failed'; Chec
 $p=New-Persist 1 $true; $p.combatContinuation.actorIds=@($owner,$pet); Check (-not (Persist $p $true)) 'a cold pair outside the authenticated continuation refuses'
 $p=New-Persist 1 $false; $p.PSObject.Properties.Remove('shieldSavedArchive'); Check (-not (Persist $p $false)) 'a producer without its written-archive scan refuses'
 $p=New-Persist 1 $false; $p.shieldSavedArchive.checkTags=1; Check (-not (Persist $p $false)) 'a written archive holding a check modifier refuses'
+$p=New-Persist 1 $true; $p.shieldColdAtRestore.archive.entries=@($p.shieldColdAtRestore.archive.entries[1]); Check (-not (Persist $p $true)) 'a loaded archive scan without party.json refuses (PN5-F5)'
+$p=New-Persist 1 $true; $p.shieldColdAtRestore.archive.entries[1].length=0; Check (-not (Persist $p $true)) 'an empty saved-area member refuses (PN5-F5)'
+$p=New-Persist 1 $true; $p.shieldColdAtRestore.ownedCount=1; $p.shieldColdAtRestore.ownedValues=@(2); $p.shieldColdAtRestore.ownedByRiderFact=@($true); $p.shieldColdAtRestore.ledgerMount=$mount; Check (-not (Persist $p $true)) 'a wrong-valued contribution at restoration refuses (PN5-F5)'
+$p=New-Persist 1 $true; $p.combatContinuation.actorIds=@($mount,$rider,$owner,$pet); Check (-not (Persist $p $true)) 'the pair in swapped roles refuses (PN5-F5)'
+$p=New-Persist 1 $true; $p.combatContinuation.actorIds=@($owner,$pet,$rider,$mount); Check (-not (Persist $p $true)) 'the second pair''s roles refuse (PN5-F5)'
+$p=New-Persist 1 $false; $p.shieldAtSave.shieldIdentity.stockLoaded=$false; Check (-not (Persist $p $false)) 'a persistence shield that is not a loaded stock blueprint refuses (PN5-F9)'
 
 Write-Output ('TOTAL PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ exit 1 }

@@ -346,8 +346,13 @@ namespace KingmakerMountedCombat.Tests
         {
             var lists = new Lists();
             lists.Set.Apply(true, key => key);
+            // Another mod appended to a required list and to an extra list while all three feats were offered; the appends stay
+            // for the whole suspension and after it (supplemental review PN5-F1).
+            var foreignFighter = new object();
+            lists.Arrays["fighter"] = lists.Arrays["fighter"].Concat(new[] { foreignFighter }).ToArray();
             var foreign = lists.Arrays["extra"].Concat(new[] { new object() }).ToArray();
             lists.Arrays["extra"] = foreign;
+            var fighterBefore = lists.Arrays["fighter"]; var extraBefore = lists.Arrays["extra"];
             lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
             TestRunner.True(lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield) && !lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn,
                 "Suspended: not available, not withdrawn.");
@@ -356,19 +361,20 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(lists.Arrays["extra"].Contains(foreign[foreign.Length - 1]), "The foreign entry stays.");
             TestRunner.True(!lists.Set.Refresh(true) && !lists.Set.MountedShieldWithdrawn && lists.Set.MountedArcheryAvailable(),
                 "Its absence from the required lists does not withdraw it; Mounted Archery's rule stays on.");
-            var copied = lists.Arrays["fighter"].Concat(new[] { lists.MountedShield }).ToArray();
-            lists.Arrays["fighter"] = copied;
+            var copied = lists.Arrays["ordinary"].Concat(new[] { lists.MountedShield }).ToArray();
+            lists.Arrays["ordinary"] = copied;
             lists.Set.Refresh(false);
-            TestRunner.True(!lists.Has("fighter", lists.MountedShield), "A reference another mod copies back is removed again while suspended.");
+            TestRunner.True(!lists.Has("ordinary", lists.MountedShield), "A reference another mod copies back is removed again while suspended.");
             // A refused toggle's re-application keeps the suspension.
             TestRunner.True(lists.Set.Apply(true, key => key) != null, "The re-application reports the foreign-changed list.");
             TestRunner.True(lists.Arrays.Keys.All(key => !lists.Has(key, lists.MountedShield)), "Re-publishing while suspended does not offer Mounted Shield.");
-            lists.Arrays["extra"] = lists.Arrays["extra"].Take(lists.Arrays["extra"].Length - 1).ToArray();
             var resumed = lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
-            TestRunner.True(resumed == null && !lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield), "An explicit enable resumes it: " + resumed);
-            TestRunner.True(lists.Set.MountedShieldAvailable() && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedShield) == 1),
-                "Mounted Shield is offered once in every list and available again.");
-            lists.AssertCoherent("resumed");
+            TestRunner.True(!lists.Set.Suspended(KmcOptionalCombatFeat.MountedShield), "An explicit enable resumes it: " + resumed);
+            TestRunner.True(lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedShield) == 1),
+                "Mounted Shield is offered once in every list, available, and never withdrawn for KMC's own suspension.");
+            TestRunner.True(lists.Arrays["fighter"].SequenceEqual(fighterBefore) && lists.Arrays["extra"].SequenceEqual(extraBefore),
+                "The foreign-changed required and extra lists get back exactly their values before the suspension (foreign order kept).");
+            TestRunner.True(lists.Set.MountedArcheryAvailable() && lists.Arrays.Keys.All(key => lists.Count(key, lists.MountedArchery) == 1), "Mounted Archery is unaffected throughout.");
             TestRunner.True(lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key) == null, "Resuming an unsuspended feat changes nothing.");
         }
 

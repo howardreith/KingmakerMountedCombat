@@ -39,6 +39,45 @@ namespace KingmakerMountedCombat.Diagnostics
     // defense record's native check and the production MountedShieldService.Amount the service itself writes. Setup is
     // disclosed: experience, shield items created from stock blueprints, Greater Shield Focus and the second pair's feats
     // granted directly, native Shield-descriptor modifiers standing in for another shield source. The reader owns PASS/FAIL.
+    // Custody of the driver's setup modifiers (supplemental review PN5-F3). Each one is recorded before it is written and
+    // carries its own source component, so a write whose stat-change callback throws before AddModifier returns a handle is
+    // still found on its stat and removed through the stat (MountedShieldService.RemoveExact), verified. An obligation stays
+    // until its stat holds no modifier of that identity; Release can be called again for what remains.
+    internal sealed class Sprint6ShieldSetupModifiers
+    {
+        internal const string ComponentPrefix = "KMC_Sprint6Shield_Setup_";
+        private readonly List<KeyValuePair<ModifiableValue, string>> obligations = new List<KeyValuePair<ModifiableValue, string>>();
+
+        internal int Outstanding => obligations.Count;
+
+        internal void Add(ModifiableValue stat, int value, string name, ModifierDescriptor descriptor)
+        {
+            if (stat == null) throw new ArgumentNullException(nameof(stat));
+            var component = ComponentPrefix + name;
+            if (!obligations.Any(pair => ReferenceEquals(pair.Key, stat) && pair.Value == component))
+                obligations.Add(new KeyValuePair<ModifiableValue, string>(stat, component));
+            stat.AddModifier(value, (Kingmaker.Blueprints.Facts.Fact)null, component, descriptor);
+        }
+
+        // Releases one named setup (all stats), or every one with name null; returns the faults and what remains.
+        internal JObject Release(string name = null)
+        {
+            var faults = new JArray();
+            foreach (var pair in obligations.ToArray())
+            {
+                if (name != null && pair.Value != ComponentPrefix + name) continue;
+                try
+                {
+                    foreach (var modifier in pair.Key.Modifiers.Where(value => string.Equals(value.SourceComponent, pair.Value, StringComparison.Ordinal)).ToArray())
+                        MountedShieldService.RemoveExact(pair.Key, modifier, fault => faults.Add(pair.Value + " callback: " + fault.Message));
+                }
+                catch (Exception exception) { faults.Add(pair.Value + ": " + exception.Message); }
+                if (!pair.Key.Modifiers.Any(value => string.Equals(value.SourceComponent, pair.Value, StringComparison.Ordinal))) obligations.Remove(pair);
+            }
+            return new JObject { ["faults"] = faults, ["remaining"] = new JArray(obligations.Select(pair => pair.Value)) };
+        }
+    }
+
     // Custody of the hands of one disposable-fixture actor (supplemental review PN4-F4). Every hand slot of every weapon set
     // is captured before anything changes, so an original the native slot moves (an off-hand shield makes HandSlot remove a
     // two-handed primary) is restored as surely as one this class moved itself. Each created shield is released and checked
@@ -50,8 +89,35 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly List<KeyValuePair<HandSlot, ItemEntity>> original = new List<KeyValuePair<HandSlot, ItemEntity>>();
         internal readonly JObject Evidence = new JObject();
         internal int ShieldSet { get; private set; } = -1;
+        internal bool Clean { get; private set; }
         private int originalSet = -1;
         internal Sprint6ShieldEquipment(UnitEntityData owner) { this.owner = owner; }
+
+        // Stock shields only (supplemental review PN5-F9): exact stock blueprint types, loaded from the game's own assets
+        // (Unity gives assets loaded from disk positive instance ids and objects created at runtime, as mods create blueprints,
+        // negative ones), with one of the four stock shield armor types.
+        internal static BlueprintItemShield[] StockShields(string[] armorTypes) =>
+            ResourcesLibrary.LibraryObject.GetAllBlueprints().OfType<BlueprintItemShield>().Where(shield =>
+                shield.GetType() == typeof(BlueprintItemShield) && shield.GetInstanceID() > 0 && shield.ArmorComponent != null &&
+                shield.ArmorComponent.GetType() == typeof(Kingmaker.Blueprints.Items.Armors.BlueprintItemArmor) && shield.ArmorComponent.GetInstanceID() > 0 &&
+                shield.ArmorComponent.Type != null && shield.ArmorComponent.Type.GetInstanceID() > 0 && armorTypes.Contains(shield.ArmorComponent.Type.AssetGuid))
+            .OrderBy(shield => shield.name, StringComparer.Ordinal).ToArray();
+
+        internal static JObject Identity(BlueprintItemShield shield) => new JObject { ["guid"] = shield.AssetGuid, ["name"] = shield.name,
+            ["instanceId"] = shield.GetInstanceID(), ["armorType"] = shield.ArmorComponent.Type.AssetGuid, ["stockLoaded"] = shield.GetInstanceID() > 0 && shield.ArmorComponent.GetInstanceID() > 0 };
+
+        // A genuine native slot refusal (CanInsertItem false) returns null with the reason; every other failure propagates.
+        internal ItemEntityShield TryEquip(BlueprintItemShield blueprint, out string refusal)
+        {
+            refusal = null;
+            Unequip();
+            var shield = Create(blueprint);
+            var slot = owner.Body.HandsEquipmentSets[ShieldSet].SecondaryHand;
+            if (!slot.CanInsertItem(shield)) { refusal = "native slot refused " + blueprint.AssetGuid; return null; }
+            slot.InsertItem(shield);
+            if (!ReferenceEquals(slot.MaybeItem, shield)) throw new InvalidOperationException("Native equip did not keep " + blueprint.name + ".");
+            return shield;
+        }
 
         // One shield set whose off-hand takes a shield (a primary the native slot will not keep beside it is moved out first),
         // and every other set's off-hand cleared of shields, so a set switch has a well-defined shieldless side.
@@ -102,10 +168,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var item = blueprint.CreateEntity<ItemEntityShield>();
             if (item == null) throw new InvalidOperationException("The native item factory created no shield for " + blueprint.name + ".");
+            created.Add(item);
             item.Identify();
             var inserted = owner.Inventory.Add(item, true);
             if (!ReferenceEquals(inserted, item)) throw new InvalidOperationException("The inventory changed the created shield's identity.");
-            created.Add(item);
             return item;
         }
 
@@ -115,6 +181,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (item.HoldingSlot != null) item.HoldingSlot.RemoveItem(true);
             if (item.Collection != null) item.Collection.Remove(item);
             if (item.HoldingSlot != null || item.Collection != null) return false;
+            // The released entity's own armor and weapon components and enchantment collections are released too.
+            item.Dispose();
             created.Remove(item);
             return true;
         }
@@ -139,6 +207,7 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var pair in original)
                 if (!ReferenceEquals(pair.Key.MaybeItem, pair.Value)) errors.Add("hand not restored: expected " + (pair.Value?.Blueprint.AssetGuid ?? "empty") + ", found " + (pair.Key.MaybeItem?.Blueprint.AssetGuid ?? "empty"));
             if (owner.Body.CurrentHandEquipmentSetIndex != originalSet) errors.Add("weapon set not restored");
+            Clean = errors.Count == 0 && created.Count == 0;
             var restored = new JObject { ["errors"] = errors, ["createdLeft"] = created.Count, ["handsChecked"] = original.Count,
                 ["set"] = owner.Body.CurrentHandEquipmentSetIndex, ["originalSet"] = originalSet };
             Evidence["restored"] = restored;
@@ -163,11 +232,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private Dictionary<string, BlueprintItemShield> s9Mundane;
         private List<BlueprintItemShield> s9Enhanced;
         private int s9Enhancement;
-        private ModifiableValue.Modifier s9Competing;
-        private Buff s9MountSpell, s9RiderSpell;
-        private ModifiableValue.Modifier s9RiderSetupShield;
+        private readonly Sprint6ShieldSetupModifiers s9Setup = new Sprint6ShieldSetupModifiers();
+        private readonly List<KeyValuePair<UnitEntityData, Buff>> s9Buffs = new List<KeyValuePair<UnitEntityData, Buff>>();
+        private int s9DrainAttempts;
+        private const int Sprint6ShieldDrainAttempts = 30;
         private int s9BandAttempts, s9BandRulesBefore;
-        private ModifiableValue.Modifier s9HostileSetup;
 
         private void BeginSprint6Shield()
         {
@@ -177,24 +246,45 @@ namespace KingmakerMountedCombat.Diagnostics
             s6Measure["mountedShield"] = s9Measure;
         }
 
-        private bool s9Drained;
-
-        // Runs once: the Sprint 6 drain is re-entered every frame until its pairs dismount.
+        // Every setup obligation is attempted on each call and kept until verified released (supplemental review PN5-F3); the
+        // Sprint 6 drain calls this again each frame while it returns false, within its own bounded cleanup. After the bound the
+        // remaining obligations are recorded as failed residue (the reader refuses the run) and cleanup goes on.
         private bool DrainSprint6ShieldFixture()
         {
-            if (!Sprint6Shield || s9Drained || s9Measure == null) return true;
-            s9Drained = true;
-            var restore = new JObject(); s9Measure["drain"] = restore;
-            try { s9Competing?.Remove(); s9Competing = null; } catch (Exception exception) { restore["competingError"] = exception.Message; }
-            try { s9RiderSetupShield?.Remove(); s9RiderSetupShield = null; } catch (Exception exception) { restore["riderShieldError"] = exception.Message; }
-            try { s9HostileSetup?.Remove(); s9HostileSetup = null; } catch (Exception exception) { restore["hostileError"] = exception.Message; }
-            try { s9Calibration?.Remove(); s9Calibration = null; } catch (Exception exception) { restore["calibrationError"] = exception.Message; }
-            try { s9MountSpell?.Remove(); s9MountSpell = null; } catch (Exception exception) { restore["mountSpellError"] = exception.Message; }
-            try { s9RiderSpell?.Remove(); s9RiderSpell = null; } catch (Exception exception) { restore["riderSpellError"] = exception.Message; }
+            if (!Sprint6Shield || s9Measure == null) return true;
+            s9DrainAttempts++;
+            var restore = new JObject { ["attempts"] = s9DrainAttempts }; s9Measure["drain"] = restore;
+            restore["setup"] = s9Setup.Release();
+            var buffsLeft = new JArray();
+            foreach (var pair in s9Buffs.ToArray())
+            {
+                try { if (pair.Key.Buffs.Enumerable.Any(buff => ReferenceEquals(buff, pair.Value))) pair.Value.Remove(); } catch (Exception exception) { buffsLeft.Add("remove: " + exception.Message); }
+                if (!pair.Key.Buffs.Enumerable.Any(buff => ReferenceEquals(buff, pair.Value))) s9Buffs.Remove(pair); else buffsLeft.Add(pair.Value.Blueprint.AssetGuid);
+            }
+            restore["buffsLeft"] = buffsLeft;
             if (MountedShieldService.Current != null && !MountedShieldService.Current.Enabled) MountedShieldService.Current.Enable();
-            if (s9Equipment != null) { restore["rider"] = s9Equipment.Restore(); s9Equipment = null; }
-            if (s9OwnerEquipment != null) { restore["owner"] = s9OwnerEquipment.Restore(); s9OwnerEquipment = null; }
-            return true;
+            if (s9Equipment != null) restore["rider"] = s9Equipment.Restore();
+            if (s9OwnerEquipment != null) restore["owner"] = s9OwnerEquipment.Restore();
+            var clean = s9Setup.Outstanding == 0 && s9Buffs.Count == 0 && (s9Equipment == null || s9Equipment.Clean) && (s9OwnerEquipment == null || s9OwnerEquipment.Clean);
+            restore["clean"] = clean;
+            if (clean || s9DrainAttempts >= Sprint6ShieldDrainAttempts) { restore["final"] = true; return true; }
+            return false;
+        }
+
+        private Buff ShieldAddBuff(UnitEntityData unit, BlueprintBuff blueprint)
+        {
+            var buff = unit.Buffs.AddBuff(blueprint, unit, TimeSpan.FromMinutes(10));
+            if (buff != null) s9Buffs.Add(new KeyValuePair<UnitEntityData, Buff>(unit, buff));
+            return buff;
+        }
+
+        private void ShieldRemoveBuffs()
+        {
+            foreach (var pair in s9Buffs.ToArray())
+            {
+                if (pair.Key.Buffs.Enumerable.Any(buff => ReferenceEquals(buff, pair.Value))) pair.Value.Remove();
+                if (!pair.Key.Buffs.Enumerable.Any(buff => ReferenceEquals(buff, pair.Value))) s9Buffs.Remove(pair);
+            }
         }
 
         // ---- observations -----------------------------------------------------------------------------------------------
@@ -246,8 +336,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // difference is an enhancement (by value, from the native item entity).
         private void FindShieldBlueprints()
         {
-            var shields = ResourcesLibrary.LibraryObject.GetAllBlueprints().OfType<BlueprintItemShield>()
-                .Where(shield => shield.ArmorComponent?.Type != null).OrderBy(shield => shield.name, StringComparer.Ordinal).ToArray();
+            var shields = Sprint6ShieldEquipment.StockShields(Sprint6ShieldTypeGuids);
             s9Mundane = new Dictionary<string, BlueprintItemShield>(StringComparer.Ordinal);
             for (var index = 0; index < Sprint6ShieldTypeGuids.Length; index++)
             {
@@ -258,8 +347,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             s9Enhanced = shields.Where(shield => shield.ArmorComponent.Type.AssetGuid == Sprint6ShieldTypeGuids[2] && !shield.IsNotable &&
                 shield.ArmorComponent.Enchantments.Count == 1 && (shield.WeaponComponent == null || shield.WeaponComponent.Enchantments.Count == 0)).Take(12).ToList();
-            s9Measure["shieldBlueprints"] = new JObject { ["mundane"] = new JObject(s9Mundane.Select(pair => new JProperty(pair.Key, pair.Value.AssetGuid + "/" + pair.Value.name))),
-                ["enhancedCandidates"] = new JArray(s9Enhanced.Select(shield => shield.AssetGuid + "/" + shield.name)) };
+            s9Measure["shieldBlueprints"] = new JObject { ["mundane"] = new JObject(s9Mundane.Select(pair => new JProperty(pair.Key, Sprint6ShieldEquipment.Identity(pair.Value)))),
+                ["enhancedCandidates"] = new JArray(s9Enhanced.Select(Sprint6ShieldEquipment.Identity)) };
         }
 
         private BlueprintBuff FindShieldSpellBuff()
@@ -551,8 +640,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 6: ShieldStep("light"); s9Equipment.Equip(s9Mundane["heavy"]); s6Step = 7; return;
                 case 8:
                     ShieldStep("heavy");
-                    // A tower shield the native slot refuses is recorded, not forced (non-proficient riders).
-                    try { s9Equipment.Equip(s9Mundane["tower"]); } catch (InvalidOperationException exception) { s6Facts["towerRefused"] = exception.Message; }
+                    // A tower shield the native slot genuinely refuses (CanInsertItem) is recorded, not forced, and that observation
+                    // stays partial; any other setup or identity failure propagates (supplemental review PN5-F9).
+                    string towerRefusal;
+                    if (s9Equipment.TryEquip(s9Mundane["tower"], out towerRefusal) == null) s6Facts["towerRefused"] = towerRefusal;
                     s6Step = 9; return;
                 case 10:
                     if (s6Facts["towerRefused"] == null) ShieldStep("tower");
@@ -570,18 +661,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.Descriptor.Progression.Features.AddFeature(horseService.GreaterShieldFocusFeature);
                     s6Step = 15; return;
                 case 16: ShieldStep("greater"); rider.Descriptor.Progression.Features.RemoveFact(horseService.GreaterShieldFocusFeature); s6Step = 17; return;
-                case 18: ShieldStep("greaterRemoved"); s9Competing = horse.Stats.AC.AddModifier(2, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield); s6Step = 19; return;
-                case 20: ShieldStep("competing2"); s9Competing.Remove(); s9Competing = horse.Stats.AC.AddModifier(3, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield); s6Step = 21; return;
-                case 22: ShieldStep("competing3"); s9Competing.Remove(); s9Competing = horse.Stats.AC.AddModifier(4, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield); s6Step = 23; return;
+                case 18: ShieldStep("greaterRemoved"); s9Setup.Add(horse.Stats.AC, 2, "competing", ModifierDescriptor.Shield); s6Step = 19; return;
+                case 20: ShieldStep("competing2"); ShieldRequireReleased("competing"); s9Setup.Add(horse.Stats.AC, 3, "competing", ModifierDescriptor.Shield); s6Step = 21; return;
+                case 22: ShieldStep("competing3"); ShieldRequireReleased("competing"); s9Setup.Add(horse.Stats.AC, 4, "competing", ModifierDescriptor.Shield); s6Step = 23; return;
                 case 24:
-                    ShieldStep("competing4"); s9Competing.Remove(); s9Competing = null;
+                    ShieldStep("competing4"); ShieldRequireReleased("competing");
                     var spell = FindShieldSpellBuff();
                     s6Facts["shieldSpell"] = spell == null ? null : spell.AssetGuid + "/" + spell.name;
-                    if (spell != null) s9MountSpell = horse.Buffs.AddBuff(spell, horse, TimeSpan.FromMinutes(10));
+                    if (spell != null) ShieldAddBuff(horse, spell);
                     s6Step = 25; return;
                 case 26:
                     ShieldStep("mountSpell");
-                    s9MountSpell?.Remove(); s9MountSpell = null;
+                    ShieldRemoveBuffs();
                     var other = (s9Equipment.ShieldSet + 1) % rider.Body.HandsEquipmentSets.Count;
                     s6Facts["otherSet"] = other;
                     rider.Body.CurrentHandEquipmentSetIndex = other;
@@ -592,13 +683,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     var unequipped = ShieldStep("unequipped");
                     unequipped["shieldInInventory"] = rider.Inventory.Items.Any(item => item is ItemEntityShield && item.HoldingSlot == null);
                     var riderSpell = FindShieldSpellBuff();
-                    if (riderSpell != null) s9RiderSpell = rider.Buffs.AddBuff(riderSpell, rider, TimeSpan.FromMinutes(10));
-                    else s9RiderSetupShield = rider.Stats.AC.AddModifier(4, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield);
+                    if (riderSpell != null) ShieldAddBuff(rider, riderSpell);
+                    else s9Setup.Add(rider.Stats.AC, 4, "riderShield", ModifierDescriptor.Shield);
                     s6Step = 33; return;
                 case 34:
                     ShieldStep("riderSpellOnly");
-                    s9RiderSpell?.Remove(); s9RiderSpell = null;
-                    s9RiderSetupShield?.Remove(); s9RiderSetupShield = null;
+                    ShieldRemoveBuffs(); ShieldRequireReleased("riderShield");
                     s9Equipment.Equip(s9Mundane["heavy"]);
                     s6Step = 35; return;
                 case 36:
@@ -720,11 +810,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 // the rider's full +3 (supplemental review PN4-F9).
                 case 8:
                     if (!Sprint6RealTimeUsageFree(rider)) return;
-                    s9Competing = horse.Stats.AC.AddModifier(4, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.Shield);
+                    s9Setup.Add(horse.Stats.AC, 4, "competing", ModifierDescriptor.Shield);
                     ShieldStep("competingBeforeCheck"); ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 9; return;
                 case 9:
                     if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
-                    ShieldStep("competingCheck"); s9Competing.Remove(); s9Competing = null; ShieldCalibrate(null);
+                    ShieldStep("competingCheck"); ShieldRequireReleased("competing"); ShieldCalibrate(null);
                     s6NextPlan = "natural"; s6Step = 10; return;
                 // A hit that Mounted Shield's AC turns into a miss: no check, no use. The hostile's bonus is aimed so a total
                 // inside the shield's band (AC - 3 .. AC - 1) is likely; only actual strikes count against the bound, and the
@@ -733,17 +823,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!Sprint6RealTimeUsageFree(rider)) return;
                     var amount = MountedShieldService.Current.Amount(rider, horse);
                     var probe = Rulebook.Trigger(new RuleCalculateAC(target, horse, AttackType.Melee)).TargetAC;
+                    // The AC change Mounted Shield makes now (supplemental review PN5-F7): Shield bonuses do not stack, so it is
+                    // the amount above the strongest other Shield modifier on the mount, read from the native modifiers.
+                    var owned = MountedShieldService.IdentityModifiers(horse.Stats.AC, HorseCompanionBlueprintService.MountedShieldFeatureGuid);
+                    var otherShield = horse.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
+                    var effective = Math.Max(0, amount - Math.Max(0, otherShield));
                     var current = ShieldHostileBonus();
                     var adjustment = probe - 12 - current;
-                    s9HostileSetup = target.Stats.AdditionalAttackBonus.AddModifier(adjustment, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.UntypedStackable);
-                    s6Facts["band"] = new JObject { ["amount"] = amount, ["ac"] = probe, ["attackBonusBefore"] = current, ["adjustment"] = adjustment };
+                    s9Setup.Add(target.Stats.AdditionalAttackBonus, adjustment, "band", ModifierDescriptor.UntypedStackable);
+                    s6Facts["band"] = new JObject { ["amount"] = amount, ["ac"] = probe, ["otherShield"] = otherShield, ["effectiveDelta"] = effective,
+                        ["acWithoutShield"] = probe - effective, ["attackBonusBefore"] = current, ["adjustment"] = adjustment };
+                    if (effective < 1) { s6Facts["bandUnavailable"] = "Mounted Shield changes no AC on this mount now; the band cannot be measured."; s6Step = 12; return; }
                     s9BandAttempts = 0; s9BandRulesBefore = s6Rules.Attacks.Count; s6Step = 11; return;
                 case 11:
                     var miss = ShieldBandMiss();
                     if (miss != null || s9BandAttempts >= Sprint6ShieldBandBound)
                     {
                         s6Facts["bandMiss"] = miss?.DeepClone(); s6Facts["bandAttempts"] = s9BandAttempts;
-                        s9HostileSetup?.Remove(); s9HostileSetup = null;
+                        ShieldRequireReleased("band");
                         ShieldStep("bandDone"); s6Frames = 0; s6Step = 12; return;
                     }
                     if (!Sprint6RealTimeUsageFree(rider) || !target.Commands.Empty) return;
@@ -759,15 +856,24 @@ namespace KingmakerMountedCombat.Diagnostics
         // contribution.
         private JObject ShieldBandMiss()
         {
-            var amount = s6Facts["band"]?.Value<int>("amount") ?? 0;
+            var band = (JObject)s6Facts["band"];
+            var effective = band?.Value<int>("effectiveDelta") ?? 0; var ac = band?.Value<int>("ac") ?? 0;
             for (var index = s9BandRulesBefore; index < s6Rules.Attacks.Count; index++)
             {
                 var row = (JObject)s6Rules.Attacks[index];
-                if ((string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent")) continue;
+                if ((string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent") || row.Value<int>("ac") != ac) continue;
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
-                if (row.Value<int>("d20") > 1 && total < row.Value<int>("ac") && total >= row.Value<int>("ac") - amount) return row;
+                if (row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
             }
             return null;
+        }
+
+        // A setup released mid-row must be gone before the next observation; otherwise the row fails (the drain retries it).
+        private void ShieldRequireReleased(string name)
+        {
+            var result = s9Setup.Release(name);
+            if (((JArray)result["remaining"]).Any(value => (string)value == Sprint6ShieldSetupModifiers.ComponentPrefix + name))
+                throw new InvalidOperationException("Setup " + name + " could not be removed: " + result.ToString(Newtonsoft.Json.Formatting.None));
         }
 
         // The hostile's native attack bonus against the mount now (every setup modifier included).
@@ -781,15 +887,14 @@ namespace KingmakerMountedCombat.Diagnostics
         // so a planned total is reachable with a natural die (supplemental review PN4-F9): for "equal" the bonus is that base,
         // so the die is the attack's own d20 (1..20); for "success" it is one less, so the die is again the attack's d20.
         // null removes the calibration.
-        private ModifiableValue.Modifier s9Calibration;
         private void ShieldCalibrate(string plan)
         {
-            s9Calibration?.Remove(); s9Calibration = null;
+            ShieldRequireReleased("calibration");
             if (plan == null) return;
             var checkBase = rider.Stats.SkillMobility.ModifiedValue + MountedShieldService.Current.Amount(rider, horse);
             var wanted = plan == "equal" ? checkBase : checkBase - 1;
             var current = ShieldHostileBonus();
-            s9Calibration = target.Stats.AdditionalAttackBonus.AddModifier(wanted - current, (Kingmaker.Blueprints.GameLogicComponent)null, ModifierDescriptor.UntypedStackable);
+            s9Setup.Add(target.Stats.AdditionalAttackBonus, wanted - current, "calibration", ModifierDescriptor.UntypedStackable);
             var calibrations = s6Facts["calibrations"] as JArray ?? new JArray();
             s6Facts["calibrations"] = calibrations;
             calibrations.Add(new JObject { ["plan"] = plan, ["checkBase"] = checkBase, ["attackBonusBefore"] = current, ["attackBonusAfter"] = ShieldHostileBonus(),

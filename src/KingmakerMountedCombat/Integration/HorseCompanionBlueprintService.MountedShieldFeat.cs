@@ -55,17 +55,26 @@ namespace KingmakerMountedCombat.Integration
         // The terminal stop (CompositionRoot failure cleanup, supplemental review PN4-F3) closes Mounted Shield's offers with
         // its benefits, reversibly, so no list (one that ignores prerequisites included) keeps a feat whose mechanic is
         // stopped; an explicit enable reopens them. Mounted Combat and Mounted Archery are untouched.
-        internal void SuspendMountedShieldOffers() => mountedCombatPublication?.Suspend(KmcOptionalCombatFeat.MountedShield);
+        // The stop is kept on the service as well (supplemental review PN5-F2): a stop before registration finishes is applied to
+        // the publication the moment registration creates it, before anything is published.
+        private bool mountedShieldOffersSuspended;
+
+        internal void SuspendMountedShieldOffers()
+        {
+            mountedShieldOffersSuspended = true;
+            mountedCombatPublication?.Suspend(KmcOptionalCombatFeat.MountedShield);
+        }
 
         internal void ResumeMountedShieldOffers()
         {
+            mountedShieldOffersSuspended = false;
             var error = mountedCombatPublication?.Resume(KmcOptionalCombatFeat.MountedShield, SelectionName);
             if (error == null) return;
             mountedCombatFailure = error;
             logger.Error(error);
         }
 
-        internal bool MountedShieldOffersSuspended => mountedCombatPublication?.Suspended(KmcOptionalCombatFeat.MountedShield) == true;
+        internal bool MountedShieldOffersSuspended => mountedShieldOffersSuspended;
 
         private void ReportMountedShieldWithdrawal()
         {

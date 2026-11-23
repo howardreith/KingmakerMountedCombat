@@ -248,5 +248,49 @@ Check $stillOut 'an ordinary enable call while suspended does not reopen Mounted
 Assert-Matches $f $true 'the explicit enable''s resume offers Mounted Shield once again in every list'
 Check (-not [bool]$suspendedFlag.GetValue($f.service)) 'the suspension is cleared'
 
+# PN5-F2 (1): a toggle that finds registration pending and faults it refuses without keeping the requested state. Outside
+# the player the native library is unreachable, so the service's own Update faults its registration, as a real fault would.
+$lines.Clear()
+$pending = $serviceType.GetConstructors()[0].Invoke(@([Activator]::CreateInstance($recorderType)))
+# A native library to register against, and a locale pack holding one of KMC's keys with another text: the registration's
+# own collision refusal faults it inside Update, as a genuine collision would. Both statics are put back afterwards.
+$libraryType = GameType 'Kingmaker.Blueprints.LibraryScriptableObject'; $resources = GameType 'Kingmaker.Blueprints.ResourcesLibrary'
+$libraryField = $resources.GetField('s_LibraryObject', $any); $libraryBefore = $libraryField.GetValue($null)
+$library = New-Live $libraryType
+$byId = $libraryType.GetField('<BlueprintsByAssetId>k__BackingField', $any); $index = [Activator]::CreateInstance($byId.FieldType); $index.Add('00000000000000000000000000000001', (New-Live $featureType)); $byId.SetValue($library, $index)
+$libraryField.SetValue($null, $library)
+$packType = GameType 'Kingmaker.Localization.LocalizationPack'; $managerType = GameType 'Kingmaker.Localization.LocalizationManager'
+$packField = @($managerType.GetFields($any) | Where-Object { $_.FieldType -eq $packType -and $_.IsStatic })[0]; $packBefore = $packField.GetValue($null)
+$pack = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($packType)
+$strings = @($packType.GetFields($any) | Where-Object { $_.Name -match 'Strings' })[0]; $table = [Activator]::CreateInstance($strings.FieldType)
+$ownKey = @((Field 'localization').GetValue($pending).Keys | Where-Object { -not $_.StartsWith('KMC.MountedShield.') })[0]
+$table.Add($ownKey, 'another mod''s text'); $strings.SetValue($pack, $table); $packField.SetValue($null, $pack)
+Check ([string](Field 'state').GetValue($pending) -ceq 'Pending') 'a new service is Pending'
+$accepted = [bool]$setSelectionEnabled.Invoke($pending, @($true))
+Check (-not $accepted -and [string](Field 'state').GetValue($pending) -ceq 'Faulted') 'an enable that faults the pending registration is refused'
+Check (-not [bool](Field 'selectionDesired').GetValue($pending)) 'the refused pending enable leaves the stored state as it was'
+$libraryField.SetValue($null, $libraryBefore); $packField.SetValue($null, $packBefore)
+
+# PN5-F2 (2): a terminal stop before registration has created the publication is kept by the service and applied the
+# moment registration leases the lists (the production LeaseKmcCombatFeatSelections), before anything is published.
+$g = New-Registered $true
+(Field 'mountedCombatPublication').SetValue($g.service, $null)
+[void]$serviceSuspend.Invoke($g.service, @())
+Check ([bool]$suspendedFlag.GetValue($g.service)) 'a stop with no publication yet is kept by the service'
+$targets = (Field 'mountedCombatSelectionTargets').GetValue($g.service); foreach ($list in $g.combatLists) { [void]$targets.Add($list) }
+$requiredLists = (Field 'requiredCombatFeatSelections').GetValue($g.service); [void]$requiredLists.Add($g.combatLists[0]); [void]$requiredLists.Add($g.combatLists[1])
+(Field 'mountedCombatFeature').SetValue($g.service, $g.combat); (Field 'mountedArcheryFeature').SetValue($g.service, $g.archery); (Field 'mountedShieldFeature').SetValue($g.service, $g.shield)
+[void]$serviceType.GetMethod('LeaseKmcCombatFeatSelections', $any).Invoke($g.service, @())
+Check (Set-Enabled $g $true) 'the enable after registration succeeds'
+$shieldOffered = $false; $othersOffered = $true
+foreach ($list in $g.combatLists) {
+    $now = @($allFeatures.GetValue($list))
+    if (@($now | Where-Object { [object]::ReferenceEquals($_, $g.shield) }).Count -ne 0) { $shieldOffered = $true }
+    if (@($now | Where-Object { [object]::ReferenceEquals($_, $g.combat) }).Count -ne 1 -or @($now | Where-Object { [object]::ReferenceEquals($_, $g.archery) }).Count -ne 1) { $othersOffered = $false }
+}
+Check (-not $shieldOffered -and $othersOffered) 'the first publication after a pre-registration stop leaves Mounted Shield out and offers the other two'
+[void]$serviceResume.Invoke($g.service, @())
+Assert-Matches $g $true 'the explicit enable''s resume offers Mounted Shield after a pre-registration stop'
+
 Write-Host ('TOTAL PASS=' + $script:passed + ' FAIL=' + $script:failures.Count)
 if ($script:failures.Count -ne 0) { exit 1 }

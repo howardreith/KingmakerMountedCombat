@@ -406,7 +406,9 @@ namespace KingmakerMountedCombat.Integration
             if (state == HorseCompanionBlueprintState.Pending)
             {
                 Update();
-                return state != HorseCompanionBlueprintState.Faulted;
+                // Registration faulted: the root refuses, so the stored state goes back as well (supplemental review PN5-F2).
+                if (state == HorseCompanionBlueprintState.Faulted) { selectionDesired = previousSelectionDesired; return false; }
+                return true;
             }
             if (state != HorseCompanionBlueprintState.Registered)
             {
