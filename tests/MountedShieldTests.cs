@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: a competing Mounted Shield in any publication target is found, fighter-only included (review finding 5)", CompetingFeatInAnyTarget);
             runner.Run("kmc publication: a terminal stop suspends only Mounted Shield's offers, reversibly, and never withdraws it (review finding PN4-F3)", SuspensionIsReversible);
             runner.Run("kmc publication: resume leaves a foreign removal from a non-required list in place (review finding PN6-F1)", ResumeKeepsForeignRemoval);
+            runner.Run("kmc publication: the explicit enable (publish, then resume) leaves a foreign removal in place (review finding PN8-F1)", EnableKeepsForeignRemoval);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -399,6 +400,22 @@ namespace KingmakerMountedCombat.Tests
             lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
             TestRunner.True(!lists.Has("extra", lists.MountedShield) && ReferenceEquals(lists.Arrays["extra"], extra), "The list another mod took Mounted Shield from stays as it left it.");
             TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 && lists.Set.MountedShieldAvailable(), "The required lists offer it again once.");
+        }
+
+        // The root's explicit enable publishes (Apply(true)) before it resumes. A non-required list another mod took Mounted Shield
+        // from already matches the publication without it, so KMC writes nothing there and must not later put Shield back.
+        private static void EnableKeepsForeignRemoval()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            var extra = lists.Arrays["extra"].Where(item => item != lists.MountedShield).ToArray();
+            lists.Arrays["extra"] = extra;
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            lists.Set.Apply(true, key => key);
+            lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(ReferenceEquals(lists.Arrays["extra"], extra) && !lists.Has("extra", lists.MountedShield), "The foreign-edited list keeps its contents and array reference.");
+            TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 && lists.Set.MountedShieldAvailable() &&
+                !lists.Set.MountedShieldWithdrawn, "The required lists offer Mounted Shield again once and nothing is withdrawn.");
         }
 
         private static void PartialRegistration()

@@ -330,6 +330,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var riderFact = MountedShieldFeat == null ? null : shieldRider.Descriptor.Progression.Features.GetFact(MountedShieldFeat);
             var hasLedger = service != null && service.TryGetContribution(shieldRider, out ledgerMount, out ledgerAmount);
             var shield = MountedShieldService.EffectiveShield(shieldRider);
+            // The native AC rules decide flat-footedness themselves (outside combat CanActInCombat is false), so each probe
+            // records the choice it made and the reader compares with the matching stat value (review PN8-F3).
+            var meleeRule = Rulebook.Trigger(new RuleCalculateAC(shieldRider, mount, AttackType.Melee));
+            var touchRule = Rulebook.Trigger(new RuleCalculateAC(shieldRider, mount, AttackType.Touch));
             var row = new JObject {
                 ["rider"] = shieldRider.UniqueId, ["mount"] = mount.UniqueId, ["frame"] = Time.frameCount,
                 ["amount"] = service?.Amount(shieldRider, mount), ["serviceEnabled"] = service?.Enabled,
@@ -339,8 +343,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["armorType"] = shield.ArmorComponent?.Blueprint?.Type?.AssetGuid, ["enchantmentValue"] = shield.EnchantmentValue,
                     ["armorEnhancement"] = Sprint6ShieldEquipment.ArmorEnhancement(shield), ["base"] = shield.ArmorComponent?.Blueprint?.ArmorBonus },
                 ["ac"] = ac.ModifiedValue, ["touch"] = ac.Touch, ["flatFooted"] = ac.FlatFooted, ["flatFootedTouch"] = ac.FlatFootedTouch,
-                ["ruleMelee"] = Rulebook.Trigger(new RuleCalculateAC(shieldRider, mount, AttackType.Melee)).TargetAC,
-                ["ruleTouch"] = Rulebook.Trigger(new RuleCalculateAC(shieldRider, mount, AttackType.Touch)).TargetAC,
+                ["ruleMelee"] = meleeRule.TargetAC, ["ruleMeleeFlatFooted"] = meleeRule.IsTargetFlatFooted,
+                ["ruleTouch"] = touchRule.TargetAC, ["ruleTouchFlatFooted"] = touchRule.IsTargetFlatFooted,
                 ["owned"] = new JArray(owned.Select(modifier => new JObject { ["value"] = modifier.ModValue, ["descriptor"] = modifier.ModDescriptor.ToString(),
                     ["sourceGuid"] = modifier.Source?.Blueprint?.AssetGuid, ["sourceIsRiderFact"] = riderFact != null && ReferenceEquals(modifier.Source, riderFact),
                     ["sourceName"] = (modifier.Source?.Blueprint as Kingmaker.Blueprints.Facts.BlueprintUnitFact)?.Name })),
@@ -497,7 +501,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["combat"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedCombatFeature)),
                 ["archery"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedArcheryFeature)),
                 ["shield"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, MountedShieldFeat)),
-                ["kmcTailExact"] = Sprint6KmcTailExact(selection.AllFeatures) }));
+                ["kmcTailExact"] = Sprint6KmcTailExact(selection.AllFeatures),
+                // The last three entries as published (review PN8-F5), so the positive three-feat observation names each feat.
+                ["kmcTail"] = new JArray(selection.AllFeatures.Skip(Math.Max(0, selection.AllFeatures.Length - 3)).Select(feature => feature?.AssetGuid)) }));
         }
 
         // One native level as Fighter, through the controller the player uses. Feat choices go to the ordinary and fighter

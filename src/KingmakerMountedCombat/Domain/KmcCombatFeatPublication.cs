@@ -324,8 +324,10 @@ namespace KingmakerMountedCombat.Domain
                     error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " changed outside KMC; no overwrite was attempted.";
                     continue;
                 }
-                if (value != null) write(pair.Key, value);
-                // KMC's own value now stands in this array without each suspended feat.
+                if (value == null) continue;
+                write(pair.Key, value);
+                // KMC itself just wrote this array without each suspended feat (review PN8-F1): an array that already matched
+                // needed no write and is not recorded, so another mod's own removal of the feat is never undone by Resume.
                 if (desired)
                     for (var index = 0; index < suspended.Length; index++)
                         if (suspended[index] && registered[index] && !withdrawn[index]) withheldKeys[index].Add(pair.Key);

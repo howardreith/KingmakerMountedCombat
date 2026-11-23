@@ -6,6 +6,7 @@
 $script:KmcShieldFeatGuid='671a301bd1774677a8bfa2873d33b191'
 $script:KmcShieldFocusGuid='ac57069b6bf8c904086171683992a92a'
 $script:KmcMountedCombatGuid='a7d2e94c6f1b4830b5c9e28d17f3a604'
+$script:KmcMountedArcheryGuid='b81926bca1d24a3997cdc8471a84014b'
 $script:KmcShieldStockBase=@{buckler=1;light=1;heavy=2;tower=4}
 # Verified stock items (installed 2.1.7b sharedassets1.assets; supplemental review PN6-F4): key, item GUID, armor type, enhancement.
 $script:KmcShieldStock=[ordered]@{
@@ -49,7 +50,10 @@ function Assert-KmcShieldSnapshot($S,[int]$Expected,[string]$What){
 function Assert-KmcShieldAc($S,$Reference,[int]$HighestShield,[string]$What){
  if([int]$S.ac -ne [int]$Reference.ac+$HighestShield -or [int]$S.flatFooted -ne [int]$Reference.flatFooted+$HighestShield){ throw ('Mounted Shield '+$What+': native AC '+$S.ac+'/'+$S.flatFooted+' differs from reference + '+$HighestShield) }
  if([int]$S.touch -ne [int]$Reference.touch -or [int]$S.flatFootedTouch -ne [int]$Reference.flatFootedTouch){ throw ('Mounted Shield '+$What+': a shield bonus reached touch AC') }
- if([int]$S.ruleMelee -ne [int]$S.ac -or [int]$S.ruleTouch -ne [int]$S.touch){ throw ('Mounted Shield '+$What+': the native AC rule disagrees with the stat') }
+ # Each native rule chose flat-footedness itself (outside combat it can), so it is compared with the matching stat (review PN8-F3).
+ if($null -eq $S.ruleMeleeFlatFooted -or $null -eq $S.ruleTouchFlatFooted){ throw ('Mounted Shield '+$What+': the native AC rules did not record their flat-footed choice') }
+ $melee=$(if($S.ruleMeleeFlatFooted -eq $true){[int]$S.flatFooted}else{[int]$S.ac}); $touch=$(if($S.ruleTouchFlatFooted -eq $true){[int]$S.flatFootedTouch}else{[int]$S.touch})
+ if([int]$S.ruleMelee -ne $melee -or [int]$S.ruleTouch -ne $touch){ throw ('Mounted Shield '+$What+': the native AC rule disagrees with the stat') }
 }
 
 function Assert-KmcShieldEligibility($Rows,[bool]$RequireMissingCombat,[string]$Who){
@@ -74,7 +78,10 @@ function Assert-KmcShieldSelection($E,[bool]$RealTime){
  if($g.iconIsShieldIcon -ne $true -or [int]$g.iconWidth -ne 64 -or [int]$g.iconHeight -ne 64){ throw 'Mounted Shield blueprint icon is not the 64x64 Mounted Shield sprite' }
  if([string]::IsNullOrWhiteSpace([string]$g.name) -or [string]::IsNullOrWhiteSpace([string]$g.description)){ throw 'Mounted Shield name or description is empty' }
  foreach($s in @($E.threeFeatSelections)){
-  if([int]$s.combat -ne 1 -or [int]$s.shield -ne 1 -or [int]$s.archery -gt 1 -or $s.kmcTailExact -ne $true){ throw 'Mounted Shield three-feat publication differs (each KMC feat once in the exact tail)' }
+  # The positive three-feat observation (MS-20, review PN8-F5): exactly one of each feat, last, in the order Mounted Combat,
+  # Mounted Archery, Mounted Shield. An Archery fault is MS-22's isolation case, not this one.
+  if([int]$s.combat -ne 1 -or [int]$s.shield -ne 1 -or [int]$s.archery -ne 1 -or $s.kmcTailExact -ne $true -or
+    ((@($s.kmcTail) | ForEach-Object { [string]$_ }) -join ',') -cne (@($script:KmcMountedCombatGuid,$script:KmcMountedArcheryGuid,$script:KmcShieldFeatGuid) -join ',')){ throw 'Mounted Shield three-feat publication differs (each KMC feat once in the exact tail)' }
  }
  if(@($E.threeFeatSelections).Count -lt 2){ throw 'Mounted Shield is not published in the ordinary and fighter lists' }
  $levels=@($E.levels)
@@ -261,7 +268,13 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
  if([int]$E.unrelatedMobility.bonus -ne 0 -or [int]$E.unrelatedMobility.stat -ne [int]$E.unrelatedMobility.displayed){ throw 'Mounted Shield an unrelated Mobility check received an addition' }
  $unrelatedRow=@($Measure.skillChecks | Where-Object { [int]$_.frame -eq [int]$E.unrelatedMobility.frame -and [int]$_.dc -eq [int]$E.unrelatedMobility.dc })
  if($unrelatedRow.Count -ne 1 -or [int]$unrelatedRow[0].kmcShieldModifiers -ne 0){ throw 'Mounted Shield an unrelated Mobility roll held a Mounted Shield modifier' }
- foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){ if([int]$x.shieldBonus -ne 3){ throw 'Mounted Shield a check on this pair missed the full amount' } }
+ # Every attempted real-time use on this row, planned or natural, is a real-time window with exactly one Swift charge from an
+ # eligible state (review PN8-F4); the forced-total assertions stay with the planned attacks.
+ foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
+  if([int]$x.shieldBonus -ne 3){ throw 'Mounted Shield a check on this pair missed the full amount' }
+  if([string]$x.mode -cne 'RT' -or [string]$x.commitment -cne 'RealTimeWindow'){ throw 'Mounted Shield a real-time row attempt was not a real-time window' }
+  Assert-KmcShieldCommitted $x ('real-time attempt '+$x.step)
+ }
  $b=$E.band; $miss=Get-KmcShieldProperty $E 'bandMiss'
  if([int]$b.amount -ne 3 -or $null -eq $miss -or [int]$E.bandAttempts -lt 1 -or [int]$E.bandAttempts -gt 120){ throw 'Mounted Shield no miss caused only by its AC was identified within the strike bound' }
  # The AC change Mounted Shield made at that very attack (review PN5-F7, PN6-F6): its own modifier above the strongest other
@@ -281,6 +294,11 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
 
 function Assert-KmcShieldCheckTurnBased($Measure,$E){
  $c='MS-check-tb'
+ # Every attempted turn-based use on this row is a turn-based Swift spend or borrow with its exact transition (review PN8-F4).
+ foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
+  if([string]$x.mode -cne 'TB' -or [string]$x.commitment -cnotin @('SpendCurrentSwift','BorrowNextSwift')){ throw 'Mounted Shield a turn-based row attempt was not a turn-based commitment' }
+  Assert-KmcShieldCommitted $x ('turn-based attempt '+$x.step)
+ }
  $r=Get-KmcSprint6Record $Measure $c 2
  if([string]$r.mode -cne 'TB' -or $r.riderTurn -ne $true -or [string]$r.commitment -cne 'SpendCurrentSwift' -or [int]$r.checkResult -ne [int]$r.attackResult+1){ throw 'Mounted Shield own-turn success differs' }
  Assert-KmcShieldRecord $r 'own-turn success' $Measure; Assert-KmcSprint6Negated $Measure $r 'Mounted Shield own-turn success'

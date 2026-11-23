@@ -45,7 +45,7 @@ function New-Snap([int]$Amount,[int]$HighestShield=-1,[string]$Who=$rider,[strin
  [pscustomobject]@{rider=$Who;mount=$On;frame=1;amount=$Amount;serviceEnabled=$true
   facts=[pscustomobject]@{available=($Amount -gt 0);pair=$true;ownsFeat=$true;effectiveShield=($Amount -gt 0);base=$(if($Amount -gt 0){$Base}else{0});focus=$true;greater=$Greater}
   shield=$(if($Amount -gt 0){[pscustomobject]@{enhancement=$Enhancement;base=$Base}}else{$null})
-  ac=20+$HighestShield;touch=12;flatFooted=18+$HighestShield;flatFootedTouch=10;ruleMelee=20+$HighestShield;ruleTouch=12
+  ac=20+$HighestShield;touch=12;flatFooted=18+$HighestShield;flatFootedTouch=10;ruleMelee=20+$HighestShield;ruleMeleeFlatFooted=$false;ruleTouch=12;ruleTouchFlatFooted=$false
   owned=$owned;shieldModifiers=$mods;ledger=$(if($Amount -gt 0){[pscustomobject]@{mount=$On}}else{$null})
   riderMobility=12;riderMobilityKmc=0;riderShieldModifiers=@();riderSet=$Set;mounted=$true;state=(New-State)}
 }
@@ -65,7 +65,7 @@ function New-Selection([bool]$RealTime){
   shieldRegistration=[pscustomobject]@{failure=$null;withdrawn=$false;guid=$feat;groups=@('Feat','CombatFeat');ranks=1;isClassFeature=$true;hideInUi=$false
    prerequisites=@([pscustomobject]@{type='PrerequisiteFeature';group='All';hidden=$false;feature=$combat},[pscustomobject]@{type='PrerequisiteFeature';group='All';hidden=$false;feature=$focus},[pscustomobject]@{type='MountedShieldAvailabilityPrerequisite';group='All';hidden=$true;feature=$null})
    iconIsShieldIcon=$true;iconSprite='KMC_MountedShield_Feat_Icon';iconWidth=64;iconHeight=64;name='Mounted Shield';description='A shield bonus to the mount and to the Mounted Combat check; enhancement does not count.'}
-  threeFeatSelections=@([pscustomobject]@{guid='a';combat=1;archery=1;shield=1;kmcTailExact=$true},[pscustomobject]@{guid='b';combat=1;archery=1;shield=1;kmcTailExact=$true})
+  threeFeatSelections=@([pscustomobject]@{guid='a';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')},[pscustomobject]@{guid='b';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')})
   levels=@($pairLevel,$shieldLevel); riderFacts=(New-Facts 1 1 1)}
  if($RealTime){
   $e | Add-Member ownerLevels @([pscustomobject]@{committed=$true;pass=[pscustomobject]@{eligibility=@((New-Eligibility 'after-ShieldFocus' 'FighterFeatSelection' $false $true))}})
@@ -227,6 +227,18 @@ $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 4).swiftAfter=12; Reject $r $rs 'a 
 $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 2).stateBefore=(New-State $false $false $true); Reject $r $rs 'a real-time use with a window already open refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 2).swiftAfter=12; Reject $r $ts 'an own-turn use charged twice refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 6).stateBefore=(New-State $false $true); Reject $r $ts 'an off-turn use with a debt already owed refuses (PN6-F7)'
+# Supplemental review round 8.
+$r=Copy-MS $real; $x=(RowOf $r 'MS-selection').threeFeatSelections[0]; $x.archery=0; $x.kmcTail=@('a1','a7d2e94c6f1b4830b5c9e28d17f3a604','671a301bd1774677a8bfa2873d33b191'); Reject $r $rs 'a three-feat observation with Mounted Archery absent refuses (PN8-F5)'
+$r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[0].archery=0; Reject $r $rs 'archery 0 with an exact tail claimed refuses (PN8-F5)'
+$r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[1].kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','671a301bd1774677a8bfa2873d33b191','b81926bca1d24a3997cdc8471a84014b'); Reject $r $rs 'a three-feat tail in another order refuses (PN8-F5)'
+$r=Copy-MS $real; foreach($s in @((RowOf $r 'MS-equipment').steps.PSObject.Properties | ForEach-Object { $_.Value })){ if($null -ne $s.ruleMelee){ $s.ruleMeleeFlatFooted=$true; $s.ruleMelee=$s.flatFooted; $s.ruleTouchFlatFooted=$true; $s.ruleTouch=$s.flatFootedTouch } }; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'native flat-footed AC chosen by the rules in exploration is accepted against the flat-footed stat (PN8-F3)'
+$r=Copy-MS $real; $s=(RowOf $r 'MS-equipment').steps.heavy; $s.ruleMeleeFlatFooted=$true; Reject $r $rs 'a flat-footed melee rule that returned the ordinary AC refuses (PN8-F3)'
+$r=Copy-MS $real; (RowOf $r 'MS-equipment').steps.heavy.PSObject.Properties.Remove('ruleTouchFlatFooted'); Reject $r $rs 'an AC probe without its flat-footed choice refuses (PN8-F3)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 9; $x.mode='TB'; $x.commitment='BorrowNextSwift'; $x.stateAfter=(New-State $true $true); $x.swiftAfter=0; Reject $r $rs 'a turn-based borrow certified on the real-time row refuses (PN8-F4)'
+$r=Copy-MS $real; Add-Attack $r.observations.sprint6Feat 'MS-check-rt' 11 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'an additional natural real-time use with exactly one Swift charge is accepted (PN8-F4)'
+$r=Copy-MS $real; Add-Attack $r.observations.sprint6Feat 'MS-check-rt' 11 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 12 $false 'RT'; Reject $r $rs 'a double Swift charge on an additional natural hit refuses (PN8-F4)'
+$r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'SpendCurrentSwift' (New-State) (New-State $true) 0 6 $true 'TB'; $ta=@(Accept $r $ts); Check ($ta[-1] -eq $true) 'an additional own-turn use with exactly one Swift charge is accepted (PN8-F4 control)'
+$r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'SpendCurrentSwift' (New-State) (New-State $true) 6 12 $true 'TB'; Reject $r $ts 'an additional turn-based use from an unavailable Swift refuses (PN8-F4)'
 # Supplemental review round 7 (gameplay).
 $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.setup.allFaults=@('KMC_Sprint6Shield_Setup_competing callback: boom'); Reject $r $rs 'a setup removal fault kept from an earlier release refuses (PN7-F3)'
 $r=Copy-MS $real; $id=(RecordOf $r 'MS-check-rt' 9).ruleIdentity; $a=$r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $id }; $a.acContext.otherShield=0; $a.acContext.effective=3; Reject $r $rs 'a check whose attack was calculated without the competing +4 refuses (PN7-F4)'
