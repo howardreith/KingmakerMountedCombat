@@ -45,7 +45,27 @@ identity and another supplemental review.
 | PN2-F5 | After disable stripped KMC's entries from a foreign-appended list, re-enable rejected it and withdrew both optional rules. | **Fixed** in `1f1bb814`: the stripped foreign value becomes that list's lease original (`Rebase`); re-enable appends KMC's entries after it and disabling again restores it exactly. Component case covers the full round trip; the Mounted Archery lifecycle case was updated to this behavior. |
 | PN2-F6 | A copied second reference to an active KMC feat survived refresh and would be offered twice. | **Fixed** in `1f1bb814`: the full refresh keeps one occurrence of each KMC entry per list; foreign entries, including foreign duplicates, are untouched. Component case. |
 
-## Round 3 — candidate after the round-2 corrections
+## Round 3 — candidate `54de0408cb510c5ec84f9f2b4f8eb0e866701c9a` (production `1f1bb814`)
 
-Recorded in docs/mounted-shield/HANDOFF.md section 9 once it completes. This review is bounded at three rounds: a
-further CHANGES REQUIRED verdict is reported with its findings open, not iterated without end.
+- **Transport:** as before, fresh snapshot `worktrees/mounted-shield-review-54de0408`, both prior rounds supplied. Started
+  2026-11-23T17:56:08Z, 18.90 minutes, exit 0, empty stderr; identity and cleanliness recheck PASS.
+- **Verdict: CHANGES REQUIRED.** Prior findings: PN1-F2, PN1-F5, PN2-F5 and PN2-F6 resolved; PN2-F3 resolved for the stock
+  ordinary and fighter picks; the remainders reported as PN3 findings. One optional improvement (duplicate-scan
+  allocation). The reviewer re-verified the gate log, the DLL (`8c40a66c…`, MVID `2c971267…`) and the icon resource.
+- **Bound:** this review was bounded at three rounds. The round-3 corrections below were made and gated
+  (`9bbd6112`) but **have not had a further supplemental review**.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN3-F1 | Failure cleanup and its retry could touch the outgoing world during an owned load; the second `failureCleanupPending` store broke the existing compiled contract (exactly one store). | **Fixed** in `9bbd6112`: the Mounted Shield stop is skipped while `LoadInFlight` and joins the one existing latch store; the retry also waits for the load. `Test-ContinuousDriveContracts.ps1` 59/0 (it failed on `1f1bb814`; now a focused child). |
+| PN3-F2 | A successful failure shutdown left Mounted Shield enabled and selectable while the root blocked AC writes. | **Fixed** in `9bbd6112`: the stop calls `Disable` (both benefits off, verified release); the selection check requires the services on and the service enabled. Inspection; root not hostable offline. |
+| PN3-F3 | A refused repeated disable republished the combat feats and re-enabled Mounted Shield while the services stayed off. | **Fixed** in `9bbd6112`: `SetSelectionEnabled` restores the publication state from before the call; the root re-enables the service only if it was enabled before. Inspection; Ranger selection contract 183/0. |
+| PN3-F4 | The new equipment EventBus subscriptions changed the reviewed global-subscriber inventory (the replay-subscriber contract rejected the compiled type). | **Fixed** in `9bbd6112` by removing those two subscriptions (no protocol revision): the `RuleCalculateAC` rulebook handler still reconciles before an attack reads the mount's AC, and the sheet follows the per-frame reconcile. `chunk7\Test-Chunk7ReplaySubscriberContract.ps1` 21/0 (now a focused child). |
+| PN3-F5 | A foreign selection (or a parent) with `IgnorePrerequisites` skips the hidden availability check, so between two frame refreshes a pick on such a list could still be committed after a required list lost the feat. | **Open (not fixed).** Stock targets do not set the flag (the reviewer confirmed); the case needs another mod's prerequisite-ignoring selection offering Power Attack and Dodge plus another mod's removal from a required list within one frame. The per-frame full refresh withdraws the feat on the next frame, and its benefits are then off for every owner. Recorded for the owner. |
+| PN3-F6 | A locale pack with different text for a Mounted Shield key faulted the shared registration. | **Fixed** in `9bbd6112`: a pack's existing `KMC.MountedShield.*` text is kept (registration and locale replacement). Inspection. |
+| PN3-F7 | Successful unload left the static selection check naming the disposed service. | **Fixed** in `9bbd6112`: successful teardown and feature removal release it when this service owns it; a refused teardown throws first and keeps it. Inspection. |
+| Optional | The duplicate scan allocated every frame. | **Done** in `9bbd6112`: a copy is made only when a duplicate exists. |
+
+Two contract scripts the reviewer named (`Test-ContinuousDriveContracts.ps1`, the chunk7 replay-subscriber contract) were not
+in the first focused gate; both failed on `1f1bb814` and pass on `9bbd6112`. Six other scripts that read changed code fail
+identically on base `fb743911` (HANDOFF section 4).

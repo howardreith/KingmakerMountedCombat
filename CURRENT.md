@@ -8,14 +8,16 @@ Start here. The sections below this one are dated history, newest first.
   Shield Focus and Greater Shield Focus, never enhancement, becomes a native shield bonus on the current mount's AC and an
   addition to the Mounted Combat hit-negation Mobility check. Three-feat coordinated publication with independent
   withdrawal. Supplied icon embedded byte-for-byte.
-- **Offline:** controller focused Fast gate PASS on `1f1bb814` (components 1507/0, Validate-Source 153/0, focused 3 of 3:
-  native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0). DLL `8c40a66c…`, MVID `2c971267…`.
-- **Independent review:** supplemental read-only Codex review rounds 1 and 2 CHANGES REQUIRED (five and six findings,
-  fixed in `16a4cc56` and `1f1bb814`); see [docs/mounted-shield/PRE_NATIVE_REVIEW.md](docs/mounted-shield/PRE_NATIVE_REVIEW.md).
+- **Offline:** controller focused Fast gate PASS on `9bbd6112` (components 1507/0, Validate-Source 153/0, focused 7 of 7:
+  native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0, continuous drive 59/0, replay subscriber 21/0,
+  Ranger selection 183/0, localization keys). DLL `3cc05893…`, MVID `9f36d10f…`.
+- **Independent review:** three supplemental read-only Codex rounds, each CHANGES REQUIRED (5, 6 and 7 findings; all but
+  PN3-F5 fixed, last in `9bbd6112`, which has not been reviewed again); see [docs/mounted-shield/PRE_NATIVE_REVIEW.md](docs/mounted-shield/PRE_NATIVE_REVIEW.md).
 - **Native:** BLOCKED. UMM 0.33.0 installed against the 0.33.2 pin (owner decision) and no KMC Working fixture. No game
   launch, staging or install.
 - **Read:** [docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) and its
   [acceptance ledger](docs/mounted-shield/ACCEPTANCE_LEDGER.json).
+- **Factory endpoint:** BLOCKED (developer report `blocked`; required native evidence), not AWAITING_OWNER_REVIEW.
 - **Not authorized:** merge, release, install.
 
 # RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)

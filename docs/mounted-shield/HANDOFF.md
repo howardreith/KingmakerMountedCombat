@@ -44,8 +44,9 @@ the wanted mount or amount changes (or the recorded value was removed by somethi
 accumulates. Release paths:
 
 - every ordinary frame, the ledger is reconciled against all mounted pairs (shield, set, feat, pair, death changes);
-- immediately for one rider's pair when the mount's `RuleCalculateAC` is about to read its AC and when the rider's
-  equipment or weapon set changes, so neither an attack nor the sheet sees the previous equipment's value;
+- immediately for one rider's pair when the mount's `RuleCalculateAC` is about to read its AC, so no attack sees the
+  previous equipment's value (the sheet follows within a frame; no plain EventBus subscriber is added, which keeps the
+  reviewed global-subscriber inventory unchanged);
 - an ungated removal-only pass, ahead of the save/area/restoration update gates, so a stale value never waits for them
   (skipped only while an archive worker serializes or an owned load replaces the world);
 - the pair's `PairDismounting` event;
@@ -56,7 +57,8 @@ accumulates. Release paths:
 
 Every removal goes through the owning stat by exact reference and is verified, so a write the engine left half-done (a
 stat-change callback threw before `AppliedTo` was set) is still found and removed. Disable, dispose and update-failure
-cleanup are refused while a Mounted Shield modifier remains, keeping the record for a retry. A value that still reached
+cleanup are refused while a Mounted Shield modifier remains, keeping the record for a retry; the update-failure stop
+disables the service (both benefits and the selection together) and never runs during an owned load. A value that still reached
 a save would be dropped by the native load cleanup (`CharacterStats.CleanupModifiers` removes a modifier whose source
 fact the mount does not own). Another source's shield bonus is never touched.
 
@@ -132,7 +134,17 @@ Executed (all offline; none is native evidence):
   - On `1f1bb814` (after the round-2 corrections): PASS, 21.7 s; components 1507/0, Validate-Source 153/0, focused 3 of
     3 (native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0). Receipt
     `gate-focused-1f1bb814ca5e-…-20261123T175456604438Z.log`.
-  - Budget `mounted-shield`: 1.05 of 90 minutes after all three.
+  - On `9bbd6112` (after the round-3 corrections): PASS, 26.5 s; components 1507/0, Validate-Source 153/0, focused 7 of 7
+    (native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0, continuous drive 59/0, chunk7 replay
+    subscriber 21/0, chunk7 Ranger selection 183/0, localization keys). Receipt
+    `gate-focused-9bbd611288ee-…-20261123T182119188344Z.log`.
+  - Budget `mounted-shield`: 1.48 of 90 minutes after all four.
+- Other contract scripts that read changed code, run once on `9bbd6112` and once on a detached build of base `fb743911`:
+  `Test-MarkerOwnershipContracts` 18/0, `Test-MountedPresentationContracts` 239/0, `Test-ScenePlacementAttributionContracts`
+  24/0, `chunk7\Test-Chunk7RepeatedWorldEvidence` 220/0 pass; `Test-Finalize2UpgradeReaders`, `Test-MountedAttackStallRepair`,
+  `Test-WorldOwnershipContracts`, `chunk7\Test-Chunk7ObservationLifetime`, `chunk7\Test-Chunk7RegisteredDisableContracts`
+  and `chunk7\Test-RuntimeStartupTrace` fail with the same errors on base (cleared historical artifacts, stale splices,
+  a removed field): pre-existing stale harnesses, not regressions.
 - `docs/missions/mounted-shield/tools/verify_packet.py`: 26 files, runtime PNG checks PASS.
 
 Not selected: the Candidate tier (it stops on the recorded `Test-Harness.ps1` 278/3 baseline failures, docs/CITY-AND-
@@ -140,9 +152,10 @@ PRONE-HANDOFF.md section 10), Full, packaging and every native campaign.
 
 ## 5. Independent review of the coherent change
 
-Round 1 on `1c49cb20`: CHANGES REQUIRED, five findings, fixed in `16a4cc56`. Round 2 on `70ac70c0`: CHANGES REQUIRED,
-six findings, fixed in `1f1bb814`. Records and dispositions: [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md). Round 3:
-section 9.
+Three rounds of the read-only Codex review (gpt-6.2-astra, max), each CHANGES REQUIRED: round 1 on `1c49cb20` (five
+findings, fixed in `16a4cc56`), round 2 on `70ac70c0` (six, fixed in `1f1bb814`), round 3 on `54de0408` (seven: six fixed
+in `9bbd6112`, PN3-F5 open). The round-3 corrections are gated but have not had a further review (bounded at three
+rounds). Records and dispositions: [PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md).
 
 ## 6. Native evidence: blocked, and what would run
 
@@ -167,10 +180,11 @@ general Mobility alone and would be three high with a +3 shield (review note).
 
 ## 7. Artifact identities
 
-- Production source `1f1bb814ca5e908e8128b35ecef4147ee2868562` (after both review correction batches); later commits are
-  records only. Superseded production sources: `801e1cd3` (DLL `ae4f8a92…`) and `16a4cc56` (DLL `30bf64ab…`).
-- DLL (gate build, `bin\Release`): SHA-256 `8c40a66c0f3b9a2c37b86006dd5c795f849313171bba74b1cf9cc04b759e4b36`, MVID
-  `2c971267-831e-409e-8029-cb2d1aed6f31`, 9,586,688 bytes.
+- Production source `9bbd611288ee673f935a16f602fe47414abf850c` (after three review correction batches); later commits are
+  records only. Superseded production sources: `801e1cd3` (DLL `ae4f8a92…`), `16a4cc56` (`30bf64ab…`), `1f1bb814`
+  (`8c40a66c…`).
+- DLL (gate build, `bin\Release`): SHA-256 `3cc058936d6cb7828d183b990a70d7eb97dc3d6b8025c7f79dc469a95ce4773a`, MVID
+  `9f36d10f-dee2-43a7-bb64-4c9a56a4ab69`, 9,587,200 bytes.
 - Icon: packet, `src/KingmakerMountedCombat/Assets/MountedShieldFeat.png` and the extracted resource all SHA-256
   `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0`.
 - No package was built (no native candidate).
@@ -183,4 +197,17 @@ lock) is unchanged by this feature and nothing here claims to affect it.
 
 ## 9. Review, controller status and remaining decisions
 
-Filled at the end of the run.
+- **Supplemental review:** section 5. Open: PN3-F5 (a foreign prerequisite-ignoring selection). The round-3 corrections
+  have not had a further supplemental review.
+- **Controller:** the developer report for the final checkpoint is `blocked` (required native/UI acceptance cannot run:
+  the UMM pin and the missing fixture). The controller records that as BLOCKED without launching its final reviewer, so
+  this run ends at a documented blocker, not `AWAITING_OWNER_REVIEW`; no accepted factory review exists. The PR carries
+  the controller's disposition and status comments.
+- **Owner decisions:** the UMM 0.33.0/0.33.2 platform pin; a disposable KMC seed for a qualified Working fixture (or owner
+  playtests of the blocked rows); a guarded gameplay driver (new DLL identity and review); then the factory's final review
+  can resume on this enrollment. Also: aesthetic acceptance of the icon, PN3-F5, merge and release.
+- **Owner playtest, once installed by the owner:** take Mounted Combat and Shield Focus, then Mounted Shield; ride with a
+  heavy shield and check the mount's AC tooltip shows "Mounted Shield +3" (Shield); equip a +N shield (still +3); add
+  Greater Shield Focus (+4); unequip or switch weapon sets (bonus gone at once); give the mount a stronger shield bonus
+  (AC unchanged) and check a Mounted Combat roll still reads "(Mounted Shield +3)"; dismount (mount AC back); save and
+  reload (one bonus).
