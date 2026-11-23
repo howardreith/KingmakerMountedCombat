@@ -8,8 +8,10 @@ Start here. The sections below this one are dated history, newest first.
   Shield Focus and Greater Shield Focus, never enhancement, becomes a native shield bonus on the current mount's AC and an
   addition to the Mounted Combat hit-negation Mobility check. Three-feat coordinated publication with independent
   withdrawal. Supplied icon embedded byte-for-byte.
-- **Offline:** controller focused Fast gate PASS on `801e1cd3` (components 1502/0, Validate-Source 153/0, focused 3 of 3:
-  native contract 68/0, Mounted Archery donor 54/0, ranged movement 5/0). DLL `ae4f8a92…`, MVID `5fd8fafa…`.
+- **Offline:** controller focused Fast gate PASS on `16a4cc56` (components 1506/0, Validate-Source 153/0, focused 3 of 3:
+  native contract 72/0, Mounted Archery donor 54/0, ranged movement 5/0). DLL `30bf64ab…`, MVID `a0761478…`.
+- **Independent review:** supplemental read-only Codex review round 1 CHANGES REQUIRED (five findings, fixed in
+  `16a4cc56`); see [docs/mounted-shield/PRE_NATIVE_REVIEW.md](docs/mounted-shield/PRE_NATIVE_REVIEW.md).
 - **Native:** BLOCKED. UMM 0.33.0 installed against the 0.33.2 pin (owner decision) and no KMC Working fixture. No game
   launch, staging or install.
 - **Read:** [docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) and its

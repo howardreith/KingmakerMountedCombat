@@ -44,6 +44,8 @@ the wanted mount or amount changes (or the recorded value was removed by somethi
 accumulates. Release paths:
 
 - every ordinary frame, the ledger is reconciled against all mounted pairs (shield, set, feat, pair, death changes);
+- immediately for one rider's pair when the mount's `RuleCalculateAC` is about to read its AC and when the rider's
+  equipment or weapon set changes, so neither an attack nor the sheet sees the previous equipment's value;
 - an ungated removal-only pass, ahead of the save/area/restoration update gates, so a stale value never waits for them
   (skipped only while an archive worker serializes or an owned load replaces the world);
 - the pair's `PairDismounting` event;
@@ -52,8 +54,11 @@ accumulates. Release paths:
 - disable, update-failure cleanup, dispose and construction rollback (`ReleaseAll`, which also sweeps loaded units for
   this feature's modifier identity only).
 
-A value that still reached a save would be dropped by the native load cleanup (`CharacterStats.CleanupModifiers`
-removes a modifier whose source fact the mount does not own). Another source's shield bonus is never touched.
+Every removal goes through the owning stat by exact reference and is verified, so a write the engine left half-done (a
+stat-change callback threw before `AppliedTo` was set) is still found and removed. Disable, dispose and update-failure
+cleanup are refused while a Mounted Shield modifier remains, keeping the record for a retry. A value that still reached
+a save would be dropped by the native load cleanup (`CharacterStats.CleanupModifiers` removes a modifier whose source
+fact the mount does not own). Another source's shield bonus is never touched.
 
 **Check.** `MountedCombatDefenseService.RollCheck` adds the same amount to its own `RuleSkillCheck.Bonus` (untyped,
 stacking, named by the rider's fact) before `Rulebook.Trigger`, so the native roll, log and the strict
@@ -65,13 +70,15 @@ line names the addition (`(Mounted Shield +3)`). No rider stat, reaction state, 
 donor (one rank, Feat + CombatFeat, the donor's `IsClassFeature = true` retained), prerequisites exactly Mounted Combat
 and Shield Focus in the native ALL group, localized `KMC.MountedShield.Name/Description`, sprite
 `KMC_MountedShield_Feat_Icon` from the embedded `KingmakerMountedCombat.Assets.MountedShieldFeat.png`. Registered after
-Mounted Archery; its faults (icon, prerequisite blueprints, GUID collision, a competing Mounted Shield) withdraw only this
-feat with a logged diagnostic. Removal preparation knows the new GUID and reference.
+Mounted Archery; its faults (icon, prerequisite blueprints, GUID collision, a competing Mounted Shield in any list KMC
+publishes to) withdraw only this feat with a logged diagnostic. Removal preparation knows the new GUID and reference.
 
 **Publication.** The existing `KmcCombatFeatPublicationSet` now owns Mounted Combat, Mounted Archery and Mounted Shield in
 one lease per array, in that order, with independent withdrawal: a required list (ordinary or fighter) losing one
 optional feat withdraws only that feat everywhere; Mounted Combat, the other optional feat and foreign entries stay. The
-two-feat constructor and Mounted Archery's API and diagnostics are unchanged.
+two-feat constructor and Mounted Archery's API and diagnostics are unchanged. The per-frame refresh is a full membership
+check, so another mod's in-place edit of a required list withdraws within a frame. Disabling restores KMC-owned arrays
+exactly and removes only KMC's own entries from an array another mod changed.
 
 **Icon.** The supplied 64x64 RGBA PNG, byte-for-byte (SHA-256 `fd519874…`), is the only new embedded resource. The full
 packet (master, 512px export, generated image, review sheet, prompts, rejected revision, manifest) is preserved under
@@ -113,10 +120,13 @@ Read from the installed `Assembly-CSharp` (decompiled in a scratch directory, no
 
 Executed (all offline; none is native evidence):
 
-- Controller gate: `verify --gate focused -- -Tier Fast -Focused Test-MountedShieldFocused.ps1` on `801e1cd3`: PASS,
-  19.6 s; build, components 1502/0, Validate-Source 153/0, focused 3 of 3 children (native contract 68/0, Mounted Archery
-  donor 54/0, ranged movement 5/0). Budget `mounted-shield`: 0.32 of 90 minutes. Receipt log
-  `gate-focused-801e1cd34fc8-…-20261123T170855771092Z.log` in the enrollment's evidence.
+- Controller gate: `verify --gate focused -- -Tier Fast -Focused Test-MountedShieldFocused.ps1`.
+  - On `801e1cd3` (first candidate): PASS, 19.6 s; components 1502/0, Validate-Source 153/0, focused 3 of 3 (native
+    contract 68/0, Mounted Archery donor 54/0, ranged movement 5/0). Receipt `gate-focused-801e1cd34fc8-…-20261123T170855771092Z.log`.
+  - On `16a4cc56` (after the review corrections): PASS, 23.7 s; components 1506/0, Validate-Source 153/0, focused 3 of 3
+    (native contract 72/0, Mounted Archery donor 54/0, ranged movement 5/0). Receipt
+    `gate-focused-16a4cc5625ff-…-20261123T173406517396Z.log`.
+  - Budget `mounted-shield`: 0.71 of 90 minutes after both.
 - `docs/missions/mounted-shield/tools/verify_packet.py`: 26 files, runtime PNG checks PASS.
 
 Not selected: the Candidate tier (it stops on the recorded `Test-Harness.ps1` 278/3 baseline failures, docs/CITY-AND-
@@ -124,7 +134,8 @@ PRONE-HANDOFF.md section 10), Full, packaging and every native campaign.
 
 ## 5. Independent review of the coherent change
 
-See section 9 (filled after the review completes).
+Round 1 on `1c49cb20`: CHANGES REQUIRED, five findings, all fixed in `16a4cc56`; the record and dispositions are in
+[PRE_NATIVE_REVIEW.md](PRE_NATIVE_REVIEW.md). Round 2 on the corrected candidate: section 9.
 
 ## 6. Native evidence: blocked, and what would run
 
@@ -143,13 +154,16 @@ MS-23 and MS-25 (ledger `PARTIAL`). When the owner resolves the pin and supplies
 them: (1) startup smoke (registration line, selections, icon decode); (2) level-up with Mounted Combat and Shield Focus
 picked the same level, Back/cancel, respec; (3) one mounted shield fixture: heavy shield with Shield Focus, mount sheet and
 tooltip, touch/flat-footed attacks, a Shield spell on the mount, +5 shield, set switch, unequip, Greater Shield Focus,
-forced d20 equality/success, toggle off and spent reaction, a second pair; (4) save, cold load and area transition.
+forced d20 equality/success, toggle off and spent reaction, a second pair; (4) save, cold load and area transition. The
+forced-roll driver must target the final native check total: the existing Sprint 6 helper derives its "equal" roll from
+general Mobility alone and would be three high with a +3 shield (review note).
 
 ## 7. Artifact identities
 
-- Candidate source `801e1cd34fc863060fcc6dbfbd6a0a64d8a35990` (production); later commits are records only.
-- DLL (gate build, `bin\Release`): SHA-256 `ae4f8a923bd2195ac7041aa8fa5d0d22d3bb459556f1563d20386588a69043a4`, MVID
-  `5fd8fafa-0f18-42ba-870e-c10fd25e4be0`, 9,577,472 bytes.
+- Production source `16a4cc5625ffb3d2d2a58c5af845b1694fd1d619` (after the review corrections); later commits are records
+  only. The first candidate's production source was `801e1cd3` (DLL `ae4f8a92…`, MVID `5fd8fafa…`), superseded.
+- DLL (gate build, `bin\Release`): SHA-256 `30bf64ab0ec4bf350e79cec8485bd7ee6cd69bcf6a37ed05e72750298fde8668`, MVID
+  `a0761478-0327-4e98-9818-fe171ad07c66`, 9,584,640 bytes.
 - Icon: packet, `src/KingmakerMountedCombat/Assets/MountedShieldFeat.png` and the extracted resource all SHA-256
   `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0`.
 - No package was built (no native candidate).
