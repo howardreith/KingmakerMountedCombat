@@ -231,6 +231,11 @@
         "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
         "change": "The check under the stronger shield must carry the competing +4 and Mounted Shield's +3 at the checked attack's own native AC calculation (review PN7-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "The stronger-shield check's terms are the sample of the calculation its attack references (review PN8-F2).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -252,6 +257,11 @@
         "driver_and_reader": "Every MS-equipment/MS-pairs snapshot records ordinary, touch, flat-footed and flat-footed-touch AC and native RuleCalculateAC melee/touch; the reader requires touch unchanged and ordinary/flat-footed raised by the highest Shield bonus. The contribution's source is the rider's Mounted Shield fact (its name is recorded).",
         "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
         "scope_and_limits": "The mount sheet/tooltip UI is not observed. Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "Each native AC probe records its flat-footed choice and is compared with the matching stat (review PN8-F3).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -353,6 +363,11 @@
         "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
         "change": "The band miss's shield terms come from its own nested RuleCalculateAC whose result is its TargetAC, against melee/ranged AC (review PN7-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "The band miss's shield terms are the sample of the exact calculation the attack references (RuleAttackRoll.ACRule) (review PN8-F2).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -383,6 +398,11 @@
       "continuation_4": {
         "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
         "change": "Each commitment requires the eligible native before-state and the complete after-state (review PN7-F5).",
+        "status": "BLOCKED"
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "Every attempted use on the RT and TB rows is held to its mode and exact transition (review PN8-F4).",
         "status": "BLOCKED"
       }
     },
@@ -510,6 +530,11 @@
         "status": "PASS",
         "candidate_source": "cb74ad5874768d046475b7df179f79edd4eaaaea",
         "observed": "Unchanged; three-feat publication re-run in Test-MountedShieldNativeContract.ps1 (77/0) and Test-MountedShieldSelectionRollback.ps1 (44/0)."
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "The positive three-feat observation requires exactly one of each feat in the tail Mounted Combat, Mounted Archery, Mounted Shield (review PN8-F5).",
+        "status": "PASS"
       }
     },
     {
@@ -537,6 +562,11 @@
       "continuation_4": {
         "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
         "change": "A resume after a stop before registration reinserts Mounted Shield into lists KMC published without it, after foreign appends (review PN7-F1).",
+        "status": "PASS"
+      },
+      "continuation_5": {
+        "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+        "change": "Withholding is recorded only where KMC wrote the list, so the explicit enable never undoes a foreign removal (review PN8-F1).",
         "status": "PASS"
       }
     },
@@ -697,6 +727,14 @@
     "candidate_dll_sha256": "362c2b141429ca5adace316b0497d2de898fc0a6e4447641446c0afc00824cb2",
     "candidate_dll_mvid": "50eafd79-0c67-440e-a4e7-aeeb8b93b33a",
     "reason": "Supplemental review round 7 corrections (PN7-F1..F7 in 9bf75488); row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_5": {
+    "recorded": "2026-11-23",
+    "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
+    "candidate_dll_sha256": "e8d6ff437e1cfa475c7bd260349f68c14ee94d9841778c9c18e0c24cf060a22b",
+    "candidate_dll_mvid": "b854eb4b-dcf6-458d-9840-7c3567e3495e",
+    "reason": "Supplemental review round 8 corrections (PN8-F1..F5 in 05ef7f8f); row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }

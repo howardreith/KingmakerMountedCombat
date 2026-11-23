@@ -181,3 +181,22 @@ Fast gate (controller, focused) on `4092676b`: PASS, 60.3 s (components 1512/0, 
 Fast gate (controller, focused) on `9bf75488`: PASS, 57.4 s (components 1512/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 134/0, native contract 86/0). DLL `362c2b141429ca5adace316b0497d2de898fc0a6e4447641446c0afc00824cb2`, MVID `50eafd79-0c67-440e-a4e7-aeeb8b93b33a`.
 Budget `mounted-shield` 6.15 of 90 min. To be reviewed in round 8.
+
+## Round 8 — candidate `a9cb432a4972f9dc11c64cb414393e9548921f12` (production `9bf75488`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-a9cb432a`. Started 2026-11-23, 16.61 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-a9cb432a/`.
+- **Verdict: CHANGES REQUIRED.** One production publication defect and four qualification-judgement defects; PN7-F4
+  remained open under PN8-F2.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN8-F1 | The explicit enable publishes before it resumes; a non-required list another mod took Mounted Shield from already matched the withholding target and was recorded as withheld, so the resume put Shield back. | **Fixed** in `05ef7f8f`: a list is recorded as withheld only when KMC actually wrote it without the suspended feat. Component case through the full enable order (publish, foreign removal, stop, publish, resume): the list keeps its contents and array reference, the required lists offer Shield once, nothing is withdrawn; it fails on the round-7 code. The PN7-F1 compiled regression still passes (68/0). |
+| PN8-F2 | The observer overwrote an attack's AC sample on every nested calculation, so a critical-confirmation calculation could replace the primary one. | **Fixed** in `05ef7f8f`: samples are kept per `RuleCalculateAC` object by a production `Domain/AttackCalculationSamples`, and the hit takes the sample of the calculation it references (`RuleAttackRoll.ACRule`, verified on the installed assembly), still requiring its result to be `TargetAC`. Component cases: a second calculation in the same attack keeps the primary sample, equal totals with different shield terms stay distinct, innermost ownership and closing. |
+| PN8-F3 | The equipment reader compared the native AC rules with ordinary AC although outside combat the rules choose flat-footed AC. | **Fixed** in `05ef7f8f`: each probe records the rule's `IsTargetFlatFooted`, and the reader compares melee with ordinary or flat-footed AC and touch with touch or flat-footed touch accordingly; shieldless-reference and touch-exclusion checks unchanged. Reader cases: exploration flat-footed values accepted, a flat-footed rule returning ordinary AC and a missing choice refused. |
+| PN8-F4 | The RT row's ordinary and stronger-shield successes and any additional attempts were not held to the real-time commitment. | **Fixed** in `05ef7f8f`: every attempted record on the RT row must be mode RT with `RealTimeWindow` and its exact transition, and every attempted record on the TB row a turn-based spend or borrow with its exact transition; forced-total checks stay with the planned attacks. Negatives: a TB borrow at RT step 9, a double charge on an additional natural hit (RT) and an additional TB use from an unavailable Swift, each with an accepted single-charge control. |
+| PN8-F5 | The three-feat observation accepted Mounted Archery absent. | **Fixed** in `05ef7f8f`: the producer records the last three published entries; the reader requires exactly one of each feat and the tail Mounted Combat, Mounted Archery, Mounted Shield. Negatives: Archery absent (with and without the tail claim) and another order. |
+
+Fast gate (controller, focused) on `05ef7f8f`: PASS, 58.0 s (components 1516/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 145/0, native contract 86/0). DLL `e8d6ff437e1cfa475c7bd260349f68c14ee94d9841778c9c18e0c24cf060a22b`, MVID `b854eb4b-dcf6-458d-9840-7c3567e3495e`.
+Budget `mounted-shield` 7.12 of 90 min. To be reviewed in round 9.
