@@ -129,18 +129,6 @@ namespace KingmakerMountedCombat.Integration
 
         internal float PairApproachRadius => pairApproachRadius;
 
-        // Shared with the real-time early approach (review R1-F9): the pair range EvaluateCurrentNativeAdmission applies
-        // (mount-origin mechanics distance within mount + target corpulence + weapon range, with its tolerance) and the native
-        // UnitAttack command line of sight from the rider's eye (UnitAttack does not override GetTargetLOSObjectId: id 0).
-        internal static bool WithinPairMeleeReach(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, float weaponRange)
-        {
-            if (rider?.View == null || mount?.View == null || target?.View == null || weaponRange < 0f) return false;
-            var radius = mount.View.Corpulence + target.View.Corpulence + weaponRange;
-            var distance = GeometryUtils.MechanicsDistance(mount.Position, target.Position);
-            if (float.IsNaN(distance) || float.IsInfinity(distance) || distance > radius + MountedCombatSpatialPolicy.RangeTolerance) return false;
-            return LineOfSightGeometry.Instance != null && !LineOfSightGeometry.Instance.HasObstacle(rider.EyePosition, target.Position, 0);
-        }
-
         // Match UnitCommand.IsUnitEnoughClose's visibility authority. HasLOS(Unit)
         // reads a different sight cache and is not the native command predicate.
         internal bool NativeCommandLineOfSightClear => Executor?.View != null &&

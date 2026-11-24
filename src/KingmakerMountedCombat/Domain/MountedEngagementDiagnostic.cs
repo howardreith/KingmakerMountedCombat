@@ -1,19 +1,21 @@
 namespace KingmakerMountedCombat.Domain
 {
-    // MMR-04 owner-log evidence (review R1-F11): where real-time automatic engagement first stopped, read once per combat a
-    // few seconds after it began. Target choice is the rider brain's own native proposal (KMC adds no target selection);
-    // this names whether a proposal arrived, was refused (with the refusal), was accepted but not dispatched yet, or is
-    // engaging (dispatched or travelling).
+    // MMR-04 owner-log evidence (reviews R1-F11, R2): where real-time AUTOMATIC engagement stood, read once per combat a few
+    // seconds after it began. Target choice is the rider brain's own native proposal (KMC adds no target selection). The
+    // counters are automatic-intent deltas only; a live player operation is named rather than counted; motion is the mount's
+    // own displacement, so a dispatched attack that never moved the pair is distinguished from one that did.
     public static class MountedEngagementDiagnostic
     {
         public const double ReportAfterSeconds = 3d;
+        public const float DisplacementEpsilonMetres = 0.25f;
 
-        public static string FirstStop(long proposals, long refused, long admittedOrContinued, long dispatched, long travelStarts,
-            bool liveCommand, string lastRefusal) =>
-            dispatched > 0 || liveCommand ? "engaging" :
-            travelStarts > 0 ? "travelling" :
+        public static string FirstStop(long proposals, long refused, long acceptedOrContinued, long dispatched, float mountDisplacementMetres,
+            bool playerOperation, string lastRefusal) =>
+            playerOperation ? "player-command" :
+            dispatched > 0 && mountDisplacementMetres >= DisplacementEpsilonMetres ? "dispatched-moved" :
+            dispatched > 0 ? "dispatched-not-moved" :
             proposals == 0 ? "no-proposal" :
-            admittedOrContinued > 0 ? "accepted-not-dispatched" :
+            acceptedOrContinued > 0 ? "accepted-not-dispatched" :
             refused > 0 ? "refused:" + (lastRefusal ?? "<unknown>") : "proposal-unresolved";
     }
 }

@@ -568,9 +568,9 @@
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\AnimatedSaddleCalibration.cs" />
-    <Compile Include="Domain\PairedAttackClickAdmissionPolicy.cs" />
+    <Compile Include="Domain\PairedAttackClickDropDiagnostic.cs" />
     <Compile Include="Domain\HorseInheritedFactRepairPolicy.cs" />
-    <Compile Include="Domain\MountedStrikeReadinessPolicy.cs" />
+    <Compile Include="Domain\MountedFollowThroughPolicy.cs" />
     <Compile Include="Domain\HorseStrikeDiagnostic.cs" />
     <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />

@@ -9,10 +9,7 @@ namespace KingmakerMountedCombat.Domain
         DispatchRider,
         DispatchMount,
         CompleteTurnBasedIntent,
-        CancelInvalidIntent,
-        // MMR-05: real time, neither actor may strike yet, and the melee target is beyond the pair's reach: start the lawful
-        // approach now, as a native unmounted UnitAttack approaches before its attack is ready. The strike still waits.
-        ApproachWhileWaiting
+        CancelInvalidIntent
     }
 
     public enum MountedTargetTerminationDecision
@@ -164,9 +161,7 @@ namespace KingmakerMountedCombat.Domain
             bool mountAlreadyInMeleeRange,
             bool riderIsLegalActor = true,
             bool mountIsLegalActor = true,
-            bool preferMount = false,
-            bool targetOutOfReach = false,
-            bool approachPermitted = false)
+            bool preferMount = false)
         {
             if (!exactMountedPair || !targetValid)
             {
@@ -192,10 +187,9 @@ namespace KingmakerMountedCombat.Domain
                 return MountedStockAttackDecision.DispatchMount;
             }
 
-            if (turnBasedCombat) return MountedStockAttackDecision.CompleteTurnBasedIntent;
-            // Approach is not gated on strike readiness (initiative, Standard cooldown); a ranged rider, a held or
-            // player-move-held automatic intent, and a target already in reach still just wait.
-            return targetOutOfReach && approachPermitted ? MountedStockAttackDecision.ApproachWhileWaiting : MountedStockAttackDecision.Wait;
+            return turnBasedCombat
+                ? MountedStockAttackDecision.CompleteTurnBasedIntent
+                : MountedStockAttackDecision.Wait;
         }
 
         public static bool IsValidTarget(

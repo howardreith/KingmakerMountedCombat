@@ -212,9 +212,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRequestPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddleCalibration.cs" />
-    <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedAttackClickAdmissionPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedAttackClickDropDiagnostic.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseInheritedFactRepairPolicy.cs" />
-    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStrikeReadinessPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFollowThroughPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseStrikeDiagnostic.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />

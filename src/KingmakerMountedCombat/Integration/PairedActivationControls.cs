@@ -217,9 +217,9 @@ namespace KingmakerMountedCombat.Integration
         private static readonly System.Reflection.FieldInfo NativePredictionCommands =
             ResolveField(typeof(TurnController), "m_PredictionCommands", 0x0400066E);
 
-        // MMR-02: after native IgnoreClick on the rider's own context, admit an ordinary rider attack on a hostile that
-        // native dropped only for its rider-path check (Domain/PairedAttackClickAdmissionPolicy.cs). The click then reaches
-        // the pair controller, whose attack command approaches with the mount's lawful remaining movement.
+        // MMR-02 diagnostic (review R1-F3): after native IgnoreClick on the rider's own context, log a rider melee attack click
+        // native dropped for its rider-path check, with the mount's remaining allowance and the gap to reach. Native's decision
+        // is never changed (the result is read only), and the line is read-only: no movement context is mirrored.
         internal void AdmitPairedAttackClick(TurnController context, ref bool result)
         {
             if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
@@ -234,21 +234,18 @@ namespace KingmakerMountedCombat.Integration
             var path = Kingmaker.TurnBasedMode.PathVisualizer.Instance;
             var pathRefused = meleeOnTarget && path != null &&
                 !path.IsCurrentPathForPoint(rider.Position, predicted.ApproachPoint, predicted.ApproachRadius);
-            var canMove = meleeOnTarget && mount?.View != null && target.View != null && CanMovePairedMount(context);
-            var input = canMove ? PairedMovementContext(context) : null;
-            var remaining = input == null ? 0f : movementState.RemainingGrantedMetres(mount, input.EnabledFiveFootStep, input.EnabledSingleActionMove);
-            var distance = canMove ? Kingmaker.Utility.GeometryUtils.MechanicsDistance(mount.Position, target.Position) : float.NaN;
-            var reach = canMove ? mount.View.Corpulence + target.View.Corpulence + weapon.AttackRange.Meters : float.NaN;
-            var admit = PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(true, true,
-                SelectionManager.Instance?.SingleSelectedUnit == rider, context.Unit == rider && rider.Commands.Empty,
-                !(bool)NativeNeedNewPredictions.GetValue(context), context.IsOverTerrain,
-                Game.Instance?.SelectedAbilityHandler?.Ability != null,
-                meleeOnTarget, pathRefused, canMove, remaining, distance, reach);
-            if (!admit) return;
-            result = false;
-            logger.Info("Admitted a turn-based rider melee attack click native dropped for its rider-path check (MMR-02): rider=" +
+            if (!PairedAttackClickDropDiagnostic.DroppedForRiderPath(true, true,
+                    SelectionManager.Instance?.SingleSelectedUnit == rider, context.Unit == rider && rider.Commands.Empty,
+                    !(bool)NativeNeedNewPredictions.GetValue(context), context.IsOverTerrain,
+                    Game.Instance?.SelectedAbilityHandler?.Ability != null, meleeOnTarget, pathRefused)) return;
+            var input = SelectedNativeInputContext(context);
+            var remaining = mount == null ? float.NaN : movementState.RemainingGrantedMetres(mount, input.EnabledFiveFootStep, input.EnabledSingleActionMove);
+            var distance = mount?.View == null || target.View == null ? float.NaN : Kingmaker.Utility.GeometryUtils.MechanicsDistance(mount.Position, target.Position);
+            var reach = mount?.View == null || target.View == null ? float.NaN : mount.View.Corpulence + target.View.Corpulence + weapon.AttackRange.Meters;
+            logger.Info("Turn-based rider melee attack click dropped by native's path check (MMR-02 diagnostic; native decision kept): rider=" +
                 rider.UniqueId + "; target=" + target.UniqueId + "; mountRemainingMetres=" + remaining.ToString("R") +
-                "; pairDistance=" + distance.ToString("R") + "; pairReach=" + reach.ToString("R") + ".");
+                "; pairDistance=" + distance.ToString("R") + "; pairReach=" + reach.ToString("R") +
+                "; approachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
         }
 
         internal bool PrepareNativeInputPrediction(TurnController context)

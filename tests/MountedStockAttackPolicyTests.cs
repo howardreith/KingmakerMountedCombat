@@ -28,12 +28,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
             runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
-            runner.Run("MMR-02: only a rider attack click dropped by native's rider-path check is admitted", PairedAttackClickAdmission);
-            runner.Run("MMR-04/05: real-time melee intent approaches while its strike is not yet ready", RealTimeApproachWhileWaiting);
+            runner.Run("MMR-02 diagnostic: only native's rider-path refusal of its own predicted melee attack is logged", PairedAttackClickAdmission);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
-            runner.Run("R1-F4/F5/F6: follow-through is melee-only, yields to newer work, and skips an individually unable actor", FollowThroughEligibility);
-            runner.Run("R1-F9/F10: native start waits travel instead of striking; movement restrictions stay put", RealTimeStartWaitsTravel);
-            runner.Run("R1-F7: the early approach is released through the exact own-move release", EarlyApproachRelease);
+            runner.Run("R1-F4/F5/F6, R2-F1: follow-through keeps the accepted kind, remembers newer work, and uses dispatch admission", FollowThroughEligibility);
             runner.Run("R1-F13: a horse strike line separates no handle, unplayed, interrupted and fast playback", HorseStrikeLines);
             runner.Run("R1-F11: the engagement line names the first point automatic engagement stopped", EngagementFirstStop);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
@@ -469,62 +466,51 @@ namespace KingmakerMountedCombat.Tests
 
         private static void FollowThroughEligibility()
         {
-            // Turn-based, paired, the horse addressable on the activation.
-            MountedStockAttackDecision Next(bool riderReady, bool mountReady, bool melee = true, bool competing = false, bool explicitMount = false) =>
-                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderReady, mountReady, !melee, true,
-                    riderIsLegalActor: !explicitMount,
-                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, true, false, true, melee, competing));
-            // R1-F4: an adjacent target clicked with a bow leaves the horse's Standard alone; the melee click reaches it once.
-            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, true, melee: false), "A rider bow click spent the horse.");
-            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(false, true), "The melee order did not reach the eligible horse.");
-            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, false), "A spent horse was dispatched again.");
-            // R1-F5: newer competing work on either actor ends the old intent without a horse attack.
-            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, true, competing: true), "A newer order was overridden by follow-through.");
-            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, false, true), "An explicit mount order lost its meaning.");
-            // R1-F6: a rider with a Standard but individually unable (dazed, ended) is skipped; the capable horse attacks alone.
-            var dazedRider = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, false, true, false, false, false);
-            var endedRider = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, false, false, false, false);
-            var capableHorse = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, true, false, false, false);
-            var unableHorse = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, false, true, false, false, false);
-            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(dazedRider, capableHorse), "A dazed rider discarded the horse's order.");
-            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(endedRider, capableHorse), "An ended rider discarded the horse's order.");
-            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(capableHorse, unableHorse), "The reciprocal: a capable rider lost its attack.");
-            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(dazedRider, unableHorse), "An unable horse attacked.");
-            // Turn-based readiness ignores the real-time-only start waits.
-            TestRunner.True(MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, true, true, true, true), "Turn-based gained a real-time wait.");
-        }
-
-        private static void RealTimeStartWaitsTravel()
-        {
-            MountedStockAttackDecision Next(bool riderReady, bool mountReady, bool travel, bool outOfReach = true) =>
-                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, riderReady, mountReady, false, false,
-                    targetOutOfReach: outOfReach, approachPermitted: travel);
-            var travelOk = MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, true, false);
-            // Initiative, busy hands and a scheduled equipment update each leave the strike unready but permit travel.
-            foreach (var wait in new[] { new[] { true, false, false }, new[] { false, true, false }, new[] { false, false, true } })
+            // The production dispatcher admission (the action evaluator) decides each actor's eligibility.
+            bool Admitted(MountedCombatActionKind action, Action<MountedCombatActionContext> change)
             {
-                var ready = MountedStrikeReadinessPolicy.CanStrikeNow(false, true, true, true, wait[0], wait[1], wait[2]);
-                TestRunner.True(!ready, "A native start wait was treated as a startable strike.");
-                TestRunner.Equal(MountedStockAttackDecision.ApproachWhileWaiting, Next(ready, ready, travelOk), "A start wait stopped the pair from travelling.");
+                var context = MountedCombatDomainTests.Eligible(action);
+                change(context);
+                return MountedCombatActionEvaluator.Evaluate(context).IsAllowed;
             }
-            // Once every wait clears, one dispatch, never before.
-            var startable = MountedStrikeReadinessPolicy.CanStrikeNow(false, true, true, true, false, false, false);
-            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(startable, false, travelOk), "A startable rider was not dispatched.");
-            // A mount that cannot act or move, or a Hold-forbidden automatic intent, waits in place.
-            foreach (var restriction in new[] { MountedStrikeReadinessPolicy.MayTravelWhileWaiting(false, true, false),
-                MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, false, false), MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, true, true) })
-                TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, restriction), "A movement restriction was overridden.");
-            // Inside the pair's mount-origin reach (and line of sight) the pair waits without moving.
-            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, travelOk, outOfReach: false), "An in-reach pair kept moving.");
+            MountedStockAttackDecision Next(bool riderEligible, bool mountEligible, bool melee = true, bool overridden = false, bool explicitMount = false) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderEligible, mountEligible, !melee, true,
+                    riderIsLegalActor: !explicitMount,
+                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, true, false, true, melee, overridden));
+            var ready = Admitted(MountedCombatActionKind.RiderMelee, context => { });
+            var endedRider = Admitted(MountedCombatActionKind.RiderMelee, context => context.ActionActorOwnsCurrentTurnOrRealTime = false);
+            var prohibitedRider = Admitted(MountedCombatActionKind.RiderMelee, context => context.ActionActorCapabilityBlock = MountedActorCapabilityBlock.CanNotAttack);
+            var horse = Admitted(MountedCombatActionKind.MountPrimaryNatural, context => { });
+            var prohibitedHorse = Admitted(MountedCombatActionKind.MountPrimaryNatural, context => context.ActionActorCapabilityBlock = MountedActorCapabilityBlock.CanNotAttack);
+            TestRunner.True(ready && horse && !endedRider && !prohibitedRider && !prohibitedHorse, "The evaluator inputs did not behave as dispatch admission.");
+            // R1-F6: an individually ended rider, or one that may not attack despite a Standard, leaves the eligible horse its attack.
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(endedRider, horse), "An ended rider discarded the horse's attack.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(prohibitedRider, horse), "A prohibited rider discarded the horse's attack.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(ready, prohibitedHorse), "The reciprocal: the rider lost its attack.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(prohibitedRider, prohibitedHorse), "A prohibited horse attacked.");
+            // R1-F4/R2-F1: the order's accepted kind (fixed at acceptance) scopes participation: a bow order never spends the horse,
+            // even if the rider changes to a melee weapon before the next decision; a melee order reaches the eligible horse once.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, horse, melee: false), "A retained bow order spent the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(false, horse), "The melee order did not reach the eligible horse.");
+            // R1-F5: newer player work recorded for the order (whether still queued or already finished) keeps the horse out;
+            // the pair's own command, reactions and coexisting Free/Swift actions do not override.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, horse, overridden: true), "A newer order was overridden.");
+            TestRunner.True(MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, false, true), "A newer player order was not recorded.");
+            TestRunner.True(!MountedFollowThroughPolicy.OverridesRetainedOrder(true, false, false, true) &&
+                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, true, false, true) &&
+                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, true, true) &&
+                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, false, false), "Own, reaction, Free/Swift or AI work overrode the order.");
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, false, true), "An explicit mount order lost its meaning.");
         }
 
         private static void EngagementFirstStop()
         {
-            TestRunner.Equal("no-proposal", MountedEngagementDiagnostic.FirstStop(0, 0, 0, 0, 0, false, null), "An absent proposal was misnamed.");
-            TestRunner.Equal("refused:hold-out-of-reach", MountedEngagementDiagnostic.FirstStop(2, 2, 0, 0, 0, false, "hold-out-of-reach"), "A refusal lost its reason.");
-            TestRunner.Equal("accepted-not-dispatched", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 0, false, null), "A stalled accepted intent was misnamed.");
-            TestRunner.Equal("travelling", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 1, false, null), "A travelling intent was misnamed.");
-            TestRunner.Equal("engaging", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 1, true, null), "An engaging pair was misnamed.");
+            TestRunner.Equal("no-proposal", MountedEngagementDiagnostic.FirstStop(0, 0, 0, 0, 0f, false, null), "An absent proposal was misnamed.");
+            TestRunner.Equal("refused:hold-out-of-reach", MountedEngagementDiagnostic.FirstStop(2, 2, 0, 0, 0f, false, "hold-out-of-reach"), "A refusal lost its reason.");
+            TestRunner.Equal("accepted-not-dispatched", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 0f, false, null), "A stalled accepted intent was misnamed.");
+            TestRunner.Equal("dispatched-not-moved", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 0.1f, false, null), "A carrier without motion was counted as moving.");
+            TestRunner.Equal("dispatched-moved", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 2f, false, null), "First displacement was missed.");
+            TestRunner.Equal("player-command", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 2f, true, null), "A player command was counted as automatic progress.");
         }
 
         private static void HorseStrikeLines()
@@ -539,37 +525,6 @@ namespace KingmakerMountedCombat.Tests
             var hoof = HorseStrikeDiagnostic.Format(2, 3, "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2, "kobold");
             TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("action=HorseAnimationSet_Hoof") && hoof.Contains("index=2/3"),
                 "The hoof control was not distinguishable: " + hoof);
-        }
-
-        private sealed class FakeMoveHost : IMountedOwnMoveHost
-        {
-            public object Slot; public object Successor; public bool OwnFinished; public bool OwnHeld = true; public bool Stopped; public int Interrupts;
-            public object MoveSlot => Slot;
-            public bool Holds(object command) => OwnHeld && ReferenceEquals(command, Slot);
-            public bool HasOtherLiveCommand(object own) => Successor != null;
-            public bool IsFinished(object command) => OwnFinished;
-            public void Interrupt(object command) { Interrupts++; OwnFinished = true; }
-            public void SweepFinished() { OwnHeld = false; Slot = Successor; }
-            public void StopAgent() { Stopped = true; }
-        }
-
-        private static void EarlyApproachRelease()
-        {
-            var own = new object();
-            // Hold/AI-off/strike handoff with no successor: interrupted, removed, the agent stopped.
-            var alone = new FakeMoveHost { Slot = own };
-            var released = MountedOwnMovePolicy.Release(alone, own);
-            TestRunner.True(alone.Interrupts == 1 && alone.Slot == null && alone.Stopped && released.OwnReleased && !released.SuccessorRetained,
-                "The early approach left its path or command behind.");
-            // A successor the sweep promoted keeps the movement: the agent is not stopped.
-            var successor = new object();
-            var replaced = new FakeMoveHost { Slot = own, Successor = successor };
-            released = MountedOwnMovePolicy.Release(replaced, own);
-            TestRunner.True(ReferenceEquals(replaced.Slot, successor) && !replaced.Stopped && released.SuccessorRetained, "A successor order was stopped.");
-            // A failed admission (never held): released without touching the successor that displaced it.
-            var failed = new FakeMoveHost { Slot = successor, Successor = successor, OwnHeld = false, OwnFinished = true };
-            released = MountedOwnMovePolicy.Release(failed, own);
-            TestRunner.True(failed.Interrupts == 0 && ReferenceEquals(failed.Slot, successor) && !failed.Stopped, "A failed admission disturbed the successor.");
         }
 
         private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }
@@ -603,51 +558,19 @@ namespace KingmakerMountedCombat.Tests
                 "A reloaded Horse with the same ID was skipped.");
         }
 
-        private static void RealTimeApproachWhileWaiting()
-        {
-            MountedStockAttackDecision Next(bool turnBased = false, bool active = false, bool riderReady = false, bool mountReady = false,
-                bool outOfReach = true, bool permitted = true, bool preferMount = false) =>
-                UnifiedMountedStockAttackPolicy.DecideNext(true, true, active, turnBased, riderReady, mountReady, false, false,
-                    preferMount: preferMount, targetOutOfReach: outOfReach, approachPermitted: permitted);
-            // Combat start (both still waiting initiative) or both Standard cooldowns running: move now, strike later.
-            TestRunner.Equal(MountedStockAttackDecision.ApproachWhileWaiting, Next(), "A waiting real-time melee intent stood still.");
-            // The strike itself is never released early: once an actor is ready it is dispatched, never before.
-            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(riderReady: true), "A ready rider was not dispatched.");
-            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(mountReady: true), "A ready mount was not dispatched.");
-            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(riderReady: true, mountReady: true, preferMount: true), "The preferred mount lost its turn.");
-            // Already in reach, a ranged rider or a held (Hold / completed player move) automatic intent: wait in place.
-            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(outOfReach: false), "An in-reach intent kept moving.");
-            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(permitted: false), "A ranged or held intent approached.");
-            // A live pair command owns the pair; turn-based behavior is unchanged.
-            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(active: true), "A pre-approach competed with the live pair command.");
-            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(turnBased: true), "Turn-based gained a free pre-approach.");
-            // Callers that do not supply the new facts keep the old Wait.
-            TestRunner.Equal(MountedStockAttackDecision.Wait, UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, false, false, false),
-                "The default decision changed.");
-        }
-
         private static void PairedAttackClickAdmission()
         {
-            // Defaults: a dropped rider melee click on a hostile 3 m beyond reach with 4.5 m of lawful mount movement left.
-            bool Admit(bool ignored = true, bool riderContext = true, bool riderSelected = true, bool commandsEmpty = true,
-                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool meleeOnTarget = true,
-                bool pathRefused = true, bool canMove = true, float remaining = 4.5f, float distance = 6f, float reach = 3f) =>
-                PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(ignored, riderContext, riderSelected, commandsEmpty,
-                    predictionsCurrent, overTerrain, ability, meleeOnTarget, pathRefused, canMove, remaining, distance, reach);
-            TestRunner.True(Admit(), "A reachable dropped rider melee click was not admitted.");
-            // An eligible five-foot step (1.5 m of step allowance) covers a 1.5 m gap; spent movement covers nothing.
-            TestRunner.True(Admit(remaining: 1.5f, distance: 4.5f), "An eligible step that reaches was refused.");
-            TestRunner.True(!Admit(remaining: 0f, distance: 4.5f) && !Admit(canMove: false), "Spent movement or an immobile mount was admitted.");
-            TestRunner.True(!Admit(remaining: 2f, distance: 6f), "A click beyond the remaining movement was admitted (no free approach).");
-            TestRunner.True(Admit(remaining: 0f, distance: 3f), "A target already within the pair's reach was refused.");
-            // Only native's path refusal of its own predicted melee attack on the highlighted hostile is overridden.
-            TestRunner.True(!Admit(pathRefused: false), "A click refused for another reason was overridden.");
-            TestRunner.True(!Admit(meleeOnTarget: false), "A hostile click producing a non-attack, ranged or other-target command was admitted.");
-            TestRunner.True(!Admit(ignored: false), "An accepted click was changed.");
-            TestRunner.True(!Admit(riderContext: false) && !Admit(riderSelected: false), "A mount or other context click was admitted.");
-            TestRunner.True(!Admit(commandsEmpty: false) && !Admit(predictionsCurrent: false), "Native busy or stale-prediction refusals were overridden.");
-            TestRunner.True(!Admit(overTerrain: true) && !Admit(ability: true), "A ground or ability click was admitted.");
-            TestRunner.True(!Admit(remaining: float.NaN) && !Admit(distance: float.NaN), "An unavailable measurement was admitted.");
+            bool Logged(bool ignored = true, bool riderContext = true, bool riderSelected = true, bool commandsEmpty = true,
+                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool meleeOnTarget = true, bool pathRefused = true) =>
+                PairedAttackClickDropDiagnostic.DroppedForRiderPath(ignored, riderContext, riderSelected, commandsEmpty, predictionsCurrent,
+                    overTerrain, ability, meleeOnTarget, pathRefused);
+            TestRunner.True(Logged(), "Native's rider-path refusal of its own predicted melee attack was not named.");
+            TestRunner.True(!Logged(ignored: false), "An accepted click was logged as dropped.");
+            TestRunner.True(!Logged(pathRefused: false), "A click dropped for another reason was attributed to the path check.");
+            TestRunner.True(!Logged(meleeOnTarget: false), "A non-attack, ranged or other-target prediction was attributed.");
+            TestRunner.True(!Logged(riderContext: false) && !Logged(riderSelected: false), "A mount or other context click was attributed.");
+            TestRunner.True(!Logged(commandsEmpty: false) && !Logged(predictionsCurrent: false) && !Logged(overTerrain: true) && !Logged(ability: true),
+                "An earlier native refusal was attributed to the path check.");
         }
 
         private static void PairOrderHorseFollowThrough()
