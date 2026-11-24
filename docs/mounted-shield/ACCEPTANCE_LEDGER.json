@@ -29,6 +29,11 @@
         "candidate_source": "bb0c53d5c9847bb76f11636b6533337d67f3d364",
         "change": "Back and every choice resolve selection states from the controller's current state, and both prerequisites must be committed on the Back level (review PN4-F5).",
         "status": "BLOCKED"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Mounted Shield is taken at a level offering the ordinary and fighter choices; a positive native eligibility observation is required in each (review PN9-F5).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -236,6 +241,11 @@
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "The stronger-shield check's terms are the sample of the calculation its attack references (review PN8-F2).",
         "status": "BLOCKED"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Against Brilliant Energy, Mounted Shield's losing +3 is given back, so the attack sees the AC it would see without the feat (review PN9-F1, production).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -261,6 +271,11 @@
       "continuation_5": {
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "Each native AC probe records its flat-footed choice and is compared with the matching stat (review PN8-F3).",
+        "status": "BLOCKED"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Brilliant Energy touch and melee AC equal the value without the feat (review PN9-F1).",
         "status": "BLOCKED"
       }
     },
@@ -404,6 +419,11 @@
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "Every attempted use on the RT and TB rows is held to its mode and exact transition (review PN8-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Every attempted TB use spends on the rider's turn and borrows otherwise; every measured attempt shows exactly one native +3 (review PN9-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -429,6 +449,11 @@
       "continuation_2": {
         "candidate_source": "bb0c53d5c9847bb76f11636b6533337d67f3d364",
         "change": "The second rider must lack Shield Focus and receives disclosed Ranger experience (review PN4-F6); fixture hands are under verified custody (review PN4-F4).",
+        "status": "BLOCKED"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Planned rolls and step completion are bound to the measured pair; the UI selection switch is observed through the native single selection (reviews PN9-F3, PN9-F6).",
         "status": "BLOCKED"
       }
     },
@@ -535,6 +560,11 @@
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "The positive three-feat observation requires exactly one of each feat in the tail Mounted Combat, Mounted Archery, Mounted Shield (review PN8-F5).",
         "status": "PASS"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Three-feat rows are bound to distinct lists of the producer's own selection inventory (review PN9-F5).",
+        "status": "PASS"
       }
     },
     {
@@ -567,6 +597,11 @@
       "continuation_5": {
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "Withholding is recorded only where KMC wrote the list, so the explicit enable never undoes a foreign removal (review PN8-F1).",
+        "status": "PASS"
+      },
+      "continuation_6": {
+        "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+        "change": "Re-applying a live publication writes nothing, so the explicit enable never restores feats another mod removed (review PN9-F2, production).",
         "status": "PASS"
       }
     },
@@ -735,6 +770,14 @@
     "candidate_dll_sha256": "e8d6ff437e1cfa475c7bd260349f68c14ee94d9841778c9c18e0c24cf060a22b",
     "candidate_dll_mvid": "b854eb4b-dcf6-458d-9840-7c3567e3495e",
     "reason": "Supplemental review round 8 corrections (PN8-F1..F5 in 05ef7f8f); row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_6": {
+    "recorded": "2026-11-23",
+    "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
+    "candidate_dll_sha256": "eb20b6308825d61a82a00558f5a167e00a739b47ebb69d13f6919725f95f7cbc",
+    "candidate_dll_mvid": "52301c4b-76a2-4caa-b6bb-77c3ae43980c",
+    "reason": "Supplemental review round 9 corrections (PN9-F1..F6 in d7e1ee0c), including two production fixes; row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }
