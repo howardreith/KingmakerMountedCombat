@@ -44,7 +44,10 @@ try {
     $project = Join-Path $clone 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'
     $outDir = Join-Path $temp 'out'
     $dll = Join-Path $outDir 'KingmakerMountedCombat.dll'
+    # Rebuild for the compiling cases; Build (no clean) for the refusals, so a refused build leaves the previous output
+    # in place and the refusal is shown to happen before compilation.
     $build = { param([string[]]$Extra) Invoke-Native $msbuild (@($project, '/nologo', '/v:m', '/nr:false', '/t:Rebuild', '/p:Configuration=Release', "/p:OutDir=$outDir\") + $Extra) }
+    $buildNoClean = { param([string[]]$Extra) Invoke-Native $msbuild (@($project, '/nologo', '/v:m', '/nr:false', '/t:Build', '/p:Configuration=Release', "/p:OutDir=$outDir\") + $Extra) }
 
     # Before: the commit preceding the baseline, compiled with its own project defaults (the installed loader).
     & git -C $clone checkout -q --detach $baseline
@@ -72,9 +75,9 @@ try {
     $original = [IO.File]::ReadAllBytes($harmony)
     $bytes = [byte[]]$original.Clone(); $bytes[$bytes.Length - 1] = $bytes[$bytes.Length - 1] -bxor 0xFF
     [IO.File]::WriteAllBytes($harmony, $bytes)
-    $t = & $build @()
+    $t = & $buildNoClean @()
     [IO.File]::WriteAllBytes($harmony, $original)
-    Add-Case 'direct-msbuild-altered-pinned-file-refused' ($t.ExitCode -ne 0 -and $t.Output -match 'hash mismatch|differs' -and (Get-Sha $dll) -ceq $dllSha) "exit $($t.ExitCode)"
+    Add-Case 'direct-msbuild-altered-pinned-file-refused' ($t.ExitCode -ne 0 -and $t.Output -match 'hash mismatch' -and $t.Output -notmatch 'KingmakerMountedCombat -> ' -and (Test-Path -LiteralPath $dll) -and (Get-Sha $dll) -ceq $dllSha) ("exit $($t.ExitCode); " + [regex]::Match($t.Output, 'Pinned loader reference hash mismatch: [^.]*').Value)
 
     # The installed loader as UnityModManagerDir changes nothing: the product never reads it for compilation.
     $installedDir = & $build @("/p:UnityModManagerDir=$installedLoader")
@@ -88,9 +91,9 @@ try {
     $extraTargets = Join-Path $clone 'src\Directory.Build.targets'
     [IO.File]::WriteAllText($extraTargets, "<Project><ItemGroup><Reference Remove=`"UnityModManager`" /><Reference Include=`"UnityModManager`"><HintPath>$([Security.SecurityElement]::Escape((Join-Path $strayDir 'UnityModManager.dll')))</HintPath><Private>False</Private></Reference></ItemGroup></Project>")
     $dllBeforeStray = Get-Sha $dll
-    $x = & $build @()
+    $x = & $buildNoClean @()
     Remove-Item -LiteralPath $extraTargets
-    Add-Case 'stray-hintpath-to-unitymodmanager-copy-refused' ($x.ExitCode -ne 0 -and $x.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and (Get-Sha $dll) -ceq $dllBeforeStray) ([regex]::Match($x.Output, 'Loader compiler references must be the verified files[^\n]{0,160}').Value)
+    Add-Case 'stray-hintpath-to-unitymodmanager-copy-refused' ($x.ExitCode -ne 0 -and $x.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and $x.Output -notmatch 'KingmakerMountedCombat -> ' -and (Test-Path -LiteralPath $dll) -and (Get-Sha $dll) -ceq $dllBeforeStray) ([regex]::Match($x.Output, 'Loader compiler references must be the verified files[^\n]{0,160}').Value)
 
     $failed = @($cases | Where-Object { -not $_.passed })
     $summary = [ordered]@{
