@@ -878,6 +878,7 @@ namespace KingmakerMountedCombat.Integration
                     if (action == MountedCombatActionKind.RiderMelee && stockIntentValidatedRoute != null)
                     {
                         command.ValidatedApproachRoute = stockIntentValidatedRoute;
+                        command.RouteRevalidator = () => RevalidateAdmittedClickRoute(target);
                         stockIntentValidatedRoute = null;
                     }
                 }
@@ -1188,6 +1189,28 @@ namespace KingmakerMountedCombat.Integration
 
         private List<Vector3> stockIntentValidatedRoute;
 
+        // Review R4-F1: the proof for a carrier of a click-admitted turn-based order, recomputed from the CURRENT origin with the
+        // CURRENT grant by the same production walk the click used; null when the proof cannot be established.
+        private List<Vector3> RevalidateAdmittedClickRoute(UnitEntityData target)
+        {
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (disposed || rider == null || mount == null || target == null || turn == null) return null;
+            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target);
+            if (probe.AdmissibleNow) return new List<Vector3> { mount.Position, mount.Position };
+            bool step, single;
+            string reason;
+            var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out reason);
+            var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteComplete, probe.EndpointAdmitsStrike, probe.RouteMetres, grant);
+            LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
+                ";mountGrant=" + reason + ";probe=" + probe.Detail;
+            TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
+            return proven ? probe.Route : null;
+        }
+
+        internal string LastRouteRevalidation { get; private set; }
+
         internal void ObserveHoldInput()
         {
             if (!IsPairSelected()) return;
@@ -1396,11 +1419,13 @@ namespace KingmakerMountedCombat.Integration
             var mount = relationship.Mount;
             var target = proposal.Target;
             var targetState = target?.Descriptor?.State;
+            var nativeProposed = target;
             // Review R1-F11: native's sort leaves equally ranked candidates (in reach, weight 0 or the last target's +1) in an
             // arbitrary order. Among the candidates native itself ranked equal to its proposal and that native would score
             // equally (conscious, not disliked, attackable, valid under Hold/unreachable), the pair takes the nearest; a live
             // automatic order already on one of them keeps it (no oscillation).
-            if (!turnBased && rider != null && target != null)
+            // Review R5-F7: only the supported rider MELEE proposal; a mounted archer keeps the brain's choice.
+            if (!turnBased && rider != null && target != null && ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderMelee)
             {
                 var tieBroken = ResolveEqualRankTie(rider, target);
                 if (tieBroken != null && !ReferenceEquals(tieBroken, target))
@@ -1441,7 +1466,8 @@ namespace KingmakerMountedCombat.Integration
                 RiderCannotAttack = NativeActorCapability.Read(rider).CanNotAttack
             }, out refusal);
             // Review R1-F11: native's own ranking for this exact proposal (the brain's live decision context), read only.
-            var ranking = turnBased ? null : NativeBrainRankingReader.Describe(rider, target);
+            // Review R5-F8: native's ranking is annotated with native's own proposal; the selected target is recorded separately.
+            var ranking = turnBased ? null : NativeBrainRankingReader.Describe(rider, nativeProposed);
             var engagementNow = Game.Instance?.TimeController?.GameTime.TotalSeconds;
             if (ranking != null) LastAutomaticProposalRanking = ranking;
             if (decision == MountedAutomaticProposalDecision.Refuse)
@@ -1449,14 +1475,14 @@ namespace KingmakerMountedCombat.Integration
                 AutomaticRefusedCount++;
                 LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>") + ";frame=" + Time.frameCount;
                 if (!turnBased && engagementNow.HasValue && IsPairInCombat())
-                    engagement.ObserveProposal(engagementNow.Value, target?.UniqueId, ranking, false, -1, refusal);
+                    engagement.ObserveProposal(engagementNow.Value, nativeProposed?.UniqueId, target?.UniqueId, ranking, false, -1, refusal);
                 return;
             }
             if (decision == MountedAutomaticProposalDecision.ContinueOwnIntent)
             {
                 AutomaticContinuedCount++;
                 if (!turnBased && engagementNow.HasValue && IsPairInCombat())
-                    engagement.ObserveProposal(engagementNow.Value, target?.UniqueId, ranking, true, stockIntent.Generation, null);
+                    engagement.ObserveProposal(engagementNow.Value, nativeProposed?.UniqueId, target?.UniqueId, ranking, true, stockIntent.Generation, null);
                 return;
             }
             AutomaticAdmittedCount++;
@@ -1464,7 +1490,7 @@ namespace KingmakerMountedCombat.Integration
                 (int)ResolveRiderPrimaryAction(), true);
             retainedOrder.Begin(stockIntent.Generation, true, ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderRanged);
             if (!turnBased && engagementNow.HasValue && IsPairInCombat())
-                engagement.ObserveProposal(engagementNow.Value, target.UniqueId, ranking, true, stockIntent.Generation, null);
+                engagement.ObserveProposal(engagementNow.Value, nativeProposed?.UniqueId, target.UniqueId, ranking, true, stockIntent.Generation, null);
             LastStockAttackObservation = "automatic-intent-start;target=" + target.UniqueId +
                 ";ranged=" + (ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderRanged) +
                 ";brainAction=" + proposal.AiAction.AssetGuid + ";movementForbidden=" + movementForbidden;
@@ -1522,8 +1548,11 @@ namespace KingmakerMountedCombat.Integration
         // Review R3-F1: whether the planned strike is admissible from where the pair stands, by the strike's own production
         // admission on an unrun MountedPairSingleAttack built exactly as the pair command builds its child (rider melee:
         // mount-origin reach; horse natural attack: the horse executes), never a separate reach formula.
+        internal long PlannedStrikeProbeCount { get; private set; }
+
         private bool PlannedStrikeAdmissibleNow(MountedCombatActionKind action, UnitEntityData target)
         {
+            PlannedStrikeProbeCount++;
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             if (rider?.View == null || mount?.View == null || target?.View == null) return false;
@@ -1772,15 +1801,21 @@ namespace KingmakerMountedCombat.Integration
             // the rider's order is dispatched now and waits in its native slot exactly as an unmounted UnitAttack does (native
             // ShouldStartCommand keeps preparation, the initiative wait, cooldown and busy hands); its own pre-start approach
             // moves the mount meanwhile. Nothing readies, refunds or spends an action.
-            var earlyStriker = turnBased || rider == null || mount == null || !meleeOrder ? MountedEarlyStriker.None :
-                MountedPreStartApproachPolicy.SelectStriker(stockIntent.MountActor,
+            // Reviews R5-F6, R5-F9: the early striker is the order's own actor under the existing order rules (a rider order is the
+            // rider's, an explicit horse order the horse's); temporary start readiness never converts it into the other actor's
+            // attack. The planned-strike probe runs only for an actual early-dispatch decision (no active command, nobody ready).
+            var earlyStriker = MountedEarlyStriker.None;
+            if (!turnBased && rider != null && mount != null && meleeOrder && !HasActiveCommand && !riderEligible && !mountEligible &&
+                !stationary && mount.Descriptor.State.CanMove)
+            {
+                earlyStriker = MountedPreStartApproachPolicy.SelectStriker(stockIntent.MountActor,
                     riderAction == MountedCombatActionKind.RiderMelee && !rider.IsStandardActionRestricted() && rider.Descriptor.State.CanAct &&
                         !NativeActorCapability.Read(rider).CanNotAttack,
                     !mount.IsStandardActionRestricted() && mount.Descriptor.State.CanAct && !NativeActorCapability.Read(mount).CanNotAttack);
+            }
             var earlyAction = earlyStriker == MountedEarlyStriker.Mount ? MountedCombatActionKind.MountPrimaryNatural : MountedCombatActionKind.RiderMelee;
             var dispatchBeforeReadiness = earlyStriker != MountedEarlyStriker.None &&
-                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(true, true,
-                    stationary || !mount.Descriptor.State.CanMove, PlannedStrikeAdmissibleNow(earlyAction, target),
+                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(true, true, false, PlannedStrikeAdmissibleNow(earlyAction, target),
                     riderEligible, mountEligible);
             if (dispatchBeforeReadiness)
             {

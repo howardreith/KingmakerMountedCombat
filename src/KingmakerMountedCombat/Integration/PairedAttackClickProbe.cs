@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Utility;
+using KingmakerMountedCombat.Domain;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Integration
@@ -48,29 +49,18 @@ namespace KingmakerMountedCombat.Integration
             var points = path.vectorPath;
             if (path.error || !path.IsDone() || points == null || points.Count == 0) { result.Detail = "route-failed"; return result; }
             result.RouteComplete = true;
-            var route = new List<Vector3> { points[0] };
-            var travelled = 0f;
-            for (var index = 1; index < points.Count; index++)
+            List<Vector3> route;
+            float cost;
+            var found = MountedRouteWalker.Walk(points, (from, to) => GeometryUtils.MechanicsDistance(from, to), Vector3.Lerp,
+                point => probe.EvaluateNativeAdmissionAtMountPosition(point) == MountedPairNativeAdmissionState.Admitted, out route, out cost);
+            result.RouteMetres = cost;
+            if (found)
             {
-                var from = points[index - 1];
-                var to = points[index];
-                var segment = GeometryUtils.MechanicsDistance(from, to);
-                var steps = Mathf.Max(1, Mathf.CeilToInt(segment / SampleStepMetres));
-                for (var step = 1; step <= steps; step++)
-                {
-                    var point = Vector3.Lerp(from, to, (float)step / steps);
-                    if (probe.EvaluateNativeAdmissionAtMountPosition(point) != MountedPairNativeAdmissionState.Admitted) continue;
-                    route.Add(point);
-                    result.RouteMetres = travelled + segment * step / steps;
-                    result.EndpointAdmitsStrike = true;
-                    result.Route = route;
-                    result.Detail = "route";
-                    return result;
-                }
-                route.Add(to);
-                travelled += segment;
+                result.EndpointAdmitsStrike = true;
+                result.Route = route;
+                result.Detail = "route";
+                return result;
             }
-            result.RouteMetres = travelled;
             result.Detail = "route-never-admits";
             return result;
         }

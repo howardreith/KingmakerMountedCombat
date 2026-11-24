@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Domain
         public long Proposals { get; private set; }
         public long OrderGeneration { get; private set; } = -1;
         public string ProposalTarget { get; private set; }
+        // Review R5-F8: the target the pair selected (the equal-rank tie-break can differ from native's proposal).
+        public string SelectedTarget { get; private set; }
         public string ProposalRanking { get; private set; }
         public string FirstRefusal { get; private set; }
         public bool Dispatched { get; private set; }
@@ -30,7 +32,7 @@ namespace KingmakerMountedCombat.Domain
 
         public void Reset()
         {
-            IsOpen = false; Reported = false; Proposals = 0; OrderGeneration = -1; ProposalTarget = null; ProposalRanking = null;
+            IsOpen = false; Reported = false; Proposals = 0; OrderGeneration = -1; ProposalTarget = null; SelectedTarget = null; ProposalRanking = null;
             FirstRefusal = null; Dispatched = false; OwnDisplacementMetres = 0f; PlayerDisplacementMetres = 0f;
             PlayerOperationBeforeDispatch = false; openedAt = 0d;
         }
@@ -44,14 +46,15 @@ namespace KingmakerMountedCombat.Domain
         }
 
         // Every automatic proposal of the window. The first admitted one is the order this record follows.
-        public void ObserveProposal(double nowSeconds, string target, string ranking, bool admitted, long generation, string refusal)
+        public void ObserveProposal(double nowSeconds, string proposed, string selected, string ranking, bool admitted, long generation, string refusal)
         {
             Open(nowSeconds);
             if (Reported) return;
             Proposals++;
             if (ProposalTarget == null || OrderGeneration < 0 && admitted)
             {
-                ProposalTarget = target;
+                ProposalTarget = proposed;
+                SelectedTarget = selected;
                 ProposalRanking = ranking;
             }
             if (admitted && OrderGeneration < 0) OrderGeneration = generation;
@@ -94,7 +97,7 @@ namespace KingmakerMountedCombat.Domain
         {
             Reported = true;
             return "firstStop=" + FirstStop() + "; order=" + OrderGeneration + "; proposals=" + Proposals +
-                "; target=" + (ProposalTarget ?? "<none>") + "; nativeRanking=" + (ProposalRanking ?? "<none>") +
+                "; proposed=" + (ProposalTarget ?? "<none>") + "; selected=" + (SelectedTarget ?? "<none>") + "; nativeRanking=" + (ProposalRanking ?? "<none>") +
                 "; ownDisplacement=" + OwnDisplacementMetres.ToString("R", CultureInfo.InvariantCulture) +
                 "; playerDisplacement=" + PlayerDisplacementMetres.ToString("R", CultureInfo.InvariantCulture);
         }

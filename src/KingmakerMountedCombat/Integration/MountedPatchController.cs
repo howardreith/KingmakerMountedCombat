@@ -893,14 +893,16 @@ namespace KingmakerMountedCombat.Integration
             // Known issues sprint 3 continuation (M05). After the native overload that admits commands, reached by the
             // public Run and by queue promotion alike: an order that is now in a slot of the rider's own container ends
             // the pair's stick movement, as native Run ends a unit's own. An enqueued or refused command is in no slot.
-            internal static void InternalRunPostfix(UnitCommands __instance, UnitCommand cmd)
+            internal static void InternalRunPostfix(UnitCommands __instance, UnitCommand cmd, bool fromQueue)
             {
                 if (PointerController.SimulatingClick || cmd == null) return;
                 // Reviews R1-F5/R3-F3/R2-F5: what native actually accepted (a slot, or the queue via Run's queue-instead path)
                 // is classified against a retained ordinary order. A refused or merged command is in neither place.
                 try
                 {
-                    var route = __instance.Contains(cmd) ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Slot :
+                    // Review R5-F5: native's own fromQueue marks promotion of an already accepted (queued) command.
+                    var route = fromQueue ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Promotion :
+                        __instance.Contains(cmd) ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Slot :
                         __instance.Queue.Contains(cmd) ? MountedAcceptedWorkRoute.Queue : (MountedAcceptedWorkRoute?)null;
                     if (route.HasValue) PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, route.Value);
                 }

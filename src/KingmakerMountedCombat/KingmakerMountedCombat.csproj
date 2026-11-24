@@ -570,6 +570,7 @@
     <Compile Include="Domain\AnimatedSaddleCalibration.cs" />
     <Compile Include="Domain\PairedAttackClickAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedPreStartApproachPolicy.cs" />
+    <Compile Include="Domain\MountedRouteWalker.cs" />
     <Compile Include="Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="Domain\MountedRetainedOrderLedger.cs" />
     <Compile Include="Domain\MountedHoldProvenance.cs" />

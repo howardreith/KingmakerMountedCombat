@@ -450,8 +450,15 @@ namespace KingmakerMountedCombat.Integration
         // Review R4-F2: set for an automatic order only; an automatic target that left the rider group's perception produces no
         // destination at any approach step (pre-start, native start, repath, carrier creation).
         internal Func<bool> AutomaticTargetPerceived;
-        // Review R4-F1: the route the turn-based click probe validated; the first carrier follows it (ForcedPath).
+        // Review R4-F1: set for a turn-based order whose click KMC admitted over native's refusal. Every carrier of such an
+        // order is created only on a route revalidated from the CURRENT origin and grant (RouteRevalidator: the click probe's
+        // production walk); when that proof cannot be established the approach ends cleanly instead of falling back to
+        // native routing.
         internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
+        internal Func<System.Collections.Generic.List<Vector3>> RouteRevalidator;
+        internal bool RouteBound => ValidatedApproachRoute != null;
+        internal int RouteRevalidationCount { get; private set; }
+        internal int RouteProofExpiredCount { get; private set; }
         internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
         // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
@@ -588,8 +595,10 @@ namespace KingmakerMountedCombat.Integration
                 StopNativePreStartApproach();
                 return false;
             }
-            var admitted = childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+            // Review R3-F1: the strike's own sight gate is set BEFORE classifying, so the classification and the native approach
+            // that runs this tick read the same inputs (EvaluateCurrentNativeAdmission sets the strike radius for a horse strike).
             NeedLoS = true;
+            var admitted = childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
             if (!admitted && !nativePreStartApproaching) PreStartMoveIssueCount++;
             nativePreStartApproaching = !admitted;
             return true;
@@ -1103,6 +1112,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 RequireLiveExactPair();
                 if (TryEndExpectedTargetInvalidation()) { return; }
+                // Review R4-F2: an unreleased automatic strike is never started, approached or adopted for a target that left
+                // the rider group's perception (in-range start included).
+                if (EndIfAutomaticTargetUnperceived()) { return; }
                 NeedLoS = true;
                 CreateAndValidateChildAttack();
                 riderPositionAtCommandStart = rider.Position;
@@ -1130,7 +1142,6 @@ namespace KingmakerMountedCombat.Integration
                 if (requiresApproach)
                 {
                     StopNativePreStartApproach();
-                    if (EndIfAutomaticTargetUnperceived()) return;
                     var commands = mount.Commands;
                     if (!chargeMode && delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
                         ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove) && commands.Queue.Count == 0)
@@ -1381,6 +1392,8 @@ namespace KingmakerMountedCombat.Integration
             ObserveNativeAdmission(nativeAdmission);
             if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
+                // Review R4-F2: perception is rechecked before arrival commits the strike.
+                if (EndIfAutomaticTargetUnperceived()) return;
                 if (delegatedMove == null)
                 {
                     throw new InvalidOperationException(
@@ -1638,13 +1651,20 @@ namespace KingmakerMountedCombat.Integration
             // Review R4-F1: the first carrier of a click-admitted turn-based order follows exactly the route the click probe
             // validated (native TickApproaching follows a ForcedPath before any visualizer path). It is used once, only from
             // the route's own start; a repath or a moved pair falls back to native routing.
-            var validated = ValidatedApproachRoute;
-            ValidatedApproachRoute = null;
-            if (validated != null && validated.Count >= 2 && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
-                HorizontalDistance(validated[0], mount.Position) <= 0.2f)
+            if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
-                var route = new System.Collections.Generic.List<Vector3>(validated) { [0] = mount.Position };
-                delegatedMove.ForcedPath = new Pathfinding.ForcedPath(route);
+                RouteRevalidationCount++;
+                var route = RouteRevalidator?.Invoke();
+                if (route == null || route.Count < 2)
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based approach is no longer a legal route within the mount's movement.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "validated approach expired");
+                    Interrupt();
+                    return false;
+                }
+                delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
                 ValidatedRouteFollowed = true;
             }
             AnnounceOwnMove(delegatedMove);
@@ -1829,6 +1849,8 @@ namespace KingmakerMountedCombat.Integration
         private void StartChildAttack()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            // Review R4-F2: the last boundary before release.
+            if (EndIfAutomaticTargetUnperceived()) return;
             if (TerminateIfActionActorBlocked()) return;
             if (!childAttack.TryPrepareNativeStartAdmission())
             {

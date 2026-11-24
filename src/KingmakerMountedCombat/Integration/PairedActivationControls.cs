@@ -265,7 +265,9 @@ namespace KingmakerMountedCombat.Integration
                 AdmittedAttackClickCount++;
             }
             // Review R4-F1: the admitted order's carrier follows exactly the validated route; any other outcome clears it.
-            combat?.RememberValidatedClickRoute(target, context, decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route : null);
+            // An admitted order of either kind is route-bound: any carrier it later needs is revalidated from its current origin.
+            combat?.RememberValidatedClickRoute(target, context, decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
+                decision == PairedAttackClickAdmission.AdmitInRange ? new System.Collections.Generic.List<UnityEngine.Vector3>() : null);
             if (!meleeOnTarget) return;
             LastAttackClickDecision = decision + ":" + reason;
             logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +

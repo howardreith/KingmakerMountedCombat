@@ -148,7 +148,10 @@ $closeEnough = $command.GetMethod('IsUnitCloseEnough', [Reflection.BindingFlags]
 $single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
 $evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
 $evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
-Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and (Calls $probe $evaluateAt) -eq 1) 'R4-F1: the probe walks the mount agent''s native route until the strike''s production admission passes'
+$walkerType = KmcType 'KingmakerMountedCombat.Domain.MountedRouteWalker'
+$walksRoute = @(Refs $probe | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count -eq 1
+$admitsAlongRoute = @($probe.DeclaringType.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $evaluateAt) -ge 1 }).Count -ge 1
+Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker until the strike''s production admission passes'
 $offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
 Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
 $setForced = $command.GetProperty('ForcedPath').GetSetMethod()
@@ -157,7 +160,11 @@ Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F
 $nativeApproach = MemberAt 0x060027A6
 $currentPathForUnit = MemberAt 0x0600700F
 Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeApproach $getForced) -lt (FirstOffset $nativeApproach $currentPathForUnit)) 'R4-F1: native turn-based TickApproaching follows a ForcedPath before any visualizer path'
-Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1) 'R4-F1: the validated route is bound to the exact click and handed to that order''s carrier'
+Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $tryExecute ($pair.GetField('RouteRevalidator', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
+$revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
+Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
+$invoke = [Func[System.Collections.Generic.List[UnityEngine.Vector3]]].GetMethod('Invoke')
+Check ((FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -ge 0 -and (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R4-F1: a route-bound carrier revalidates before its route is set; there is no unchecked fallback'
 $visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
 Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'
 
@@ -189,7 +196,7 @@ Check ($reader.GetField('ContextField', $any).GetValue($null) -eq $contextField 
 Check ((Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) ($reader.GetMethod('Describe', $any))) -eq 1) 'R1-F11: every real-time automatic proposal carries native''s own ranking'
 # ---- 6. Round-4 corrections (R4-F2, R4-F3, R4-F8, R1-F11) ---------------------------------------------------------------
 $endUnperceived = @(Method $pair 'EndIfAutomaticTargetUnperceived')[0]
-foreach ($name in @('OnStart', 'TickApproach', 'TickPreStartApproach')) { Check ((Calls (@(Method $pair $name)[0]) $endUnperceived) -ge 1) ('R4-F2: ' + $name + ' ends an automatic order whose target left perception before any destination') }
+foreach ($name in @('OnStart', 'TickApproach', 'TickPreStartApproach', 'StartChildAttack')) { Check ((Calls (@(Method $pair $name)[0]) $endUnperceived) -ge 1) ('R4-F2: ' + $name + ' ends an automatic order whose target left perception before any destination') }
 Check ((Calls $tryExecute ($pair.GetField('AutomaticTargetPerceived', $any))) -ge 1) 'R4-F2: every automatic order carries the rider group''s perception check'
 Check ((Calls (@(Method $controller 'TryRetireStockIntent')[0]) ($ledger.GetMethod('NewerPlayerWork'))) -eq 1) 'R4-F3: retirement distinguishes work accepted after an explicit order from older occupied slots'
 Check ((Calls (@(Method $controller 'Update')[0]) ($ledger.GetMethod('ReleaseFinished'))) -eq 1) 'R4-F8: finished command identities are released every update'
@@ -197,4 +204,5 @@ $tieBreak = (KmcType 'KingmakerMountedCombat.Domain.NativeAttackTieBreak').GetMe
 Check ((Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) (@(Method $controller 'ResolveEqualRankTie')[0])) -eq 1 -and (Calls (@(Method $controller 'ResolveEqualRankTie')[0]) $tieBreak) -eq 1) 'R1-F11: equally ranked native candidates are resolved by the pair''s nearest-eligible tie-break before admission'
 $engage = @(Method $controller 'ObserveEngagementProgress')[0]
 Check ((Calls $engage ($pair.GetProperty('CurrentMovementOwner', $any).GetGetMethod($true))) -eq 1 -and (Calls $engage ((KmcType 'KingmakerMountedCombat.Domain.MountedEngagementRecord').GetMethod('ObserveInterval'))) -eq 1) 'R1-F11: travel is attributed to the exact carrier across each interval'
+Check (@(@(Method $patches 'InternalRunPostfix')[0].GetParameters() | Where-Object { $_.Name -ceq 'fromQueue' -and $_.ParameterType -eq [bool] }).Count -eq 1) 'R5-F5: the Run postfix receives native''s own fromQueue (promotion) parameter'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0')

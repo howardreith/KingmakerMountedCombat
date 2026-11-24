@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R2-F1: the attack kind fixed at acceptance survives a deferred first drive and a weapon change", AttackKindAtAcceptance);
             runner.Run("R2-F5: newer player work in a mount slot retires a waiting real-time order; own carrier moves do not", RealTimeMountSlotSuccessor);
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
+            runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
+            runner.Run("R5-F2/R4-F1: the production route walk finds the first legal reach exactly and recosts a shifted start", RouteWalkerBoundaries);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
             runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
             runner.Run("R3-F1: rider or horse striker moves before readiness, queued orders move after promotion; native keeps the start", PreStartApproach);
@@ -26,6 +28,55 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R1-F11: engagement attribution credits only the same exact carrier across an interval", EngagementAttribution);
             runner.Run("R1-F11: equally ranked eligible native candidates resolve to the nearest without oscillation", EqualRankTieBreak);
             runner.Run("R1-F11: model of the traced native target comparison (two eligible, nearer ineligible, manual target)", NativeTargetChoice);
+        }
+
+        // Review R5-F5: a stationary player Standard queued BEFORE the explicit rider click, then promoted, is older work; the
+        // same Standard inserted AFTER the click supersedes the order at its insertion and stays superseding when promoted.
+        private static void PromotionIsNotAcceptance()
+        {
+            var standard = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = false };
+            var before = new MountedRetainedOrderLedger();
+            var queuedEarlier = new object();          // queued on the horse before the click: never seen by this order
+            before.Begin(51, false, true);             // the explicit rider click is accepted
+            TestRunner.Equal(MountedAcceptedWorkClass.Competing, before.ObserveAccepted(queuedEarlier, standard, MountedAcceptedWorkRoute.Promotion, "mount:promoted"),
+                "The promoted command was misclassified.");
+            TestRunner.True(!before.Superseded(51) && before.FollowThroughAllowed(51), "Promotion of older queued work superseded the newer click.");
+            var after = new MountedRetainedOrderLedger();
+            after.Begin(52, false, true);
+            var insertedLater = new object();
+            after.ObserveAccepted(insertedLater, standard, MountedAcceptedWorkRoute.Queue, "mount:queued");
+            TestRunner.True(after.Superseded(52), "Direct queue insertion after the click did not supersede it.");
+            after.ObserveAccepted(insertedLater, standard, MountedAcceptedWorkRoute.Promotion, "mount:promoted");
+            TestRunner.True(after.Superseded(52), "Promotion cleared a real override.");
+        }
+
+        // Review R5-F2 (production MountedRouteWalker, the walk the click probe and every carrier revalidation use): a route whose
+        // first legal reach lies between samples is found at its boundary; a grant ending just inside passes, one ending short
+        // refuses; a corner where the point-move end differs from the first visible striking point stops at the visible point.
+        private static void RouteWalkerBoundaries()
+        {
+            float Dist(float[] a, float[] b) => (float)Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]));
+            float[] Lerp(float[] a, float[] b, float t) => new[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t };
+            // Straight route along x; the strike becomes admissible at x >= 1.437 (between 0.05 m samples).
+            var straight = new List<float[]> { new[] { 0f, 0f }, new[] { 3f, 0f } };
+            List<float[]> route; float cost;
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, point => point[0] >= 1.437f, out route, out cost) &&
+                Math.Abs(cost - 1.437f) < 0.001f && Math.Abs(route[route.Count - 1][0] - 1.437f) < 0.001f, "The first legal reach was not found at its boundary: " + cost);
+            TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
+            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f), "A grant ending short of legal reach passed.");
+            // Corner: the route goes east then north around a wall; within reach of the target at (2, 2) everywhere past x = 1,
+            // but line of sight is blocked until the route has turned the corner (y >= 0.6).
+            var corner = new List<float[]> { new[] { 0f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
+            Func<float[], bool> admissible = point => Dist(point, new[] { 2f, 2f }) <= 2.3f && point[1] >= 0.6f;
+            TestRunner.True(MountedRouteWalker.Walk(corner, Dist, Lerp, admissible, out route, out cost) && Math.Abs(cost - 2.6f) < 0.001f &&
+                route.Count == 3 && Math.Abs(route[2][1] - 0.6f) < 0.001f, "The corner route did not stop at the first visible striking point: " + cost);
+            // A start shifted by more or less than 0.2 m is walked again from its own origin (no reused segment).
+            var shifted = new List<float[]> { new[] { -0.3f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
+            TestRunner.True(MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, out route, out cost) && Math.Abs(cost - 2.9f) < 0.001f &&
+                Math.Abs(route[0][0] + 0.3f) < 1e-6f, "A shifted start was not recosted from its own origin.");
+            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 2.7f), "The recosted shifted route passed a grant it exceeds.");
+            // Never admissible: no route.
+            TestRunner.True(!MountedRouteWalker.Walk(corner, Dist, Lerp, point => false, out route, out cost) && route == null, "A route without legal reach was accepted.");
         }
 
         private static readonly MountedAcceptedWorkFacts PlayerMove = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = true };
@@ -219,7 +270,8 @@ namespace KingmakerMountedCombat.Tests
         {
             // Striker selection: the rider when it may strike, otherwise the horse; an explicit horse order is the horse's.
             TestRunner.Equal(MountedEarlyStriker.Rider, MountedPreStartApproachPolicy.SelectStriker(false, true, true), "The rider was not the striker.");
-            TestRunner.Equal(MountedEarlyStriker.Mount, MountedPreStartApproachPolicy.SelectStriker(false, false, true), "A horse-selected strike was not offered.");
+            // Review R5-F6: a temporarily unable rider (dazed) never converts its order into a horse attack: no early striker.
+            TestRunner.Equal(MountedEarlyStriker.None, MountedPreStartApproachPolicy.SelectStriker(false, false, true), "A rider order became a horse attack.");
             TestRunner.Equal(MountedEarlyStriker.Mount, MountedPreStartApproachPolicy.SelectStriker(true, true, true), "An explicit horse order went to the rider.");
             TestRunner.Equal(MountedEarlyStriker.None, MountedPreStartApproachPolicy.SelectStriker(true, true, false), "A restricted horse struck.");
             TestRunner.Equal(MountedEarlyStriker.None, MountedPreStartApproachPolicy.SelectStriker(false, false, false), "A striker was invented.");
@@ -292,7 +344,7 @@ namespace KingmakerMountedCombat.Tests
         {
             var record = new MountedEngagementRecord();
             // A proposal before the first combat update opens the window.
-            record.ObserveProposal(100d, "kobold-1", "[*kobold-1:6:-0.006];bestScore=0.8", true, 4, null);
+            record.ObserveProposal(100d, "kobold-far", "kobold-1", "[*kobold-far:2.4:0,kobold-1:1.6:0];bestScore=1", true, 4, null);
             TestRunner.True(record.IsOpen && record.OrderGeneration == 4, "An early proposal was dropped.");
             TestRunner.Equal("accepted-not-dispatched", record.FirstStop(), "An accepted order was misnamed.");
             record.ObserveDispatch(5);
@@ -313,7 +365,9 @@ namespace KingmakerMountedCombat.Tests
                 "The carrier's own travel was misattributed: " + record.OwnDisplacementMetres);
             TestRunner.True(!record.Due(102d) && record.Due(103d), "The report time was wrong.");
             var line = record.Report();
-            TestRunner.True(line.Contains("order=4") && line.Contains("nativeRanking=[*kobold-1"), "The report lost its attribution: " + line);
+            // Review R5-F8: native's proposal and the pair's selection are reported separately.
+            TestRunner.True(line.Contains("order=4") && line.Contains("proposed=kobold-far") && line.Contains("selected=kobold-1") &&
+                line.Contains("nativeRanking=[*kobold-far"), "The report lost its attribution: " + line);
             // A player operation before any automatic dispatch: player movement is never automatic progress.
             var player = new MountedEngagementRecord();
             player.Open(0d);
@@ -322,7 +376,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(player.FirstStop() == "player-command" && player.OwnDisplacementMetres == 0f && player.PlayerDisplacementMetres == 3f,
                 "Player movement was attributed to the automatic order.");
             var refused = new MountedEngagementRecord();
-            refused.ObserveProposal(0d, "kobold-2", null, false, -1, "hold-out-of-reach");
+            refused.ObserveProposal(0d, "kobold-2", "kobold-2", null, false, -1, "hold-out-of-reach");
             TestRunner.Equal("refused:hold-out-of-reach", refused.FirstStop(), "A refusal lost its reason.");
             var none = new MountedEngagementRecord(); none.Open(0d);
             TestRunner.Equal("no-proposal", none.FirstStop(), "An absent proposal was misnamed.");

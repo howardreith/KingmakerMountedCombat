@@ -23,7 +23,12 @@ namespace KingmakerMountedCombat.Domain
     {
         // The native movement simulator's own step granularity is 0.1 s of travel; a route is compared with a small absolute
         // tolerance only, never a percentage.
-        public const float RouteToleranceMetres = 0.05f;
+        public const float RouteToleranceMetres = 0.005f;
+
+        // The executable route reaches a strike-admissible point and its cost along the route is within the mount's grant.
+        public static bool RouteWithinGrant(bool routeComplete, bool endpointAdmitsStrike, float routeMetres, float mountGrantedMetres) =>
+            routeComplete && endpointAdmitsStrike && !float.IsNaN(routeMetres) && !float.IsNaN(mountGrantedMetres) && mountGrantedMetres > 0f &&
+            routeMetres <= mountGrantedMetres + RouteToleranceMetres;
 
         public static PairedAttackClickAdmission Decide(
             bool nativeIgnored,
@@ -56,8 +61,7 @@ namespace KingmakerMountedCombat.Domain
             if (strikeAdmissibleNow) { reason = "in-range"; return PairedAttackClickAdmission.AdmitInRange; }
             if (!routeComplete) { reason = "no-complete-route"; return PairedAttackClickAdmission.NativeDecision; }
             if (!endpointAdmitsStrike) { reason = "route-endpoint-out-of-reach"; return PairedAttackClickAdmission.NativeDecision; }
-            if (float.IsNaN(routeMetres) || float.IsNaN(mountGrantedMetres) || mountGrantedMetres <= 0f ||
-                routeMetres > mountGrantedMetres + RouteToleranceMetres)
+            if (!RouteWithinGrant(routeComplete, endpointAdmitsStrike, routeMetres, mountGrantedMetres))
             {
                 reason = "insufficient-movement";
                 return PairedAttackClickAdmission.NativeDecision;

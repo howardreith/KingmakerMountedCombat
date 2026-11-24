@@ -10,7 +10,9 @@ namespace KingmakerMountedCombat.Domain
     public enum MountedAcceptedWorkRoute
     {
         Slot,
-        Queue
+        Queue,
+        // Native queue promotion (private Run with fromQueue): the same command, already accepted into the queue earlier.
+        Promotion
     }
 
     public enum MountedAcceptedWorkClass
@@ -135,7 +137,9 @@ namespace KingmakerMountedCombat.Domain
             string detail)
         {
             var kind = Classify(IsRetainedOwn(command), facts);
-            if (kind != MountedAcceptedWorkClass.Competing || Generation < 0) return kind;
+            // Review R5-F5: promotion is not acceptance. Work queued before the order was accepted is older work; work queued
+            // after it already latched at its own queue insertion.
+            if (kind != MountedAcceptedWorkClass.Competing || Generation < 0 || route == MountedAcceptedWorkRoute.Promotion) return kind;
             if (!Overridden) OverrideDetail = route + ":" + (detail ?? "<command>");
             Overridden = true;
             competingCount++;

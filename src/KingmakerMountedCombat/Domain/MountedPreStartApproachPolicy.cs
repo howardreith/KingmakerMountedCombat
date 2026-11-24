@@ -74,7 +74,7 @@ namespace KingmakerMountedCombat.Domain
         // restriction, able to act and attack), otherwise the horse's when the horse may; else none.
         public static MountedEarlyStriker SelectStriker(bool explicitMountOrder, bool riderMayStrike, bool mountMayStrike) =>
             explicitMountOrder ? (mountMayStrike ? MountedEarlyStriker.Mount : MountedEarlyStriker.None) :
-            riderMayStrike ? MountedEarlyStriker.Rider : mountMayStrike ? MountedEarlyStriker.Mount : MountedEarlyStriker.None;
+            riderMayStrike ? MountedEarlyStriker.Rider : MountedEarlyStriker.None;
 
         // Real-time dispatch of the selected striker's order while no actor is strike-ready: only when the planned strike is
         // not admissible where the pair stands and movement is lawful. The order then waits in its native slot exactly as an
