@@ -8,60 +8,61 @@ Package record: [package-identity.json](package-identity.json).
 
 - **Factory:** foreground enrollment `kmc-codex-mounted-alpha2-melee-pose-20261124102246-64c1` (pinned controller
   `versions/85dece1c…`, project `kingmaker-mounted-combat`, plan `single`); draft PR #64 targeting `main`. Final review
-  round 1 (on `2769f113`) returned `changes_required` with 16 findings, corrected in this candidate (section 3); the next round
-  reviews the records head. Its result is recorded by the controller, not here.
+  rounds 1 (`2769f113`) and 2 (`b108dcea`) returned `changes_required`; the round-2 corrections are in this candidate
+  (section 3). The controller records the next round's result.
 - **Dependency:** PR #61 (Mounted Shield) was merged by the owner's instruction before enrollment (merge commit `783b2b3d`,
-  tree identical to the accepted archive `122a9f94`). The branch starts from that main (`--target main`); the accepted Shield
-  enrollment, branch and archives are untouched.
-- **Package:** `artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-3c52882a-diagnostic.zip` (section 5). The
-  earlier `ea112a71` and `94ad290c` packages are superseded.
+  tree identical to the accepted archive `122a9f94`); the branch starts from that main (`--target main`).
+- **Package:** `artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-c5b147a6-diagnostic.zip` (section 5). The
+  earlier `ea112a71`, `94ad290c` and `3c52882a` packages are superseded.
 - **Native game launched: no.** Zero guarded starts: this session has no desktop-control tool and the guarded save-backed
   scenarios still require the historical qualification fixture suite. N01–N10 are `not_run`, assigned to the owner playtest.
-- **Core blockers:** none known. MMR-07 is an investigated visual limitation.
+- **Scope after review:** MMR-01, MMR-03 and MMR-06 are repaired at source; MMR-02 and MMR-05 keep alpha 1 behavior with a
+  diagnostic (their repairs could not be made verifiably safe without a game run); MMR-04 is explained from installed code with
+  a diagnostic; MMR-07 is an investigated visual limitation with per-strike telemetry.
 
-## 2. Changes and evidence
+## 2. Issues
 
-| Issue | Cause / explanation (status) | Change | Offline evidence | Native/owner |
+| Issue | Finding (status) | In this alpha | Offline evidence | Native/owner |
 | --- | --- | --- | --- | --- |
-| MMR-01 seating | **Hypothesis** (source-backed, no matched in-game comparison): the animated saddle froze `seatFromSource` once from the rider's pelvis in the attachment frame, so seat height followed the rider's animation when Mount Companion fired or a view's first frame after load. No accumulation (frame lease/release verified in source). | The Horse profile declares the measured preview.3 pelvis−Chest basis `(-0.1892, 0.8601, 0.0175)` its correction was tuned against (`Domain/AnimatedSaddleCalibration.cs`); Mammoth keeps the observed sample, the 24 Small profiles their fixed path; the seat line logs `seatCalibration` and the observed sample. | Component test through the production policy and `AnimatedSaddlePosition` (pose-independence, release/reacquire); contract checks of the compiled profile values and the runtime→adapter→policy calls. Unity transforms (view replacement, old-view restoration) are not executable offline; existing pose tests cover non-accumulation and restoration. | N01, N10 |
-| MMR-02 TB approach | **Inferred from installed IL, not a trace:** `TurnController.IgnoreClick` drops a click whose visualized path (the mount's, under paired controls) does not end within the predicted command's approach radius. | A postfix admits only native's path refusal of its own predicted `UnitAttack` (read from `m_PredictionCommands`) by the rider on the highlighted living hostile, melee weapon, recomputed `IsCurrentPathForPoint` false, every earlier native refusal standing, and the mount's lawful remaining step/move distance (coordinator allocation) covering the straight-line gap to pair reach (`Domain/PairedAttackClickAdmissionPolicy.cs`). Both initiative arrangements address the rider's boundary under paired activation, so the same path applies. A longer/blocked route is refused by the pair command's existing approach. | Component test: reachable, eligible step, spent movement, beyond allowance, already in reach, other refusal reasons, non-attack/ranged/other-target command, unavailable measurements; contract tokens `06000C2F`, `04000691`, `0400068B`, `0400066E`, `06007018`. | N02, N03 |
-| MMR-03 horse participation | Default paired TB excluded the horse from a rider click (`mountIsLegalActor`). | `MountJoinsIntent`: an ordinary **melee** rider order includes the horse only while addressable on that activation and while neither actor holds newer competing work; each actor is offered only if its own strike can start (`MountedStrikeReadinessPolicy`: Standard, capability, addressability), so a dazed or ended rider is skipped and the capable horse attacks alone. | Component tests with genuine `PairedActivation` states; bow vs melee; newer work; dazed/ended rider and the reciprocal incapable horse. | N04 |
-| MMR-04 RT engagement | Most likely the accepted intent stalled on readiness (initiative); a refused or absent native proposal not excluded. | Real-time readiness covers native start waits (MMR-05); no new targeting (the rider brain proposes the target). A once-per-combat `Mounted real-time engagement: firstStop=…` line names no-proposal / refused:reason / accepted-not-dispatched / travelling / engaging. | Component tests of the first-stop classification; installed `CanActInCombat` contract. Native target comparison is not executable offline. | N05 |
-| MMR-05 RT response | Movement waited for strike readiness (KMC `Wait`; native start gate before the wrapper's approach). | `ApproachWhileWaiting` while no actor's strike can start (initiative, Standard cooldown, busy hands, scheduled equipment update) and the target is outside the strike's own mount-origin reach or command LOS (`MountedPairSingleAttack.WithinPairMeleeReach`) and the mount can act and move. One controller-owned non-player move: released through `MountedOwnMovePolicy` before dispatch and on every intent end, the pair's own move for door arbitration, a Hold its arrival wrote restored, a newer order retires the intent quietly, a failed route ends the intent once (automatic: A05 unreachable). | Component tests: start waits travel, dispatch only when startable, restrictions stay put, exact release with/without successor and after failed admission. | N06 |
-| MMR-06 horse Trip | Installed data: stock Mammoth `AddFacts` = `[TrippingBite, NaturalArmor7, TripDefenseFourLegs]`; `TrippingBite` (`f957b444…`) = `ManeuverOnAttack(Bite, Trip)`. | Only that exact stock grant is withheld from the Horse. A saved horse loses only a sourceless (no source, item or cutscene) stock TrippingBite, once per loaded object, only on a settled world (no load, save worker or pending restoration); failures are retried. | Contract: installed offsets; genuine-object filter (another mod's maneuver fact kept); sourced/item/cutscene copies kept. Component test: per-object ledger, protected phases, retry, reload with the same ID. | N07 |
-| MMR-07 bite animation | Installed bundle `resource_2f179560…` (SHA-256 `3edb2116…`): `HorseAnimationSet_Bite` → clip `BiteAttack`; Hoof → `Right/Left_Hoof_Attack`; the stock Bite handle is adopted, never replaced; native gives a routine one `SpeedScale` over all clips. Visibility unobserved. | No animation/timing change. One `Horse strike:` line per native strike at its act event (`playback=no-handle/not-acted/interrupted/played`, action, speedScale, variant); the terminal line keeps its summary. | Component test of the strike classification (stock, missing, interrupted, hoof control); contract: bundle identity, handle `SpeedScale`. | N08 |
-| Mounted Shield | Unchanged. | None. | Shield native contract 114/0, selection rollback 68/0, icon `fd519874…` in the packaged DLL. | N09 |
+| MMR-01 seating | **Hypothesis** from source: the animated saddle froze `seatFromSource` from the rider's pelvis in the attachment frame, so the seat followed the rider's animation when Mount Companion fired or a view's first frame after load. | Horse calibrates from the measured preview.3 pelvis−Chest basis `(-0.1892, 0.8601, 0.0175)` (`Domain/AnimatedSaddleCalibration.cs`); Mammoth and the 24 Small profiles unchanged. | Component tests: pose independence; the production lease and saddle across attach, frames, dismount (exact baseline restoration), remount from a different baseline and view replacement (single owner, old view restored), undeclared profile isolation. Contract: compiled profile values and runtime→adapter→policy calls. The Unity adapter and rendered pose are not exercised offline. | N01, N10 |
+| MMR-02 TB approach | **Inferred, untraced:** installed `TurnController.IgnoreClick` drops a click whose visualized path (the mount's, under paired controls) does not end within the predicted command's approach radius. | **Diagnostic only** (review R1-F3: a straight-line allowance cannot establish a legal route before native's validation). A read-only postfix logs native's path refusal of its own predicted rider melee `UnitAttack` on the highlighted hostile, with the mount's remaining allowance, the gap to reach and the approach radius. Native's decision is unchanged. | Component test of the logged case; contract tokens `06000C2F`, `04000691`, `0400068B`, `0400066E`, `06007018`. | N02, N03 |
+| MMR-03 horse participation | Default paired TB excluded the horse from a rider click (`mountIsLegalActor`). | One ordinary melee rider order includes the horse while addressable on that activation; selection uses the dispatcher's own admission (evaluator: Standard, native capability block, addressability); the order's accepted attack kind is fixed at acceptance; newer player work recorded when it entered either actor's container overrides it. | Component tests with genuine `PairedActivation` states and the production evaluator: ended or CanNotAttack rider → horse alone, reciprocal, bow order kept bow after a weapon change, recorded newer work, Free/Swift/reaction/own-command controls. | N04 |
+| MMR-04 RT engagement | **Explained from installed code:** `Character_Brain` → `AttackAiAction` → `AttackTargetsPriority`; candidates are the group memory's perceived enemies (dead, untargetable, aggro filtered), sorted by `TargetInfo.Sort`; `FillWeight` ranks a manual target first and, in real time, subtracts 0.001 × distance (nearest wins). KMC passes the proposal through. Why the owner's pair stood still is not established offline. | No behavior change. A once-per-combat line names the first stop: no-proposal, refused:reason, accepted-not-dispatched, dispatched-not-moved, dispatched-moved, player-command (automatic deltas only; mount displacement). | Contract pins the native selection IL; component test of the classification. | N05 |
+| MMR-05 RT response | **Confirmed cause:** movement waits for strike readiness (KMC `Wait`; native start gate before the wrapper's approach). | **Withdrawn repair; alpha 1 behavior.** The round-1/2 early approach raised move-ownership, Hold, perception, successor and queue-promotion hazards (R1-F7/F8/F9, R2-F2/F3/F5) that cannot be verified without a game run. | None (unchanged behavior). | N06 |
+| MMR-06 horse Trip | Installed data: stock Mammoth `AddFacts` = `[TrippingBite, NaturalArmor7, TripDefenseFourLegs]`; `TrippingBite` (`f957b444…`) = `ManeuverOnAttack(Bite, Trip)`. | Only that exact grant (identity and Bite/Trip shape) is withheld from the Horse. A saved horse loses a sourceless copy only when it sits immediately before its sourceless donor successor feature (creation order), once per loaded object, under the composition root's write gate (enabled, no save suspension, area transition, restoration, save worker or load); failures retry. | Contract on genuine objects: other GUID, Disarm, Claw and trigger-less same-GUID facts kept; legacy copy removed; a later direct grant, a non-adjacent copy, a sourced successor and an unknown successor all kept. Component test: every protected phase removes nothing; one repair per loaded object; retry; reload. | N07 |
+| MMR-07 bite animation | Installed bundle `resource_2f179560…` (SHA-256 `3edb2116…`): `HorseAnimationSet_Bite` → clip `BiteAttack`; the stock Bite handle is adopted, never replaced; native gives a routine one `SpeedScale`. Visibility unobserved. | No animation change. One `Horse strike:` line per strike of the exact KMC Horse at its act event: horse, index, weapon, special type, handle facts (none / started / acted / interrupted), action, speedScale, variant, and the active `AnimationBase`'s clip, weight and state. | Component test (stock handle, missing, interrupted, hoof control); contract: bundle identity, handle `SpeedScale`. | N08 |
+| Mounted Shield | Unchanged. | The shield write gate now calls the same `MountedWorldWriteGate` function with the same inputs. | Shield native contract 114/0, selection rollback 68/0, icon `fd519874…` in the packaged DLL. | N09 |
 
-## 3. Final review round 1 (on `2769f113`): dispositions
+## 3. Review dispositions
 
-All 16 findings were addressed in `59d94c4c`, `8a49c5de`, `f2c04e9a`, `3e76662f`, `3a1ce703`, `94ad290c` and `3c52882a`:
-R1-F1/F2 (exact grant; settled per-object repair), R1-F3 (exact predicted-command binding and movement allowance), R1-F4/F5/F6
-(melee-only, newer work, per-actor eligibility), R1-F7/F8/F9/F10 (exact release, door arbitration and Hold, strike geometry and
-route failure, native start waits), R1-F11 (engagement first-stop line; native target choice retained), R1-F12 (compiled seat
-wiring checks; hypothesis wording), R1-F13 (per-strike playback line), R1-F14 (`Test-MountedAlpha2Package.ps1` receipt in the
-gate), R1-F15 (`.gitattributes` `-text` for the packet; the packet verifier passes on a fresh checkout), R1-F16 (this
-handoff and PRIVATE-ALPHA: rollback to backed-up alpha-1 saves, unverified backward compatibility, restored comparisons).
+- **Round 1** (16 findings on `2769f113`): F4, F10, F14, F15, F16 verified in round 2.
+- **Round 2** (on `b108dcea`): R1-F1/F2 → exact shape, positional provenance and the root write gate (`6637b8e7`); R1-F3,
+  R1-F7, R1-F8, R1-F9, R2-F2, R2-F3, R2-F5 → the admission and the early approach were withdrawn (`58622497`); R1-F5, R1-F6,
+  R2-F1 → recorded overrides, dispatch-evaluator selection, accepted attack kind (`58622497`); R1-F11 → native selection traced
+  and pinned, attributable engagement line (`58622497`, `c5b147a6`); R1-F12 → lifecycle test on the production lease and saddle
+  (`c5b147a6`); R1-F13, R2-F4 → literal, exact-Horse strike facts with the active clip (`877bf868`); R2-F6 → section 4 cites the
+  receipt.
 
 ## 4. Validation and limitations
 
-- **Controller focused gate** on `3c52882a` (packaged source): PASS 54.5 s, receipt
-  `gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z`; components 1535/0, Validate-Source 153/0,
-  alpha-2 native contract 50/0 and the other focused children (presentation 239/0, Shield 114/0, rollback 68/0, Archery 54/0,
-  Ranger 183/0, replay 29/0, localization, UMM reference, native loader 101/0, frozen source 23/0, UMM bindings 25/0 ×2).
-  The records head adds the package receipt child (`Test-MountedAlpha2Package.ps1`) and is gated again.
-- **Package:** `scripts/Package.ps1 -ArtifactQualifier mounted-alpha2-3c52882a`, Validate-Package 11/0; receipt 9/0.
+- **Controller focused gate** on `c5b147a6` (packaged source): PASS 66.0 s, receipt
+  `gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z`; components 1533/0, Validate-Source 153/0,
+  alpha-2 native contract 57/0, presentation 239/0, Shield 114/0, rollback 68/0, Archery 54/0, Ranger 183/0, replay 29/0,
+  localization, UMM reference, native loader 101/0, frozen source 23/0, UMM bindings 25/0 ×2. The records head is gated again
+  with the package receipt child for the `c5b147a6` ZIP.
+- **Budget** `mounted-alpha2-melee-pose-20261124`: spent 6.32 of 90 minutes after the `c5b147a6` gate (receipt
+  `gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z`); the records-head gate adds its own spend.
 - **Known baseline failures (not selected; identical on the accepted Shield build `122a9f94`):** `Test-MountedAttackStallRepair.ps1`
-  (parameter count mismatch) and `Test-WorldOwnershipContracts.ps1` (missing field `pairSaveReady`).
+  and `Test-WorldOwnershipContracts.ps1`.
 - **Not run:** any game start, fixture, gameplay, visual or save/load observation; no native transaction, so no restoration.
-- **Budget** `mounted-alpha2-melee-pose-20261124`: under 5 of 90 minutes.
 
 ## 5. Exact identities
 
 - Base: main `783b2b3dea3303e10cc4379dfa0a36ceac66a76b`.
-- Packaged and gated source: `3c52882adaa897008a474859b64cfca644371195`. Later commits are records and the receipt script only.
-- ZIP: `KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-3c52882a-diagnostic.zip`, 4,287,279 bytes, SHA-256
-  `e0a00993012176fc5b700c0d290c1269749315bfe2fd0270f86a75babc9667e3`; Info.json Version `0.2.16-alpha.2`, ManagerVersion `0.31.1`.
-- DLL: SHA-256 `a2cecac0d65925a21429e12a13e5109a3185916c54c6f72acf09589dda7447b7`, MVID `42a2aa87-30dc-4717-a88f-04a8f99a2d72`.
+- Packaged and gated source: `c5b147a62b511c7ca21e3481e95e3d2ec3e33cc0`. Later commits are records only.
+- ZIP: `KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-c5b147a6-diagnostic.zip`, 4,286,856 bytes, SHA-256
+  `d82368ce3f9f8b7d9fc4d6fd4f151c40d0947aaed43c76dd3bf54aa1257a9b05`; Info.json Version `0.2.16-alpha.2`, ManagerVersion `0.31.1`.
+- DLL: SHA-256 `b2d3788e26d0556a164c824644b63b492e50504112b105bad2032b01f63b6a75`, MVID `0bfff03f-3c34-4e72-8414-b0eba5b842ed`.
 - Embedded Mounted Shield icon: SHA-256 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0`.
 - Previous alpha (rollback): `0.2.16-alpha.1`, ZIP `d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545`.
 

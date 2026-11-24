@@ -2,8 +2,8 @@
   "schema": "kmc.mission.acceptance.v1",
   "mission_id": "kmc-mounted-alpha2-melee-pose-20261124",
   "template_status": "EXECUTED",
-  "source_commit": "3c52882adaa897008a474859b64cfca644371195",
-  "package_sha256": "e0a00993012176fc5b700c0d290c1269749315bfe2fd0270f86a75babc9667e3",
+  "source_commit": "c5b147a62b511c7ca21e3481e95e3d2ec3e33cc0",
+  "package_sha256": "d82368ce3f9f8b7d9fc4d6fd4f151c40d0947aaed43c76dd3bf54aa1257a9b05",
   "checkpoint_scope": "private alpha source/offline delivery; unperformed native/visual/save-load observations remain pending",
   "issues": [
     {
@@ -17,12 +17,14 @@
       "root_cause": "The animated saddle froze seatFromSource once at attachment from the rider pelvis in that single frame, so the seat height depended on the rider animation when Mount Companion fired (cast clip, an approach walk blending out) or a view's first frame after load; a remount from an idle stance seats lower. No accumulation or stale anchor (frame lease and release verified in source).",
       "fix_commits": [
         "1594475b",
-        "3e76662f"
+        "3e76662f",
+        "c5b147a6"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
@@ -38,22 +40,21 @@
       "baseline_evidence": [
         "E03"
       ],
-      "source_disposition": "repaired_source_hypothesis_bound",
+      "source_disposition": "diagnostic_only_alpha1_behavior",
       "root_cause": "Native TurnController.IgnoreClick drops a click unless PathVisualizer.IsCurrentPathForPoint holds for the rider position and the predicted command approach radius; with the rider selected the visualized locomotion belongs to the mount, so a rider attack on a hostile just beyond reach can be dropped before any pair intent exists (installed IL verified). Not confirmed by an in-game trace.",
       "fix_commits": [
-        "b395fbf1",
-        "f2c04e9a"
+        "58622497"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "The admission applies only to a dropped rider attack click on a hostile with lawful mount movement; the pair command's existing approach uses only the mount's remaining movement and refuses explainably. If the owner's click was dropped for another reason (no lawful movement left), behavior is unchanged and legal.",
-        "Admission bound to native's own predicted melee UnitAttack, the recomputed path refusal and the mount's lawful remaining movement (review R1-F3)."
+        "Admission withdrawn (review R1-F3); read-only drop diagnostic; cause inferred from installed IL."
       ]
     },
     {
@@ -67,12 +68,14 @@
       "root_cause": "TryDriveStockAttackIntent passed mountIsLegalActor = !turnBased || MountActor || UseLegacyUnifiedTurn, so under default paired activation a rider click deliberately excluded the horse; after the rider's attack the intent completed.",
       "fix_commits": [
         "b395fbf1",
-        "8a49c5de"
+        "8a49c5de",
+        "58622497"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
@@ -86,46 +89,43 @@
       "id": "MMR-04",
       "title": "RT automatic melee engagement",
       "baseline_evidence": [],
-      "source_disposition": "repaired_source_partially_bound",
+      "source_disposition": "explained_native_selection_diagnostic",
       "root_cause": "Most likely the accepted automatic intent stalled on strike readiness: in real-time combat the pair command was dispatched while its actor still waited initiative (native holds an unstarted command with ApproachRadius=infinite, so nothing moves) or KMC returned Wait during a Standard cooldown. A refused or absent native proposal (Hold, AI off, unreachable) was not excluded by evidence.",
       "fix_commits": [
-        "5ac516ef",
-        "8a49c5de",
-        "3e76662f"
+        "58622497",
+        "c5b147a6"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Target choice remains the native rider brain proposal (no new targeting system); a refused/absent proposal is not changed.",
-        "Native target choice retained; engagement first-stop line (review R1-F11)."
+        "Native brain picks the nearest perceived enemy, manual target first (installed IL pinned); no behavior change; engagement first-stop line."
       ]
     },
     {
       "id": "MMR-05",
       "title": "RT explicit attack movement response",
       "baseline_evidence": [],
-      "source_disposition": "repaired_source",
+      "source_disposition": "cause_confirmed_repair_withdrawn_alpha1_behavior",
       "root_cause": "Two layers delayed movement until the strike was ready: KMC DecideNext returned Wait without Standard readiness, and the pair command (infinite native approach radius) waited in native ShouldStartCommand (initiative/cooldown) before OnStart created the delegated approach.",
       "fix_commits": [
-        "5ac516ef",
-        "8a49c5de",
-        "3c52882a"
+        "58622497"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "One controller-owned non-player mount move, interrupted before dispatch and on every intent end; strike readiness, cooldowns and initiative untouched. Input-to-motion timing is unmeasured (owner N06).",
-        "Native start waits, strike geometry, exact release, door arbitration, Hold restoration, route failure (review R1-F7..F10)."
+        "Early approach withdrawn after review R1-F7/F8/F9, R2-F2/F3/F5: hazards require native verification."
       ]
     },
     {
@@ -138,12 +138,14 @@
       "root_cause": "The KMC Horse copies the stock Mammoth companion AddFacts, which in installed 2.1.7b data are exactly [TrippingBite, NaturalArmor7, TripDefenseFourLegs]; TrippingBite is ManeuverOnAttack(Bite, Trip). Inert on a Mammoth (no bite), it fires on every KMC Horse bite hit.",
       "fix_commits": [
         "bd4cc5e0",
-        "59d94c4c"
+        "59d94c4c",
+        "6637b8e7"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
@@ -160,12 +162,14 @@
       "root_cause": "Installed data: native HorseAnimationSet_Bite is a UnitAnimationActionSpecialAttack with one dedicated clip BiteAttack (hoof: Right/Left_Hoof_Attack). The ordinary routine Bite/Hoof/Hoof plays the stock Bite handle (adopted, not replaced). Native UnitAttack.ConfigureAnimations scales every limb clip of a routine into one window (one SpeedScale), a plausible reason a short bite reads as invisible; not visually confirmed.",
       "fix_commits": [
         "1fcde471",
-        "f2c04e9a"
+        "f2c04e9a",
+        "877bf868"
       ],
       "checks": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
         "tests/MountedStockAttackPolicyTests.cs",
-        "scripts/Test-MountedAlpha2NativeContract.ps1 (50/0)"
+        "tests/MountedRiderPoseTests.cs",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (57/0)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
@@ -192,7 +196,7 @@
     },
     {
       "id": "S03",
-      "status": "met_source_hypothesis_bound",
+      "status": "diagnostic_only",
       "evidence": [
         "MMR-02 policy test; installed IgnoreClick contract"
       ]
@@ -206,7 +210,7 @@
     },
     {
       "id": "S05",
-      "status": "met_source_partially_bound",
+      "status": "explained_and_withdrawn",
       "evidence": [
         "MMR-04/05 decision test; CanActInCombat contract"
       ]
@@ -236,15 +240,15 @@
       "id": "S09",
       "status": "met",
       "evidence": [
-        "controller focused gate gate-focused-3c52882adaa8-d43d449b6c4-ae9890c77f2-20261124T164517999557Z (PASS, 54.5 s)",
-        "scripts/Test-MountedAlpha2Package.ps1 receipt on KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-3c52882a-diagnostic.zip"
+        "controller focused gate gate-focused-c5b147a62b51-d43d449b6c4-ae9890c77f2-20261124T172741540261Z (PASS, 66.0 s)",
+        "scripts/Test-MountedAlpha2Package.ps1 receipt on KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-c5b147a6-diagnostic.zip"
       ]
     },
     {
       "id": "S10",
-      "status": "pending_controller_review_round_2",
+      "status": "pending_controller_review_round_3",
       "evidence": [
-        "round 1 on 2769f113: changes_required, 16 findings, addressed (HANDOFF.md section 3)"
+        "round 1 on 2769f113 and round 2 on b108dcea: changes_required; dispositions in HANDOFF.md section 3"
       ]
     }
   ],
@@ -337,16 +341,17 @@
     }
   ],
   "package": {
-    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-3c52882a-diagnostic.zip",
-    "bytes": 4287279,
+    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-c5b147a6-diagnostic.zip",
+    "bytes": 4286856,
     "version": "0.2.16-alpha.2",
     "umm_minimum": "0.31.1",
-    "dll_sha256": "a2cecac0d65925a21429e12a13e5109a3185916c54c6f72acf09589dda7447b7",
-    "dll_mvid": "42a2aa87-30dc-4717-a88f-04a8f99a2d72",
+    "dll_sha256": "b2d3788e26d0556a164c824644b63b492e50504112b105bad2032b01f63b6a75",
+    "dll_mvid": "0bfff03f-3c34-4e72-8414-b0eba5b842ed",
     "icon_sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0",
     "superseded": [
       "ea112a71 (b9168c62)",
-      "94ad290c (16061b2a)"
+      "94ad290c (16061b2a)",
+      "3c52882a (e0a00993)"
     ]
   },
   "base": {
