@@ -1,6 +1,62 @@
-# RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
+# MOUNTED SHIELD PRIVATE ALPHA (2026-11-24, OWNER AMENDMENT 2, PR #61)
+
+The current milestone is a reviewable **private alpha** for the owner's own playtesting. Package
+`artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip` (SHA-256
+`d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545`), version `0.2.16-alpha.1`, DLL `cab993f6…` (MVID
+`103a44bc…`), source `cc17fe36`. Independent targeted recheck PASS on `bb903669`; controller round-1 to round-3 corrections in `6fb53633`, `fedb7008` and `cc17fe36`; offline gates pass. **No native testing
+occurred** (zero guarded starts) and no test save was created; all gameplay, persistence, compatibility and UI acceptance is
+deferred to the owner's alpha playtest. Install, rollback, checklist and limitations:
+[docs/mounted-shield/PRIVATE-ALPHA.md](docs/mounted-shield/PRIVATE-ALPHA.md). Not a release; 0.2.15 remains the current
+release.
+
+# MOUNTED SHIELD CONTINUATION (2026-11-23, OWNER AMENDMENT 1, PR #61)
+
+The UMM 0.31.1 baseline below (companion commit `5be0f737`) is incorporated in `codex/mounted-shield`. Production
+`cb74ad58`, corrected through supplemental review round 14 (latest source `cb1a881a`; rounds 12–14 found no shipped-feature
+defect; none of the fourteen rounds returned PASS), adds the complete selection rollback (PN3-F3 remainder), planned final check totals for forced rolls, and the
+Mounted Shield gameplay driver (`sprint6-shield-rt`, `sprint6-shield-tb`, persistence case `mounted-shield-tb-manual`)
+with its reader; PN3-F5 is recorded as an optional compatibility limitation. Offline gates pass (focused Fast on
+`cb1a881a`). The developer report went to the controller as blocked. Native acceptance is still BLOCKED, now only by the fixture: the canonical qualified
+`KMC_AUTOMATION_BASELINE`/`WORKING` pair and its qualification record are absent. Read section 0 of
+[docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) for identities, receipts, the review and the exact input needed.
+
+# UMM COMPATIBILITY BASELINE (2026-11-23, OWNER DECISION)
+
+The owner confirmed the older baseline used by the sibling mods: **UMM 0.31.1**. This development branch pins that
+build reference and declares that minimum. The exact current Windows native target is separately **UMM 0.33.0**,
+using its already reviewed installed-file identity; a working newer installation need not downgrade.
+
+Read [the dated loader decision](docs/CHUNK7-NATIVE-LOADER-IDENTITY.md#2026-11-23-owner-selected-0311-build-baseline-and-exact-runtime-target).
+The prior Mounted Shield record below is the frozen run at `f19c8333`; its missing native fixture, gameplay driver,
+current independent review and native acceptance remain outstanding. Its earlier loader-pin owner decision is resolved
+by this change. Historical FAIL/blocked evidence stays unchanged. This patch has no native or Linux/Proton acceptance.
+
+The companion patch must enter the existing factory enrollment through its guarded import/development/push flow.
+No merge, release, installation, controller state edit or new enrollment is part of this checkpoint.
+
+# MOUNTED SHIELD FEAT (2026-11-23, BRANCH codex/mounted-shield, PR #61)
 
 Start here. The sections below this one are dated history, newest first.
+
+- **Mission:** [docs/missions/mounted-shield/MISSION.md](docs/missions/mounted-shield/MISSION.md), the owner's packet,
+  byte-identical. Software factory, foreground: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, plan `single`.
+- **Feature:** a passive combat feat (prerequisites Mounted Combat and Shield Focus). The rider's shield base bonus plus
+  Shield Focus and Greater Shield Focus, never enhancement, becomes a native shield bonus on the current mount's AC and an
+  addition to the Mounted Combat hit-negation Mobility check. Three-feat coordinated publication with independent
+  withdrawal. Supplied icon embedded byte-for-byte.
+- **Offline:** controller focused Fast gate PASS on `9bbd6112` (components 1507/0, Validate-Source 153/0, focused 7 of 7:
+  native contract 74/0, Mounted Archery donor 54/0, ranged movement 5/0, continuous drive 59/0, replay subscriber 21/0,
+  Ranger selection 183/0, localization keys). DLL `3cc05893…`, MVID `9f36d10f…`.
+- **Independent review:** three supplemental read-only Codex rounds, each CHANGES REQUIRED (5, 6 and 7 findings; all but
+  PN3-F5 fixed, last in `9bbd6112`, which has not been reviewed again); see [docs/mounted-shield/PRE_NATIVE_REVIEW.md](docs/mounted-shield/PRE_NATIVE_REVIEW.md).
+- **Native:** BLOCKED. UMM 0.33.0 installed against the 0.33.2 pin (owner decision) and no KMC Working fixture. No game
+  launch, staging or install.
+- **Read:** [docs/mounted-shield/HANDOFF.md](docs/mounted-shield/HANDOFF.md) and its
+  [acceptance ledger](docs/mounted-shield/ACCEPTANCE_LEDGER.json).
+- **Factory endpoint:** BLOCKED (developer report `blocked`; required native evidence), not AWAITING_OWNER_REVIEW.
+- **Not authorized:** merge, release, install.
+
+# RELEASE 0.2.15: SAVE-WAIT DIAGNOSTICS AND ACCURATE SAVE MESSAGES (2026-11-22)
 
 - **Release:** 0.2.15, by owner order on 2026-11-22, from main after PR #59 (merged as `d409bffc`). Notes:
   [docs/RELEASE-NOTES-0.2.15.md](docs/RELEASE-NOTES-0.2.15.md). The package identity is recorded on the GitHub release.
@@ -1450,3 +1506,4 @@ Verdicts:
 Spend: finalize-f4 68.17/80 min, 10 of 10 starts. All adjustments are append-only. No game, lock or waiter remains. No merge, release, install or F5.
 
 F3 closeout: the F3 review was accepted at PR #18 head 5dd64825; the owner merged it as a92b043a.
+

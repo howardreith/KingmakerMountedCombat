@@ -69,10 +69,10 @@
       {
         "role": "umm",
         "name": "UnityModManager.dll",
-        "identity": "UnityModManager, Version=0.33.2.0, Culture=neutral, PublicKeyToken=null",
-        "mvid": "914c93ba-b0bd-409f-9d38-84e575289dc2",
+        "identity": "UnityModManager, Version=0.33.0.0, Culture=neutral, PublicKeyToken=null",
+        "mvid": "54059519-2754-445a-b5ee-fdb9326336e2",
         "length": 204800,
-        "sha256": "f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9"
+        "sha256": "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691"
       },
       {
         "role": "harmony",
@@ -158,6 +158,8 @@
   },
   "observedExpectationDifferences": [
     "Installed UMM is 0.28.2.0, not the mission's expected 0.32.x baseline; the exact installed assembly remains the build authority.",
-    "2026-10-16: the owner reinstalled Unity Mod Manager (loader files written 2026-10-16T23:42:58Z). The umm role is re-pinned to the installed UnityModManager 0.33.2.0 (MVID 914c93ba-b0bd-409f-9d38-84e575289dc2, 204800 bytes, SHA256 f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9). The co-installed 0Harmony.dll is now 2.3.6.0 (MVID 4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc, SHA256 df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80); 0Harmony12.dll is byte-identical, so the harmony role is unchanged. KMC was verified API-compatible offline: every UMM and Harmony12 member the KMC DLL binds exists with the same signature. Evidence produced on UMM 0.28.2.0 stays bound to its original environment and is not transferred to this one."
+    "2026-10-16: the owner reinstalled Unity Mod Manager (loader files written 2026-10-16T23:42:58Z). The umm role is re-pinned to the installed UnityModManager 0.33.2.0 (MVID 914c93ba-b0bd-409f-9d38-84e575289dc2, 204800 bytes, SHA256 f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9). The co-installed 0Harmony.dll is now 2.3.6.0 (MVID 4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc, SHA256 df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80); 0Harmony12.dll is byte-identical, so the harmony role is unchanged. KMC was verified API-compatible offline: every UMM and Harmony12 member the KMC DLL binds exists with the same signature. Evidence produced on UMM 0.28.2.0 stays bound to its original environment and is not transferred to this one.",
+    "2026-11-23 owner decision: pin the build and primary compatibility baseline to UMM 0.31.1, following Kingmaker Tabletop Rules and Cutscene Skip. The native Windows target recorded here is separately updated to the already reviewed installed UMM 0.33.0.0 profile (planning/UMM-LOADER-PROFILES.json, measured 2026-11-15; also the exact Buff Planner runtime pin). This does not require a working newer installation to downgrade. Exact runtime identity checks remain; the 0.31.1 build baseline does not prove native 0.31.1 or Linux/Proton acceptance. Historical observations and verdicts remain bound to their original environments. No new game run or installation was performed for this update."
   ]
 }
+

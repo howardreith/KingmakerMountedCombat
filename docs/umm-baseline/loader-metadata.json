@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "inspectedAtUtc": "2026-11-23T19:03:44.464192+00:00",
+  "inspection": "Read-only PE/CLI metadata with dnfile 0.18.0; no assembly execution, native game launch or product binding verification. UMM Module MVID and relevant method tokens were independently cross-checked with a standard-library CLI table parser.",
+  "provenancePinSource": "howardreith/KingmakerSkipCinematic@6c1d65aba5bb4624a7e23819210400d0c281054e/scripts/runtime/loader-profiles.json",
+  "assemblies": [
+    {
+      "package": "UnityModManager 0.31.1",
+      "sourceUrl": "https://api.nuget.org/v3-flatcontainer/unitymodmanager/0.31.1/unitymodmanager.0.31.1.nupkg",
+      "archiveSha256": "05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9",
+      "archiveLength": 94256,
+      "archiveEntry": "lib/net35/UnityModManager.dll",
+      "assemblyFullName": "UnityModManager, Version=0.31.1.0, Culture=neutral, PublicKeyToken=null",
+      "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4",
+      "length": 204288,
+      "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+      "methods": [
+        {
+          "type": "ModEntry",
+          "name": "Load",
+          "token": "06000111",
+          "signatureBlobHex": "200002",
+          "public": true,
+          "static": false
+        },
+        {
+          "type": "UI",
+          "name": "get_Instance",
+          "token": "06000151",
+          "signatureBlobHex": "00001280d4",
+          "public": true,
+          "static": true
+        },
+        {
+          "type": "UI",
+          "name": "get_Opened",
+          "token": "06000152",
+          "signatureBlobHex": "200002",
+          "public": true,
+          "static": false
+        },
+        {
+          "type": "UI",
+          "name": "ToggleWindow",
+          "token": "06000169",
+          "signatureBlobHex": "200001",
+          "public": true,
+          "static": false
+        },
+        {
+          "type": "UI",
+          "name": "ToggleWindow",
+          "token": "0600016A",
+          "signatureBlobHex": "20010102",
+          "public": true,
+          "static": false
+        }
+      ]
+    },
+    {
+      "package": "Lib.Harmony 2.3.1.1",
+      "sourceUrl": "https://api.nuget.org/v3-flatcontainer/lib.harmony/2.3.1.1/lib.harmony.2.3.1.1.nupkg",
+      "archiveSha256": "b9096d3e2191ca18b803e2894511a2ee4ec6c92050e53853b46ebfeed46798aa",
+      "archiveLength": 10757862,
+      "archiveEntry": "lib/net48/0Harmony.dll",
+      "assemblyFullName": "0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null",
+      "sha256": "5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f",
+      "length": 2193920,
+      "mvid": "6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6",
+      "methods": [
+        {
+          "type": "HarmonySharedState",
+          "name": "GetOrCreateSharedStateType",
+          "token": "06000096",
+          "signatureBlobHex": "00001239",
+          "public": false,
+          "static": true
+        },
+        {
+          "type": "ModuleDefinition",
+          "name": "CreateModule",
+          "token": "06000E76",
+          "signatureBlobHex": "000212894c0e118958",
+          "public": true,
+          "static": true
+        },
+        {
+          "type": "ModuleDefinition",
+          "name": "CreateModule",
+          "token": "06000E77",
+          "signatureBlobHex": "000212894c0e128944",
+          "public": true,
+          "static": true
+        },
+        {
+          "type": "ReflectionHelper",
+          "name": "Load",
+          "token": "06002D1C",
+          "signatureBlobHex": "00011280e512894c",
+          "public": true,
+          "static": true
+        },
+        {
+          "type": "ReflectionHelper",
+          "name": "Load",
+          "token": "06002D1D",
+          "signatureBlobHex": "00011280e5128169",
+          "public": true,
+          "static": true
+        }
+      ]
+    }
+  ]
+}

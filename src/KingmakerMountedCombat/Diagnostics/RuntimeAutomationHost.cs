@@ -639,7 +639,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
                         ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
                 if (Phase3dHorseScenarioTranche.IsSprint4NaturalScenario(request.Scenario)) hostDeadline = request.Scenario == Phase3dHorseScenarioTranche.Finalize4AiRealTime ? Phase3dHorseScenarioTranche.Finalize4AiHostDeadlineSeconds : Phase3dHorseScenarioTranche.Sprint4HostDeadlineSeconds;
-                if (Phase3dHorseScenarioTranche.IsSprint6FeatScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.Sprint6HostDeadlineSeconds;
+                if (Phase3dHorseScenarioTranche.IsSprint6FeatScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.IsSprint6ShieldScenario(request.Scenario) ?
+                    Phase3dHorseScenarioTranche.Sprint6ShieldHostDeadlineSeconds : Phase3dHorseScenarioTranche.Sprint6HostDeadlineSeconds;
                 if (Phase3dHorseScenarioTranche.IsSprint8PaladinScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.Sprint8HostDeadlineSeconds;
                 if (Phase3dHorseScenarioTranche.IsFinalize2ControlsScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.Finalize2HostDeadlineSeconds;
                 if (Phase3dHorseScenarioTranche.IsFinalize3EconomyScenario(request.Scenario)) hostDeadline = Phase3dHorseScenarioTranche.Finalize3HostDeadlineSeconds;

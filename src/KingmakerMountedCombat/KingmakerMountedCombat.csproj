@@ -61,7 +61,7 @@
     <LangVersion>7.3</LangVersion>
     <Prefer32Bit>false</Prefer32Bit>
     <Deterministic>true</Deterministic>
-    <!-- UMM 0.28.2 itself references its co-installed net48 Harmony2, but KMC
+    <!-- The UMM 0.31.1 build reference itself references net48 Harmony2, but KMC
          targets net47 and references only the legacy Harmony12 API surface. -->
     <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
     <FileAlignment>512</FileAlignment>
@@ -85,7 +85,33 @@
   <Import Project="..\..\LocalGamePaths.props" Condition="Exists('..\..\LocalGamePaths.props')" />
   <Target Name="RequireLocalGamePaths" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(KingmakerManagedDir)\Assembly-CSharp.dll')" Text="LocalGamePaths.props must point to the exact local Kingmaker Managed directory." />
-    <Error Condition="!Exists('$(UnityModManagerDir)\UnityModManager.dll')" Text="UnityModManagerDir must contain the exact installed UnityModManager.dll." />
+    <Error Condition="!Exists('$(UnityModManagerDir)\0Harmony12.dll')" Text="UnityModManagerDir must contain the exact installed legacy 0Harmony12.dll reference." />
+  </Target>
+  <!-- This compile reference is independent of the installed runtime. Direct MSBuild (including Test-Tiers)
+       verifies the manifest and cached bytes every build, restoring only what is missing. No installed-loader fallback. -->
+  <Target Name="RequireUmmBuildReference" BeforeTargets="ResolveAssemblyReferences">
+    <Exec Command="powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\Restore-UmmBuildReference.ps1&quot;" />
+    <GetFileHash Files="$(MSBuildProjectDirectory)\..\..\obj\references\umm-0.31.1\UnityModManager.dll" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_KmcUmmBuildReferenceHash" />
+    </GetFileHash>
+    <Error Condition="'%(_KmcUmmBuildReferenceHash.FileHash)' != '2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4'"
+           Text="The UMM 0.31.1 build reference differs from planning/UMM-BUILD-REFERENCE.json. Refusing changed cached bytes." />
+  </Target>
+  <!-- Check the resolved compiler input as well as the HintPath, including direct MSBuild invocations.
+       The classic and Roslyn targets use ReferencePath and ReferencePathWithRefAssemblies respectively. -->
+  <Target Name="VerifyUmmCompilerReference" BeforeTargets="CoreCompile" DependsOnTargets="RequireUmmBuildReference">
+    <ItemGroup>
+      <_KmcUmmCompilerInput Include="@(ReferencePath);@(ReferencePathWithRefAssemblies)" Condition="'%(Filename)' == 'UnityModManager'" />
+    </ItemGroup>
+    <RemoveDuplicates Inputs="@(_KmcUmmCompilerInput)">
+      <Output TaskParameter="Filtered" ItemName="_KmcUmmCompilerReference" />
+    </RemoveDuplicates>
+    <Error Condition="'@(_KmcUmmCompilerReference->Count())' != '1'" Text="The compiler must resolve exactly one pinned UMM 0.31.1 reference." />
+    <GetFileHash Files="@(_KmcUmmCompilerReference)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_KmcUmmCompilerReferenceHash" />
+    </GetFileHash>
+    <Error Condition="'%(_KmcUmmCompilerReferenceHash.FileHash)' != '2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4'"
+           Text="The compiler resolved a different UnityModManager.dll. Only the pinned UMM 0.31.1 build reference is allowed." />
   </Target>
   <ItemGroup>
     <Reference Include="System" />
@@ -118,8 +144,9 @@
       <HintPath>$(KingmakerManagedDir)\UnityEngine.ImageConversionModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="UnityModManager">
-      <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
+    <Reference Include="UnityModManager, Version=0.31.1.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>$(MSBuildProjectDirectory)\..\..\obj\references\umm-0.31.1\UnityModManager.dll</HintPath>
+      <SpecificVersion>True</SpecificVersion>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
@@ -149,6 +176,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Assets\MountedArcheryFeat.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedArcheryFeat.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedShieldFeat.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedShieldFeat.png</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Assets\MountedCombatReaction.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedCombatReaction.png</LogicalName>
@@ -455,6 +485,10 @@
     <Compile Include="Domain\MountedRangedMovementPolicy.cs" />
     <Compile Include="Domain\KmcCombatFeatPublication.cs" />
     <Compile Include="Domain\MountedArcheryFeatContract.cs" />
+    <Compile Include="Domain\MountedShieldPolicy.cs" />
+    <Compile Include="Domain\FixtureHandCustody.cs" />
+    <Compile Include="Domain\AttackCalculationSamples.cs" />
+    <Compile Include="Domain\PlannedAttempt.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
@@ -584,6 +618,7 @@
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Diagnostics\Sprint5SmallScenario.cs" />
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
+    <Compile Include="Diagnostics\Sprint6ShieldScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
     <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
@@ -592,18 +627,21 @@
     <Compile Include="Diagnostics\Finalize3CleanupEscModePolicy.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedShield.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />
     <Compile Include="Diagnostics\Sprint5BootObservation.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.MountedShieldFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\MountedRangedMovementService.cs" />
+    <Compile Include="Integration\MountedShieldService.cs" />
     <Compile Include="Integration\MountedRiderFallService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
@@ -800,3 +838,4 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
+

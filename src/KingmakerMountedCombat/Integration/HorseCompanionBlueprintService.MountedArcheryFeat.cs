@@ -44,11 +44,16 @@ namespace KingmakerMountedCombat.Integration
             return available;
         }
 
-        // Each frame once registered: before withdrawal, one reference comparison per required array and a full check only
-        // of a replaced one; once withdrawn, a membership scan of every KMC array, so an in-place reintroduction is removed.
+        // Each frame once registered: a membership check of both required arrays (two short scans), so another mod's in-place
+        // edit that drops an optional feat from a required list withdraws it within a frame, before a level-up can offer a
+        // choice whose rule would then withdraw (Mounted Shield pre-native review, finding 3); once withdrawn, a membership
+        // scan of every KMC array, so an in-place reintroduction is removed. The one refresh serves both optional feats
+        // (Mounted Archery and Mounted Shield); each reports its own withdrawal.
         private void RefreshMountedArcheryPublicationReported()
         {
-            if (mountedCombatPublication != null && mountedCombatPublication.Refresh(false)) ReportMountedArcheryWithdrawal();
+            if (mountedCombatPublication == null || !mountedCombatPublication.Refresh(true)) return;
+            ReportMountedArcheryWithdrawal();
+            ReportMountedShieldWithdrawal();
         }
 
         private void ReportMountedArcheryWithdrawal()

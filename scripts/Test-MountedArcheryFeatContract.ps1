@@ -175,7 +175,8 @@ $write = [Management.Automation.LanguagePrimitives]::ConvertTo([scriptblock]{ pa
 $label = [Management.Automation.LanguagePrimitives]::ConvertTo([scriptblock]{ param($selection) 'selection' }, [Func``2].MakeGenericType($selectionType, [string]))
 $setType = $kmc.GetType('KingmakerMountedCombat.Domain.KmcCombatFeatPublicationSet`2', $true).MakeGenericType($selectionType, $featureType)
 function New-Publication($MountedArchery) {
-    $setType.GetConstructors()[0].Invoke(@((Selection-Array @($ordinary, $fighter, $other)), (Selection-Array @($ordinary, $fighter)), $combat, $MountedArchery, $read, $write))
+    # The two-optional-feat constructor (Mounted Shield absent); the set also has a seven-parameter form.
+    @($setType.GetConstructors() | Where-Object { $_.GetParameters().Count -eq 6 })[0].Invoke(@((Selection-Array @($ordinary, $fighter, $other)), (Selection-Array @($ordinary, $fighter)), $combat, $MountedArchery, $read, $write))
 }
 $publication = New-Publication $archery
 Check ($null -eq $publication.Apply($true, $label)) 'publication writes every selection without drift'

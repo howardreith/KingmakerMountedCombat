@@ -90,8 +90,8 @@ namespace KingmakerMountedCombat.Integration
 
         // The KMC-registered blueprint identities a save cannot carry without the
         // mod: the Horse companion trio and its portrait, the Riding Dog set, and the four native
-        // mounted-control abilities, the Mounted Combat set and Mounted Archery. Native blueprints KMC only references are
-        // not in this list; they resolve without KMC.
+        // mounted-control abilities, the Mounted Combat set, Mounted Archery and Mounted Shield. Native blueprints KMC only
+        // references (Shield Focus included) are not in this list; they resolve without KMC.
         internal static string[] RegisteredBlueprintGuids => new[]
         {
             HorseCompanionBlueprintService.UnitGuid, HorseCompanionBlueprintService.FeatureGuid,
@@ -101,7 +101,7 @@ namespace KingmakerMountedCombat.Integration
             HorseCompanionBlueprintService.MountedCombatFeatureGuid, HorseCompanionBlueprintService.MountedCombatToggleGuid,
             HorseCompanionBlueprintService.MountedCombatToggleBuffGuid, HorseCompanionBlueprintService.MountedCombatSpentBuffGuid,
             HorseCompanionBlueprintService.MountedCombatOwedBuffGuid, HorseCompanionBlueprintService.MountedCombatWindowBuffGuid,
-            HorseCompanionBlueprintService.MountedArcheryFeatureGuid,
+            HorseCompanionBlueprintService.MountedArcheryFeatureGuid, HorseCompanionBlueprintService.MountedShieldFeatureGuid,
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
             NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
             NativeMountedControlService.MountedChargeAbilityGuid, NativeMountedControlService.MountStateAbilityGuid
@@ -219,6 +219,8 @@ namespace KingmakerMountedCombat.Integration
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Combat feat");
                 if (horseCompanion.MountedArcheryFeature != null && descriptor.GetFact(horseCompanion.MountedArcheryFeature) != null)
                     references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Archery feat");
+                if (horseCompanion.MountedShieldFeature != null && descriptor.GetFact(horseCompanion.MountedShieldFeature) != null)
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Mounted Shield feat");
             }
             return references;
         }

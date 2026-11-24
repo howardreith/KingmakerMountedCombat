@@ -58,10 +58,12 @@ namespace KingmakerMountedCombat.Integration
                 logger.Exception("Mounted Combat feat blueprint registration", exception);
                 RemoveMountedCombatFeat(library);
             }
-            // Mounted Archery's own fault removes only Mounted Archery. Mounted Combat is its prerequisite, so it is not
-            // attempted when Mounted Combat did not register.
+            // Mounted Archery's and Mounted Shield's own faults remove only that feat. Mounted Combat is the prerequisite of
+            // both, so neither is attempted when Mounted Combat did not register; neither depends on the other.
             if (mountedCombatFeature != null) RegisterMountedArcheryFeatReported(library);
             else mountedArcheryFailure = "Mounted Combat did not register.";
+            if (mountedCombatFeature != null) RegisterMountedShieldFeatReported(library);
+            else mountedShieldFailure = "Mounted Combat did not register.";
             if (mountedCombatFeature != null)
             {
                 try { LeaseKmcCombatFeatSelections(); }
@@ -69,14 +71,17 @@ namespace KingmakerMountedCombat.Integration
                 {
                     mountedCombatFailure = exception.GetType().Name + ": " + exception.Message;
                     mountedArcheryFailure = mountedArcheryFailure ?? "Mounted Combat selections could not be leased.";
+                    mountedShieldFailure = mountedShieldFailure ?? "Mounted Combat selections could not be leased.";
                     logger.Exception("KMC combat feat selection lease", exception);
+                    RemoveMountedShieldFeat(library);
                     RemoveMountedArcheryFeat(library);
                     RemoveMountedCombatFeat(library);
                 }
             }
             logger.Info("Mounted Combat feat selections: " + string.Join(",", MountedCombatSelections.Select(selection => selection.name).ToArray()) +
                 "; failure=" + (mountedCombatFailure ?? "none") + "; Mounted Archery " +
-                (mountedArcheryFeature != null ? "offered" : "absent") + "; failure=" + (mountedArcheryFailure ?? "none") + ".");
+                (mountedArcheryFeature != null ? "offered" : "absent") + "; failure=" + (mountedArcheryFailure ?? "none") + "; Mounted Shield " +
+                (mountedShieldFeature != null ? "offered" : "absent") + "; failure=" + (mountedShieldFailure ?? "none") + ".");
         }
 
         private void RegisterMountedCombatFeat(LibraryScriptableObject library)
@@ -147,17 +152,19 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // One exact lease per shared AllFeatures array for every KMC combat feat that registered, in a fixed order (Mounted
-        // Combat, then Mounted Archery). Two leases captured from the same original array would each append to and
-        // restore over the other; a single lease keeps the original order, refuses duplicates and keeps compare-before-
-        // write and compare-before-restore against foreign drift. Installed BlueprintFeatureSelection.Items enumerates
-        // AllFeatures only (see the Ranger lease); the stock Features arrays are not an offered surface and stay unchanged.
-        // KmcCombatFeatPublicationSet adds the Mounted-Combat-only value of the same original, used when Mounted Archery is
-        // withdrawn because a required path (ordinary or fighter) stopped offering it.
+        // Combat, then Mounted Archery, then Mounted Shield). Two leases captured from the same original array would each
+        // append to and restore over the other; a single lease keeps the original order, refuses duplicates and keeps
+        // compare-before-write and compare-before-restore against foreign drift. Installed BlueprintFeatureSelection.Items
+        // enumerates AllFeatures only (see the Ranger lease); the stock Features arrays are not an offered surface and stay
+        // unchanged. KmcCombatFeatPublicationSet adds the values of the same original without either optional feat, used
+        // when that feat alone is withdrawn because a required path (ordinary or fighter) stopped offering it.
         private void LeaseKmcCombatFeatSelections()
         {
             mountedCombatPublication = new KmcCombatFeatPublicationSet<BlueprintFeatureSelection, BlueprintFeature>(
-                mountedCombatSelectionTargets, requiredCombatFeatSelections, mountedCombatFeature, mountedArcheryFeature,
+                mountedCombatSelectionTargets, requiredCombatFeatSelections, mountedCombatFeature, mountedArcheryFeature, mountedShieldFeature,
                 selection => selection.AllFeatures, (selection, value) => selection.AllFeatures = value);
+            // A terminal stop that came before registration finished keeps Mounted Shield out of the first publication.
+            if (mountedShieldOffersSuspended) mountedCombatPublication.Suspend(KmcOptionalCombatFeat.MountedShield);
         }
 
         private BlueprintBuff CreateMountedCombatBuff(string name, string guid, Kingmaker.Localization.LocalizedString displayName,
@@ -198,6 +205,7 @@ namespace KingmakerMountedCombat.Integration
             if (mountedCombatPublication == null) return;
             var error = mountedCombatPublication.Apply(desired, selection => selection.name);
             ReportMountedArcheryWithdrawal();
+            ReportMountedShieldWithdrawal();
             if (error == null) return;
             mountedCombatFailure = error;
             logger.Error(error);

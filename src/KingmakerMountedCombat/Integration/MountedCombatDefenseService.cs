@@ -28,7 +28,13 @@ namespace KingmakerMountedCombat.Integration
         internal MountedCombatDefenseRefusal Refusal;
         internal MountedCombatDefenseCommitment Commitment;
         internal int AttackD20, AttackBonus, AttackResult, TargetAc, CheckD20, CheckStat, CheckBonus, CheckResult, CheckDc, Round, Frame;
+        // Mounted Shield's addition to this check's native Bonus (already inside CheckBonus and CheckResult); 0 when none.
+        internal int ShieldBonus;
         internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced, ForcedHitContext;
+        // A diagnostic planned total that no die from 1 to 20 could reach at the native roll: the die rolled naturally instead.
+        internal bool PlannedUnattainable;
+        // The native D20 + StatValue + Bonus before RollResult's SuccessBonus; CheckResult is the native final result.
+        internal int CheckBaseResult;
         internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
         internal RuleAttackRoll Rule;
@@ -54,6 +60,7 @@ namespace KingmakerMountedCombat.Integration
 
         private readonly HorseCompanionBlueprintService blueprints;
         private readonly MountedWorldService world;
+        private readonly MountedShieldService mountedShield;
         private readonly Func<bool> restorationPending;
         private readonly IModLogger logger;
         private bool resolving, disposed;
@@ -65,14 +72,21 @@ namespace KingmakerMountedCombat.Integration
         internal int NegatedCount { get; private set; }
         internal int SwiftChargeCount { get; private set; }
         internal MountedCombatDefenseRecord LastRecord { get; private set; }
-        // Test environment only: replaces the check's d20 for one exact equality or failure row. Null in ordinary play.
-        internal Func<MountedCombatDefenseRecord, int?> ScenarioD20 { get; set; }
+        // Test environment only: the final native check total one exact success, equality or failure row needs. The die is
+        // chosen inside the native roll, after the stat value and every bonus (Mounted Shield's included) are fixed, so the
+        // planned total is the check's actual RollResult. Null in ordinary play.
+        internal Func<MountedCombatDefenseRecord, int?> ScenarioCheckTotal { get; set; }
+        // The diagnostic caller asks that a planned total be injected only through a legal d20 (the Mounted Shield rows,
+        // supplemental reviews PN12-F1, PN13-F5). Off, the historical Sprint 6 rows keep their recorded behavior unchanged.
+        internal bool ScenarioLegalDieOnly { get; set; }
         internal event Action<MountedCombatDefenseRecord> Observed;
 
-        internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, Func<bool> restorationPending, IModLogger logger)
+        internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, MountedShieldService mountedShield,
+            Func<bool> restorationPending, IModLogger logger)
         {
             this.blueprints = blueprints ?? throw new ArgumentNullException(nameof(blueprints));
             this.world = world ?? throw new ArgumentNullException(nameof(world));
+            this.mountedShield = mountedShield ?? throw new ArgumentNullException(nameof(mountedShield));
             this.restorationPending = restorationPending ?? throw new ArgumentNullException(nameof(restorationPending));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             EventBus.Subscribe(this);
@@ -141,7 +155,7 @@ namespace KingmakerMountedCombat.Integration
             if (record.Refusal == MountedCombatDefenseRefusal.None)
             {
                 // Committed before the roll: a failed check still spends the use and the action.
-                if (Apply(rider, before, MountedCombatDefensePolicy.Commit(before, commitment))) RollCheck(rule, rider, record);
+                if (Apply(rider, before, MountedCombatDefensePolicy.Commit(before, commitment))) RollCheck(rule, rider, mount, record);
                 else record.Refusal = MountedCombatDefenseRefusal.RiderCannotAct;
             }
             record.ResultAfter = rule.Result.ToString();
@@ -153,18 +167,29 @@ namespace KingmakerMountedCombat.Integration
             Observed?.Invoke(record);
         }
 
-        private void RollCheck(RuleAttackRoll rule, UnitEntityData rider, MountedCombatDefenseRecord record)
+        private void RollCheck(RuleAttackRoll rule, UnitEntityData rider, UnitEntityData mount, MountedCombatDefenseRecord record)
         {
             record.Attempted = true;
             AttemptCount++;
-            var forced = ScenarioD20?.Invoke(record);
-            record.Forced = forced.HasValue;
+            var planned = ScenarioCheckTotal?.Invoke(record);
+            record.Forced = planned.HasValue;
             // The DC is the first passing result, so the native pass/fail and its log line agree with the strict rule.
             // The game's difficulty setting adjusts other DCs, not an attack result.
             var dc = record.AttackResult + 1;
-            var check = forced.HasValue ? new ControlledSkillCheck(rider, dc, forced.Value) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
+            var check = planned.HasValue ? new ControlledSkillCheck(rider, dc, planned.Value, ScenarioLegalDieOnly) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
             check.IgnoreDifficultyBonusToDC = true;
+            // Mounted Shield: the rider's eligible shield amount joins this one rule's native Bonus before it is triggered, so
+            // the native roll, its log entry and the strict comparison below all include it. The use is already committed, so
+            // a fault here costs only the addition, never the check.
+            try { record.ShieldBonus = mountedShield.ContributeToCheck(check, rider, mount); }
+            catch (Exception exception) { logger.Exception("Mounted Shield check contribution", exception); }
             Rulebook.Trigger<RuleSkillCheck>(check);
+            // A planned total no legal die could reach is never injected (supplemental review PN12-F1): the die rolled naturally,
+            // the use stays committed as native spending requires, and the record says the measurement was unattainable.
+            if (check is ControlledSkillCheck controlled && controlled.Unattainable) { record.Forced = false; record.PlannedUnattainable = true; }
+            // Forced only when the override actually supplied the die (native OnTrigger can take 10 without rolling; review PN14-F3).
+            if (check is ControlledSkillCheck supplied && !supplied.Supplied) record.Forced = false;
+            record.CheckBaseResult = check.D20 + check.StatValue + (int)check.Bonus;
             record.CheckD20 = check.D20; record.CheckStat = check.StatValue; record.CheckBonus = (int)check.Bonus; record.CheckResult = check.RollResult; record.CheckDc = check.DC;
             record.Negated = MountedCombatDefensePolicy.Negates(check.RollResult, record.AttackResult);
             if (record.Negated)
@@ -182,16 +207,37 @@ namespace KingmakerMountedCombat.Integration
             ReportToLog(rider, record);
         }
 
+        // Native RuleSkillCheck.OnTrigger sets StatValue and then rolls; every handler's Bonus was added before OnTrigger. The
+        // die is the planned total less exactly those two, so RollResult (D20 + StatValue + Bonus) is the planned total, when a
+        // legal die (1..20) reaches it; otherwise the native die rolls and the check reports it was unattainable (PN12-F1).
         private sealed class ControlledSkillCheck : RuleSkillCheck
         {
-            private readonly int d20;
-            internal ControlledSkillCheck(UnitEntityData unit, int dc, int d20) : base(unit, StatType.SkillMobility, dc) { this.d20 = d20; }
-            protected override RollEntry RollD20() => d20;
+            private readonly int plannedTotal;
+            private readonly bool legalDieOnly;
+            internal bool Unattainable { get; private set; }
+            internal bool Supplied { get; private set; }
+            internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal, bool legalDieOnly) : base(unit, StatType.SkillMobility, dc)
+            { this.plannedTotal = plannedTotal; this.legalDieOnly = legalDieOnly; }
+            protected override RollEntry RollD20()
+            {
+                int die;
+                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die) || !legalDieOnly) { Supplied = true; return die; }
+                Unattainable = true;
+                return base.RollD20();
+            }
+        }
+
+        // The die that makes D20 + StatValue + Bonus equal the planned total, when it is a legal d20 result.
+        internal static bool PlannedDie(int plannedTotal, int statValue, int bonus, out int die)
+        {
+            die = plannedTotal - statValue - bonus;
+            return die >= 1 && die <= 20;
         }
 
         private void ReportToLog(UnitEntityData rider, MountedCombatDefenseRecord record)
         {
-            var text = "Mounted Combat: " + rider.CharacterName + " rolls Mobility " + record.CheckResult + " against attack " + record.AttackResult +
+            var text = "Mounted Combat: " + rider.CharacterName + " rolls Mobility " + record.CheckResult +
+                (record.ShieldBonus > 0 ? " (Mounted Shield +" + record.ShieldBonus + ")" : "") + " against attack " + record.AttackResult +
                 (record.Negated ? " and negates the hit on the mount." : "; the hit stands.");
             logger.Info(text);
             try { Game.Instance.UI?.BattleLogManager?.LogView?.AddLogEntry(text, new Color32(52, 40, 28, 255), LogChannel.Combat); }

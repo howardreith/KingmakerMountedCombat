@@ -153,7 +153,9 @@ function Resolve-KmcChunk7ReplaySubscriberContract($Request,$Repeated) {
     $contract=Get-KmcChunk7ReplaySubscriberContract $Repeated.subscriberContract
     if($null-eq$contract.firstRelease){throw ('Unsupported repeated-world evidence: '+$contract.revision+' is the implicit historical contract and cannot be declared.')}
     $version=[string]$Request.productVersion
-    if($version-cne'synthetic'-and($version-cnotmatch'\A0[.]2[.]([0-9]{1,4})\z'-or[int]$Matches[1]-lt$contract.firstRelease)){
+    # A release 0.2.N, or a private alpha of it, 0.2.N-alpha.M (owner amendment 2, controller review R1-F3): N is the release
+    # compared with the revision's first release; any other shape is refused.
+    if($version-cne'synthetic'-and($version-cnotmatch'\A0[.]2[.]([0-9]{1,4})(?:-alpha[.][0-9]{1,4})?\z'-or[int]$Matches[1]-lt$contract.firstRelease)){
         throw ('Unsupported repeated-world evidence: producer '+$version+' cannot carry '+$contract.revision+' (first release 0.2.'+$contract.firstRelease+').')
     }
     [pscustomobject]@{contract=$contract;serials=$true}

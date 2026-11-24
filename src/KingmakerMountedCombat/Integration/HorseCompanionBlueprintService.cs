@@ -127,6 +127,8 @@ namespace KingmakerMountedCombat.Integration
             { "KMC.MountedCombat.Owed.Description", "You used an immediate action outside your turn. Your next turn's swift action is spent, and you cannot use another immediate or swift action until after that turn." },
             { "KMC.MountedArchery.Name", "Mounted Archery" },
             { "KMC.MountedArchery.Description", "In turn-based combat, this feat reduces the penalty on your ranged weapon attacks from -4 to -2 after your mount has used more than one move action's worth of normal movement in its current turn. Five-foot steps and charges are not normal movement. The penalty is determined when each attack is made; it does not change attacks already resolved. It does not apply in real-time combat." },
+            { "KMC.MountedShield.Name", "Mounted Shield" },
+            { "KMC.MountedShield.Description", "While you are mounted and using a shield, your mount gains a shield bonus to AC equal to your shield's base bonus, including Shield Focus and Greater Shield Focus but excluding enhancement bonuses. You also add this amount to Mobility checks made by Mounted Combat to negate hits against your mount. This benefit is passive." },
             { "KMC.MountedRangedMovement.Name", "Mounted movement" },
             { "KMC.MountedRangedMovement.Description", "A ranged weapon attack made after your mount has used more than one move action's worth of normal movement this turn takes a -4 penalty." },
             { "KMC.MountedRangedMovement.Reduced.Name", "Mounted movement (Mounted Archery)" },
@@ -399,22 +401,46 @@ namespace KingmakerMountedCombat.Integration
         public bool SetSelectionEnabled(bool enabled)
         {
             if (disposed) { return false; }
+            var previousSelectionDesired = selectionDesired;
             selectionDesired = enabled;
             if (state == HorseCompanionBlueprintState.Pending)
             {
                 Update();
-                return state != HorseCompanionBlueprintState.Faulted;
+                // Registration faulted: the root refuses, so the stored state goes back as well (supplemental review PN5-F2).
+                if (state == HorseCompanionBlueprintState.Faulted) { selectionDesired = previousSelectionDesired; return false; }
+                return true;
             }
             if (state != HorseCompanionBlueprintState.Registered)
             {
+                selectionDesired = previousSelectionDesired;
                 return false;
             }
 
             string error;
+            // The Ranger lease decides whether the root accepts this change, so it is asked first (supplemental review
+            // PN4-F2): a refusal then changes no selection surface at all, and no publication state (a withdrawal latch
+            // included) survives a refused call.
+            if (!RangerTransitionPossible(out error))
+            {
+                failure = error;
+                logger.Error(error);
+                selectionDesired = previousSelectionDesired;
+                return false;
+            }
             if (!ApplySelectionDesired(out error))
             {
                 failure = error;
                 logger.Error(error);
+                // The root refuses this enable or disable and keeps its services exactly as they were before the call, so the
+                // whole transaction is undone. The stored desired state returns to the one the root keeps (every later call
+                // and its rollback start from it), and each KMC surface this call changed (the Riding Dog lists, the combat-feat
+                // publication, the Divine Bond slots) is applied again at that state. The Ranger list was not written: its
+                // lease refused before any write. No feat is left selectable without its benefits, or hidden while they apply,
+                // however many refused calls follow one another.
+                selectionDesired = previousSelectionDesired;
+                ApplyRidingDogSelectionsReported(selectionDesired);
+                ApplyMountedCombatSelectionsReported(selectionDesired);
+                ApplyDivineBondReported(selectionDesired);
                 return false;
             }
             return true;
@@ -482,6 +508,8 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // Successful teardown only: the Mounted Shield selection check no longer names this service.
+            ReleaseMountedShieldSelectable();
             // Blueprint facts may already be serialized into the active Working
             // process. Keep the exact KMC definitions in the in-memory library
             // until process exit; only the selectable Ranger surface is leased.
@@ -806,6 +834,20 @@ namespace KingmakerMountedCombat.Integration
         private static bool SetsSize(BlueprintUnitFact fact) => fact?.ComponentsArray != null && fact.ComponentsArray.Any(component =>
             component is Kingmaker.Designers.Mechanics.Buffs.ChangeUnitSize || component != null && component.GetType().Name.EndsWith("SizeOverride", StringComparison.Ordinal));
 
+        // Whether the exact Ranger lease can take the stored desired state: its current value is KMC's exact original or exact
+        // appended value (ApplyRangerSelection and TryRestoreRangerSelection accept exactly these). Nothing is written.
+        private bool RangerTransitionPossible(out string error)
+        {
+            error = null;
+            if (rangerSelection == null || selectionLease == null) { error = "The exact Ranger selection lease is unavailable."; return false; }
+            var current = rangerSelection.AllFeatures;
+            if (selectionLease.MatchesOriginal(current) || selectionLease.MatchesAppended(current)) return true;
+            error = selectionDesired
+                ? "The Ranger companion AllFeatures selection changed outside KMC before append; no overwrite was attempted."
+                : "Ranger AllFeatures restore rejected: The leased array changed after the exact append; compare-before-restore rejected overwrite.";
+            return false;
+        }
+
         private bool ApplyRangerSelection(out string error)
         {
             error = null;
@@ -840,13 +882,19 @@ namespace KingmakerMountedCombat.Integration
                 if (desired ? pair.Value.MatchesAppended(current) : pair.Value.MatchesOriginal(current)) continue;
                 if (desired ? !pair.Value.MatchesOriginal(current) : !pair.Value.MatchesAppended(current))
                 {
-                    error = JoinErrors(error, "Companion selection " + pair.Key.name + " changed outside KMC; no overwrite was attempted.");
+                    error = JoinErrors(error, "Companion selection " + SelectionName(pair.Key) + " changed outside KMC; no overwrite was attempted.");
                     continue;
                 }
                 pair.Key.AllFeatures = desired ? pair.Value.CreateAppendedValue() : pair.Value.CreateOriginalValue();
             }
             return error == null;
         }
+
+        // Read only when a selection is reported, and kept out of line: the selection transaction itself then references no
+        // Unity engine call, so scripts/Test-MountedShieldSelectionRollback.ps1 can run it on genuine blueprints outside the
+        // player (an engine call in a method body fails that method's compilation there).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static string SelectionName(BlueprintFeatureSelection selection) => selection.name;
 
         private bool TryRestoreSelection(out string error)
         {
@@ -1158,6 +1206,8 @@ namespace KingmakerMountedCombat.Integration
             return localization.TryGetValue(key, out value) ? value : key;
         }
 
+        private const string MountedShieldLocalizationPrefix = "KMC.MountedShield.";
+
         private bool EnsureLocalization()
         {
             var pack = LocalizationManager.CurrentPack;
@@ -1169,6 +1219,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (!string.Equals(current, entry.Value, StringComparison.Ordinal))
                     {
+                        // A pack that already translates a Mounted Shield key keeps its own text: a translation never
+                        // faults the shared registration (review finding PN3-F6).
+                        if (entry.Key.StartsWith(MountedShieldLocalizationPrefix, StringComparison.Ordinal)) continue;
                         throw new InvalidOperationException("A localization key collision exists for " + entry.Key + ".");
                     }
                     continue;
@@ -1256,6 +1309,7 @@ namespace KingmakerMountedCombat.Integration
             }
             RemoveDivineMount(library);
             RemoveRidingDog(library);
+            RemoveMountedShieldFeat(library);
             RemoveMountedArcheryFeat(library);
             RemoveMountedCombatFeat(library);
             RemoveExact(library, blueprintList, FeatureGuid, horseFeature);

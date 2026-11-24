@@ -3,6 +3,8 @@ function Get-KmcSprint6Cases([string]$Scenario){
  if($Scenario -ceq 'sprint6-feat-rt'){ return @('S6-selection','S6-rt-defense','S6-rt-isolation') }
  if($Scenario -ceq 'sprint6-feat-tb'){ return @('S6-rider-feat','S6-tb-economy') }
  if($Scenario -ceq 'sprint6-feat-forced-rt'){ return @('S6-rider-feat','S6-forced-hit') }
+ if($Scenario -ceq 'sprint6-shield-rt'){ return @('MS-selection','MS-equipment','MS-pairs','MS-check-rt') }
+ if($Scenario -ceq 'sprint6-shield-tb'){ return @('MS-rider-feat','MS-check-tb') }
  throw ('Sprint 6 scenario has no case list: '+$Scenario)
 }
 function Get-KmcSprint6Record($Measure,[string]$Case,[int]$Step){
@@ -36,7 +38,7 @@ function Assert-KmcSprint6Selection($Facts,[string]$Who){
 }
 function Assert-KmcSprint6FeatEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status,[string]$EvidenceRoot)
- if($Request.scenario -cnotin @('sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt') -or $Artifact.schemaVersion -ne 50){ throw 'Sprint 6 scenario/schema mismatch' }
+ if($Request.scenario -cnotin @('sprint6-feat-rt','sprint6-feat-tb','sprint6-feat-forced-rt','sprint6-shield-rt','sprint6-shield-tb') -or $Artifact.schemaVersion -ne 50){ throw 'Sprint 6 scenario/schema mismatch' }
  if($Artifact.status -ceq 'FAIL') {
   if($Status -ceq 'PASS' -or (@($Artifact.errors).Count -eq 0 -and $Artifact.subscenarioFailCount -lt 1)){ throw 'Sprint 6 incomplete observation cannot become PASS' }
   return # Preserve the producer's explicit failed prefix; grant no qualification.
@@ -51,6 +53,9 @@ function Assert-KmcSprint6FeatEvidence {
  foreach($name in $expected){ $found=@($Artifact.rows | Where-Object name -CEQ $name); if($found.Count -ne 1){ throw ('Sprint 6 required row missing or duplicated: '+$name) }; $rows[$name]=$found[0] }
  # Every row: one check per attempt, one attempt per rule, and nothing done to a miss or by the mount's resources.
  $records=@($o.records); $rules=@($o.attackRules); $checks=@($o.skillChecks)
+ # The Mounted Shield real-time row adds one unrelated native Mobility check by the rider (MS-12); it is that row's own
+ # observation, matched exactly and set aside, never an attempt.
+ if($Request.scenario -ceq 'sprint6-shield-rt'){ $checks=@(Remove-KmcSprint6ShieldUnrelatedCheck $checks $rows['MS-check-rt'].evidence.unrelatedMobility $o.rider) }
  $identities=@($records | ForEach-Object { [string]$_.ruleIdentity })
  if(@($identities | Select-Object -Unique).Count -ne $identities.Count){ throw 'Sprint 6 one attack rule was evaluated twice' }
  $attempted=@($records | Where-Object attempted -EQ $true)
@@ -67,6 +72,7 @@ function Assert-KmcSprint6FeatEvidence {
  }
  foreach($r in $records){ if([double]$r.mountSwiftAfter -ne [double]$r.mountSwiftBefore){ throw 'Sprint 6 the mount paid the rider''s Swift action' } }
  if(@($records | Where-Object { [string]$_.mountId -ceq [string]$_.rider }).Count -ne 0){ throw 'Sprint 6 an actor rode itself' }
+ if($Request.scenario -cin @('sprint6-shield-rt','sprint6-shield-tb')){ Assert-KmcSprint6ShieldRows $o $rows $Request.scenario; return }
 
  if($Request.scenario -ceq 'sprint6-feat-rt'){
   $f=$rows['S6-selection'].evidence

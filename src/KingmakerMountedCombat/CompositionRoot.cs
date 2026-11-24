@@ -34,6 +34,8 @@ namespace KingmakerMountedCombat
         private readonly MovementTelemetryWriter movementTelemetry;
         private readonly MountedCombatDefenseService mountedCombatDefense;
         private readonly MountedRangedMovementService mountedRangedMovement;
+        // Mounted Shield: the passive mount AC contribution and the Mounted Combat check addition (one calculation).
+        private readonly MountedShieldService mountedShield;
         // Known issues Sprint 7 (U04): the mounted badge and the folded mount's tracker hover; presentation only.
         private readonly MountedPairPresentation pairPresentation;
         private readonly MountedRiderFallService riderFalls;
@@ -80,7 +82,16 @@ namespace KingmakerMountedCombat
                 removalShortcut = new RemovalPreparationShortcut(removal, new NativeTextDialog(), logger);
                 var removalPreparation = removal;
                 nativeControls.PersistentRowsSuppressed = () => removalPreparation.CleanupSaveInFlight;
-                mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, () => persistence.CombatRestorationPending, logger);
+                // Event-time writes follow the ordinary update gates; event-time removals only stay clear of an archive
+                // worker serializing the live graphs and of an owned load replacing the world.
+                mountedShield = new MountedShieldService(horseCompanion, world,
+                    () => IsEnabled && !persistence.SaveSuspended && !persistence.AreaTransitionPending && !persistence.CombatRestorationPending &&
+                        !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight,
+                    () => !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight, logger);
+                // Mounted Shield is selectable only while both its benefits can apply (services on, the service enabled).
+                var shieldService = mountedShield;
+                horseCompanion.MountedShieldServiceActive = () => IsEnabled && shieldService.Enabled;
+                mountedCombatDefense = new MountedCombatDefenseService(horseCompanion, world, mountedShield, () => persistence.CombatRestorationPending, logger);
                 mountedRangedMovement = new MountedRangedMovementService(horseCompanion, world, logger);
                 var badgeSource = horseCompanion;
                 pairPresentation = new MountedPairPresentation(world, () => badgeSource.MountSaddleIcon, logger);
@@ -140,6 +151,7 @@ namespace KingmakerMountedCombat
                 try { patches?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedCombatDefense?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { mountedRangedMovement?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
+                try { mountedShield?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { pairPresentation?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { riderFalls?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
                 try { ridingDogTack?.Dispose(); } catch (Exception exception) { rollbackException = rollbackException ?? exception; }
@@ -204,6 +216,8 @@ namespace KingmakerMountedCombat
                 IsEnabled = true;
                 mountedCombatDefense.Enabled = true;
                 mountedRangedMovement.Enabled = true;
+                mountedShield.Enable();
+                horseCompanion.ResumeMountedShieldOffers();
                 pairPresentation.Enabled = true;
                 persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
@@ -246,8 +260,18 @@ namespace KingmakerMountedCombat
                 logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
                 return false;
             }
+            // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted. A
+            // contribution that could not be removed keeps the services enabled, as other retained residue does. A refused
+            // disable below restores the service exactly as it was before this call (enabled or not).
+            var shieldWasEnabled = mountedShield.Enabled;
+            if (!mountedShield.Disable("services disabled"))
+            {
+                logger.Error("Diagnostic services could not be disabled because a Mounted Shield contribution remained on a mount.");
+                return false;
+            }
             if (!horseCompanion.SetSelectionEnabled(false))
             {
+                if (shieldWasEnabled) mountedShield.Enable();
                 logger.Error("Mounted combat services could not disable without overwriting an externally changed Ranger selection.");
                 return false;
             }
@@ -285,10 +309,12 @@ namespace KingmakerMountedCombat
             // save is in flight it is latched, not skipped: persistence.Update
             // runs first in every frame and keeps draining, and the cleanup runs
             // on the first frame after the save settles.
-            if (persistence.SaveSuspended)
+            // The same for an owned load (supplemental review PN4-F1): the pair cleanup would dismount pairs, and release
+            // Mounted Shield contributions, in the outgoing world. The retry below waits for the load to settle.
+            if (persistence.SaveSuspended || persistence.LoadInFlight)
             {
                 failureCleanupPending = true;
-                logger.Warning("Update failure latched: an owned save is still in flight; mounted cleanup runs once it settles.");
+                logger.Warning("Update failure latched: an owned save or load is still in flight; mounted cleanup runs once it settles.");
                 if (first != null)
                 {
                     throw new InvalidOperationException("Runtime update failure could not be handled without residue.", first);
@@ -323,13 +349,20 @@ namespace KingmakerMountedCombat
                     throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
                 }
             });
-            if (errors.Length != 0)
+            // The Mounted Shield stop closes its selection and both benefits together and releases every contribution,
+            // verified. It never runs while an owned load replaces the world (the outgoing world's stats are not touched).
+            var shieldStopped = errors.Length == 0 && !persistence.LoadInFlight && mountedShield.Disable("update failure cleanup");
+            if (errors.Length != 0 || !shieldStopped)
             {
-                // Held back by retained stick-movement cleanup alone, the stop is not abandoned: Update takes it again
-                // once that cleanup is established.
+                // Held back by retained stick-movement cleanup alone, or by a Mounted Shield stop that must wait (a
+                // contribution not yet removed, or an owned load in progress), the stop is not abandoned: Update takes it
+                // again once that is settled.
                 if (awaitingStickMovement == errors.Length) failureCleanupPending = true;
-                throw new AggregateException("World update cleanup retained owners.", errors);
+                if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
+                throw new InvalidOperationException("Update-failure cleanup is waiting for the Mounted Shield stop (retained contribution or owned load); it is retried.");
             }
+            // With its benefits stopped, Mounted Shield's offers close too (reopened by an explicit enable).
+            horseCompanion.SuspendMountedShieldOffers();
             persistence.ReleaseRetainedPendingReentry();
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
@@ -365,12 +398,18 @@ namespace KingmakerMountedCombat
             // Known issues sprint 3 (review of 25cbdbe2): retained stick-movement cleanup is retried here too, so its
             // recovery does not depend on the ordinary pair update below, which stops when the services are disabled.
             if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Relationship.RecoverContinuousDriveCleanup());
+            // Mounted Shield: stale mount contributions are removed here, ahead of the ordinary gates, so a changed shield,
+            // feat or pair never keeps its bonus while a save, area transition or restoration suspends ordinary updates. New
+            // contributions are written only by the ordinary pass below. Not while an archive worker serializes the live
+            // graphs or an owned load replaces the world (the native save path has already released the contributions,
+            // and the loaded world carries none).
+            if (!persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight) mountedShield.Update(false);
             removal.Update();
             removalShortcut.Update();
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled, and after retained
             // stick-movement cleanup that held it back is established.
-            if (failureCleanupPending && !persistence.SaveSuspended && !world.AnyContinuousDriveCleanupPending)
+            if (failureCleanupPending && !persistence.SaveSuspended && !world.AnyContinuousDriveCleanupPending && !persistence.LoadInFlight)
             {
                 failureCleanupPending = false;
                 PerformFailureCleanup();
@@ -399,6 +438,8 @@ namespace KingmakerMountedCombat
             var pairStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { world.UpdatePairs(); }
             finally { phaseMeasurement?.EndPairUpdate(pairStarted); }
+            // The ordinary pass shares the removal pass's guards: no archive worker, no owned load replacing the world.
+            if (!persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight) mountedShield.Update(true);
             explorationObserver.Update();
             var turnStarted = phaseMeasurement?.BeginPhase() ?? 0;
             try { unifiedTurn.Update(); }
@@ -435,6 +476,10 @@ namespace KingmakerMountedCombat
             {
                 throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
             }
+            if (!mountedShield.Disable("unload"))
+            {
+                throw new InvalidOperationException("Composition root cannot dispose while a Mounted Shield contribution remains on a mount.");
+            }
 
             movementTelemetry?.Dispose();
             runtimeAutomation?.Dispose();
@@ -444,6 +489,7 @@ namespace KingmakerMountedCombat
             Integration.NativeCommandTerminalBranches.Reset();
             mountedCombatDefense.Dispose();
             mountedRangedMovement.Dispose();
+            mountedShield.Dispose();
             pairPresentation.Dispose();
             riderFalls.Dispose();
             ridingDogTack.Dispose();
