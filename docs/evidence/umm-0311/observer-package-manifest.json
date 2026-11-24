@@ -1,0 +1,26 @@
+{
+    "schemaVersion":  2,
+    "generator":  "scripts/Package-Observer.ps1",
+    "generatedAtUtc":  "2026-11-24T04:19:50.3695613Z",
+    "branch":  "codex/umm-0311-baseline-20261123",
+    "commit":  "f5a9f3865a4e79432c85d67a17b3aaaf0c7e1b3f",
+    "worktreeClean":  true,
+    "qualificationEligible":  true,
+    "version":  "0.1.0-observer.8",
+    "packagePath":  "<dev>\\KingmakerMountedCombatLab\\artifacts\\KmcRemovalObserver-0.1.0-observer.8-umm-0311-f5a9f386-diagnostic.zip",
+    "packageSha256":  "5944cc74604411a14b98c42f75a557d9c021734b5ec46ef3eaa8d570190b11d9",
+    "dllSha256":  "f9697f91feeab95b6a095dabf1a901cbd3d0aae3863efed6ea53fba8fe271958",
+    "dllMvid":  "a5e1bb2f-21fa-4bdd-9bd8-cd0861dc3a96",
+    "entries":  [
+                    {
+                        "path":  "KmcRemovalObserver/Info.json",
+                        "length":  316,
+                        "sha256":  "8efbe32fd7dcdc0b50bde2b4e2d50be1cd5a677faac1c3b5d64b624f833812f4"
+                    },
+                    {
+                        "path":  "KmcRemovalObserver/KmcRemovalObserver.dll",
+                        "length":  97792,
+                        "sha256":  "f9697f91feeab95b6a095dabf1a901cbd3d0aae3863efed6ea53fba8fe271958"
+                    }
+                ]
+}

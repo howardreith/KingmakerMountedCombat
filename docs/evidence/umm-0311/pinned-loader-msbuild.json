@@ -1,14 +1,14 @@
 {
     "schema":  "kmc.pinned-loader-msbuild-tests.v1",
-    "commit":  "272238cef56ab9307ec115360df62439efcdf072",
+    "commit":  "796935ccf9595bc131e305ceb7db49b35c0793b1",
     "baseline_commit":  "fb743911200f150af407198c6c28519e522ef58c",
     "installed_loader_measured":  {
                                       "unityModManager":  "0.33.0.0",
                                       "sha256":  "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691"
                                   },
     "product_dll_sha256":  "d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d",
-    "passed":  6,
-    "total":  6,
+    "passed":  9,
+    "total":  9,
     "cases":  [
                   {
                       "name":  "before-baseline-project-compiles-against-installed-loader",
@@ -28,7 +28,7 @@
                   {
                       "name":  "direct-msbuild-altered-pinned-file-refused",
                       "passed":  true,
-                      "detail":  "exit 1; Pinned loader reference hash mismatch: \n  <temp>\\kmc-pinned-loader-c2a0184a4f2e4c228294710bb16789c9\\clone with \n  space\\obj\\loader-references\\0Harmony12"
+                      "detail":  "exit 1; Pinned loader reference hash mismatch: \n  <temp>\\kmc-pinned-loader-20a757e0f5ad4ad7a52b8e124d54207b\\clone with \n  space\\obj\\loader-references\\0Harmony12"
                   },
                   {
                       "name":  "installed-loader-dir-is-not-a-compile-input",
@@ -38,7 +38,22 @@
                   {
                       "name":  "stray-hintpath-to-unitymodmanager-copy-refused",
                       "passed":  true,
-                      "detail":  "Loader compiler references must be the verified files in the pinned directory <temp>\\kmc-pinned-loader-c2a0184a4f2e4c228294710bb16789c9\\clone with space\\obj\\loader-references\\; resolved:"
+                      "detail":  "Loader compiler references must be the verified files in the pinned directory <temp>\\kmc-pinned-loader-20a757e0f5ad4ad7a52b8e124d54207b\\clone with space\\obj\\loader-references\\; resolved:"
+                  },
+                  {
+                      "name":  "late-compiler-list-rewrite-refused-product",
+                      "passed":  true,
+                      "detail":  "Loader compiler references must be the verified files in the pinned directory <temp>\\kmc-pinned-loader-20a757e0f5ad4ad7a52b8e124d54207b\\clone with"
+                  },
+                  {
+                      "name":  "late-compiler-list-rewrite-refused-observer",
+                      "passed":  true,
+                      "detail":  "Loader compiler references must be the verified files in the pinned directory <temp>\\kmc-pinned-loader-20a757e0f5ad4ad7a52b8e124d54207b\\clone with"
+                  },
+                  {
+                      "name":  "observer-compiles-against-pinned-loader",
+                      "passed":  true,
+                      "detail":  "exit 0; observer DLL references 0Harmony12 1.2.0.1, UnityModManager 0.31.1.0"
                   }
               ]
 }

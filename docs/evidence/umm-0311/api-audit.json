@@ -1,6 +1,6 @@
 {
   "schema": "kingmaker.loader-api-audit.v1",
-  "mod": "KingmakerMountedCombat.dll",
+  "mod": "main.dll",
   "mod_sha256": "d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d",
   "mod_mvid": "9db1be50-bceb-4bb3-a167-14e4ce288e8c",
   "mod_assembly_references": [
