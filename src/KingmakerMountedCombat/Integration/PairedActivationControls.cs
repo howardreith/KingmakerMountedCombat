@@ -217,9 +217,13 @@ namespace KingmakerMountedCombat.Integration
         private static readonly System.Reflection.FieldInfo NativePredictionCommands =
             ResolveField(typeof(TurnController), "m_PredictionCommands", 0x0400066E);
 
-        // MMR-02 diagnostic (review R1-F3): after native IgnoreClick on the rider's own context, log a rider melee attack click
-        // native dropped for its rider-path check, with the mount's remaining allowance and the gap to reach. Native's decision
-        // is never changed (the result is read only), and the line is read-only: no movement context is mirrored.
+        // MMR-02 (reviews R1-F3, R3-F2). After native IgnoreClick on the rider's own paired context: when native dropped the
+        // exact predicted plain melee UnitAttack of the selected, addressable rider on the highlighted hostile, KMC admits the
+        // click only if it can prove the order legal by its own rule (PairedAttackClickAdmissionPolicy): the strike already
+        // admissible from where the pair stands, or a complete native route of the MOUNT's own agent whose cost is within the
+        // mount's granted movement for the player's current step/single-move mode and whose endpoint admits the strike
+        // (PairedAttackClickProbe). Every other drop keeps native's refusal, so the previous order is untouched. The step and
+        // single-move flags are the player's input mode (mirrored onto the mount's context); the allowance is the mount's.
         internal void AdmitPairedAttackClick(TurnController context, ref bool result)
         {
             if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
@@ -227,26 +231,49 @@ namespace KingmakerMountedCombat.Integration
             var mount = activation.Partner;
             var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
             var predicted = (NativePredictionCommands.GetValue(context) as UnitCommands)?.GetCommand(UnitCommand.CommandType.Standard) as UnitAttack;
-            var weapon = rider.GetFirstWeapon();
-            var meleeOnTarget = predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&
+            var weapon = rider?.GetFirstWeapon();
+            var meleeOnTarget = rider != null && mount != null && predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&
                 predicted.TargetUnit == target && !target.Descriptor.State.IsDead && rider.IsEnemy(target) &&
                 weapon?.Blueprint != null && !weapon.Blueprint.IsRanged;
-            var path = Kingmaker.TurnBasedMode.PathVisualizer.Instance;
-            var pathRefused = meleeOnTarget && path != null &&
-                !path.IsCurrentPathForPoint(rider.Position, predicted.ApproachPoint, predicted.ApproachRadius);
-            if (!PairedAttackClickDropDiagnostic.DroppedForRiderPath(true, true,
-                    SelectionManager.Instance?.SingleSelectedUnit == rider, context.Unit == rider && rider.Commands.Empty,
-                    !(bool)NativeNeedNewPredictions.GetValue(context), context.IsOverTerrain,
-                    Game.Instance?.SelectedAbilityHandler?.Ability != null, meleeOnTarget, pathRefused)) return;
-            var input = SelectedNativeInputContext(context);
-            var remaining = mount == null ? float.NaN : movementState.RemainingGrantedMetres(mount, input.EnabledFiveFootStep, input.EnabledSingleActionMove);
-            var distance = mount?.View == null || target.View == null ? float.NaN : Kingmaker.Utility.GeometryUtils.MechanicsDistance(mount.Position, target.Position);
-            var reach = mount?.View == null || target.View == null ? float.NaN : mount.View.Corpulence + target.View.Corpulence + weapon.AttackRange.Meters;
-            logger.Info("Turn-based rider melee attack click dropped by native's path check (MMR-02 diagnostic; native decision kept): rider=" +
-                rider.UniqueId + "; target=" + target.UniqueId + "; mountRemainingMetres=" + remaining.ToString("R") +
-                "; pairDistance=" + distance.ToString("R") + "; pairReach=" + reach.ToString("R") +
-                "; approachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
+            var riderSelected = SelectionManager.Instance?.SingleSelectedUnit == rider;
+            var riderAddressable = rider != null && CanAddressActor(rider, context);
+            var predictionsCurrent = !(bool)NativeNeedNewPredictions.GetValue(context);
+            var abilitySelected = Game.Instance?.SelectedAbilityHandler?.Ability != null;
+            var riderCommandsEmpty = rider != null && rider.Commands.Empty;
+            var inputCandidate = meleeOnTarget && riderSelected && riderAddressable && predictionsCurrent && !abilitySelected &&
+                riderCommandsEmpty && !context.IsOverTerrain;
+            var combat = relationship.CombatOwner;
+            var riderAttack = inputCandidate && combat != null && combat.RiderMeleeClickAdmitted(target);
+            PairedAttackClickProbe.Result probe = null;
+            if (riderAttack)
+            {
+                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target); }
+                catch (Exception error) { logger.Exception("Turn-based rider attack click probe failed; native decision kept", error); }
+            }
+            var granted = mount == null ? 0f : movementState.RemainingGrantedMetres(mount, context.EnabledFiveFootStep, context.EnabledSingleActionMove);
+            string reason;
+            var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
+                predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget, riderAttack,
+                probe != null && probe.AdmissibleNow, probe != null && probe.RouteComplete, probe?.RouteMetres ?? float.NaN, granted,
+                probe != null && probe.EndpointAdmitsStrike, out reason);
+            if (decision != PairedAttackClickAdmission.NativeDecision)
+            {
+                result = false;
+                AdmittedAttackClickCount++;
+            }
+            if (!meleeOnTarget) return;
+            LastAttackClickDecision = decision + ":" + reason;
+            logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +
+                "; rider=" + rider.UniqueId + "; target=" + target.UniqueId +
+                "; stepMode=" + context.EnabledFiveFootStep + "; singleMove=" + context.EnabledSingleActionMove +
+                "; mountGrantedMetres=" + granted.ToString("R") +
+                "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") + "; probe=" + (probe?.Detail ?? "<not-run>") +
+                "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
+                "; nativeApproachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
         }
+
+        internal int AdmittedAttackClickCount { get; private set; }
+        internal string LastAttackClickDecision { get; private set; }
 
         internal bool PrepareNativeInputPrediction(TurnController context)
         {

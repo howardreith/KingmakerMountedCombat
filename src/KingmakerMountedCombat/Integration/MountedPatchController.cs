@@ -123,7 +123,10 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix),
                     nameof(PatchMethods.InternalRunPostfix), nameof(PatchMethods.NativeRunHoldTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
-                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix));
+                    new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
+                // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
+                PatchExact(typeof(UnitMoveTo), "OnAction", 0x06002702, Type.EmptyTypes, nameof(PatchMethods.MoveActionHoldPrefix),
+                    nameof(PatchMethods.MoveActionHoldPostfix));
                 PatchExact(typeof(UnitCommands), "AddToQueueOrRun", 0x060026B9,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueueOrRunPrefix));
                 PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
@@ -198,7 +201,7 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(List<Kingmaker.EntitySystem.Entities.UnitReference>) },
                     nameof(PatchMethods.PartyReinitPrefix), nameof(PatchMethods.PartyReinitPostfix));
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopPrefix));
-                PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
+                PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.HoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) },
                     nameof(PatchMethods.ContinuousMovePrefix), nameof(PatchMethods.ContinuousMovePostfix));
                 // The native end of a continuous command clears the override of its executor's current view; a command
@@ -892,9 +895,44 @@ namespace KingmakerMountedCombat.Integration
             // the pair's stick movement, as native Run ends a unit's own. An enqueued or refused command is in no slot.
             internal static void InternalRunPostfix(UnitCommands __instance, UnitCommand cmd)
             {
-                if (PointerController.SimulatingClick || cmd == null || cmd is UnitMoveContiniously) return;
+                if (PointerController.SimulatingClick || cmd == null) return;
+                // Reviews R1-F5/R3-F3/R2-F5: what native actually accepted (a slot, or the queue via Run's queue-instead path)
+                // is classified against a retained ordinary order. A refused or merged command is in neither place.
+                try
+                {
+                    var route = __instance.Contains(cmd) ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Slot :
+                        __instance.Queue.Contains(cmd) ? MountedAcceptedWorkRoute.Queue : (MountedAcceptedWorkRoute?)null;
+                    if (route.HasValue) PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, route.Value);
+                }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Accepted pair work was not observed", error); }
+                if (cmd is UnitMoveContiniously) return;
                 try { PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
+            }
+
+            // Every native queue insertion (AddToQueue/AddToQueueFirst, Run's queue-instead path, custom handlers). The prefix
+            // may have refused it, so only a command now in the queue is observed.
+            internal static void QueueAcceptedPostfix(UnitCommands __instance, UnitCommand cmd)
+            {
+                if (PointerController.SimulatingClick || cmd == null || __instance == null) return;
+                try
+                {
+                    if (__instance.Queue.Contains(cmd))
+                        PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, MountedAcceptedWorkRoute.Queue);
+                }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Queued pair work was not observed", error); }
+            }
+
+            internal static void MoveActionHoldPrefix(UnitMoveTo __instance, out bool __state)
+            {
+                __state = __instance?.Executor != null && __instance.Executor.HoldState;
+            }
+
+            internal static void MoveActionHoldPostfix(UnitMoveTo __instance, bool __state)
+            {
+                if (PointerController.SimulatingClick || __instance?.Executor == null) return;
+                try { PatchBridge.CombatFor(__instance.Executor)?.RestoreHoldAfterMoveAction(__instance, __state); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Own carrier Hold write was not restored", error); }
             }
 
             internal static IEnumerable<CodeInstruction> NativeRunHoldTranspiler(IEnumerable<CodeInstruction> instructions) =>
@@ -1293,7 +1331,14 @@ namespace KingmakerMountedCombat.Integration
                     door.TickMountedApproach();
                     return false;
                 }
-                if (__instance is MountedPairAttackCommand) return false;
+                var pairAttack = __instance as MountedPairAttackCommand;
+                if (pairAttack != null)
+                {
+                    // MMR-05 (review R3-F1): native ticks an unstarted command's approach while its start waits; the pair
+                    // command's approach is its own delegated mount move.
+                    if (!pairAttack.IsStarted) pairAttack.TickPreStartApproach();
+                    return false;
+                }
                 // Sprint 3 (TRAP-01, SPELL-01): the rider's own unstarted native ability or discovered-trap interaction is
                 // approached by the mount. The driver runs the engine's own OnTickApproaching first and skips only the
                 // native rider approach; in range it returns false and the native code starts the command as usual.
@@ -1642,6 +1687,15 @@ namespace KingmakerMountedCombat.Integration
                 else foreach (var pair in PatchBridge.World.Pairs)
                     pair.Relationship.NormalizeMultiSelection(ref views,
                         PatchBridge.UnifiedTurn.MaySelectPairedPartner(pair.Relationship.Mount));
+            }
+
+            // Native Hold: the Stop/Hold cancellation, then the mount's Hold recorded as the player's when it is selected.
+            internal static void HoldPrefix()
+            {
+                StopOrHoldPrefix();
+                if (PointerController.SimulatingClick) return;
+                if (PatchBridge.World == null) PatchBridge.Combat?.ObserveHoldInput();
+                else PatchBridge.World.Visit(pair => pair.Combat.ObserveHoldInput());
             }
 
             internal static void StopOrHoldPrefix()

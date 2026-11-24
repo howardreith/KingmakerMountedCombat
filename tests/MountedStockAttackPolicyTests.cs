@@ -28,11 +28,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
             runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
-            runner.Run("MMR-02 diagnostic: only native's rider-path refusal of its own predicted melee attack is logged", PairedAttackClickAdmission);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
-            runner.Run("R1-F4/F5/F6, R2-F1: follow-through keeps the accepted kind, remembers newer work, and uses dispatch admission", FollowThroughEligibility);
+            runner.Run("R1-F4/F6: follow-through uses dispatch admission and the accepted kind; newer work keeps the horse out", FollowThroughEligibility);
             runner.Run("R1-F13/R2-F4: the exact Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
-            runner.Run("R1-F11: the engagement line names the first point automatic engagement stopped", EngagementFirstStop);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -495,22 +493,9 @@ namespace KingmakerMountedCombat.Tests
             // R1-F5: newer player work recorded for the order (whether still queued or already finished) keeps the horse out;
             // the pair's own command, reactions and coexisting Free/Swift actions do not override.
             TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, horse, overridden: true), "A newer order was overridden.");
-            TestRunner.True(MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, false, true), "A newer player order was not recorded.");
-            TestRunner.True(!MountedFollowThroughPolicy.OverridesRetainedOrder(true, false, false, true) &&
-                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, true, false, true) &&
-                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, true, true) &&
-                !MountedFollowThroughPolicy.OverridesRetainedOrder(false, false, false, false), "Own, reaction, Free/Swift or AI work overrode the order.");
+            // How the controller derives "melee" and "overridden" (the retained-order ledger at acceptance and at native
+            // acceptance) is exercised in MountedAlpha2LifecycleTests.
             TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, false, true), "An explicit mount order lost its meaning.");
-        }
-
-        private static void EngagementFirstStop()
-        {
-            TestRunner.Equal("no-proposal", MountedEngagementDiagnostic.FirstStop(0, 0, 0, 0, 0f, false, null), "An absent proposal was misnamed.");
-            TestRunner.Equal("refused:hold-out-of-reach", MountedEngagementDiagnostic.FirstStop(2, 2, 0, 0, 0f, false, "hold-out-of-reach"), "A refusal lost its reason.");
-            TestRunner.Equal("accepted-not-dispatched", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 0f, false, null), "A stalled accepted intent was misnamed.");
-            TestRunner.Equal("dispatched-not-moved", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 0.1f, false, null), "A carrier without motion was counted as moving.");
-            TestRunner.Equal("dispatched-moved", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 2f, false, null), "First displacement was missed.");
-            TestRunner.Equal("player-command", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 2f, true, null), "A player command was counted as automatic progress.");
         }
 
         private static void HorseStrikeLines()
@@ -564,21 +549,6 @@ namespace KingmakerMountedCombat.Tests
             var reloaded = new LoadedUnit("horse-1");
             TestRunner.True(!ledger.IsCompleted(reloaded) && ledger.TryRun(reloaded, true, repair, out changed) && changed == 1 && removals == 2,
                 "A reloaded Horse with the same ID was skipped.");
-        }
-
-        private static void PairedAttackClickAdmission()
-        {
-            bool Logged(bool ignored = true, bool riderContext = true, bool riderSelected = true, bool commandsEmpty = true,
-                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool meleeOnTarget = true, bool pathRefused = true) =>
-                PairedAttackClickDropDiagnostic.DroppedForRiderPath(ignored, riderContext, riderSelected, commandsEmpty, predictionsCurrent,
-                    overTerrain, ability, meleeOnTarget, pathRefused);
-            TestRunner.True(Logged(), "Native's rider-path refusal of its own predicted melee attack was not named.");
-            TestRunner.True(!Logged(ignored: false), "An accepted click was logged as dropped.");
-            TestRunner.True(!Logged(pathRefused: false), "A click dropped for another reason was attributed to the path check.");
-            TestRunner.True(!Logged(meleeOnTarget: false), "A non-attack, ranged or other-target prediction was attributed.");
-            TestRunner.True(!Logged(riderContext: false) && !Logged(riderSelected: false), "A mount or other context click was attributed.");
-            TestRunner.True(!Logged(commandsEmpty: false) && !Logged(predictionsCurrent: false) && !Logged(overTerrain: true) && !Logged(ability: true),
-                "An earlier native refusal was attributed to the path check.");
         }
 
         private static void PairOrderHorseFollowThrough()

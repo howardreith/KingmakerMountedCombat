@@ -6,6 +6,9 @@ param()
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter and saved-horse
 #      repair on genuine objects; the installed members the MMR-02 click admission, the MMR-04/05 readiness gate and the
 #      MMR-07 telemetry bind; the native horse animation bundle identity.
+#   1d. Test-MountedAlpha2LifecycleContract.ps1: review round 4 seams (native slot/queue acceptance, the carrier Hold write,
+#      the pre-start approach hook and untouched native start gate, the turn-based click probe and policy, the installed
+#      Character_Brain actions/considerations and the proposal ranking reader's brain fields).
 #   1b. Test-MountedAlpha2Package.ps1: the receipt for the exact alpha ZIP named in docs/mounted-melee/package-identity.json
 #      (archive hash/size/entries, enclosed DLL hash/MVID, version, UMM minimum, icon, manifest commit, Validate-Package).
 #   2. Test-MountedPresentationContracts.ps1: the paired prediction/action-slot presentation seams beside the MMR-02
@@ -14,7 +17,7 @@ param()
 #      registration, amounts, AC/check writes, publication and the embedded icon identity.
 #   5. Test-MountedArcheryFeatContract.ps1: the shared feat publication neighbor of the Horse registration service.
 #   6. chunk7\Test-Chunk7RangerSelectionContract.ps1: the Horse/Riding Dog selection transaction of the changed service.
-#   7. chunk7\Test-Chunk7ReplaySubscriberContract.ps1: the reviewed subscriber inventory and the 0.2.16-alpha.2 version.
+#   7. chunk7\Test-Chunk7ReplaySubscriberContract.ps1: the reviewed subscriber inventory and the 0.2.16-alpha.3 version.
 #   8. Test-FinalizeF1LocalizationKeys.ps1: localization consumers.
 #   9-13. Loader baseline: Test-UmmBuildReference.ps1, Test-Chunk7NativeLoaderContracts.ps1, Test-FrozenProductSource.ps1,
 #      Test-UmmLoaderContracts.ps1 against the genuine 0.31.1 reference and the installed 0.33.0 loader.
@@ -32,7 +35,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedPresentationContracts.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

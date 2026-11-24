@@ -51,6 +51,12 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedAutomaticAttackGate automaticGate = new MountedAutomaticAttackGate();
         private readonly MountedAutomaticRunLedger automaticRuns = new MountedAutomaticRunLedger();
         private readonly MountedPlayerMoveWatch playerMove = new MountedPlayerMoveWatch();
+        // Reviews R3-F3/R1-F5/R2-F5/R2-F1: the retained ordinary order (kind at acceptance, exact own commands, accepted work).
+        private readonly MountedRetainedOrderLedger retainedOrder = new MountedRetainedOrderLedger();
+        // Review R1-F8: whether the mount's Hold is the player's.
+        private readonly MountedHoldProvenance mountHold = new MountedHoldProvenance();
+        // Review R1-F11: the first automatic order of a real-time combat, attributed by generation.
+        private readonly MountedEngagementRecord engagement = new MountedEngagementRecord();
         private bool groundOrderOpen;
         private const string AutomaticInputSurface = "automatic-native-target";
         private UnitEntityData automaticApproachFailedTarget;
@@ -826,12 +832,15 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData target,
             string inputSurface,
             UnitEntityData abilityCaster,
-            bool allowApproach = true)
+            bool allowApproach = true,
+            bool preStartApproach = false,
+            bool nativeStartGatesReadiness = false)
         {
             NativeSingleAttackWeaponSelection mountPrimary;
             var automaticOrigin = inputSurface == AutomaticInputSurface && stockIntent.Automatic;
             var ordinaryIntent = (inputSurface == "stock-hostile-click" || automaticOrigin) && target == stockIntentTarget;
-            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent, abilityCaster != null);
+            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent, abilityCaster != null,
+                ordinaryIntent && nativeStartGatesReadiness);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -859,6 +868,21 @@ namespace KingmakerMountedCombat.Integration
                     allowApproach,
                     !ordinaryIntent);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
+                if (ordinaryIntent)
+                {
+                    // Review R3-F3: the order's own wrapper and every exact move it issues (recorded before native Run sees it).
+                    var orderGeneration = stockIntent.Generation;
+                    retainedOrder.RecordOwnIssued(orderGeneration, command);
+                    command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(orderGeneration, issued);
+                }
+                if (ordinaryIntent && preStartApproach)
+                {
+                    // MMR-05 (review R3-F1): while native has not started the order, its own delegated move approaches.
+                    command.PreStartMovementForbidden = () => relationship.Mount == null || !relationship.Mount.Descriptor.State.CanMove ||
+                        stockIntent.Automatic && AutomaticMovementForbidden(relationship.Rider);
+                    command.PreStartTargetPerceived = () => relationship.Rider?.Group?.Memory != null && relationship.Rider.Group.Memory.Contains(target);
+                    command.AllowPreStartApproach();
+                }
                 // The player's order on an already unconscious enemy keeps that target as native UnitAttack does.
                 if (ordinaryIntent && !automaticOrigin && !stockIntent.Automatic && stockIntent.TargetUnconsciousWhenOrdered)
                     command.AdmitTargetUnconsciousWhenOrdered();
@@ -942,6 +966,7 @@ namespace KingmakerMountedCombat.Integration
             automaticGate.Tick(relationship.MountedPairGeneration, relationship.State == RelationshipState.Mounted,
                 IsPairInCombat(), CombatController.IsInTurnBasedCombat(), relationship.Rider?.IsAIEnabled == true);
             ObservePlayerMoveOutcome();
+            mountHold.Observe(relationship.Mount != null && relationship.Mount.HoldState);
             ReleaseEntranceCarrier();
             SweepOrphanedAutomaticCommand();
             ObserveAutomaticApproachFailure();
@@ -999,16 +1024,13 @@ namespace KingmakerMountedCombat.Integration
             TryDriveStockAttackIntent();
         }
 
-        private TimeSpan? engagementStartedAt;
-        private bool engagementReported;
-        private long engagementProposals, engagementRefused, engagementAccepted, engagementDispatched;
-        private Vector3 engagementMountOrigin;
+        private Vector3? engagementLastMountPosition;
         internal string LastEngagementFirstStop { get; private set; }
+        internal MountedEngagementRecord Engagement => engagement;
 
-        // MMR-04 (reviews R1-F11, R2): once per real-time combat, three game seconds after it began, one line naming where the
-        // pair's AUTOMATIC engagement stands (MountedEngagementDiagnostic). Counters are the automatic-intent deltas since that
-        // combat began; a live player operation is named instead of being counted as engagement; displacement is the mount's
-        // own movement since then. KMC adds no target selection: the target is the rider brain's native proposal.
+        // MMR-04 (reviews R1-F11, R2, R3): the first automatic order of a real-time combat (MountedEngagementRecord). The window
+        // opens at the first combat update or the first automatic proposal, whichever comes first; each update's mount movement
+        // is attributed to that order only while its own pair command or delegated move is live and no player operation is.
         private void ObserveEngagementProgress()
         {
             var game = Game.Instance;
@@ -1016,59 +1038,112 @@ namespace KingmakerMountedCombat.Integration
             if (game?.TimeController == null || mount == null || relationship.State != RelationshipState.Mounted || !IsPairInCombat() ||
                 CombatController.IsInTurnBasedCombat())
             {
-                engagementStartedAt = null;
-                engagementReported = false;
+                engagement.Reset();
+                engagementLastMountPosition = null;
                 return;
             }
-            var now = game.TimeController.GameTime;
-            if (!engagementStartedAt.HasValue)
-            {
-                engagementStartedAt = now;
-                engagementProposals = AutomaticProposalCount; engagementRefused = AutomaticRefusedCount;
-                engagementAccepted = AutomaticAdmittedCount + AutomaticContinuedCount; engagementDispatched = AutomaticDispatchCount;
-                engagementMountOrigin = mount.Position;
-                return;
-            }
-            if (engagementReported || (now - engagementStartedAt.Value).TotalSeconds < MountedEngagementDiagnostic.ReportAfterSeconds) return;
-            engagementReported = true;
+            var now = game.TimeController.GameTime.TotalSeconds;
+            engagement.Open(now);
             var rider = relationship.Rider;
-            var displacement = mount.Position - engagementMountOrigin; displacement.y = 0f;
-            LastEngagementFirstStop = MountedEngagementDiagnostic.FirstStop(AutomaticProposalCount - engagementProposals,
-                AutomaticRefusedCount - engagementRefused, AutomaticAdmittedCount + AutomaticContinuedCount - engagementAccepted,
-                AutomaticDispatchCount - engagementDispatched, displacement.magnitude, HasRiderPlayerOperation(rider, mount),
-                LastAutomaticRefusal);
-            TryLog(() => "Mounted real-time engagement: firstStop=" + LastEngagementFirstStop +
-                "; mountDisplacement=" + displacement.magnitude.ToString("R") +
+            var playerOperation = HasRiderPlayerOperation(rider, mount) || HasStockAttackIntent && !stockIntent.Automatic;
+            if (playerOperation) engagement.ObservePlayerOperation();
+            var position = mount.Position;
+            if (engagementLastMountPosition.HasValue)
+            {
+                var delta = position - engagementLastMountPosition.Value; delta.y = 0f;
+                engagement.ObserveDisplacement(delta.magnitude,
+                    HasStockAttackIntent && stockIntent.Automatic && stockIntent.Generation == engagement.OrderGeneration && StockIntentOwnMotionLive,
+                    playerOperation);
+            }
+            engagementLastMountPosition = position;
+            if (!engagement.Due(now)) return;
+            var report = engagement.Report();
+            LastEngagementFirstStop = engagement.FirstStop();
+            TryLog(() => "Mounted real-time engagement: " + report +
                 "; aiEnabled=" + (rider != null && rider.IsAIEnabled) + "; brainActive=" + (rider != null && rider.IsBrainActive) +
-                "; riderHold=" + (rider != null && rider.HoldState) + "; playerMoveHold=" + automaticGate.PlayerMoveHold +
+                "; riderHold=" + (rider != null && rider.HoldState) + "; mountHold=" + mount.HoldState +
+                "; mountHoldByPlayer=" + mountHold.MountHeldByPlayer(mount.HoldState) + "; playerMoveHold=" + automaticGate.PlayerMoveHold +
                 "; intent=" + (HasStockAttackIntent ? (stockIntent.Automatic ? "automatic" : "player") : "none") +
                 "; lastObservation=" + LastStockAttackObservation + ".");
         }
 
+        private bool StockIntentOwnMotionLive => stockIntentCommand != null &&
+            (!stockIntentCommand.IsFinished || stockIntentCommand.DelegatedMove != null && !stockIntentCommand.DelegatedMove.IsFinished);
+
         // MMR-03/R1-F6: turn-based participant selection uses the dispatcher's own admission (CaptureContext and the action
         // evaluator: Standard, native capability block, paired addressability, selection and transaction), so an
         // individually ended or prohibited actor is skipped exactly as dispatch would refuse it.
+        // MMR-02 (review R3-F2): the dispatcher's own admission of the rider's melee attack on a clicked target (Standard,
+        // native capability block, paired addressability, selection and transaction), read before native accepts the click.
+        internal bool RiderMeleeClickAdmitted(UnitEntityData target) =>
+            !disposed && relationship.State == RelationshipState.Mounted && target != null &&
+            EvaluateStockActor(MountedCombatActionKind.RiderMelee, target).IsAllowed;
+
         private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target)
         {
             NativeSingleAttackWeaponSelection ignored;
             return MountedCombatActionEvaluator.Evaluate(CaptureContext(action, target, out ignored, false, true, false));
         }
 
-        // MMR-03/R1-F5: newer player work that entered the rider's or mount's native container while a turn-based ordinary
-        // intent is retained overrides that intent's horse follow-through for its generation, even after the work leaves the
-        // slot or queue. The pair's own commands, reactions and Free/Swift actions do not override it.
-        private long stockIntentOverriddenGeneration = -1;
-        private long stockIntentKindGeneration = -1;
-        private bool stockIntentMelee;
-
-        private void ObserveCompetingPairWork(UnitCommands container, UnitCommand command)
+        // Reviews R1-F5, R3-F3, R2-F5. Called by the native acceptance seams only for a command native now holds: the private
+        // UnitCommands.Run overload's postfix (slot; the public Run, queue promotion and a custom ExecuteBefore all reach it) and
+        // AddToQueueInternal's postfix (queue; AddToQueue/AddToQueueFirst, Run's queue-instead path, custom handlers). A refused
+        // submission or a merge into a running command is never observed. The retained order's own wrapper and every exact
+        // delegated move it issued (repath replacements included) are recognized by identity, so they never count as newer work.
+        internal void ObserveAcceptedWork(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)
         {
-            if (!HasStockAttackIntent || stockIntent.Automatic || container == null || command == null ||
-                container != relationship.Rider?.Commands && container != relationship.Mount?.Commands) return;
-            if (!MountedFollowThroughPolicy.OverridesRetainedOrder(command is MountedPairSingleAttack, command is UnitAttackOfOpportunity,
-                    command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift,
-                    IsPairPlayerOrder(command) && command.AiAction == null)) return;
-            stockIntentOverriddenGeneration = stockIntent.Generation;
+            if (disposed || command == null || container == null || relationship.State != RelationshipState.Mounted ||
+                !HasStockAttackIntent || !retainedOrder.IsCurrent(stockIntent.Generation)) return;
+            var onRider = container == relationship.Rider?.Commands;
+            if (!onRider && container != relationship.Mount?.Commands) return;
+            var facts = new MountedAcceptedWorkFacts
+            {
+                PairCommand = command is MountedPairSingleAttack,
+                Reaction = command is UnitAttackOfOpportunity,
+                AiOrigin = command.AiAction != null,
+                PlayerOrder = IsPairPlayerOrder(command),
+                FreeOrSwift = command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift,
+                NeedsApproach = CommandNeedsApproach(command)
+            };
+            if (MountedRetainedOrderLedger.Classify(retainedOrder.IsRetainedOwn(command), facts) != MountedAcceptedWorkClass.Competing) return;
+            retainedOrder.ObserveAccepted(command, facts, route, (onRider ? "rider:" : "mount:") + DescribeCommand(command));
+            LastCompetingWorkDetail = retainedOrder.OverrideDetail;
+        }
+
+        internal string LastCompetingWorkDetail { get; private set; }
+
+        internal MountedRetainedOrderLedger RetainedOrder => retainedOrder;
+
+        // Native would move its actor for it: not started and not yet close enough (UnitCommand.IsUnitEnoughClose).
+        private static bool CommandNeedsApproach(UnitCommand command)
+        {
+            if (command.IsStarted) return false;
+            try { return !command.IsUnitEnoughClose; }
+            catch (Exception) { return true; }
+        }
+
+        // The pair's own exact carrier moves: the retained order's, and the active pair command's (a charge included).
+        internal bool IsOwnDelegatedMove(UnitCommand command) => command is UnitMoveTo &&
+            (retainedOrder.IsRetainedOwn(command) || activeCommand != null && activeCommand.IsOwnDelegatedMove(command));
+
+        // Review R1-F8: UnitMoveTo.OnAction sets a player-faction executor's Hold in real-time combat. For the pair's own
+        // delegated move that write is undone (an unmounted attacker's approach sets none); every other move keeps it.
+        internal void RestoreHoldAfterMoveAction(UnitMoveTo move, bool holdBefore)
+        {
+            var executor = move?.Executor;
+            if (disposed || executor == null || executor != relationship.Mount) return;
+            if (!MountedHoldProvenance.RestoreHoldAfterMoveAction(IsOwnDelegatedMove(move), holdBefore, executor.HoldState)) return;
+            executor.HoldState = holdBefore;
+            OwnMoveHoldRestoredCount++;
+        }
+
+        internal int OwnMoveHoldRestoredCount { get; private set; }
+
+        internal void ObserveHoldInput()
+        {
+            if (!IsPairSelected()) return;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            mountHold.ObservePlayerHoldInput(UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, relationship.Mount));
         }
 
         public void Cancel(string reason)
@@ -1216,6 +1291,7 @@ namespace KingmakerMountedCombat.Integration
                 // Consume this exact pair request before UnitCommands.Run can replace its windup/approach.
                 // The stock pointer loop still dispatches every unrelated selected party member.
                 stockIntent.PromoteToPlayer();
+                retainedOrder.PromoteToPlayer();
                 stockIntentCommand?.PromoteToPlayerOrigin();
                 automaticRuns.Clear();
                 principal.CombatState.ManualTarget = target;
@@ -1227,6 +1303,9 @@ namespace KingmakerMountedCombat.Integration
             stockIntent.Begin(target, turn, ownerIsMount, IsPairInCombat(),
                 rider, mount, weaponContext, mountWeaponContext, (int)actionContext,
                 targetUnconsciousWhenOrdered: orderedWhileUnconscious);
+            // Review R2-F1: the order's attack kind is fixed here, at acceptance, for its whole lifetime.
+            retainedOrder.Begin(stockIntent.Generation, false,
+                ownerIsMount || actionContext != MountedCombatActionKind.RiderRanged);
             StockAttackIntentStartCount++;
             principal.CombatState.ManualTarget = target;
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -1296,20 +1375,31 @@ namespace KingmakerMountedCombat.Integration
                 NewerPlayerOperation = HasRiderPlayerOperation(rider, mount),
                 RiderCannotAttack = NativeActorCapability.Read(rider).CanNotAttack
             }, out refusal);
+            // Review R1-F11: native's own ranking for this exact proposal (the brain's live decision context), read only.
+            var ranking = turnBased ? null : NativeBrainRankingReader.Describe(rider, target);
+            var engagementNow = Game.Instance?.TimeController?.GameTime.TotalSeconds;
+            if (ranking != null) LastAutomaticProposalRanking = ranking;
             if (decision == MountedAutomaticProposalDecision.Refuse)
             {
                 AutomaticRefusedCount++;
                 LastAutomaticRefusal = refusal + ";target=" + (target?.UniqueId ?? "<none>") + ";frame=" + Time.frameCount;
+                if (!turnBased && engagementNow.HasValue && IsPairInCombat())
+                    engagement.ObserveProposal(engagementNow.Value, target?.UniqueId, ranking, false, -1, refusal);
                 return;
             }
             if (decision == MountedAutomaticProposalDecision.ContinueOwnIntent)
             {
                 AutomaticContinuedCount++;
+                if (!turnBased && engagementNow.HasValue && IsPairInCombat())
+                    engagement.ObserveProposal(engagementNow.Value, target?.UniqueId, ranking, true, stockIntent.Generation, null);
                 return;
             }
             AutomaticAdmittedCount++;
             stockIntent.Begin(target, null, false, IsPairInCombat(), rider, mount, rider.GetFirstWeapon(), mount.GetFirstWeapon(),
                 (int)ResolveRiderPrimaryAction(), true);
+            retainedOrder.Begin(stockIntent.Generation, true, ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderRanged);
+            if (!turnBased && engagementNow.HasValue && IsPairInCombat())
+                engagement.ObserveProposal(engagementNow.Value, target.UniqueId, ranking, true, stockIntent.Generation, null);
             LastStockAttackObservation = "automatic-intent-start;target=" + target.UniqueId +
                 ";ranged=" + (ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderRanged) +
                 ";brainAction=" + proposal.AiAction.AssetGuid + ";movementForbidden=" + movementForbidden;
@@ -1317,6 +1407,8 @@ namespace KingmakerMountedCombat.Integration
                 "; brainAction=" + proposal.AiAction.AssetGuid + "; movementForbidden=" + movementForbidden + ".");
             TryDriveStockAttackIntent();
         }
+
+        internal string LastAutomaticProposalRanking { get; private set; }
 
         // The mount, not the rider, approached and failed, so the native UnitMovementAgent marked the target on the wrong
         // actor. Recording it on the rider gives the rider's brain the native reach-only rule for this target
@@ -1332,9 +1424,25 @@ namespace KingmakerMountedCombat.Integration
                 rider?.CombatState?.AIData.UnreachableUnits.Add(failed);
         }
 
+        // Review R1-F8: the movement owner is the mount. Its Hold restricts automatic movement only when the player put it there
+        // (MountedHoldProvenance); a mount that cannot move restricts it as the rider's own conditions do.
         private bool AutomaticMovementForbidden(UnitEntityData rider)
         {
-            return rider != null && (rider.AiMovementForbidden || automaticGate.PlayerMoveHold);
+            var mount = relationship.Mount;
+            return rider != null && MountedHoldProvenance.AutomaticMovementForbidden(rider.AiMovementForbidden, automaticGate.PlayerMoveHold,
+                mount == null || mount.Descriptor.State.CanMove, mount != null && mountHold.MountHeldByPlayer(mount.HoldState));
+        }
+
+        // Mounted reach of the rider's melee strike from where the pair stands: mount origin, mount + target corpulence plus the
+        // weapon's reach, with line of sight (the same geometry the pair command's admission uses).
+        private bool IsRiderStrikeInMountedReach(UnitEntityData target)
+        {
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var weapon = rider?.GetFirstWeapon();
+            if (mount?.View == null || target?.View == null || weapon?.Blueprint == null) return false;
+            return mount.DistanceTo(target) <= mount.View.Corpulence + target.View.Corpulence + weapon.AttackRange.Meters +
+                MountedCombatSpatialPolicy.RangeTolerance && mount.HasLOS(target);
         }
 
         private bool IsTargetInRiderReach(UnitEntityData target)
@@ -1372,6 +1480,24 @@ namespace KingmakerMountedCombat.Integration
                     });
                 }
             }
+            // Review R2-F5: the player's own work in the mount's slots counts too (a newer mount order while the old attack
+            // waits), except the pair's own commands and carrier moves, reactions and coexisting Free/Swift actions.
+            var mountRaw = mount?.Commands?.Raw;
+            if (mountRaw != null)
+            {
+                foreach (var command in mountRaw)
+                {
+                    if (command == null || !IsPairPlayerOrder(command)) continue;
+                    slots.Add(new MountedAutomaticSlotFacts
+                    {
+                        Finished = command.IsFinished,
+                        AiOrigin = command.AiAction != null,
+                        PairOwnedOrReaction = command is MountedPairSingleAttack || command is UnitAttackOfOpportunity || IsOwnDelegatedMove(command),
+                        CoexistsWithAttack = (command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift) &&
+                            !CommandNeedsApproach(command)
+                    });
+                }
+            }
             var live = MountedAutomaticAttackPolicy.HasPlayerOperation(slots, CountForeignQueued(rider) + CountForeignQueued(mount));
             // F4 decision snapshot (r03 Hold stall): the exact operations that made this predicate true, overwritten only
             // when it is true, so a refusal can always be attributed to a named command.
@@ -1394,6 +1520,12 @@ namespace KingmakerMountedCombat.Integration
                     if (command != null && !command.IsFinished && command.AiAction == null && !(command is MountedPairSingleAttack) &&
                         !(command is UnitAttackOfOpportunity))
                         parts.Add("riderSlot=" + DescribeCommand(command));
+            var mountRaw = mount?.Commands?.Raw;
+            if (mountRaw != null)
+                foreach (var command in mountRaw)
+                    if (command != null && !command.IsFinished && command.AiAction == null && !(command is MountedPairSingleAttack) &&
+                        !(command is UnitAttackOfOpportunity) && command.CreatedByPlayer)
+                        parts.Add("mountSlot=" + DescribeCommand(command));
             foreach (var unit in new[] { rider, mount })
             {
                 var queue = unit?.Commands?.Queue;
@@ -1444,7 +1576,7 @@ namespace KingmakerMountedCombat.Integration
                 automaticGate.IsSuppressed(relationship.MountedPairGeneration),
                 movementForbidden,
                 !movementForbidden || !approaching && IsTargetInRiderReach(stockIntentTarget),
-                HasRiderPlayerOperation(rider, mount));
+                HasRiderPlayerOperation(rider, mount) || retainedOrder.Superseded(stockIntent.Generation));
             if (reason == null) return false;
             var automatic = stockIntent.Automatic;
             var command = stockIntentCommand;
@@ -1525,15 +1657,13 @@ namespace KingmakerMountedCombat.Integration
             // where it stands: exactly the ranged rule.
             var automaticOrigin = stockIntent.Automatic;
             var stationary = automaticOrigin && AutomaticMovementForbidden(rider);
-            // MMR-03 (reviews R1-F4/F5/F6, R2-F1). Turn-based: each actor is offered only when the dispatcher's own admission
-            // allows it, so an individually ended or prohibited rider leaves the eligible horse its attack and vice versa. The
-            // horse joins a rider's ordinary order only for the order's accepted attack kind (melee, fixed at acceptance) and only
-            // while no newer player work has entered either actor's container for this intent. Real time is unchanged.
-            if (stockIntentKindGeneration != stockIntent.Generation)
-            {
-                stockIntentKindGeneration = stockIntent.Generation;
-                stockIntentMelee = !ranged;
-            }
+            // MMR-03 (reviews R1-F4/F5/F6, R2-F1, R3-F3). Turn-based: each actor is offered only when the dispatcher's own
+            // admission allows it, so an individually ended or prohibited rider leaves the eligible horse its attack and vice
+            // versa. The horse joins a rider's ordinary order only for the attack kind the order was ACCEPTED with
+            // (MountedRetainedOrderLedger, fixed at Begin) and only while no newer player work was accepted into either actor's
+            // container for this order; the order's own wrapper and exact delegated moves (repaths included) never count.
+            var orderGeneration = stockIntent.Generation;
+            var meleeOrder = retainedOrder.IsCurrent(orderGeneration) ? retainedOrder.Melee : !ranged;
             var dispatchTurn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
             var riderEligible = turnBased
                 ? EvaluateStockActor(riderAction == MountedCombatActionKind.RiderRanged ? MountedCombatActionKind.RiderRanged : MountedCombatActionKind.RiderMelee, target).IsAllowed
@@ -1541,6 +1671,16 @@ namespace KingmakerMountedCombat.Integration
             var mountEligible = turnBased
                 ? EvaluateStockActor(MountedCombatActionKind.MountPrimaryNatural, target).IsAllowed
                 : mount != null && mount.HasStandardAction();
+            // MMR-05 (review R3-F1). Real time, neither actor strike-ready, an out-of-reach melee order whose movement is lawful:
+            // the rider's order is dispatched now and waits in its native slot exactly as an unmounted UnitAttack does (native
+            // ShouldStartCommand keeps preparation, the initiative wait, cooldown and busy hands); its own pre-start approach
+            // moves the mount meanwhile. Nothing readies, refunds or spends an action.
+            var dispatchBeforeReadiness = !turnBased && rider != null && mount != null &&
+                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(true, !stockIntent.MountActor,
+                    meleeOrder && riderAction == MountedCombatActionKind.RiderMelee,
+                    stationary || !mount.Descriptor.State.CanMove, IsRiderStrikeInMountedReach(target),
+                    riderEligible, mountEligible, rider.IsStandardActionRestricted(), rider.Descriptor.State.CanAct);
+            if (dispatchBeforeReadiness) riderEligible = true;
             var decision = UnifiedMountedStockAttackPolicy.DecideNext(
                 relationship.State == RelationshipState.Mounted && rider != null && mount != null,
                 targetValid,
@@ -1554,7 +1694,7 @@ namespace KingmakerMountedCombat.Integration
                 UnifiedMountedStockAttackPolicy.MountJoinsIntent(turnBased, stockIntent.MountActor, settings.UseLegacyUnifiedTurn,
                     settings.EnablePairedActivation, stockIntent.Automatic,
                     turnBased && mount != null && unifiedTurn.CanAddressActor(mount, dispatchTurn),
-                    stockIntentMelee, stockIntentOverriddenGeneration == stockIntent.Generation),
+                    meleeOrder, retainedOrder.Superseded(orderGeneration)),
                 settings.EnablePairedActivation && stockIntent.PreferMount);
 
             if (decision == MountedStockAttackDecision.Wait)
@@ -1605,12 +1745,15 @@ namespace KingmakerMountedCombat.Integration
                 ? riderAction
                 : MountedCombatActionKind.MountPrimaryNatural;
             var generation = stockIntent.Generation;
+            var allowApproach = !stationary && (!ranged || action != MountedCombatActionKind.MountPrimaryNatural);
             var result = TryExecuteAction(
                 action,
                 target,
                 automaticOrigin ? AutomaticInputSurface : "stock-hostile-click",
                 rider,
-                !stationary && (!ranged || action != MountedCombatActionKind.MountPrimaryNatural));
+                allowApproach,
+                !turnBased && allowApproach && action == MountedCombatActionKind.RiderMelee,
+                dispatchBeforeReadiness && action == MountedCombatActionKind.RiderMelee);
             if (result != MountedCombatClickResult.HandledAccepted || activeCommand == null)
             {
                 // Read before clearing: whether the request already dispatched decides its answer. Every rejection
@@ -1644,7 +1787,8 @@ namespace KingmakerMountedCombat.Integration
             }
 
             stockIntentCommand = activeCommand;
-            if (automaticOrigin) AutomaticDispatchCount++;
+            if (automaticOrigin) { AutomaticDispatchCount++; engagement.ObserveDispatch(generation); }
+            if (dispatchBeforeReadiness) StockAttackDispatchBeforeReadinessCount++;
             stockIntent.ObserveDispatch(action == MountedCombatActionKind.MountPrimaryNatural);
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
@@ -1659,6 +1803,8 @@ namespace KingmakerMountedCombat.Integration
                 ";riderStandard=" + rider.CombatState.Cooldown.StandardAction.ToString("R") +
                 ";mountStandard=" + mount.CombatState.Cooldown.StandardAction.ToString("R");
         }
+
+        internal long StockAttackDispatchBeforeReadinessCount { get; private set; }
 
         private bool IsMountAlreadyInPrimaryRange(UnitEntityData target)
         {
@@ -1696,6 +1842,7 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount.CombatState.ManualTarget = null;
             }
             stockIntent.Cancel();
+            retainedOrder.Clear();
             stockIntentCommand = null;
             automaticRuns.Clear();
             if (target != null)
@@ -1745,6 +1892,8 @@ namespace KingmakerMountedCombat.Integration
             if (!IsPairSelected()) return;
             ObservePlayerMoveOutcome();
             automaticGate.ObserveStop(relationship.MountedPairGeneration);
+            mountHold.ObservePlayerStopInput(UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(
+                SelectionManager.Instance?.SelectedUnits, relationship.Mount));
         }
 
         internal void ObserveSelectedPlayerOrder()
@@ -1820,7 +1969,10 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)
         {
             if (disposed || owner == null || owner != relationship.Rider && owner != relationship.Mount) return false;
-            var keeps = automaticRuns.NativeRunKeepsHold(command, owner.Commands?.Queue.First?.Value, doNotClearQueue,
+            // Review R1-F8: an automatic order's exact delegated move does not clear the mount's Hold.
+            var keeps = owner == relationship.Mount &&
+                MountedHoldProvenance.NativeRunKeepsMountHold(retainedOrder.IsRetainedOwn(command), retainedOrder.Automatic) ||
+                automaticRuns.NativeRunKeepsHold(command, owner.Commands?.Queue.First?.Value, doNotClearQueue,
                 relationship.MountedPairGeneration);
             if (keeps && owner.HoldState) AutomaticHoldKeptCount++;
             if (keeps && owner.HoldState && fromQueue) AutomaticQueuedHoldKeptCount++;
@@ -2239,7 +2391,8 @@ namespace KingmakerMountedCombat.Integration
             out NativeSingleAttackWeaponSelection mountPrimary,
             bool assumeTargetAvailable = false,
             bool ordinaryIntent = false,
-            bool nativeActorIntent = false)
+            bool nativeActorIntent = false,
+            bool nativeStartGatesReadiness = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -2304,7 +2457,10 @@ namespace KingmakerMountedCombat.Integration
                 TargetIsVisibleEnemy = assumeTargetAvailable || targetValid && target.IsVisibleForPlayer && actionActor != null &&
                     actionActor.IsEnemy(target) && actionActor.CanAttack(target),
                 ActionActorOwnsCurrentTurnOrRealTime = actionActorTurn,
-                ActionActorHasStandardAction = actionActor != null && actionActor.HasStandardAction(),
+                // MMR-05 (review R3-F1): a real-time rider order dispatched before strike readiness waits in its native slot;
+                // native ShouldStartCommand alone decides when it may start (cooldown, initiative). A restriction still refuses.
+                ActionActorHasStandardAction = actionActor != null && (actionActor.HasStandardAction() ||
+                    nativeStartGatesReadiness && !turnBasedCombat && actionActor == rider && !actionActor.IsStandardActionRestricted()),
                 // A remaining Standard is not permission to act: the acting actor's own conditions are read separately.
                 ActionActorCapabilityBlock = MountedActorCapabilityPolicy.AdmissionBlock(
                     NativeActorCapability.Read(actionActor), turnBasedCombat),
@@ -2659,7 +2815,6 @@ namespace KingmakerMountedCombat.Integration
             if (admitted)
             {
                 ObserveContainerOrderRun(container, routed);
-                ObserveCompetingPairWork(container, routed);
             }
             return admitted;
         }
