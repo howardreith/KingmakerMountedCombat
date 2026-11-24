@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R2-F5: newer player work in a mount slot retires a waiting real-time order; own carrier moves do not", RealTimeMountSlotSuccessor);
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
             runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
+            runner.Run("R6-F3: the click's order allowance equals execution across the Standard conversion; limits hold", OrderAllowanceMatchesExecution);
             runner.Run("R5-F2/R4-F1: the production route walk finds the first legal reach exactly and recosts a shifted start", RouteWalkerBoundaries);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
             runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
@@ -77,6 +78,50 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 2.7f), "The recosted shifted route passed a grant it exceeds.");
             // Never admissible: no route.
             TestRunner.True(!MountedRouteWalker.Walk(corner, Dist, Lerp, point => false, out route, out cost) && route == null, "A route without legal reach was accepted.");
+        }
+
+        // Review R6-F3: the order allowance the click and revalidation use (RemainingAcrossOrder) equals what the same production
+        // MountedMovementState grants when the mount's turn accounting advances it tick by tick (Advance), across the Standard
+        // conversion; single-move, step, auto-stop and a spent Standard keep their limits. The mount pays every debit (its
+        // native Move cooldown passes 3 into the conversion); the rider's own actions are not involved.
+        private static void OrderAllowanceMatchesExecution()
+        {
+            const float speed = 9f, step = 1.524f, dt = 0.05f;
+            float Execute(float moveUsed, bool standardUsed, bool singleMove, bool autoStop, out float mountMoveCooldown)
+            {
+                var state = new MountedMovementState();
+                var travelled = 0f; var used = moveUsed;
+                for (var tick = 0; tick < 400; tick++)
+                {
+                    float debit;
+                    var granted = state.Advance(dt, speed, step, used, standardUsed, false, false, singleMove, false, false, autoStop, out debit);
+                    used += debit;
+                    travelled += granted;
+                    if (granted <= 0f && tick > 0) break;
+                }
+                mountMoveCooldown = used;
+                return travelled;
+            }
+            float Admission(float moveUsed, bool standardUsed, bool singleMove, bool autoStop) =>
+                new MountedMovementState().RemainingAcrossOrder(speed, step, moveUsed, standardUsed, false, false, singleMove, autoStop);
+            float cooldown;
+            // Partially spent first Move (1.5 s), TwoActions, auto-stop off: 4.5 s across the order; the mount pays the conversion.
+            var executed = Execute(1.5f, false, false, false, out cooldown);
+            TestRunner.True(Math.Abs(Admission(1.5f, false, false, false) - 4.5f) < 1e-4f && Math.Abs(executed - 4.5f) < 1e-3f && cooldown > 3f,
+                "The order allowance did not match execution across the conversion: admission " + Admission(1.5f, false, false, false) + ", executed " + executed + ", cooldown " + cooldown);
+            TestRunner.True(Math.Abs(new MountedMovementState().Remaining(speed, step, 1.5f, false, false, false, false) - 1.5f) < 1e-4f,
+                "The current-action slice changed (it remains the per-tick native allowance).");
+            // Controls: conversion unavailable (Standard spent), single-move limit, auto-stop after the first Move action.
+            foreach (var control in new[] { new[] { true, false, false }, new[] { false, true, false }, new[] { false, false, true } })
+            {
+                var admitted = Admission(1.5f, control[0], control[1], control[2]);
+                var done = Execute(1.5f, control[0], control[1], control[2], out cooldown);
+                TestRunner.True(Math.Abs(admitted - 1.5f) < 1e-4f && Math.Abs(done - 1.5f) < 1e-3f && cooldown <= 3.0001f,
+                    "A limited order exceeded its first action: admission " + admitted + ", executed " + done + ", cooldown " + cooldown);
+            }
+            // A five-foot step keeps the step allowance.
+            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) - step / speed) < 1e-4f,
+                "The step allowance changed.");
         }
 
         private static readonly MountedAcceptedWorkFacts PlayerMove = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = true };

@@ -97,7 +97,7 @@ namespace KingmakerMountedCombat.Integration
             singleMove = input.EnabledSingleActionMove;
             if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
             reason = "granted";
-            return movementState.RemainingGrantedMetres(mount, step, singleMove);
+            return movementState.RemainingOrderMetres(mount, step, singleMove);
         }
 
         internal bool CanMovePairedMount(TurnController turn)
