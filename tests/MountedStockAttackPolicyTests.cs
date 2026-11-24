@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
             runner.Run("MMR-02: only a rider attack click dropped by native's rider-path check is admitted", PairedAttackClickAdmission);
             runner.Run("MMR-04/05: real-time melee intent approaches while its strike is not yet ready", RealTimeApproachWhileWaiting);
+            runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -459,6 +460,37 @@ namespace KingmakerMountedCombat.Tests
             reused.Release();
             reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
+        }
+
+        private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }
+
+        private static void SavedHorseRepairLedger()
+        {
+            var ledger = new LoadedInstanceRepairLedger<LoadedUnit>();
+            var removals = 0;
+            Func<LoadedUnit, int> repair = unit => { var n = unit.Stale; unit.Stale = 0; removals += n; return n; };
+            int changed;
+            var first = new LoadedUnit("horse-1");
+            // Save worker, pending restoration, a native load or a disabled service: zero removals, object still pending.
+            foreach (var admitted in new[] {
+                HorseInheritedFactRepairPolicy.MayRepair(true, true, true), HorseInheritedFactRepairPolicy.MayRepair(true, false, false),
+                HorseInheritedFactRepairPolicy.MayRepair(false, true, false) })
+            {
+                TestRunner.True(!ledger.TryRun(first, admitted, repair, out changed) && changed == 0 && removals == 0 && !ledger.IsCompleted(first),
+                    "A protected phase repaired or completed the Horse.");
+            }
+            // A failed pass leaves the object pending; the next settled update retries it once.
+            var failed = false;
+            try { ledger.TryRun(first, true, unit => { throw new InvalidOperationException("simulated"); }, out changed); }
+            catch (InvalidOperationException) { failed = true; }
+            TestRunner.True(failed && !ledger.IsCompleted(first) && removals == 0, "A failed pass was recorded as complete.");
+            TestRunner.True(ledger.TryRun(first, HorseInheritedFactRepairPolicy.MayRepair(true, true, false), repair, out changed) && changed == 1 &&
+                ledger.IsCompleted(first), "The settled retry did not repair the Horse.");
+            TestRunner.True(!ledger.TryRun(first, true, repair, out changed) && removals == 1, "A completed Horse was repaired twice.");
+            // A reload: a new object with the same stable ID is examined again, independently of the old one.
+            var reloaded = new LoadedUnit("horse-1");
+            TestRunner.True(!ledger.IsCompleted(reloaded) && ledger.TryRun(reloaded, true, repair, out changed) && changed == 1 && removals == 2,
+                "A reloaded Horse with the same ID was skipped.");
         }
 
         private static void RealTimeApproachWhileWaiting()

@@ -4,7 +4,9 @@ using System.Linq;
 using Kingmaker.Blueprints.Facts;
 using Kingmaker.Designers.Mechanics.Facts;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.UnitLogic;
+using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -13,48 +15,69 @@ namespace KingmakerMountedCombat.Integration
     // [TrippingBite, NaturalArmor7, TripDefenseFourLegs]: the stock Dog and Wolf carry the same TrippingBite
     // (ManeuverOnAttack: Trip on a bite hit). It never fires for a Mammoth, which has no bite, but the KMC Horse bites
     // ([Bite1d4, Hoof1d4, Hoof1d4]), so every horse bite hit could trip. A Pathfinder horse companion has no such trigger.
-    // The Horse alone drops an inherited intrinsic attack-maneuver trigger; the stock Mammoth, Dog, Wolf, the KMC Riding
-    // Dog, the shared bite and any independently granted maneuver are untouched.
+    // Only that exact stock grant is withheld from the Horse (review R1-F1): any other fact, including another mod's own
+    // attack-maneuver fact, is inherited unchanged; the stock Mammoth, Dog, Wolf, the KMC Riding Dog, the shared bite and
+    // the Horse's body limbs are untouched.
     internal sealed partial class HorseCompanionBlueprintService
     {
-        // Stock TrippingBite (installed 2.1.7b, sharedassets1); recorded for evidence and the contract test, not matched by
-        // name: the filter keys on the trigger component, so a mod's equivalent copy is excluded the same way.
+        // Stock TrippingBite (installed 2.1.7b sharedassets1; scripts/Test-MountedAlpha2NativeContract.ps1 pins it).
         internal const string StockTrippingBiteGuid = "f957b4444b6fb404e84ae2a5765797bb";
 
-        private readonly HashSet<string> inheritedFactRepairedHorses = new HashSet<string>(StringComparer.Ordinal);
+        // Completion is recorded per loaded unit object, never per stable ID (review R1-F2): a reload creates a new object
+        // with the same UniqueId, which is examined again.
+        private readonly LoadedInstanceRepairLedger<UnitEntityData> inheritedFactRepairedHorses =
+            new LoadedInstanceRepairLedger<UnitEntityData>();
 
-        // A fact whose components make an attack hit perform a combat maneuver by itself (ManeuverOnAttack). Reference
-        // comparisons only, so a genuine blueprint is judged the same inside and outside the Unity player.
-        internal static bool GrantsIntrinsicAttackManeuver(BlueprintUnitFact fact) =>
-            !ReferenceEquals(fact, null) && fact.ComponentsArray != null &&
-            fact.ComponentsArray.Any(component => component is ManeuverOnAttack);
+        // Set by the composition root: true while a save worker can commit or a combat/presentation restoration is pending.
+        internal Func<bool> InheritedFactRepairBlocked { get; set; }
 
-        // The Horse's AddFacts: the donor's facts in order, without an inherited intrinsic attack-maneuver trigger.
+        internal int InheritedFactRepairCount { get; private set; }
+
+        private bool inheritedFactRepairFailureReported;
+
+        // The exact stock grant: its installed identity and its bite-Trip trigger (reference comparisons only, so a genuine
+        // blueprint is judged the same inside and outside the Unity player).
+        internal static bool IsStockTrippingBite(BlueprintUnitFact fact) =>
+            !ReferenceEquals(fact, null) && string.Equals(fact.AssetGuid, StockTrippingBiteGuid, StringComparison.Ordinal) &&
+            fact.ComponentsArray != null && fact.ComponentsArray.Any(component => component is ManeuverOnAttack);
+
+        // The Horse's AddFacts: the donor's facts in order, without the stock TrippingBite.
         internal static BlueprintUnitFact[] HorseInheritedFacts(BlueprintUnitFact[] donorFacts) =>
-            CloneArray(donorFacts).Where(fact => !GrantsIntrinsicAttackManeuver(fact)).ToArray();
+            CloneArray(donorFacts).Where(fact => !IsStockTrippingBite(fact)).ToArray();
 
-        // A horse created before this repair kept the trigger as a Feature the unit blueprint added at creation: the
-        // native UnitDescriptor.Initialize adds each BlueprintUnit.AddFacts entry through UnitHelper.AddFact with no
-        // source, so its Feature.Source is null. A Feature granted by a class, race, progression or selection records
-        // that source and is kept, as is every other fact. Returns the removed facts.
+        // A horse created before this repair kept the stock TrippingBite as a Feature its unit blueprint added at creation:
+        // native UnitDescriptor.Initialize adds each BlueprintUnit.AddFacts entry through UnitHelper.AddFact with no source,
+        // item or cutscene. Only that attributable grant is stale: the same blueprint granted by a class, race, progression,
+        // selection, item or cutscene records its provenance and is kept, as is every other fact.
         internal static List<Feature> StaleInheritedAttackManeuvers(IEnumerable<Feature> features) =>
             (features ?? Enumerable.Empty<Feature>())
-                .Where(feature => !ReferenceEquals(feature, null) && ReferenceEquals(feature.Source, null) &&
-                                  GrantsIntrinsicAttackManeuver(feature.Blueprint))
+                .Where(feature => !ReferenceEquals(feature, null) && IsStockTrippingBite(feature.Blueprint as BlueprintUnitFact) &&
+                                  ReferenceEquals(feature.Source, null) && ReferenceEquals(feature.SourceItem, null) &&
+                                  ReferenceEquals(feature.SourceCutscene, null))
                 .ToList();
 
-        // Idempotent, once per loaded exact KMC Horse unit (the Riding Dog and other companions are never examined).
+        // Once per loaded exact KMC Horse object, only on a settled world (no load or queued load, no save worker, no pending
+        // restoration); success is recorded only after every removal completed, so a failed pass is retried on that object.
         private void RepairInheritedHorseFacts(UnitEntityData pet)
         {
             if (pet == null || !string.Equals(pet.Blueprint?.AssetGuid, UnitGuid, StringComparison.Ordinal)) { return; }
-            var features = pet.Descriptor?.Progression?.Features;
-            if (features == null || !inheritedFactRepairedHorses.Add(pet.UniqueId)) { return; }
-            var stale = StaleInheritedAttackManeuvers(features.Enumerable);
-            foreach (var feature in stale) { features.RemoveFact(feature); }
-            if (stale.Count > 0)
+            if (inheritedFactRepairedHorses.IsCompleted(pet)) { return; }
+            var loading = LoadingProcess.Instance != null && (LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any());
+            var admitted = HorseInheritedFactRepairPolicy.MayRepair(!disposed, !loading, InheritedFactRepairBlocked?.Invoke() ?? true) &&
+                pet.Descriptor?.Progression?.Features != null;
+            int removed;
+            if (!inheritedFactRepairedHorses.TryRun(pet, admitted, unit =>
+                {
+                    var features = unit.Descriptor.Progression.Features;
+                    var stale = StaleInheritedAttackManeuvers(features.Enumerable);
+                    foreach (var feature in stale) { features.RemoveFact(feature); }
+                    return stale.Count;
+                }, out removed)) { return; }
+            if (removed > 0)
             {
-                logger.Info("Removed an inherited intrinsic attack-maneuver trigger from the KMC Horse (MMR-06): pet=" + pet.UniqueId +
-                            "; facts=" + string.Join(",", stale.Select(feature => feature.Blueprint?.name + "/" + feature.Blueprint?.AssetGuid)) + ".");
+                InheritedFactRepairCount++;
+                logger.Info("Removed the inherited stock TrippingBite from the KMC Horse (MMR-06): pet=" + pet.UniqueId +
+                            "; removed=" + removed + ".");
             }
         }
     }

@@ -73,6 +73,8 @@ namespace KingmakerMountedCombat
                     horseCompanion, settings, lifecycleLedger, logger);
                 world.BindControls(nativeControls);
                 persistence = new MountedPersistenceService(world, settings, logger);
+                // MMR-06: the saved-Horse fact repair waits for a settled world (no save worker, no pending restoration).
+                horseCompanion.InheritedFactRepairBlocked = () => persistence.ActiveSaveWorkerRunning || persistence.CombatRestorationPending;
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 explorationObserver = new MountedExplorationObserver(world, logger);

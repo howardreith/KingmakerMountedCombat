@@ -116,34 +116,50 @@ function New-Fact([string]$Name, $Components) {
 $trigger = New-Native $maneuverType
 $maneuverType.GetField('Category').SetValue($trigger, [Enum]::ToObject($categoryType, $category))
 $maneuverType.GetField('Maneuver').SetValue($trigger, [Enum]::ToObject($combatManeuverType, $maneuver))
-$tb = New-Fact 'TrippingBite' @($trigger)
+$tb = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($trigger)
 $na = New-Fact 'NaturalArmor7' @((New-Native $statBonusType))
 $td = New-Fact 'TripDefenseFourLegs' @()
-$grants = $service.GetMethod('GrantsIntrinsicAttackManeuver', $any)
-Check ([bool]$grants.Invoke($null, @($tb)) -and -not [bool]$grants.Invoke($null, @($na)) -and -not [bool]$grants.Invoke($null, @($td)) -and -not [bool]$grants.Invoke($null, @($null))) 'only the bite-Trip trigger is an intrinsic attack maneuver'
-$donor = [Array]::CreateInstance($unitFactType, 3); $donor.SetValue($tb, 0); $donor.SetValue($na, 1); $donor.SetValue($td, 2)
+# Another mod's own bite-maneuver fact: same component, different identity (review R1-F1: not the stock grant).
+$otherTrigger = New-Native $maneuverType
+$maneuverType.GetField('Maneuver').SetValue($otherTrigger, [Enum]::ToObject($combatManeuverType, $maneuver))
+$other = New-Fact '0123456789abcdef0123456789abcdef' @($otherTrigger)
+$sameIdNoTrigger = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @()
+$stock = $service.GetMethod('IsStockTrippingBite', $any)
+Check ([bool]$stock.Invoke($null, @($tb)) -and -not [bool]$stock.Invoke($null, @($other)) -and -not [bool]$stock.Invoke($null, @($sameIdNoTrigger)) -and
+    -not [bool]$stock.Invoke($null, @($na)) -and -not [bool]$stock.Invoke($null, @($td)) -and -not [bool]$stock.Invoke($null, @($null))) 'only the installed stock TrippingBite identity with its bite-Trip trigger is the withheld grant'
+$donor = [Array]::CreateInstance($unitFactType, 4); $donor.SetValue($tb, 0); $donor.SetValue($na, 1); $donor.SetValue($td, 2); $donor.SetValue($other, 3)
 $inherited = $service.GetMethod('HorseInheritedFacts', $any).Invoke($null, @(, $donor))
-Check ($inherited.Length -eq 2 -and [object]::ReferenceEquals($inherited[0], $na) -and [object]::ReferenceEquals($inherited[1], $td)) 'Horse inherits [NaturalArmor7, TripDefenseFourLegs] in order, without TrippingBite'
-Check ($donor.Length -eq 3 -and [object]::ReferenceEquals($donor[0], $tb)) 'the stock Mammoth array itself is not mutated'
+Check ($inherited.Length -eq 3 -and [object]::ReferenceEquals($inherited[0], $na) -and [object]::ReferenceEquals($inherited[1], $td) -and [object]::ReferenceEquals($inherited[2], $other)) 'Horse inherits [NaturalArmor7, TripDefenseFourLegs, another mod''s maneuver fact] in order, without the stock TrippingBite'
+Check ($donor.Length -eq 4 -and [object]::ReferenceEquals($donor[0], $tb)) 'the stock Mammoth array itself is not mutated'
 Check ($service.GetMethod('HorseInheritedFacts', $any).Invoke($null, @(, $null)).Length -eq 0) 'absent donor facts give none'
+# The Horse's bite/hoof limbs are not facts: CopyBody sets them independently of AddFacts (unchanged), so the bite and its damage path remain.
+Check ($null -ne $service.GetMethod('CopyBody', $any)) 'the Horse body limbs (bite, hoof, hoof) come from CopyBody, not from the filtered facts'
 
 $liveFeatureType = GameType 'Kingmaker.UnitLogic.Feature'
+$factType = GameType 'Kingmaker.Blueprints.Facts.Fact'
 $progressionType = GameType 'Kingmaker.Blueprints.Classes.BlueprintProgression'
-function New-LiveFeature($Blueprint, $Source) {
+$itemType = GameType 'Kingmaker.Items.ItemEntityWeapon'
+$cutsceneType = GameType 'Kingmaker.Blueprints.Facts.FactSourceCutscene'
+function New-LiveFeature($Blueprint, $Source, $Item, $Cutscene) {
     $feature = New-Native $liveFeatureType
     SetField $feature $liveFeatureType 'Blueprint' $Blueprint
     if ($null -ne $Source) { SetField $feature $liveFeatureType '<Source>k__BackingField' $Source }
+    if ($null -ne $Item) { SetField $feature $factType '<SourceItem>k__BackingField' $Item }
+    if ($null -ne $Cutscene) { SetField $feature $factType '<SourceCutscene>k__BackingField' $Cutscene }
     $feature
 }
 $listType = [Collections.Generic.List`1].MakeGenericType($liveFeatureType)
 $stale = $service.GetMethod('StaleInheritedAttackManeuvers', $any)
-$inheritedTrip = New-LiveFeature $tb $null
-$sourcedTrip = New-LiveFeature $tb (New-Native $progressionType)
-$armor = New-LiveFeature $na $null; $defense = New-LiveFeature $td $null
-$saved = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $inheritedTrip, $defense, $sourcedTrip)) { $saved.Add($f) }
+$inheritedTrip = New-LiveFeature $tb $null $null $null
+$sourcedTrip = New-LiveFeature $tb (New-Native $progressionType) $null $null
+$itemTrip = New-LiveFeature $tb $null (New-Native $itemType) $null
+$cutsceneTrip = New-LiveFeature $tb $null $null ([Runtime.Serialization.FormatterServices]::GetUninitializedObject($cutsceneType))
+$otherSourceless = New-LiveFeature $other $null $null $null
+$armor = New-LiveFeature $na $null $null $null; $defense = New-LiveFeature $td $null $null $null
+$saved = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $inheritedTrip, $defense, $sourcedTrip, $itemTrip, $cutsceneTrip, $otherSourceless)) { $saved.Add($f) }
 $found = $stale.Invoke($null, [object[]]@(, $saved))
-Check ($found.Count -eq 1 -and [object]::ReferenceEquals($found[0], $inheritedTrip)) 'a saved horse: only the sourceless inherited TrippingBite is stale; a progression-granted copy, natural armor and trip defense stay'
-$clean = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $defense)) { $clean.Add($f) }
+Check ($found.Count -eq 1 -and [object]::ReferenceEquals($found[0], $inheritedTrip)) 'a saved horse: only the sourceless inherited stock TrippingBite is stale; progression-, item- and cutscene-granted copies, another sourceless maneuver fact, natural armor and trip defense stay'
+$clean = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $defense, $otherSourceless)) { $clean.Add($f) }
 Check ($stale.Invoke($null, [object[]]@(, $clean)).Count -eq 0 -and $stale.Invoke($null, [object[]]@(, $null)).Count -eq 0) 'a repaired or new horse has nothing to remove (idempotent)'
 # ---- 3. MMR-02/04/05/07 installed contracts the production paths bind -------------------------------------------------
 $module = $game.ManifestModule
