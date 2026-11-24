@@ -303,6 +303,11 @@
         "candidate_source": "bb0c53d5c9847bb76f11636b6533337d67f3d364",
         "change": "Planned dice are kept reachable: the hostile's native attack bonus is set so the planned die is the attack's own d20; the reader requires 1..20 (review PN4-F9).",
         "status": "BLOCKED"
+      },
+      "continuation_7": {
+        "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
+        "change": "A planned total is armed with its step boundary for one attempt of the measured pair and consumed once; the completing record and its attack rule are bound per step (reviews PN10-F2, PN10-F3).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -423,6 +428,11 @@
       "continuation_6": {
         "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
         "change": "Every attempted TB use spends on the rider's turn and borrows otherwise; every measured attempt shows exactly one native +3 (review PN9-F4).",
+        "status": "BLOCKED"
+      },
+      "continuation_7": {
+        "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
+        "change": "Every attempted defense of every pair is held to mode, turn, commitment and exact Swift accounting (review PN10-F4).",
         "status": "BLOCKED"
       }
     },
@@ -565,6 +575,11 @@
         "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
         "change": "Three-feat rows are bound to distinct lists of the producer's own selection inventory (review PN9-F5).",
         "status": "PASS"
+      },
+      "continuation_7": {
+        "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
+        "change": "One valid three-feat tail per inventoried selection (review PN10-F5).",
+        "status": "PASS"
       }
     },
     {
@@ -602,6 +617,11 @@
       "continuation_6": {
         "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
         "change": "Re-applying a live publication writes nothing, so the explicit enable never restores feats another mod removed (review PN9-F2, production).",
+        "status": "PASS"
+      },
+      "continuation_7": {
+        "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
+        "change": "Resume reinserts only the suspended feat into the current list, so a foreign Archery removal during the suspension survives (review PN10-F1, production).",
         "status": "PASS"
       }
     },
@@ -778,6 +798,14 @@
     "candidate_dll_sha256": "eb20b6308825d61a82a00558f5a167e00a739b47ebb69d13f6919725f95f7cbc",
     "candidate_dll_mvid": "52301c4b-76a2-4caa-b6bb-77c3ae43980c",
     "reason": "Supplemental review round 9 corrections (PN9-F1..F6 in d7e1ee0c), including two production fixes; row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_7": {
+    "recorded": "2026-11-23",
+    "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
+    "candidate_dll_sha256": "a5ff8e54008789f0c3079fbd0fe3ceb8c8a94f4988aec5bef474e6df0f027e8f",
+    "candidate_dll_mvid": "48c32ec4-a5dc-4aa8-aae9-f611608d3cb3",
+    "reason": "Supplemental review round 10 corrections (PN10-F1..F5 in 241e68be), including one production fix; row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }

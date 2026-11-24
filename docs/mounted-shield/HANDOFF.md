@@ -13,8 +13,8 @@ foreground session; the verbatim prompt is kept outside the worktree at
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
 `C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
-`d7e1ee0c` (round-9 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
-`eb20b6308825d61a82a00558f5a167e00a739b47ebb69d13f6919725f95f7cbc`, MVID `52301c4b-76a2-4caa-b6bb-77c3ae43980c`. Round-8 source `05ef7f8f`: DLL `e8d6ff43…`, MVID `b854eb4b…`. Round-7 source `9bf75488`: DLL `362c2b14…`, MVID `50eafd79…`. Round-6 source `4092676b`: DLL `2cc090ed…`, MVID `4e4f4e83…`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
+`241e68be` (round-10 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
+`a5ff8e54008789f0c3079fbd0fe3ceb8c8a94f4988aec5bef474e6df0f027e8f`, MVID `48c32ec4-a5dc-4aa8-aae9-f611608d3cb3`. Round-9 source `d7e1ee0c`: DLL `eb20b630…`, MVID `52301c4b…`. Round-8 source `05ef7f8f`: DLL `e8d6ff43…`, MVID `b854eb4b…`. Round-7 source `9bf75488`: DLL `362c2b14…`, MVID `50eafd79…`. Round-6 source `4092676b`: DLL `2cc090ed…`, MVID `4e4f4e83…`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
 source `bb0c53d5`: DLL `5978e285…`, MVID `94c4e4d2…`. The final identities and package are in the closing records below. The first
 continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
 `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
@@ -109,7 +109,9 @@ fixed in `9bf75488`; controller focused gate on `9bf75488`: PASS, 57.4 s. The gu
 shield gameplay rows (PN7-F7). Round 8 on `a9cb432a`: CHANGES REQUIRED, five findings (PN8-F1–F5), all fixed in `05ef7f8f`;
 controller focused gate on `05ef7f8f`: PASS, 58.0 s. Round 9 on `03bf2ae4`: CHANGES REQUIRED, six findings (PN9-F1–F6, two of
 them production: Brilliant Energy AC and the explicit enable's re-application), all fixed in `d7e1ee0c`; controller focused gate
-on `d7e1ee0c`: PASS, 79.6 s. Round 10 and the controller endpoint follow in the review record.
+on `d7e1ee0c`: PASS, 79.6 s. Round 10 on `a809fb06`: CHANGES REQUIRED, five findings (PN10-F1–F5, one production: resume
+ownership), all fixed in `241e68be`; controller focused gate on `241e68be`: PASS, 88.6 s. Round 11 and the controller endpoint
+follow in the review record.
 
 ## 1. Outcome
 

@@ -220,3 +220,22 @@ Budget `mounted-shield` 7.12 of 90 min. To be reviewed in round 9.
 Fast gate (controller, focused) on `d7e1ee0c`: PASS, 79.6 s (components 1517/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 155/0, native contract 91/0). DLL `eb20b6308825d61a82a00558f5a167e00a739b47ebb69d13f6919725f95f7cbc`, MVID `52301c4b-76a2-4caa-b6bb-77c3ae43980c`.
 Budget `mounted-shield` 8.43 of 90 min. To be reviewed in round 10.
+
+## Round 10 — candidate `a809fb06500a181af1215b950a53445bcb622192` (production `d7e1ee0c`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-a809fb06`. Started 2026-11-23, 15.66 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-a809fb06/`.
+- **Verdict: CHANGES REQUIRED.** One production ownership defect (PN10-F1) and four diagnostic defects.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN10-F1 | Resume wrote the full offered set into a recorded list, so an Archery removal another mod made during the suspension was undone. | **Fixed** in `241e68be` (production): resume inserts only the suspended feat into the list as it now stands (after the last preceding KMC entry); it never replaces a list with KMC's full value. Component case: suspension, then another mod removes Archery from a non-required list, then the explicit enable (publish, resume): the removal survives, Shield returns once after Mounted Combat, the required lists offer each feat once, nothing withdrawn. PN7-F1 compiled regression 68/0. |
+| PN10-F2 | A planned die stayed armed after its attempt (a hit during the renewal wait received a second planned total), and the step's record boundary was set one tick late. | **Fixed** in `241e68be`: a production `Domain/PlannedAttempt` arms one plan for the measured rider, mount and hostile, together with the step's record boundary (`ShieldArm`), is consumed by the first qualifying attempt, and is cleared on step exit and at the drain. Component cases: consumed once (a hit during the renewal wait rolls naturally), another pair or attacker neither receives nor consumes it, a hit right after arming receives it, clearing disarms. |
+| PN10-F3 | The reader accepted a defense record whose attack rule targeted another mount and rejected a legitimate same-step follow-up strike. | **Fixed** in `241e68be`: the driver records the record that completed each step (`stepRecords`) and the attempt that consumed each plan (`plannedAttempts`, with its hostile); the reader takes exactly that record, requires the plan's consumer to be it, and requires every record's attack rule to name the same attacker and mount; further records of the step are validated by the all-attempt checks. The round-9 two-pair fixture now targets the second mount. Negatives for a mismatched target (other pair and measured pair), an unrecorded completing attack and a planned attempt that is not the completing record; an accepted UsageSpent follow-up in a planned step. |
+| PN10-F4 | Other riders' natural defenses escaped mode, turn and Swift accounting. | **Fixed** in `241e68be`: the RT and TB all-attempt checks cover every attempted defense of every pair (mode, turn ownership, commitment, exact cooldown or debt, attack rule) and pair each attempt with its own rider's roll, which must hold that pair's Mounted Shield amount (the measured pair +3). Negatives for a double charge and a turn-based commitment on another rider's RT defense, with the accepted natural control. |
+| PN10-F5 | A supported selection could be missing from the three-feat evidence. | **Fixed** in `241e68be`: the three-feat rows and the selection inventory must have the same unique GUID set, each row valid. A three-list control is accepted and fails when the third observation is removed. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate (controller, focused) on `241e68be`: PASS, 88.6 s (components 1521/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 164/0, native contract 91/0). DLL `a5ff8e54008789f0c3079fbd0fe3ceb8c8a94f4988aec5bef474e6df0f027e8f`, MVID `48c32ec4-a5dc-4aa8-aae9-f611608d3cb3`.
+Budget `mounted-shield` 9.9 of 90 min. To be reviewed in round 11.
