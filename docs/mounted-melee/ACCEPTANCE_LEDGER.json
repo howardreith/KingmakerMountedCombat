@@ -1,0 +1,329 @@
+{
+  "schema": "kmc.mission.acceptance.v1",
+  "mission_id": "kmc-mounted-alpha2-melee-pose-20261124",
+  "template_status": "EXECUTED",
+  "source_commit": "ea112a71819520e9df915eff721ba42d042792bd",
+  "package_sha256": "b9168c6225bc34598e172aefdce124c1e4fdcc876dbc9dd012c203313a6dc2e7",
+  "checkpoint_scope": "private alpha source/offline delivery; unperformed native/visual/save-load observations remain pending",
+  "issues": [
+    {
+      "id": "MMR-01",
+      "title": "Rider seating and mounting lifecycle",
+      "baseline_evidence": [
+        "E01",
+        "E02"
+      ],
+      "source_disposition": "repaired_source",
+      "root_cause": "The animated saddle froze seatFromSource once at attachment from the rider pelvis in that single frame, so the seat height depended on the rider animation when Mount Companion fired (cast clip, an approach walk blending out) or a view's first frame after load; a remount from an idle stance seats lower. No accumulation or stale anchor (frame lease and release verified in source).",
+      "fix_commits": [
+        "1594475b"
+      ],
+      "checks": [
+        "tests/MountedStockAttackPolicyTests.cs MMR-01 (production AnimatedSaddleCalibration + AnimatedSaddlePosition)",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "Seat uses the measured preview.3 pelvis-to-Chest basis the existing Horse correction was tuned against; Mammoth and Small unchanged.",
+        "Rendered seating at first mount, load and remount is unobserved (owner N01)."
+      ]
+    },
+    {
+      "id": "MMR-02",
+      "title": "TB approach into legal melee range",
+      "baseline_evidence": [
+        "E03"
+      ],
+      "source_disposition": "repaired_source_hypothesis_bound",
+      "root_cause": "Native TurnController.IgnoreClick drops a click unless PathVisualizer.IsCurrentPathForPoint holds for the rider position and the predicted command approach radius; with the rider selected the visualized locomotion belongs to the mount, so a rider attack on a hostile just beyond reach can be dropped before any pair intent exists (installed IL verified). Not confirmed by an in-game trace.",
+      "fix_commits": [
+        "b395fbf1"
+      ],
+      "checks": [
+        "tests/MountedStockAttackPolicyTests.cs MMR-02 (PairedAttackClickAdmissionPolicy)",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 installed IgnoreClick/IsCurrentPathForPoint/field tokens",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "The admission applies only to a dropped rider attack click on a hostile with lawful mount movement; the pair command's existing approach uses only the mount's remaining movement and refuses explainably. If the owner's click was dropped for another reason (no lawful movement left), behavior is unchanged and legal."
+      ]
+    },
+    {
+      "id": "MMR-03",
+      "title": "Horse participation during paired activation",
+      "baseline_evidence": [
+        "E03",
+        "E06"
+      ],
+      "source_disposition": "repaired_source",
+      "root_cause": "TryDriveStockAttackIntent passed mountIsLegalActor = !turnBased || MountActor || UseLegacyUnifiedTurn, so under default paired activation a rider click deliberately excluded the horse; after the rider's attack the intent completed.",
+      "fix_commits": [
+        "b395fbf1"
+      ],
+      "checks": [
+        "tests/MountedStockAttackPolicyTests.cs MMR-03 (MountJoinsIntent + DecideNext with genuine PairedActivation states)",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "Sequential rider-then-horse within the same paired activation; explicit mount orders, automatic intents and separate turns unchanged.",
+        "Horse roll/damage attribution in play is unobserved (owner N04)."
+      ]
+    },
+    {
+      "id": "MMR-04",
+      "title": "RT automatic melee engagement",
+      "baseline_evidence": [],
+      "source_disposition": "repaired_source_partially_bound",
+      "root_cause": "Most likely the accepted automatic intent stalled on strike readiness: in real-time combat the pair command was dispatched while its actor still waited initiative (native holds an unstarted command with ApproachRadius=infinite, so nothing moves) or KMC returned Wait during a Standard cooldown. A refused or absent native proposal (Hold, AI off, unreachable) was not excluded by evidence.",
+      "fix_commits": [
+        "5ac516ef"
+      ],
+      "checks": [
+        "tests/MountedStockAttackPolicyTests.cs MMR-04/05 (DecideNext ApproachWhileWaiting)",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "Target choice remains the native rider brain proposal (no new targeting system); a refused/absent proposal is not changed."
+      ]
+    },
+    {
+      "id": "MMR-05",
+      "title": "RT explicit attack movement response",
+      "baseline_evidence": [],
+      "source_disposition": "repaired_source",
+      "root_cause": "Two layers delayed movement until the strike was ready: KMC DecideNext returned Wait without Standard readiness, and the pair command (infinite native approach radius) waited in native ShouldStartCommand (initiative/cooldown) before OnStart created the delegated approach.",
+      "fix_commits": [
+        "5ac516ef"
+      ],
+      "checks": [
+        "tests/MountedStockAttackPolicyTests.cs MMR-04/05",
+        "scripts/Test-MountedAlpha2NativeContract.ps1 CanActInCombat contract",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "One controller-owned non-player mount move, interrupted before dispatch and on every intent end; strike readiness, cooldowns and initiative untouched. Input-to-motion timing is unmeasured (owner N06)."
+      ]
+    },
+    {
+      "id": "MMR-06",
+      "title": "Unintended horse bite Trip",
+      "baseline_evidence": [
+        "E06"
+      ],
+      "source_disposition": "repaired_source",
+      "root_cause": "The KMC Horse copies the stock Mammoth companion AddFacts, which in installed 2.1.7b data are exactly [TrippingBite, NaturalArmor7, TripDefenseFourLegs]; TrippingBite is ManeuverOnAttack(Bite, Trip). Inert on a Mammoth (no bite), it fires on every KMC Horse bite hit.",
+      "fix_commits": [
+        "bd4cc5e0"
+      ],
+      "checks": [
+        "scripts/Test-MountedAlpha2NativeContract.ps1 (installed data + genuine-object filter and saved-horse repair)",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "Saved horses lose only a sourceless inherited trigger; a sourced grant, natural armor, trip defense, Dog/Wolf/Riding Dog and the shared bite are untouched."
+      ]
+    },
+    {
+      "id": "MMR-07",
+      "title": "Visible native horse bite",
+      "baseline_evidence": [],
+      "source_disposition": "investigated_asset_present_visual_pending",
+      "root_cause": "Installed data: native HorseAnimationSet_Bite is a UnitAnimationActionSpecialAttack with one dedicated clip BiteAttack (hoof: Right/Left_Hoof_Attack). The ordinary routine Bite/Hoof/Hoof plays the stock Bite handle (adopted, not replaced). Native UnitAttack.ConfigureAnimations scales every limb clip of a routine into one window (one SpeedScale), a plausible reason a short bite reads as invisible; not visually confirmed.",
+      "fix_commits": [
+        "1fcde471"
+      ],
+      "checks": [
+        "scripts/Test-MountedAlpha2NativeContract.ps1 bundle identity and handle SpeedScale",
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)"
+      ],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": [
+        "No timing/animation change (native owns timing); the terminal log line now reports the bite handle action, SpeedScale, routine size and playback flags. Visible bite remains an owner observation (N08)."
+      ]
+    }
+  ],
+  "source_rows": [
+    {
+      "id": "S01",
+      "status": "met",
+      "evidence": [
+        "HANDOFF.md section 2; base 783b2b3d = accepted Shield tree"
+      ]
+    },
+    {
+      "id": "S02",
+      "status": "met_source",
+      "evidence": [
+        "MMR-01 test; frame lease/release unchanged"
+      ]
+    },
+    {
+      "id": "S03",
+      "status": "met_source_hypothesis_bound",
+      "evidence": [
+        "MMR-02 policy test; installed IgnoreClick contract"
+      ]
+    },
+    {
+      "id": "S04",
+      "status": "met_source",
+      "evidence": [
+        "MMR-03 test with genuine PairedActivation states"
+      ]
+    },
+    {
+      "id": "S05",
+      "status": "met_source_partially_bound",
+      "evidence": [
+        "MMR-04/05 decision test; CanActInCombat contract"
+      ]
+    },
+    {
+      "id": "S06",
+      "status": "met",
+      "evidence": [
+        "installed Mammoth/Dog/Wolf facts; genuine-object filter and repair"
+      ]
+    },
+    {
+      "id": "S07",
+      "status": "investigated_limitation",
+      "evidence": [
+        "bundle decode: HorseAnimationSet_Bite -> BiteAttack; telemetry added"
+      ]
+    },
+    {
+      "id": "S08",
+      "status": "met",
+      "evidence": [
+        "Mounted Shield native contract 114/0, rollback 68/0, icon fd519874 in packaged DLL"
+      ]
+    },
+    {
+      "id": "S09",
+      "status": "met",
+      "evidence": [
+        "controller focused gate gate-focused-ea112a718195-d43d449b6c4-ae9890c77f2-20261124T155542472057Z (PASS, 84.2 s)",
+        "Package.ps1 + Validate-Package 11/0 on ea112a71"
+      ]
+    },
+    {
+      "id": "S10",
+      "status": "pending_controller_review",
+      "evidence": []
+    }
+  ],
+  "native_rows": [
+    {
+      "id": "N01",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N02",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N03",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N04",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N05",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N06",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N07",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N08",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N09",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    },
+    {
+      "id": "N10",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Not run: no desktop-control tool in this session and the guarded save-backed scenarios still require the historical fixture suite; owner alpha playtest."
+    }
+  ],
+  "owner_baseline_observations": [
+    {
+      "id": "Shield AC +2",
+      "evidence": [
+        "E04"
+      ],
+      "status": "owner_observed_baseline_only"
+    },
+    {
+      "id": "Mobility 23 including Shield +2 against attack 19",
+      "evidence": [
+        "E05"
+      ],
+      "status": "owner_observed_baseline_only"
+    }
+  ],
+  "package": {
+    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-ea112a71-diagnostic.zip",
+    "bytes": 4284987,
+    "version": "0.2.16-alpha.2",
+    "umm_minimum": "0.31.1",
+    "dll_sha256": "16c844db1e5b51a086b9ee33951339fcdecb674bd2f462336e2435eb5385112c",
+    "dll_mvid": "00c67828-d35b-4bcf-ad82-6675a35f92f0",
+    "icon_sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0"
+  },
+  "base": {
+    "main": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+    "relationship": "PR #61 merged (merge commit); main tree identical to accepted Shield archive 122a9f94"
+  }
+}
