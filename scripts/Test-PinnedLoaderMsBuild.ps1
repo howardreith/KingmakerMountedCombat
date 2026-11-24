@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    # The commit before the 0.31.1 baseline (default: origin/main), built once to record what the old project compiled against.
-    [string]$BaselineCommit = 'origin/main',
+    # The recorded commit before the 0.31.1 baseline (main at fb743911, Mounted Combat 0.2.15 records), an immutable control.
+    [ValidatePattern('^[0-9a-f]{40}$')][string]$BaselineCommit = 'fb743911200f150af407198c6c28519e522ef58c',
     [string]$ReportPath
 )
 
@@ -12,7 +12,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $source = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $commit = (& git -C $source rev-parse HEAD).Trim()
-$baseline = (& git -C $source rev-parse $BaselineCommit).Trim()
+$baseline = $BaselineCommit
+& git -C $source cat-file -e ($baseline + '^{commit}')
+if ($LASTEXITCODE -ne 0) { throw "Baseline commit $baseline is not in this repository." }
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $msbuild = [string](@(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe') | Select-Object -First 1)
 if (-not $msbuild) { throw 'MSBuild was not found.' }
@@ -51,6 +53,7 @@ try {
 
     # Before: the commit preceding the baseline, compiled with its own project defaults (the installed loader).
     & git -C $clone checkout -q --detach $baseline
+    if ($LASTEXITCODE -ne 0 -or (& git -C $clone rev-parse HEAD).Trim() -cne $baseline) { throw 'The clone did not select the baseline commit.' }
     $before = & $build @()
     $beforeRefs = if ($before.ExitCode -eq 0 -and (Test-Path -LiteralPath $dll)) { Get-LoaderRefs $dll } else { 'no DLL' }
     $installedUmm = [Reflection.AssemblyName]::GetAssemblyName((Join-Path $installedLoader 'UnityModManager.dll')).Version.ToString()
@@ -59,6 +62,7 @@ try {
 
     # After: this commit, without the pinned cache: refused before compilation with the acquisition instruction.
     & git -C $clone checkout -q --detach $commit
+    if ($LASTEXITCODE -ne 0 -or (& git -C $clone rev-parse HEAD).Trim() -cne $commit) { throw 'The clone did not select the commit under test.' }
     $absent = & $build @()
     Add-Case 'direct-msbuild-without-pinned-cache-refused' ($absent.ExitCode -ne 0 -and $absent.Output -match 'Pinned loader reference missing' -and -not (Test-Path -LiteralPath $dll)) "exit $($absent.ExitCode)"
 
@@ -94,6 +98,24 @@ try {
     $x = & $buildNoClean @()
     Remove-Item -LiteralPath $extraTargets
     Add-Case 'stray-hintpath-to-unitymodmanager-copy-refused' ($x.ExitCode -ne 0 -and $x.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and $x.Output -notmatch 'KingmakerMountedCombat -> ' -and (Test-Path -LiteralPath $dll) -and (Get-Sha $dll) -ceq $dllBeforeStray) ([regex]::Match($x.Output, 'Loader compiler references must be the verified files[^\n]{0,160}').Value)
+
+    # A late rewrite: the HintPath and the early cache check are correct, but a target after reference-assembly selection
+    # replaces the UnityModManager entry Csc would receive with a copy elsewhere. Refused immediately before compilation,
+    # for both shipping projects (the product and the removal observer share LoaderReferences.targets).
+    $rewriteTargets = Join-Path $clone 'Directory.Build.targets'
+    $rewrite = "<Project><Target Name=`"KmcTestLateRewrite`" AfterTargets=`"FindReferenceAssembliesForReferences`"><ItemGroup><_KmcTestUmm Include=`"@(ReferencePathWithRefAssemblies)`" Condition=`"'%(Filename)' == 'UnityModManager'`" /><ReferencePathWithRefAssemblies Remove=`"@(_KmcTestUmm)`" /><ReferencePathWithRefAssemblies Include=`"$([Security.SecurityElement]::Escape((Join-Path $strayDir 'UnityModManager.dll')))`" /></ItemGroup></Target></Project>"
+    [IO.File]::WriteAllText($rewriteTargets, $rewrite)
+    $dllBeforeRewrite = Get-Sha $dll
+    $lr = & $buildNoClean @()
+    $observerProject = Join-Path $clone 'tools\KmcRemovalObserver\KmcRemovalObserver.csproj'
+    $observerOut = Join-Path $temp 'observer out'
+    $lro = Invoke-Native $msbuild @($observerProject, '/nologo', '/v:m', '/nr:false', '/t:Build', '/p:Configuration=Release', "/p:OutDir=$observerOut\")
+    Remove-Item -LiteralPath $rewriteTargets
+    Add-Case 'late-compiler-list-rewrite-refused-product' ($lr.ExitCode -ne 0 -and $lr.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and $lr.Output -notmatch 'KingmakerMountedCombat -> ' -and (Get-Sha $dll) -ceq $dllBeforeRewrite) ([regex]::Match($lr.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
+    Add-Case 'late-compiler-list-rewrite-refused-observer' ($lro.ExitCode -ne 0 -and $lro.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and -not (Test-Path -LiteralPath (Join-Path $observerOut 'KmcRemovalObserver.dll'))) ([regex]::Match($lro.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
+    $obs = Invoke-Native $msbuild @($observerProject, '/nologo', '/v:m', '/nr:false', '/t:Rebuild', '/p:Configuration=Release', "/p:OutDir=$observerOut\")
+    $obsRefs = if (Test-Path -LiteralPath (Join-Path $observerOut 'KmcRemovalObserver.dll')) { Get-LoaderRefs (Join-Path $observerOut 'KmcRemovalObserver.dll') } else { 'no DLL' }
+    Add-Case 'observer-compiles-against-pinned-loader' ($obs.ExitCode -eq 0 -and $obsRefs -ceq '0Harmony12 1.2.0.1, UnityModManager 0.31.1.0') "exit $($obs.ExitCode); observer DLL references $obsRefs"
 
     $failed = @($cases | Where-Object { -not $_.passed })
     $summary = [ordered]@{

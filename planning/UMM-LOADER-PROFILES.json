@@ -17,7 +17,20 @@
       "length": 204288,
       "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
       "provenance": "Inspected on 2026-11-23 from lib/net35/UnityModManager.dll in the genuine NuGet UnityModManager 0.31.1 package (archive SHA-256 05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9). The DLL hash matches the existing Tabletop Rules Expansion and Cutscene Skip build pins. MVID, length and UI method tokens were read from PE/CLI metadata; this is not a Mounted Combat API-binding or native result.",
-      "lastInspected": "2026-11-23"
+      "lastInspected": "2026-11-23",
+      "runtime": {
+        "umm": {
+          "fullName": "UnityModManager, Version=0.31.1.0, Culture=neutral, PublicKeyToken=null",
+          "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+          "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4"
+        },
+        "harmony2": {
+          "fullName": "0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null",
+          "mvid": "6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6",
+          "sha256": "5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f"
+        },
+        "note": "Baseline runtime identity for a separately prepared guarded environment: UMM 0.31.1 with lib.harmony 2.3.1.1 net48 as the shared-state creator. Not installed on the development machine; no native run is implied."
+      }
     },
     {
       "id": "umm-0.28.2",
@@ -37,7 +50,20 @@
       "length": 204800,
       "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
       "provenance": "Hashed on 2026-11-15 from the loader installed in the development machine's Kingmaker (Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll, written 2026-09-05), the reference every 0.2.x build on that machine compiled against. It is the version the owner reported in play (docs/MOUNTED-ARCHERY-REGISTRATION-REPAIR-HANDOFF.md; docs/RATNOOK-DOOR-REPAIR-HANDOFF.md records the same SHA-256 prefix).",
-      "lastInspected": "2026-11-15"
+      "lastInspected": "2026-11-15",
+      "runtime": {
+        "umm": {
+          "fullName": "UnityModManager, Version=0.33.0.0, Culture=neutral, PublicKeyToken=null",
+          "mvid": "54059519-2754-445a-b5ee-fdb9326336e2",
+          "sha256": "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691"
+        },
+        "harmony2": {
+          "fullName": "0Harmony, Version=2.3.6.0, Culture=neutral, PublicKeyToken=null",
+          "mvid": "4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc",
+          "sha256": "df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80"
+        },
+        "note": "Measured owner installation and the default native target: Harmony 2.3.6 is the HarmonySharedState creator (lib.harmony 2.3.6 net48, byte-identical to the installed 0Harmony.dll)."
+      }
     },
     {
       "id": "umm-0.33.2",

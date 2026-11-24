@@ -58,7 +58,13 @@ function Assert-KmcFrozenProductManifest {
     $verified=Get-KmcFrozenProductSource -RepositoryRoot $RepositoryRoot -SourceRoot $Context.sourceRoot -FreezePath $Context.freezePath -ExpectedFreezeSha256 $Context.freezeSha256
     if($verified.harnessHead -cne $Context.harnessHead) { throw 'Execution harness changed after frozen-source admission.' }
     $f=$verified.freeze
-    if($Generator -ceq 'scripts/Package-Observer.ps1') { $packageBinding=$f.observer; $manifestBinding=$f.observerManifest }
+    if($Generator -ceq 'scripts/Package-Observer.ps1') {
+        # The removal observer is a separately shipped product: its own project, sources and manifest must also be
+        # unchanged for the archived observer to be reused (main-only reuse does not depend on them).
+        $observerChanged=@(& git -C $RepositoryRoot diff --name-only $verified.source $verified.harnessHead -- tools/KmcRemovalObserver)
+        if($LASTEXITCODE -ne 0 -or $observerChanged.Count -ne 0) { throw 'Changed removal observer inputs require a new observer candidate.' }
+        $packageBinding=$f.observer; $manifestBinding=$f.observerManifest
+    }
     else { $packageBinding=$f.package; $manifestBinding=$f.manifest }
     if([IO.Path]::GetFullPath($PackagePath) -cne [string]$packageBinding.path -or
        [IO.Path]::GetFullPath($ManifestPath) -cne [string]$manifestBinding.path -or

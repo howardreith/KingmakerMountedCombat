@@ -243,12 +243,18 @@ try {
         if ($SkipBuild) { $fullArguments += '-SkipBuild' }
         Invoke-Tiered 'FULL umbrella (scripts/Test.ps1)' { Invoke-TestScript 'Test.ps1' $fullArguments }
     } else {
+        . (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
         if (-not $SkipBuild) {
             Invoke-Tiered 'build' {
                 if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild not found.' }
                 $exit = Invoke-KmcTierChild $msbuild @((Join-Path $repoRoot 'KingmakerMountedCombat.sln'), '/t:Build', "/p:Configuration=$Configuration", '/m:1', '/v:minimal', '/nologo')
                 if ($exit -ne 0) { throw 'Build failed.' }
+                Write-KmcLoaderInputStamp $repoRoot $Configuration
             }
+        }
+        else {
+            # Reused outputs must have been built from the current loader inputs.
+            Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration }
         }
         Invoke-Tiered 'FAST components' {
             if(-not(Test-Path -LiteralPath $components)){throw 'Compiled component runner missing.'}

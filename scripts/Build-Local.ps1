@@ -39,6 +39,8 @@ $powerShellExe = Join-Path $PSHOME 'powershell.exe'
 $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dll
 if ($LASTEXITCODE -ne 0) { throw 'Isolated assembly identity inspection failed.' }
 $identity = $identityJson | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'LoaderInputStamp.ps1')
+Write-KmcLoaderInputStamp $repoRoot $Configuration
 Write-Host "PASS build $Configuration"
 Write-Host "DLL=$dll"
 Write-Host "SHA256=$hash"

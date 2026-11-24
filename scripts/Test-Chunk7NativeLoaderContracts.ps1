@@ -73,6 +73,25 @@ $umm=$exact.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManage
 $exact.observations.loadedAssemblies+=@([pscustomobject]@{name='0Harmony';fullName='0Harmony, Version=2.3.6.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location=(Join-Path $pinned.gameRoot $harmonyRelative);mvid='4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc';sha256=$harmonyHash})
 $exact.observations.loadedAssemblies+=@([pscustomobject]@{name='HarmonySharedState';fullName='HarmonySharedState, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null';dynamic=$false;location='';mvid='b2f05641-73ed-4a8d-aa45-8bb46a4b7e2f';sha256=$null})
 ($exact.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location+='.51087.cache'
+# The 0.31.1 baseline profile: its own UnityModManager and Harmony 2.3.1.1 creator are admitted only when selected;
+# mixing either identity with the owner profile is refused under both profiles.
+$baseline=Copy-TestValue $exact;$baselineDeps=Copy-TestValue $pinned
+$h2311='5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f';$u0311='2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4'
+($baselineDeps.files|Where-Object relativePath -CEQ $harmonyRelative).sha256=$h2311;($baselineDeps.files|Where-Object relativePath -CEQ $ummRelative).sha256=$u0311
+$bh=$baseline.observations.loadedAssemblies|Where-Object name -CEQ '0Harmony';$bh.fullName='0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null';$bh.mvid='6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6';$bh.sha256=$h2311
+$bu=$baseline.observations.loadedAssemblies|Where-Object name -CEQ 'UnityModManager';$bu.fullName='UnityModManager, Version=0.31.1.0, Culture=neutral, PublicKeyToken=null';$bu.mvid='230caa64-1cae-4f42-a86c-8f16b5faba9e';$bu.sha256=$u0311
+Check 'baseline profile admits its own loader and Harmony 2.3.1.1 creator' {
+ $scope=Assert-KmcBaseGameNativeInventory $request $baseline $baselineDeps -PassThru -LoaderProfileId 'umm-0.31.1'
+ if($scope.inMemoryAssemblies[0].creatorSha256-cne$h2311-or$scope.inMemoryAssemblies[0].loaderProfile-cne'umm-0.31.1'){throw 'Baseline creator identity was not the selected profile.'}
+}
+Reject 'baseline observations under the default owner profile' {Assert-KmcBaseGameNativeInventory $request $baseline $baselineDeps}
+Reject 'owner observations under the baseline profile' {Assert-KmcBaseGameNativeInventory $request $exact $pinned -LoaderProfileId 'umm-0.31.1'}
+$mixed=Copy-TestValue $exact;$mixedDeps=Copy-TestValue $pinned
+($mixedDeps.files|Where-Object relativePath -CEQ $harmonyRelative).sha256=$h2311
+$mh=$mixed.observations.loadedAssemblies|Where-Object name -CEQ '0Harmony';$mh.fullName='0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null';$mh.mvid='6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6';$mh.sha256=$h2311
+Reject 'owner UMM with the baseline Harmony creator (owner profile)' {Assert-KmcBaseGameNativeInventory $request $mixed $mixedDeps}
+Reject 'owner UMM with the baseline Harmony creator (baseline profile)' {Assert-KmcBaseGameNativeInventory $request $mixed $mixedDeps -LoaderProfileId 'umm-0.31.1'}
+Reject 'profile without a runtime record' {Assert-KmcBaseGameNativeInventory $request $exact $pinned -LoaderProfileId 'umm-0.33.2'}
 Check 'exact pinned Harmony memory identity and UMM candidate cache' {
  $scope=Assert-KmcBaseGameNativeInventory $request $exact $pinned -PassThru
  if($scope.fileBackedAssemblyCount-ne5-or$scope.inMemoryAssemblyCount-ne1-or$scope.dynamicAssemblyCount-ne0-or
@@ -129,4 +148,3 @@ Reject 'cache outside exact candidate directory' {$v=Copy-TestValue $exact;($v.o
 $syntax=$null;$tokens=$null;[void][Management.Automation.Language.Parser]::ParseFile($ReaderPath,[ref]$tokens,[ref]$syntax);Check 'reader parses' {if($syntax.Count){throw ($syntax|Out-String)}}
 $receipt=@{status='PASS';pass=$passed;fail=0;reader=@{path=$ReaderPath;sha256=(Get-FileHash -LiteralPath $ReaderPath).Hash.ToLowerInvariant()};cases=@($rows.ToArray());nativeProof=$false;gameplayProof=$false}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'receipt.json'),($receipt|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false));Write-Host ('LOADER CONTRACT PASS '+$passed+' FAIL 0')
-

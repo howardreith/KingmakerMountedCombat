@@ -10,6 +10,16 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $pins = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'loader-reference-pins.json') | ConvertFrom-Json
 if ($pins.schemaVersion -ne 1 -or @($pins.references).Count -eq 0 -or @($pins.manifests).Count -eq 0 -or
     -not ($pins.minimumManagerVersion -is [string]) -or $pins.minimumManagerVersion -cnotmatch '\A[0-9]+([.][0-9]+){2}\z') { throw 'Unknown or empty loader reference pin file.' }
+# Exactly the two required compiler references under their canonical cache names; a missing, duplicate or mismapped
+# record is refused before any cache file is read or trusted.
+$requiredPins = [ordered]@{ 'UnityModManager' = 'UnityModManager.dll'; '0Harmony12' = '0Harmony12.dll' }
+if (@($pins.references).Count -ne $requiredPins.Count) { throw "The pin file must define exactly: $($requiredPins.Keys -join ', ')." }
+foreach ($requiredName in $requiredPins.Keys) {
+    $record = @($pins.references | Where-Object { $_.Name -is [string] -and $_.Name -ceq $requiredName })
+    if ($record.Count -ne 1 -or -not ($record[0].File -is [string]) -or $record[0].File -cne $requiredPins[$requiredName]) {
+        throw "The pin file must define $requiredName exactly once as $($requiredPins[$requiredName])."
+    }
+}
 $manager = @($pins.references | Where-Object Name -CEQ 'UnityModManager')
 if ($manager.Count -ne 1 -or [string]$manager[0].Version -cne ([string]$pins.minimumManagerVersion + '.0')) {
     throw 'The UnityModManager compile reference must equal the declared minimum.'

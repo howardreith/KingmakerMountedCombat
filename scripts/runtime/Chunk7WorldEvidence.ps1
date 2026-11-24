@@ -1,6 +1,7 @@
 # Original strict reader for the bounded native world fixture; no staging or native writes.
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7OwnedPairsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeLoaderProfile.ps1')
 function Get-KmcChunk7WorldRows {
     @('chunk7-two-pair-exploration','C7-world-fixture','C7-world-native-acquisition','C7-world-owner-seed-setup','C7-world-two-native-mounts','C7-world-selection-routing',
       'C7-world-independent-dismount','C7-world-cycles','C7-world-sampling','C7-world-cleanup','C7-world-runtime','C7-world-visual','C7-world-interrupted','C7-world-owner-seed-manual','C7-small-third-horse-native-setup','C7-small-third-horse-native-manual','C7-f09-fourth-horse-native-setup','C7-f09-fourth-horse-native-manual',
@@ -1543,7 +1544,10 @@ function Assert-KmcExactObservedLoaderDependency($Assemblies,$Dependencies,[stri
         throw ('The exact installed loader contract was not pinned in both dependency and native observations: '+$Name)
     }
 }
-function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[AllowEmptyCollection()][object[]]$RetainedDependencies=@(),[switch]$PassThru) {
+function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[AllowEmptyCollection()][object[]]$RetainedDependencies=@(),[switch]$PassThru,[string]$LoaderProfileId=$script:KmcDefaultRuntimeLoaderProfileId) {
+    # The selected runtime loader profile (default: the measured owner installation) supplies the exact UnityModManager
+    # and Harmony 2 shared-state creator identities.
+    $loaderProfile=Get-KmcRuntimeLoaderProfile $LoaderProfileId
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'runtime-loader-inventory'
     if($Artifact.status-cne'PASS'-or$Artifact.observations.capturedInNativeProcess-ne$true-or
         -not(Test-KmcExactJsonInteger $Artifact.observations.processId)-or$Artifact.observations.processId-le0){throw 'Live loader inventory is incomplete.'}
@@ -1568,8 +1572,7 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
         if($assembly.dynamic-isnot[bool]-or$assembly.name-isnot[string]-or[string]::IsNullOrWhiteSpace($assembly.name)-or
             $assembly.fullName-isnot[string]-or[string]::IsNullOrWhiteSpace($assembly.fullName)){throw 'Loaded assembly identity or dynamic flag is missing.'}
         if($assembly.name-ceq'HarmonySharedState') {
-            # Exact installed Harmony 2.3.6.0 (owner UMM reinstall 2026-10-16; 2.3.1.1
-            # before) creates this module with Cecil (GetOrCreateSharedStateType
+            # The selected profile's Harmony 2 (owner default 2.3.6.0; 2.3.1.1 for the 0.31.1 baseline profile) creates this module with Cecil (GetOrCreateSharedStateType
             # 06000095, CreateModule 06000E95 assigns Guid.NewGuid) and loads bytes
             # through ReflectionHelper.Load (06002DA1/06002DA2). Mono reports IsDynamic=false,
             # an empty Location and a generated MVID. This is an identity-shape
@@ -1580,9 +1583,9 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
                 -not[Guid]::TryParseExact($assembly.mvid,'D',[ref]$memoryMvid)-or$memoryMvid-eq[Guid]::Empty-or
                 $memoryMvid.ToString('D')-cne$assembly.mvid-or@($assemblies|Where-Object name -CEQ 'HarmonySharedState').Count-ne1-or
                 @($assemblies|Where-Object mvid -CEQ $assembly.mvid).Count-ne1){throw 'In-memory Harmony shared state differs from its exact installed identity shape.'}
-            Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/0Harmony.dll' '0Harmony'                 '0Harmony, Version=2.3.6.0, Culture=neutral, PublicKeyToken=null' '4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc'                 'df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80'
+            Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/0Harmony.dll' '0Harmony' $loaderProfile.Harmony2FullName $loaderProfile.Harmony2Mvid $loaderProfile.Harmony2Sha256
             $inMemoryAssemblies.Add([pscustomobject]@{name=[string]$assembly.name;fullName=[string]$assembly.fullName;mvid=[string]$assembly.mvid;
-                creatorName='0Harmony';creatorMvid='4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc';creatorSha256='df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80';
+                creatorName='0Harmony';creatorMvid=$loaderProfile.Harmony2Mvid;creatorSha256=$loaderProfile.Harmony2Sha256;loaderProfile=$loaderProfile.Id;
                 identityShapeVerified=$true;creationObserved=$false;contentCertified=$false})
             continue
         }
@@ -1604,12 +1607,12 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
         if($assembly.name-ceq'KingmakerMountedCombat') {
             if(-not$location.Equals($kmcPath,[StringComparison]::OrdinalIgnoreCase)) {
                 # The native UMM cache allowance remains a canonical UInt16 suffix in this same mod
-                # directory. The exact selected 0.33.0 loader and candidate bytes/MVID are
+                # directory. The exact selected profile's loader and candidate bytes/MVID are
                 # checked below; another path, creator identity or cache shape is refused.
                 $leaf=[IO.Path]::GetFileName($location);$cacheMatch=[regex]::Match($leaf,'^KingmakerMountedCombat\.dll\.(0|[1-9][0-9]{0,4})\.cache$')
                 if(-not$directory.Equals([IO.Path]::GetDirectoryName($kmcPath),[StringComparison]::OrdinalIgnoreCase)-or
                     -not$cacheMatch.Success-or[int]$cacheMatch.Groups[1].Value-gt65535){throw 'Loaded KMC assembly is outside its exact staged candidate or native UMM cache path.'}
-                Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager'                     'UnityModManager, Version=0.33.0.0, Culture=neutral, PublicKeyToken=null' '54059519-2754-445a-b5ee-fdb9326336e2'                     '63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691'
+                Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager' $loaderProfile.UmmFullName $loaderProfile.UmmMvid $loaderProfile.UmmSha256
                 $kmcLoadedFromNativeCache=$true
             }
         }
@@ -1641,4 +1644,3 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
             limitation='File-backed assemblies retain observed hashes/MVIDs and exact allowed directories; staged KMC or its pinned UMM cache retains exact candidate bytes. HarmonySharedState is accepted only with its exact in-memory identity shape and pinned installed creator; its creation and content were not observed. Other Managed/UMM binaries and runtime-generated assemblies remain inventoried, not certified by a stock assembly allowlist.'}
     }
 }
-

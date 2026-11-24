@@ -57,7 +57,7 @@ try {
     $requiredInfo = @('Id','DisplayName','Author','Version','ManagerVersion','GameVersion','AssemblyName','EntryMethod','Requirements')
     if ((@($info.PSObject.Properties.Name | Sort-Object) -join "`n") -cne (($requiredInfo | Sort-Object) -join "`n") -or
         [string]$info.Id -cne 'KmcRemovalObserver' -or [string]$info.Version -cne $expectedVersion -or
-        [string]$info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
+        -not ($info.ManagerVersion -is [string]) -or $info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
         [string]$info.AssemblyName -cne 'KmcRemovalObserver.dll' -or
         [string]$info.EntryMethod -cne 'KmcRemovalObserver.Main.Load' -or @($info.Requirements).Count -ne 0) {
         throw 'Packaged observer Info.json identity is not exact.'

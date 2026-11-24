@@ -3618,6 +3618,16 @@ function Assert-KmcPackageManifest {
         [string]$manifest.packagePath -cne $resolvedPackage -or [string]$manifest.packageSha256 -cne (Get-KmcSha256 $resolvedPackage)) {
         throw 'Package manifest does not bind the exact clean branch, HEAD, and diagnostic ZIP.'
     }
+    # The DLL inside the ZIP is measured by the product's standalone validator (isolated assembly inspection) and must be
+    # the build the manifest names: DLL SHA-256, MVID, version and entries. Callers reuse this measured result.
+    $validator = if ($Generator -ceq 'scripts/Package-Observer.ps1') { 'Validate-ObserverPackage.ps1' } else { 'Validate-Package.ps1' }
+    $measured = & (Join-Path $repoRoot ('scripts\' + $validator)) -PackagePath $resolvedPackage -PassThru | Select-Object -Last 1
+    if ($null -eq $measured -or [string]$measured.packageSha256 -cne [string]$manifest.packageSha256 -or
+        [string]$measured.dllSha256 -cne [string]$manifest.dllSha256 -or [string]$measured.dllMvid -cne [string]$manifest.dllMvid -or
+        ((@($measured.entries) | ConvertTo-Json -Depth 6 -Compress) -cne (@($manifest.entries) | ConvertTo-Json -Depth 6 -Compress))) {
+        throw 'The DLL inside the package is not the build its manifest names (DLL SHA-256, MVID or entries differ).'
+    }
+    $manifest | Add-Member -NotePropertyName measuredPackage -NotePropertyValue $measured -Force
     return $manifest
 }
 

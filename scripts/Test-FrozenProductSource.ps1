@@ -41,7 +41,8 @@ foreach($ending in @("`n","`r`n")) {
     }
 }
 Invoke-TestGit @('init','--quiet') | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $repo 'src'),(Join-Path $repo 'scripts') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $repo 'src'),(Join-Path $repo 'scripts'),(Join-Path $repo 'tools/KmcRemovalObserver') | Out-Null
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class Product {}'
 $buildInputs=@(
     @{path='scripts/loader-reference-pins.json'; original='{"minimumManagerVersion":"0.31.1","sha256":"original"}'; changed='{"minimumManagerVersion":"0.33.0","sha256":"different"}'; name='loader build pins'},
@@ -50,7 +51,7 @@ $buildInputs=@(
     @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'}
 )
 foreach($buildInput in $buildInputs) { WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.original }
-Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets') | Out-Null
+Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets','tools') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Frozen production') | Out-Null
 $commit=[string](Invoke-TestGit @('rev-parse','HEAD'))
 $tree=[string](Invoke-TestGit @('rev-parse','HEAD^{tree}'))
@@ -66,7 +67,12 @@ $manifest=[ordered]@{commit=$commit;branch='codex/product';packageSha256=(Hash $
 WriteUtf8 $manifestPath ($manifest|ConvertTo-Json)
 $suite=[ordered]@{repository=[ordered]@{root=$repo;commit=$commit;branch='codex/product'};package=[ordered]@{sha256=(Hash $package)}}
 WriteUtf8 $suitePath ($suite|ConvertTo-Json -Depth 5)
-$freeze=[ordered]@{source=$commit;tree=$tree;remote=$commit;branch='codex/product';clean=$true;product=$manifest;package=@{path=$package;sha256=(Hash $package)};manifest=@{path=$manifestPath;sha256=(Hash $manifestPath)};suite=@{path=$suitePath;sha256=(Hash $suitePath)}}
+$observerPackage=Join-Path $lab 'artifacts/observer.zip'
+WriteUtf8 $observerPackage 'opaque observer payload'
+$observerManifestPath=$observerPackage+'.manifest.json'
+$observerManifest=[ordered]@{commit=$commit;branch='codex/product';packageSha256=(Hash $observerPackage)}
+WriteUtf8 $observerManifestPath ($observerManifest|ConvertTo-Json)
+$freeze=[ordered]@{source=$commit;tree=$tree;remote=$commit;branch='codex/product';clean=$true;product=$manifest;package=@{path=$package;sha256=(Hash $package)};manifest=@{path=$manifestPath;sha256=(Hash $manifestPath)};suite=@{path=$suitePath;sha256=(Hash $suitePath)};observer=@{path=$observerPackage;sha256=(Hash $observerPackage)};observerManifest=@{path=$observerManifestPath;sha256=(Hash $observerManifestPath)}}
 $freezePath=Join-Path $analysis 'freeze.json'
 WriteUtf8 $freezePath ($freeze|ConvertTo-Json -Depth 8)
 $pins=@{RepositoryRoot=$repo;SourceRoot=$source;FreezePath=$freezePath;ExpectedFreezeSha256=(Hash $freezePath)}
@@ -145,6 +151,30 @@ foreach($buildInput in $buildInputs) {
         if($actual.source -cne $commit -or $actual.harnessHead -ceq $commit) { throw 'Restored build inputs lost the frozen product identity.' }
     }
 }
+# The removal observer is reused only while its own inputs are unchanged; main-only reuse does not depend on them.
+WriteUtf8 (Join-Path $repo 'README.md') 'documentation only'
+Invoke-TestGit @('add','README.md') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Documentation only') | Out-Null
+$docsContext=Get-KmcFrozenProductSource @pins
+$observerArguments=@{Context=$docsContext;Manifest=([pscustomobject]$observerManifest);PackagePath=$observerPackage;ManifestPath=$observerManifestPath;Generator='scripts/Package-Observer.ps1';RepositoryRoot=$repo}
+Check 'documentation-only descendant keeps the archived observer identity' {
+    $actual=Assert-KmcFrozenProductManifest @observerArguments
+    if($actual.source -cne $commit) { throw 'Observer admission lost the frozen source.' }
+}
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class ChangedObserver {}'
+Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Changed observer only') | Out-Null
+$observerContext=Get-KmcFrozenProductSource @pins
+$observerArguments.Context=$observerContext
+Refuses 'observer-only change rejects the archived observer' {Assert-KmcFrozenProductManifest @observerArguments} 'Changed removal observer inputs'
+$mainArguments=$packageArguments.Clone(); $mainArguments.Context=$observerContext
+Check 'observer-only change keeps main-only reuse' {
+    $actual=Assert-KmcFrozenProductManifest @mainArguments
+    if($actual.source -cne $commit) { throw 'Main admission lost the frozen source.' }
+}
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
+Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Restore observer') | Out-Null
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class ChangedProduct {}'
 Invoke-TestGit @('add','src/Product.cs') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Changed native production') | Out-Null

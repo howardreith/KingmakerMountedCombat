@@ -313,4 +313,3 @@ personal mod stack; native acceptance of the released 0.2.3–0.2.11 repairs.
 The mod writes to UMM's log, `<Kingmaker install>\Kingmaker_Data\Managed\UnityModManager\Log.txt`, each line prefixed
 `[KingmakerMountedCombat]`. Copy it before the next launch, keep the save, and note the version, turn-based or real
 time, and the steps ([README](../README.md#logs-and-problems)).
-

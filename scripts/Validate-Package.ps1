@@ -53,7 +53,7 @@ try {
     $requiredInfo = @('Id','DisplayName','Author','Version','ManagerVersion','GameVersion','AssemblyName','EntryMethod','Requirements')
     if ((@($info.PSObject.Properties.Name | Sort-Object) -join "`n") -cne (($requiredInfo | Sort-Object) -join "`n") -or
         [string]$info.Id -cne 'KingmakerMountedCombat' -or [string]$info.Version -cne $expectedProductVersion -or
-        [string]$info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
+        -not ($info.ManagerVersion -is [string]) -or $info.ManagerVersion -cne [string]$loaderPins.minimumManagerVersion -or [string]$info.GameVersion -cne '2.1.7' -or
         [string]$info.AssemblyName -cne 'KingmakerMountedCombat.dll' -or
         [string]$info.EntryMethod -cne 'KingmakerMountedCombat.Main.Load' -or @($info.Requirements).Count -ne 0) {
         throw 'Packaged Info.json identity is not exact.'

@@ -121,4 +121,3 @@ The Mounted Shield run remains BLOCKED until its required native fixture, gamepl
 review and native acceptance are completed. No acceptance row or prior reader verdict is promoted by this pin change.
 The companion change is imported through the existing enrollment's guarded development/push flow; the controller-owned
 `codex/mounted-shield` head and its review counters are not edited out of band.
-
