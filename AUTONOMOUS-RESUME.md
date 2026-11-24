@@ -3,8 +3,9 @@
 Read CURRENT.md's first section and docs/UMM-0311-BASELINE.md. Compile against the exact 0.31.1/Harmony12 pins
 using scripts/Build-Local.ps1; inspect the compiled candidate against genuine 0.31.1 and newer references with
 the existing loader checkers. Native evidence must name the actual disposable runtime profile and preserve
-the current installed game. Baseline build/API/native checks remain pending; do not transfer old 0.33.2 PASS
-records to this candidate or rewrite the historical environment fingerprint as if the runtime changed.
+the current installed game. The baseline build and static API audit are recorded in CURRENT.md; native checks are
+not run (prerequisites per loader in CURRENT.md). Do not transfer old 0.33.2 PASS records to this candidate or rewrite
+the historical environment fingerprint as if the runtime changed.
 
 # Release 0.2.15 (owner order, 2026-11-22)
 

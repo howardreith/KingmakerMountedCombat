@@ -27,8 +27,8 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 
 - **Game:** Pathfinder: Kingmaker, engine build **2.1.7b** only. `Info.json` declares `GameVersion` 2.1.7.
 - **Loader source baseline (unreleased):** `Info.json` and the removal observer declare **0.31.1**. Builds now use
-  exact pinned UMM 0.31.1/Harmony12 references; the baseline build, bound-member and native checks remain pending
-  ([record](UMM-0311-BASELINE.md)). Released 0.2.15 still advertises 0.28.2; that old floor was not assessed
+  exact pinned UMM 0.31.1/Harmony12 references. The baseline build and the bound-member (static API) audit are done
+  for draft PR #62; native checks are not run ([current results](../CURRENT.md), [record](UMM-0311-BASELINE.md)). Released 0.2.15 still advertises 0.28.2; that old floor was not assessed
   (no genuine 0.28.2 binary was available). Earlier API compatibility passed offline on genuine 0.33.0 and 0.33.2
   binaries; 0.33.0 and 0.33.2 identities are reviewed profiles ([ledger, T03](CURRENT-KNOWN-ISSUES.md#t03--loader-matrix-on-the-development-machine-2026-11-15),
   `planning/UMM-LOADER-PROFILES.json`). Historical native qualification ran on UMM 0.33.2 and keeps that identity.

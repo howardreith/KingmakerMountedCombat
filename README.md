@@ -17,8 +17,9 @@ and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 ## Current status
 
 - **Unreleased loader baseline:** source now declares and builds against UMM **0.31.1**, independently of the
-  installed loader. The baseline build/API/native checks are still pending; this does not change the released
-  0.2.15 package or establish support for every newer loader. [Compatibility record](docs/UMM-0311-BASELINE.md).
+  installed loader. The baseline build and the static API audit are done for draft PR #62 (results in
+  [CURRENT.md](CURRENT.md)); native checks have not been run. This does not change the released 0.2.15 package or
+  establish runtime support for any newer loader. [Compatibility record](docs/UMM-0311-BASELINE.md).
 - **Release:** 0.2.15 is the current release. A held save now names what it is waiting for and why it stopped, and the
   log records each held save (X05, the post-combat save and door lock). **It does not fix that lock**, whose cause is
   not yet known. Nothing in 0.2.15 was run in the game before release ([notes](docs/RELEASE-NOTES-0.2.15.md)).
