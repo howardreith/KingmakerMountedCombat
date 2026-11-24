@@ -13,60 +13,69 @@ alpha playtest and is listed below as outstanding. This is not a release.
 | --- | --- |
 | Version | `0.2.16-alpha.2` (version.json, Info.json `Version`, `BuildIdentity.ProductVersion`) |
 | Loader | Info.json `ManagerVersion` `0.31.1` (build reference and declared minimum); your installed UMM is unchanged |
-| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-ea112a71-diagnostic.zip`, SHA-256 `b9168c6225bc34598e172aefdce124c1e4fdcc876dbc9dd012c203313a6dc2e7`, 4,284,987 bytes |
-| DLL | `KingmakerMountedCombat.dll`, SHA-256 `16c844db1e5b51a086b9ee33951339fcdecb674bd2f462336e2435eb5385112c`, MVID `00c67828-d35b-4bcf-ad82-6675a35f92f0` |
+| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.2-mounted-alpha2-3c52882a-diagnostic.zip`, SHA-256 `e0a00993012176fc5b700c0d290c1269749315bfe2fd0270f86a75babc9667e3`, 4,287,279 bytes |
+| DLL | `KingmakerMountedCombat.dll`, SHA-256 `a2cecac0d65925a21429e12a13e5109a3185916c54c6f72acf09589dda7447b7`, MVID `42a2aa87-30dc-4717-a88f-04a8f99a2d72` |
 | Mounted Shield icon | embedded, unchanged, SHA-256 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` |
-| Source | commit `ea112a71819520e9df915eff721ba42d042792bd` on `codex/mounted-alpha2-melee-pose` (draft PR #64), based on main `783b2b3d` (PR #61 merged) |
+| Source | commit `3c52882adaa897008a474859b64cfca644371195` on `codex/mounted-alpha2-melee-pose` (draft PR #64), based on main `783b2b3d` (PR #61 merged) |
 
-The packaging script names every agent-built package `…-diagnostic.zip`; the alpha identity is the version and this record.
-Alpha 1 (`0.2.16-alpha.1`, ZIP `d7143ba3…`) is the previous package and your rollback target.
+The packaging script names every agent-built package `…-diagnostic.zip`; the alpha identity is the version and this record
+([package-identity.json](package-identity.json), verified by `scripts/Test-MountedAlpha2Package.ps1` in the focused gate).
+The earlier `…-ea112a71-diagnostic.zip` (`b9168c62…`) and `…-94ad290c-diagnostic.zip` (`16061b2a…`) are superseded and is not the alpha. Alpha 1 (`0.2.16-alpha.1`, ZIP
+`d7143ba3…`) is your rollback target.
 
 ## Install
 
 1. Back up `%USERPROFILE%\AppData\LocalLow\Owlcat Games\Pathfinder Kingmaker\Saved Games` and your current
-   `<Kingmaker>\Mods\KingmakerMountedCombat` folder (alpha 1).
+   `<Kingmaker>\Mods\KingmakerMountedCombat` folder (alpha 1). Keep that backed-up save set: it is your rollback.
 2. Test on a copy of a save. Close the game, copy the package's `KingmakerMountedCombat` folder into `<Kingmaker>\Mods`,
    replacing the old copy. UMM should list version `0.2.16-alpha.2`.
 
 ## Roll back
 
-Close the game, restore the alpha 1 folder, and use saves made before alpha 2 (or your backup). A save written by alpha 2
-differs from alpha 1 only in that an existing KMC Horse no longer carries the inherited bite-Trip fact; alpha 1 loads it
-the same way, but that has not been tested.
+Close the game, restore the alpha 1 folder, and load your **backed-up alpha-1 saves**. Whether alpha 1 loads a save written
+by alpha 2 is **unverified**; do not rely on it. (Alpha 2 adds no blueprint and changes a saved Horse only by removing the
+inherited bite-Trip fact, but that has not been tested in either direction.)
 
-## What changed (all source-level; none observed in the game)
+## What changed (source-level; none observed in the game)
 
 | Issue | Change |
 | --- | --- |
-| MMR-01 rider too high | The Horse seat no longer samples the rider's pose in the frame Mount Companion fires; it uses the measured seat the existing Horse correction was tuned against, so first mount, mounted load and remount seat identically. |
-| MMR-02 TB attack click not approaching | A turn-based rider attack click on an enemy just out of reach, which native dropped because its path check reads the rider (the mount moves the pair), is now admitted when the mount has lawful movement left. The pair then approaches with that movement. |
-| MMR-03 horse not attacking in TB | One ordinary attack click now carries to the horse: after the rider's attack, the horse makes its own lawful attack in the same paired activation, without a second click. An explicit horse order, an AI intent and separate (unpaired) turns are unchanged. |
-| MMR-04 RT standing still at combat start | A real-time melee intent no longer waits for initiative before moving (see MMR-05). Target choice is still the rider's native AI proposal. |
-| MMR-05 RT pause before advancing | While neither actor may strike yet (initiative or cooldown), the mount starts moving toward an out-of-reach melee target at once; the strike itself still waits for native readiness. |
-| MMR-06 horse Trip | The Horse no longer inherits the stock Mammoth's TrippingBite (bite hit → Trip). An existing horse loses that one inherited fact once on load. Wolves, dogs and Riding Dogs keep their trip. |
-| MMR-07 bite animation | Investigated, no animation change: the native horse bite action exists (clip `BiteAttack`) and is the one played; native speeds up all three clips of a bite/hoof/hoof routine together, which may make the bite hard to see. The log line `Mounted combat command terminal` now ends with `horseBite={action=…,speedScale=…,routineAttacks=…,acted=…}` for each horse attack. |
+| MMR-01 rider too high | Hypothesis (from source, not yet matched by an in-game comparison): the Horse seat was measured once from the rider's pose in the frame Mount Companion fired. The Horse now uses the measured seat its existing correction was tuned against, so first mount, load and remount should seat identically. Mammoth and Small riders are unchanged. |
+| MMR-02 TB attack click not approaching | Inferred from the game's code: native drops a rider attack click whose visualized path (the mount's, under KMC) does not end in the rider's reach. Only that refusal of native's own predicted melee attack on the highlighted enemy is now admitted, and only when the mount's remaining step or move allowance covers the straight-line gap to reach. A blocked or longer route is still refused by the pair's approach. |
+| MMR-03 horse not attacking in TB | One ordinary **melee** click carries to the horse: after the rider's attack (or if the rider cannot act), the horse makes its own lawful attack in the same paired activation. A bow click, a newer order on either actor, an explicit horse order, an AI intent and separate (unpaired) turns do not spend the horse. |
+| MMR-04 RT standing still | The waiting pair now travels (MMR-05). Target choice is still the rider's native AI. A once-per-fight `Mounted real-time engagement: firstStop=…` log line says where engagement stopped (no-proposal, refused:reason, accepted-not-dispatched, travelling, engaging). |
+| MMR-05 RT pause before advancing | While neither actor's strike can start (initiative, cooldown, busy hands, equipment change), the mount moves toward an out-of-reach melee target; the strike waits for native readiness. The move stops at the pair's reach, gives way to any newer order or door click, does not leave the mount on Hold, and a route that cannot reach ends the order once ("The mounted pair cannot reach that target."). |
+| MMR-06 horse Trip | The Horse no longer inherits the stock Mammoth's exact TrippingBite (bite hit → Trip). An existing horse loses that one inherited, sourceless fact once on a settled load. Wolves, dogs, Riding Dogs and any separately granted trip keep theirs. |
+| MMR-07 bite animation | No animation change. Each horse strike logs `Horse strike: index=…; weapon=…; special=…; playback=…; action=…; speedScale=…`. |
 
-## Playtest checklist (priority order; all pending)
+## Playtest checklist (one ordinary encounter covers most of it; all pending)
 
-1. **Seating:** mount from an unmounted save; check the saddle from the side at normal zoom; dismount and remount at the
-   same spot and camera; save and reload once. The seat should look the same in all three. Note any difference.
-2. **TB click approach:** on a fresh pair turn, click an enemy just beyond melee reach. The pair should move and attack
-   without a ground click. After movement is spent, the same click should not create extra movement.
-3. **TB horse follow-through:** after that click, watch the combat log for **Horse** attacks (Bite, Hoof) after the
-   rider's. The horse must not attack again after it has acted. End Turn mid-sequence should stop it.
-4. **RT engagement:** with AI on and a melee weapon, start a fight near an enemy: the pair should advance. Then give an
-   explicit attack order from outside reach and compare when movement starts with an unmounted melee character.
+1. **Seating:** mount from an unmounted save; check the saddle from the side at normal zoom; walk, turn, stop; dismount and
+   check the rider stands normally (unmounted restoration); remount at the same spot and camera; save and reload once.
+2. **TB click approach:** on a fresh pair turn, click an enemy just beyond melee reach: the pair should move and attack with
+   no ground click. Repeat with the 5-ft-step toggle when only a step is needed. After movement is spent, the same click must
+   not create movement or an attack.
+3. **TB horse follow-through:** watch the combat log for **Horse** Bite/Hoof attacks after the rider's melee attack. After the
+   pair moved, the horse may get a single attack instead of its full bite+hooves routine; standing still it may get the full
+   routine. A bow click must not use the horse. End Turn mid-sequence stops it; the horse never attacks twice.
+4. **RT engagement:** with AI on, a melee weapon and no Stop/Hold, start a fight: the pair should advance. If two enemies are
+   reachable, note which it chose. Give an explicit attack order from outside reach and compare when movement starts with an
+   unmounted melee character. Then check Stop, Hold and AI-off keep the pair still, and an explicitly chosen farther target
+   is kept.
 5. **Trip:** a horse bite hit should no longer be followed by "Combat Maneuver: Trip". A wolf/dog companion should still trip.
-6. **Bite animation:** watch a horse attack routine at normal zoom. If the bite is still not visible, send `output_log.txt`
-   lines containing `horseBite={` (they show the native action and its speed-up).
-7. **Mounted Shield:** mount AC and the Mounted Combat check bonus should be as in alpha 1 (your screenshots showed +2).
+6. **Bite animation:** watch a horse routine at normal zoom.
+7. **Mounted Shield:** mount AC and the Mounted Combat check bonus as in alpha 1 (your screenshots showed +2); unequipping the
+   shield or dismounting removes the AC bonus, with no duplicate after remount or reload.
 
-If AI-on real-time combat still stands still, note whether the rider had a Hold or a completed move order, and send the
-log; the native AI proposal itself was not changed.
+**Logs to send if something is off** (`output_log.txt` in the save folder's parent): lines containing `Horse strike:` (bite:
+`playback=no-handle` means nothing was drawn; `playback=played` with a large `speedScale` means it played but fast),
+`Mounted real-time engagement:`, `Admitted a turn-based rider melee attack click`, `Mounted combat command terminal` and
+`Removed the inherited stock TrippingBite`.
 
 ## Known limitations
 
 - No game run: every behavior above is source-level and offline-tested only.
-- MMR-02's cause is inferred from the installed native code, not from a trace of your click.
-- MMR-04: if the rider's native AI never proposes an attack (AI off, Hold, unreachable target), this alpha does not change that.
+- MMR-01 and MMR-02 causes are inferred from source and the installed game code, not from traces of your play.
+- MMR-04: if the rider's native AI never proposes an attack (AI off, Hold, unreachable), this alpha does not change that;
+  the engagement log line names the case.
 - MMR-07: no change to what is drawn; visible bite is your observation.

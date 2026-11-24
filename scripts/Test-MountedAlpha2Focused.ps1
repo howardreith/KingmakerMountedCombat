@@ -6,6 +6,8 @@ param()
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter and saved-horse
 #      repair on genuine objects; the installed members the MMR-02 click admission, the MMR-04/05 readiness gate and the
 #      MMR-07 telemetry bind; the native horse animation bundle identity.
+#   1b. Test-MountedAlpha2Package.ps1: the receipt for the exact alpha ZIP named in docs/mounted-melee/package-identity.json
+#      (archive hash/size/entries, enclosed DLL hash/MVID, version, UMM minimum, icon, manifest commit, Validate-Package).
 #   2. Test-MountedPresentationContracts.ps1: the paired prediction/action-slot presentation seams beside the MMR-02
 #      IgnoreClick admission.
 #   3-4. Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1: Mounted Shield regression (S08):
@@ -30,7 +32,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedPresentationContracts.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

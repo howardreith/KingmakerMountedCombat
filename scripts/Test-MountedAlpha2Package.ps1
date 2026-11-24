@@ -27,10 +27,11 @@ Check ([string]$manifest.packageSha256 -ceq $zipSha -and [string]$manifest.commi
 Add-Type -AssemblyName System.IO.Compression
 $archive = New-Object IO.Compression.ZipArchive((New-Object IO.MemoryStream(, $bytes)), [IO.Compression.ZipArchiveMode]::Read)
 try {
-    $entries = @($archive.Entries | ForEach-Object { $_.FullName } | Sort-Object)
+    # The packaging path writes Windows separators; names are compared normalized.
+    $entries = @($archive.Entries | ForEach-Object { $_.FullName.Replace([string][char]92, '/') } | Sort-Object)
     Write-Host ('RECEIPT entries=' + ($entries -join ','))
     Check (($entries -join ',') -ceq 'KingmakerMountedCombat/Info.json,KingmakerMountedCombat/KingmakerMountedCombat.dll') 'exactly Info.json and the DLL'
-    function EntryBytes([string]$Name) { $s = $archive.GetEntry($Name).Open(); try { $m = New-Object IO.MemoryStream; $s.CopyTo($m); , $m.ToArray() } finally { $s.Dispose() } }
+    function EntryBytes([string]$Name) { $s = @($archive.Entries | Where-Object { $_.FullName.Replace([string][char]92, '/') -ceq $Name })[0].Open(); try { $m = New-Object IO.MemoryStream; $s.CopyTo($m); , $m.ToArray() } finally { $s.Dispose() } }
     $info = [Text.Encoding]::UTF8.GetString((EntryBytes 'KingmakerMountedCombat/Info.json')) | ConvertFrom-Json
     Write-Host ('RECEIPT Info.json Version=' + $info.Version + ' ManagerVersion=' + $info.ManagerVersion)
     Check ([string]$info.Version -ceq [string]$record.version -and [string]$info.ManagerVersion -ceq [string]$record.ummMinimum) 'Info.json version and UMM minimum'
