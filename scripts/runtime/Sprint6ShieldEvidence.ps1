@@ -191,8 +191,21 @@ function Assert-KmcShieldEquipment($E){
  foreach($p in $d.PSObject.Properties){ if($p.Value.mounted -ne $true){ throw ('Mounted Shield '+$p.Name+' was not observed mounted') } }
 }
 
-function Assert-KmcShieldPairs($E){
+function Assert-KmcShieldPairs($E,$Selection,$Measure){
  $d=$E.steps
+ # Each snapshot names exactly its pair (controller review R1-F4): the first pair is the measured rider and mount, the second
+ # the owner and companion recorded by the native companion acquisition; a snapshot of one pair cannot stand for the other.
+ $c=Get-KmcShieldProperty $Selection 'ownerCompanion'
+ if($null -eq $c -or [string]::IsNullOrWhiteSpace([string]$c.owner) -or [string]::IsNullOrWhiteSpace([string]$c.pet) -or [string]$c.owner -ceq [string]$Measure.rider -or [string]$c.pet -ceq [string]$Measure.mount){ throw 'Mounted Shield the second pair''s acquired identities were not recorded' }
+ $first=@{rider=[string]$Measure.rider;mount=[string]$Measure.mount}; $second=@{rider=[string]$c.owner;mount=[string]$c.pet}
+ foreach($n in 'bothFirst','uiSelectedSecondFirst','remounted','featReacquired','serviceEnabledFirst','serviceDisabledFirst','dismountedFirst','featRemoved'){
+  $s=Get-KmcShieldProperty $d $n; if($null -eq $s -or [string]$s.rider -cne $first.rider -or [string]$s.mount -cne $first.mount){ throw ('Mounted Shield '+$n+' is not the first pair') }
+ }
+ foreach($n in 'bothSecond','uiSelectedSecondSecond','dismountedSecond','featRemovedSecond','serviceEnabledSecond','serviceDisabledSecond'){
+  $s=Get-KmcShieldProperty $d $n; if($null -eq $s -or [string]$s.rider -cne $second.rider -or [string]$s.mount -cne $second.mount){ throw ('Mounted Shield '+$n+' is not the second pair') }
+ }
+ if([string]$E.crossFirstToSecondMount.rider -cne $first.rider -or [string]$E.crossFirstToSecondMount.mount -cne $second.mount -or
+   [string]$E.crossSecondToFirstMount.rider -cne $second.rider -or [string]$E.crossSecondToFirstMount.mount -cne $first.mount){ throw 'Mounted Shield the cross-pair observations are not one rider on the other pair''s mount each way' }
  foreach($n in 'bothFirst','uiSelectedSecondFirst','remounted','featReacquired','serviceEnabledFirst'){ Assert-KmcShieldSnapshot (Get-KmcShieldProperty $d $n) 3 $n }
  foreach($n in 'bothSecond','uiSelectedSecondSecond','dismountedSecond','featRemovedSecond','serviceEnabledSecond'){
   $s=Get-KmcShieldProperty $d $n; Assert-KmcShieldSnapshot $s 2 $n
@@ -286,6 +299,14 @@ function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
    if($rule.isHitAtEvent -ne $true -or $rule.isHitAfterRule -ne $true -or [string]$rule.resultAtEvent -cne [string]$x.resultBefore -or [string]$rule.resultAfterRule -cne [string]$x.resultBefore -or
      [string]$rule.resultAtEvent -cmatch '^(Parried|Miss)$' -or [bool]$rule.criticalAtEvent -ne [bool]$x.criticalBefore -or [bool]$x.criticalAfter -ne [bool]$x.criticalBefore -or
      [int]$rule.damageRules -lt 1){ throw ('Mounted Shield '+$Case+': a refused defense''s native hit did not stand') }
+  }
+  # Every negated attempt (planned or natural, any pair): the bound native attack ends Parried (melee) or Miss, not a hit, deals
+  # no damage, and its critical confirmation is cleared (controller review R1-F6).
+  if($x.negated -eq $true){
+   $nr=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
+   $ca=Get-KmcShieldProperty $nr 'criticalAfterRule'
+   if([string]$nr.resultAfterRule -cnotin @('Parried','Miss') -or $nr.isHitAfterRule -ne $false -or [int]$nr.damageRules -ne 0 -or $null -eq $ca -or [bool]$ca -ne $false -or
+     [string]$x.resultAfter -cnotin @('Parried','Miss')){ throw ('Mounted Shield '+$Case+': a negated defense''s native attack still hit, dealt damage or kept its critical') }
   }
   # A hit that stands (refused, or attempted and not negated) keeps its native critical confirmation at rule completion too
   # (review PN14-F2).
@@ -407,6 +428,8 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  # The row's designated hostile, recorded when the row starts (review PN11-F7); other hostiles' attacks do not matter here.
  $hostile=@([string]$E.hostile)
  $row=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$miss.identity })
+ # An ordinary native AC miss, at the event and in the final outcome (controller review R1-F5): not Mirror Image, not a hit.
+ if($row.Count -eq 1 -and ([string]$row[0].resultAtEvent -cne 'Miss' -or [string](Get-KmcShieldProperty $row[0] 'resultAfterRule') -cne 'Miss' -or $row[0].isHitAfterRule -ne $false)){ throw 'Mounted Shield the band miss is not an ordinary native AC miss' }
  if($row.Count -ne 1 -or $hostile.Count -ne 1 -or [string]$row[0].attacker -cne $hostile[0] -or [string]$row[0].target -cne [string]$Measure.mount -or $row[0].isHitAtEvent -eq $true -or [int]$row[0].d20 -le 1 -or
    ($row[0].acContext | ConvertTo-Json -Compress) -cne ($context | ConvertTo-Json -Compress) -or
    ([int]$row[0].d20+[int]$row[0].bonus) -ge [int]$row[0].ac -or ([int]$row[0].d20+[int]$row[0].bonus) -lt [int]$row[0].ac-$effective){ throw 'Mounted Shield the identified band miss is not a miss that reached the AC without Mounted Shield' }
@@ -453,7 +476,7 @@ function Assert-KmcSprint6ShieldRows($Measure,$Rows,[string]$Scenario){
  if($Scenario -ceq 'sprint6-shield-rt'){
   Assert-KmcShieldSelection $Rows['MS-selection'].evidence $true
   Assert-KmcShieldEquipment $Rows['MS-equipment'].evidence
-  Assert-KmcShieldPairs $Rows['MS-pairs'].evidence
+  Assert-KmcShieldPairs $Rows['MS-pairs'].evidence $Rows['MS-selection'].evidence $Measure
   Assert-KmcShieldCheckRealTime $Measure $Rows['MS-check-rt'].evidence $Rows['MS-pairs'].evidence
  } else {
   Assert-KmcShieldSelection $Rows['MS-rider-feat'].evidence $false

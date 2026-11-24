@@ -316,6 +316,9 @@ if((Test-KmcChunk7OwnedPairsScenario $Scenario)-or(Test-KmcChunk7PersistenceScen
 # Mounted Shield gameplay rows (supplemental review PN7-F7): a 480-second scenario and 640-second host deadline, plus startup,
 # drain and restoration, so the outer budget is declared, never the generic 360-second default.
 if($Scenario-cin@('sprint6-shield-rt','sprint6-shield-tb')){
+    # Controller review R1-F1: only base-only staging takes the profile snapshot (Params.xml, PlayerPrefs, profile caches)
+    # and enters the selected Areas isolation, so every other configuration is refused here, before any admission or mutation.
+    if(-not$BaseGameOnly){throw 'Mounted Shield gameplay rows require explicit base-only staging, which takes the profile snapshot and enters Areas isolation.'}
     if(-not$PSBoundParameters.ContainsKey('TimeoutSeconds')){$TimeoutSeconds=900}
     elseif($TimeoutSeconds-lt900){throw 'Mounted Shield gameplay rows require the declared 900-second outer host/drain/restoration budget.'}
 }

@@ -331,6 +331,55 @@ $aloneWithout = Be-AC $alone 'Melee'; $aloneMine = $addMount.Invoke($null, @($al
 Check ($aloneWith.Applied -eq 0 -and $aloneWith.TargetAC -eq $aloneWithout.TargetAC) 'Brilliant Energy without a competing shield: the +3 raised the AC and is ignored like any shield (no correction)'
 [void]$removeExact.Invoke($null, @($alone, $aloneMine, $null))
 $plain = New-BeRule $alone 'Melee'; $ruleType.GetProperty('BrilliantEnergy').SetValue($plain, $null); Check ([int]$correct.Invoke($null, @($plain)) -eq 0) 'no Brilliant Energy: no correction'
+# Controller review R1-F2: a force-stacking foreign +4 Shield modifier adds on top of KMC's non-stacking +3 and suppresses
+# nothing, so KMC's +3 raised the AC and Brilliant Energy is corrected by nothing; the same attack sees the same AC with and
+# without Mounted Shield. Built as a genuine Modifier with StackMode.ForceStack through the stat's own AddModifier(Modifier).
+$stackModeType = $mvType.GetNestedType('StackMode')
+$addRaw = $mvType.GetMethod('AddModifier', [Reflection.BindingFlags]'Instance,NonPublic', $null, @($modifierType), $null)
+$forced = New-Ac
+[void]$addOther.Invoke($forced, @(5, $null, 'armor', (Descriptor 'Armor')))
+$forceStack = [Activator]::CreateInstance($modifierType); $forceStack.ModValue = 4; $forceStack.ModDescriptor = (Descriptor 'Shield'); $forceStack.StackMode = [Enum]::Parse($stackModeType, 'ForceStack'); $forceStack.SourceComponent = 'force-stacking shield'
+[void]$addRaw.Invoke($forced, @($forceStack))
+$forcedWithout = Be-AC $forced 'Melee'; $forcedTouchWithout = Be-AC $forced 'Touch'
+$forcedMine = $addMount.Invoke($null, @($forced, 3, $null))
+$forcedWith = Be-AC $forced 'Melee'; $forcedTouchWith = Be-AC $forced 'Touch'
+Check ($forceStack.Stacks -and $forced.ModifiedValue -eq 22 -and $forcedWith.Applied -eq 0 -and $forcedWith.TargetAC -eq $forcedWithout.TargetAC) ('Brilliant Energy with a force-stacking +4: KMC''s +3 raised the AC (22 = 10 + 5 + 4 + 3), nothing is given back, and the same melee attack sees AC ' + $forcedWith.TargetAC + ' with and ' + $forcedWithout.TargetAC + ' without Mounted Shield')
+Check ($forcedTouchWith.Applied -eq 3 -and $forcedTouchWith.TargetAC -eq $forcedTouchWithout.TargetAC) 'Brilliant Energy touch attack with a force-stacking +4: the same AC with and without Mounted Shield'
+[void]$removeExact.Invoke($null, @($forced, $forcedMine, $null))
+
+# Controller review R1-F7: the production physical-shield predicate (MountedShieldService.EffectiveShield, which ordinary play
+# calls through ReadFacts) on genuine engine objects: a rider whose UnitDescriptor holds a genuine UnitBody with a genuine
+# HandsEquipmentSet and HandSlot carrying a genuine ItemEntityShield, and whose AC carries genuine modifiers. The predicate is
+# not supplied an answer: it reads the slot's activity and the AC's own Shield modifier sourced from that shield's armor.
+$bodyType = GameType 'Kingmaker.Items.UnitBody'; $setType = GameType 'Kingmaker.Items.HandsEquipmentSet'; $handType = GameType 'Kingmaker.Items.Slots.HandSlot'
+$slotBase = GameType 'Kingmaker.Items.Slots.ItemSlot'
+$effectiveShield = $shieldService.GetMethod('EffectiveShield', $any)
+$addItemModifier = $mvType.GetMethod('AddItemModifier', [Type[]]@([int], (GameType 'Kingmaker.Items.ItemEntity'), $descriptorType))
+$heldShield = New-Shield $shieldTypes[2] 0
+$hand = New-Native $handType; $slotBase.GetField('m_Item', $any).SetValue($hand, $heldShield); $slotBase.GetField('m_Active', $any).SetValue($hand, $true)
+$set = New-Native $setType; $setType.GetField('SecondaryHand').SetValue($set, $hand); $setType.GetField('PrimaryHand').SetValue($set, (New-Native $handType))
+$body = New-Native $bodyType; $sets = [Array]::CreateInstance($setType, 1); $sets.SetValue($set, 0)
+$bodyType.GetField('m_HandsEquipmentSets', $any).SetValue($body, $sets); $bodyType.GetField('m_CurrentHandsEquipmentSetIndex', $any).SetValue($body, 0)
+$riderAc = New-Ac
+$riderStats = New-Native $statsType; $statsType.GetField('AC').SetValue($riderStats, (New-ArmorClassView $riderAc))
+$riderDescriptor = New-Native $descriptorUnitType; $descriptorUnitType.GetField('Stats').SetValue($riderDescriptor, $riderStats)
+$descriptorUnitType.GetField('<Body>k__BackingField', $any).SetValue($riderDescriptor, $body)
+$riderUnit = New-Native $unitType; $unitType.GetField('<Descriptor>k__BackingField', $any).SetValue($riderUnit, $riderDescriptor)
+function Effective { $effectiveShield.Invoke($null, @($riderUnit)) }
+$armorModifier = $addItemModifier.Invoke($riderAc, @(2, $heldShield.ArmorComponent, (Descriptor 'Shield')))
+Check ([object]::ReferenceEquals((Effective), $heldShield)) 'the active off-hand shield with its own Shield modifier on the rider''s AC is the effective shield'
+$slotBase.GetField('m_Active', $any).SetValue($hand, $false)
+Check ($null -eq (Effective)) 'the same shield in an inactive slot (for example another weapon set) is not effective'
+$slotBase.GetField('m_Active', $any).SetValue($hand, $true)
+[void]$removeExact.Invoke($null, @($riderAc, $armorModifier, $null))
+Check ($null -eq (Effective)) 'without its armor component''s Shield modifier (natively suppressed) the shield is not effective'
+$otherShield = New-Shield $shieldTypes[1] 0
+$foreignItem = $addItemModifier.Invoke($riderAc, @(1, $otherShield.ArmorComponent, (Descriptor 'Shield')))
+$spellShield = $addOther.Invoke($riderAc, @(4, $null, 'stand-in Shield spell', (Descriptor 'Shield')))
+Check ($null -eq (Effective)) 'another item''s or a spell''s Shield modifier does not make the held shield effective'
+[void]$removeExact.Invoke($null, @($riderAc, $foreignItem, $null)); [void]$removeExact.Invoke($null, @($riderAc, $spellShield, $null))
+$armorModifier = $addItemModifier.Invoke($riderAc, @(2, $heldShield.ArmorComponent, (Descriptor 'Shield')))
+Check ([object]::ReferenceEquals((Effective), $heldShield)) 'restoring the matching modifier makes the held shield effective again'
 
 # 2c'. A half-done write (pre-native review finding 1): the installed ModifiableValue.AddModifier puts the modifier into the
 # stat and runs UpdateValue (and its OnChanged callbacks) before it sets AppliedTo. A throwing callback therefore leaves an
@@ -502,6 +551,27 @@ $declared = if ($shieldIf.Count -eq 1 -and $shieldIf[0].Clauses[0].Item2.Extent.
 $range = @($runnerAst.ParamBlock.Parameters | Where-Object { $_.Name.VariablePath.UserPath -ceq 'TimeoutSeconds' })[0].Attributes | Where-Object { $_.TypeName.Name -ceq 'ValidateRange' }
 Check ($parseErrors.Count -eq 0 -and $hostDeadline -eq 640 -and $declared -ge $hostDeadline + 240 -and $declared -le [int]$range.PositionalArguments[1].Value -and
     $shieldIf[0].Clauses[0].Item2.Extent.Text -match 'TimeoutSeconds-lt900') ('the runner declares ' + $declared + ' s for the Mounted Shield rows (compiled host deadline ' + $hostDeadline + ' s) and refuses less')
+# Controller review R1-F1: the Shield rows are admitted only with base-only staging, which takes the profile snapshot and
+# enters Areas isolation; every other configuration is refused before any workflow admission or mutation. The refusal is
+# exercised on the real runner (it throws before the budget admission, so it writes nothing); for the accepted configuration
+# the parsed runner and the real Areas-selection function show snapshot, isolation and restoration are all selected.
+$guardText = $shieldIf[0].Clauses[0].Item2.Extent.Text
+$admissionAt = @($runnerAst.FindAll({ param($n) $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -ceq 'Request-KmcWorkflowAdmission' }, $true))[0].Extent.StartOffset
+Check ($guardText -match "if\(-not\`$BaseGameOnly\)\{throw" -and $shieldIf[0].Extent.StartOffset -lt $admissionAt) 'the Shield rows refuse a non-base-only start in the runner before its workflow admission'
+$snapshotIf = @($runnerAst.FindAll({ param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item2.Extent.Text -match 'New-KmcPersistenceProfileSnapshot' }, $true))
+$restoreIf = @($runnerAst.FindAll({ param($n) $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item1.Extent.Text -match 'processExited-and\$null-ne\$profileSnapshot' }, $true))
+. (Join-Path $PSScriptRoot 'runtime\PersistenceProfileAreasIsolation.ps1')
+$areasRt = Test-KmcPersistenceAreasIsolationSelection -Scenario 'sprint6-shield-rt' -PersistenceCase '' -ObserveWorkingDeserialization $false
+$areasTb = Test-KmcPersistenceAreasIsolationSelection -Scenario 'sprint6-shield-tb' -PersistenceCase '' -ObserveWorkingDeserialization $false
+Check ($snapshotIf.Count -eq 1 -and $snapshotIf[0].Clauses[0].Item1.Extent.Text -match '^\$BaseGameOnly-or' -and $snapshotIf[0].Clauses[0].Item2.Extent.Text -match 'Enter-KmcPersistenceAreasIsolation' -and
+    $restoreIf.Count -ge 1 -and $areasRt -and $areasTb) 'with base-only staging both Shield rows take the profile snapshot, enter Areas isolation and restore it after the process exits'
+$runnerPath2 = Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
+foreach ($shieldScenario in 'sprint6-shield-rt', 'sprint6-shield-tb') {
+    $previousPreference = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $output = (& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runnerPath2 -Scenario $shieldScenario -RunId ('admission-refusal-' + $shieldScenario) -WhatIf 2>&1 | Out-String) }
+    finally { $ErrorActionPreference = $previousPreference }
+    Check ($output -match 'require explicit base-only staging') ('the real runner refuses ' + $shieldScenario + ' without -BaseGameOnly before admission')
+}
 
 # ---- 3. Embedded icon identity -------------------------------------------------------------------------------------
 $expectedIcon = 'fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0'

@@ -278,7 +278,9 @@ namespace KingmakerMountedCombat.Integration
             var mine = owned.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield).ToArray();
             var raw = mine.Sum(modifier => modifier.ModValue);
             if (raw <= 0) return 0;
-            var other = modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
+            // Only another non-stacking Shield modifier competes with KMC's non-stacking one; a stacking (for example ForceStack)
+            // Shield modifier adds on top and suppresses nothing (controller review R1-F2).
+            var other = modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !modifier.Stacks && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
             var effective = touch ? 0 : Math.Max(0, mine.Max(modifier => modifier.ModValue) - Math.Max(0, other));
             return Math.Max(0, raw - effective);
         }

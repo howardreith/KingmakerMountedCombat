@@ -507,6 +507,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     var acquired = NativeHorseFixtureAcquisition.Create(s6Owner, horseService, logger, acquisition);
                     acquisition["acquired"] = acquired;
                     if (!acquired) { FailSprint6Row("The second pair's native companion did not commit."); return; }
+                    // The second pair's identities, for the reader's two-pair binding (controller review R1-F4).
+                    acquisition["owner"] = s6Owner.UniqueId; acquisition["pet"] = s6Owner.Descriptor.Pet?.UniqueId;
                     // Disclosed setup: the second rider's Mounted Combat and Mounted Shield as facts (the native choice is the
                     // first rider's), and a light shield, so the two pairs differ (+2 against +3).
                     s6Owner.Descriptor.Progression.Features.AddFeature(horseService.MountedCombatFeature);
@@ -960,7 +962,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var row = (JObject)s6Rules.Attacks[index];
                 var context = row["acContext"] as JObject;
-                if (context == null || (string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent")) continue;
+                // An ordinary native AC miss only (controller review R1-F5): not Mirror Image, concealment or another outcome.
+                if (context == null || (string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent") ||
+                    (string)row["resultAtEvent"] != "Miss") continue;
                 var ac = row.Value<int>("ac"); var effective = context.Value<int>("effective");
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
                 if (effective >= 1 && context.Value<int>("acResult") == ac && row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
@@ -983,7 +987,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (unit != horse) return null;
             var owned = MountedShieldService.IdentityModifiers(unit.Stats.AC, HorseCompanionBlueprintService.MountedShieldFeatureGuid);
             var own = owned.Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
-            var other = unit.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
+            // Competing means non-stacking (controller review R1-F2): a stacking Shield modifier adds on top.
+            var other = unit.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !modifier.Stacks && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
             return new JObject { ["owned"] = own, ["ownedCount"] = owned.Length, ["otherShield"] = other, ["effective"] = Math.Max(0, own - Math.Max(0, other)) };
         }
 

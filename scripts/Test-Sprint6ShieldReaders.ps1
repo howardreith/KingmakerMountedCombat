@@ -70,7 +70,7 @@ function New-Selection([bool]$RealTime){
   levels=@($pairLevel,$shieldLevel); riderFacts=(New-Facts 1 1 1)}
  if($RealTime){
   $e | Add-Member ownerLevels @([pscustomobject]@{committed=$true;pass=[pscustomobject]@{eligibility=@((New-Eligibility 'after-ShieldFocus' 'FighterFeatSelection' $false $true))}})
-  $e | Add-Member ownerCompanion ([pscustomobject]@{acquired=$true;experienceBefore=5000;experienceSetup=23000})
+  $e | Add-Member ownerCompanion ([pscustomobject]@{acquired=$true;experienceBefore=5000;experienceSetup=23000;owner=$owner;pet=$pet})
   $e | Add-Member ownerSetupFacts ([pscustomobject]@{unit=$owner;mountedCombat=1;shieldFocus=1;mountedShield=1;mountedShieldRank=1})
  }
  $e
@@ -293,6 +293,14 @@ $r=Copy-MS $real; $u=$r.observations.sprint6Feat.skillChecks | Where-Object { [i
 # Alpha closure review (PN14-F2 residual).
 $r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 2; $x.resultBefore='CriticalHit'; $x.resultAfter='CriticalHit'; $x.criticalBefore=$true; $x.criticalAfter=$true; $a2=$r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }; $a2.resultAtEvent='CriticalHit'; $a2.resultAfterRule='CriticalHit'; $a2.criticalAtEvent=$true; $a2.criticalAfterRule=$true; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a failed equality whose critical hit stands natively at the event and completion is accepted (closure control)'
 $a2.resultAtEvent='Hit'; Reject $r $rs 'a failed equality whose native result at the hit event differs from the pre-defense critical refuses (closure PN14-F2)'
+# Controller review round 1.
+$r=Copy-MS $real; $p=RowOf $r 'MS-pairs'; $p.steps.serviceDisabledSecond=($p.steps.serviceDisabledFirst | ConvertTo-Json -Depth 8 | ConvertFrom-Json); Reject $r $rs 'the first pair''s disabled snapshot duplicated as the second refuses (R1-F4)'
+$r=Copy-MS $real; $p=RowOf $r 'MS-pairs'; $p.crossSecondToFirstMount=($p.crossFirstToSecondMount | ConvertTo-Json -Depth 8 | ConvertFrom-Json); Reject $r $rs 'one cross-pair direction duplicated as the other refuses (R1-F4)'
+$r=Copy-MS $real; (RowOf $r 'MS-selection').ownerCompanion.PSObject.Properties.Remove('pet'); Reject $r $rs 'a second pair without its acquired identities refuses (R1-F4)'
+$r=Copy-MS $real; $id=(RowOf $r 'MS-check-rt').bandMiss.identity; $b=$r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $id }; $b.resultAtEvent='MirrorImage'; (RowOf $r 'MS-check-rt').bandMiss | Add-Member resultAtEvent 'MirrorImage' -Force; Reject $r $rs 'a Mirror Image outcome with band arithmetic refuses (R1-F5)'
+$r=Copy-MS $real; $id=(RowOf $r 'MS-check-rt').bandMiss.identity; $b=$r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $id }; $b.resultAfterRule='Hit'; $b.isHitAfterRule=$true; Reject $r $rs 'a band miss whose final outcome is a hit refuses (R1-F5)'
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $nr=$m.attackRules[-1]; $nr.resultAfterRule='Hit'; $nr.isHitAfterRule=$true; $nr.damageRules=1; Reject $r $rs 'a negated natural defense whose native attack still hit with damage refuses (R1-F6)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; ($r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }).criticalAfterRule=$true; Reject $r $rs 'a planned negation with its critical confirmation still set refuses (R1-F6)'
 # Supplemental review round 9.
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'
