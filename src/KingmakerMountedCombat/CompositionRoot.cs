@@ -74,10 +74,11 @@ namespace KingmakerMountedCombat
                 world.BindControls(nativeControls);
                 persistence = new MountedPersistenceService(world, settings, logger);
                 // MMR-06: the owner-requested saved-Horse Trip repair uses the same update-time write gate as Mounted Shield's
-                // writes, and keeps its candidate report, request and result in the mod's own folder.
+                // writes; its request and result live in the KMC user-data folder beside the save roots (the isolated data parent
+                // under a guarded run), never in the Mods tree (review R4-F6).
                 horseCompanion.InheritedFactRepairAllowed = () => MountedWorldWriteGate.Allows(IsEnabled, persistence.SaveSuspended,
                     persistence.AreaTransitionPending, persistence.CombatRestorationPending, persistence.ActiveSaveWorkerRunning, persistence.LoadInFlight);
-                horseCompanion.RepairDirectory = () => Main.ModDirectory;
+                horseCompanion.RepairDirectory = () => HorseTripRepairPaths.Folder(NativePersistenceIsolation.UserDataParent);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 explorationObserver = new MountedExplorationObserver(world, logger);

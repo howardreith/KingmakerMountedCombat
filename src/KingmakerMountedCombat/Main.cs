@@ -10,10 +10,6 @@ namespace KingmakerMountedCombat
         private static CompositionRoot root;
         private static UnityModManager.ModEntry activeModEntry;
 
-        // The mod's own folder (UMM ModEntry.Path): the MMR-06 Horse Trip repair keeps its candidate report, the owner's
-        // request and its result there.
-        internal static string ModDirectory { get; private set; }
-
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
             if (modEntry == null)
@@ -25,7 +21,6 @@ namespace KingmakerMountedCombat
             {
                 var logger = new UmmLogger(modEntry.Logger);
                 activeModEntry = modEntry;
-                ModDirectory = modEntry.Path;
                 root = new CompositionRoot(logger, modEntry.Info.Id);
                 modEntry.OnToggle = OnToggle;
                 modEntry.OnUnload = OnUnload;

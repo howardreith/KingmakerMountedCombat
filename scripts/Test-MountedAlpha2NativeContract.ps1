@@ -192,7 +192,38 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
 }
 Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.Remove') ('the only fact removal in the Horse service is the owner-request host (' + ($removers -join ', ') + ')')
 $policy = KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy'
-Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('CandidateReportFileName').GetRawConstantValue() -ceq 'horse-trip-repair-candidates.txt') 'the owner-facing request and candidate report file names'
+Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('FolderName').GetRawConstantValue() -ceq 'KingmakerMountedCombat' -and $null -eq $policy.GetField('CandidateReportFileName')) 'the owner-facing request file and user-data folder names; no candidate report file (candidates are logged only)'
+# Review R4-F6: no file is written into the Mods tree. The request lives in <persistence data parent>/KingmakerMountedCombat (the composition
+# root resolves it through NativePersistenceIsolation.UserDataParent and HorseTripRepairPaths.Folder), the mod folder is no longer recorded, and the
+# Horse service itself calls no System.IO.File method (every file operation is HorseTripRepairFiles, run only for an owner request).
+$mainType = KmcType 'KingmakerMountedCombat.Main'
+Check ($null -eq $mainType.GetProperty('ModDirectory', $any)) 'the mod folder (UMM ModEntry.Path) is not recorded for the repair'
+$rootCtor = @((KmcType 'KingmakerMountedCombat.CompositionRoot').GetConstructors($any))
+$userData = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('UserDataParent', $any).GetGetMethod($true)
+$folderOf = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('Folder')
+function CallsAny([Type]$Type, [Reflection.MethodBase]$Target) {
+    foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
+        foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
+            $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray()
+            for ($i = 0; $i -le $il.Length - 5; $i++) { if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq $Target.MetadataToken) { try { if ($m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { return $true } } catch { } } }
+        }
+    }
+    $false
+}
+$root = KmcType 'KingmakerMountedCombat.CompositionRoot'
+Check ((CallsAny $root $userData) -and (CallsAny $root $folderOf)) 'the repair folder is the persistence data parent''s KingmakerMountedCombat folder (isolated parent under a guarded run)'
+$fileCalls = New-Object 'System.Collections.Generic.List[string]'
+foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
+    foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly))) {
+        $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray()
+        for ($i = 0; $i -le $il.Length - 5; $i++) {
+            if ($il[$i] -ne 0x28) { continue }
+            try { $callee = $m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
+            if ($callee.DeclaringType -eq [IO.File] -or $callee.DeclaringType -eq [IO.Directory]) { $fileCalls.Add($t.Name + '.' + $m.Name + '->' + $callee.Name) }
+        }
+    }
+}
+Check ($fileCalls.Count -eq 0) ('the Horse service performs no file operation of its own (' + ($fileCalls -join ', ') + ')')
 # ---- 3. MMR-02/04/05/07 installed contracts the production paths bind -------------------------------------------------
 $module = $game.ManifestModule
 function MemberAt([int]$Token) { $module.ResolveMember($Token) }

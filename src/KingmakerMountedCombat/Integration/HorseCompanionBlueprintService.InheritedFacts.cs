@@ -34,7 +34,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly LoadedInstanceRepairLedger<UnitEntityData> tripCandidateReportedHorses =
             new LoadedInstanceRepairLedger<UnitEntityData>();
         private readonly List<UnitEntityData> loadedHorsesThisUpdate = new List<UnitEntityData>();
-        private readonly Dictionary<string, string> reportedTripCandidates = new Dictionary<string, string>(StringComparer.Ordinal);
+        // Requests whose removal happened in this game process, until their reporting finished (review R4-F5).
+        private readonly HorseTripRepairSession tripRepairSession = new HorseTripRepairSession();
         private float nextTripRepairRequestCheck;
         private string lastTripRepairNotice;
         private bool tripRepairFailureReported;
@@ -43,8 +44,9 @@ namespace KingmakerMountedCombat.Integration
         // Set by the composition root: its update-time write gate (MountedWorldWriteGate). Unset means not allowed.
         internal Func<bool> InheritedFactRepairAllowed { get; set; }
 
-        // Set by the composition root: the mod's own folder (UMM ModEntry.Path), where the candidate report, the owner's
-        // request and the result are kept. Unset means report to the log only and read no request.
+        // Set by the composition root: the KMC user-data folder (<persistence data parent>/KingmakerMountedCombat, review R4-F6),
+        // never the Mods tree. Only the owner's request and its outcome live there; candidates are reported in the log. KMC
+        // never creates the folder. Unset or missing means no request is read.
         internal Func<string> RepairDirectory { get; set; }
 
         internal int TripRepairAppliedCount { get; private set; }
@@ -96,48 +98,22 @@ namespace KingmakerMountedCombat.Integration
             {
                 var candidates = TripRepairCandidates(unit).Count;
                 if (candidates > 0) ReportTripCandidate(unit, candidates);
-                else if (reportedTripCandidates.Remove(unit.UniqueId)) WriteTripCandidateReport();
                 return candidates;
             }, out count);
         }
 
+        // Log only (review R4-F6): nothing is written on discovery.
         private void ReportTripCandidate(UnitEntityData horse, int candidates)
         {
             var directory = RepairDirectory?.Invoke();
             var request = HorseTripRepairPolicy.FormatRequestLine(horse.UniqueId);
             logger.Info("KMC Horse Trip repair candidate (MMR-06; not removed automatically): horse=" + horse.UniqueId +
                 "; name=" + horse.CharacterName + "; fact=TrippingBite " + StockTrippingBiteGuid + " (sourceless, Bite->Trip); count=" + candidates +
-                ". To remove it, write the line '" + request + "' into " +
-                Path.Combine(directory ?? "<mod folder>", HorseTripRepairPolicy.RequestFileName) + " (see " +
-                HorseTripRepairPolicy.CandidateReportFileName + ").");
-            reportedTripCandidates[horse.UniqueId] = "Horse: " + horse.CharacterName + " (UniqueId " + horse.UniqueId + ")\r\n" +
-                "  Candidate: TrippingBite " + StockTrippingBiteGuid + " with no source, item or cutscene (" + candidates + " found)." +
-                (candidates == 1 ? string.Empty : " More than one: the repair will refuse, because the inherited copy cannot be singled out.") + "\r\n" +
-                "  Request line: " + request + "\r\n";
-            WriteTripCandidateReport();
-        }
-
-        private void WriteTripCandidateReport()
-        {
-            var directory = RepairDirectory?.Invoke();
-            if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) { return; }
-            var text = new StringBuilder();
-            text.Append("Kingmaker Mounted Combat: Horse Trip repair candidates (MMR-06), written ")
-                .Append(DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture)).Append("\r\n\r\n");
-            text.Append("KMC 0.2.16-alpha.1 and earlier gave every KMC Horse the stock Mammoth's TrippingBite, so a horse bite hit could\r\n" +
-                "trip. New horses no longer get it. An existing horse keeps it until you ask for this repair, because a TrippingBite\r\n" +
-                "granted another way (a console command, another mod) looks identical in the save.\r\n\r\n" +
-                "What the repair changes: exactly one fact, that TrippingBite, is removed from that one horse. Its bite and hoof attacks\r\n" +
-                "and their damage stay. Wolves, dogs, Riding Dogs, other horses and every other fact are untouched.\r\n" +
-                "If you granted TrippingBite to this horse deliberately, do not apply it.\r\n\r\n" +
-                "To apply: back up your save, load it, then create the file " + HorseTripRepairPolicy.RequestFileName + " in this folder\r\n" +
-                "containing the request line below, while the game runs with that horse in the party. Within a few seconds KMC removes the\r\n" +
-                "fact, renames the request to " + HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.AppliedSuffix +
-                " and writes " + HorseTripRepairPolicy.ResultFileName + ".\r\n" +
-                "The change reaches your save file only when the game next saves; to undo it, reload the save you made before.\r\n\r\n");
-            if (reportedTripCandidates.Count == 0) text.Append("No outstanding candidates in the current session.\r\n");
-            foreach (var entry in reportedTripCandidates.Values) text.Append(entry).Append("\r\n");
-            File.WriteAllText(Path.Combine(directory, HorseTripRepairPolicy.CandidateReportFileName), text.ToString());
+                (candidates == 1 ? string.Empty : " (more than one: a request will be refused, the inherited copy cannot be singled out)") +
+                ". KMC 0.2.16-alpha.1 and earlier granted exactly this fact; if you did not grant it yourself and want it removed, back up " +
+                "your save and write the single line '" + request + "' into " +
+                Path.Combine(directory ?? "<user data>/" + HorseTripRepairPolicy.FolderName, HorseTripRepairPolicy.RequestFileName) +
+                " (create the folder if needed). Only that fact on that horse is removed; bite and hoof attacks stay.");
         }
 
         // The owner's request, read at most every two seconds; a failure leaves the request in place and is retried.
@@ -146,11 +122,11 @@ namespace KingmakerMountedCombat.Integration
             var now = UnityEngine.Time.realtimeSinceStartup;
             if (now < nextTripRepairRequestCheck) { return; }
             nextTripRepairRequestCheck = now + 2f;
-            var directory = RepairDirectory?.Invoke();
-            if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) { return; }
+            var files = new HorseTripRepairFiles(RepairDirectory?.Invoke());
+            if (!files.FolderPresent) { return; }
             HorseTripRepairDecision decision;
-            var host = new TripRepairFileHost(this, directory);
-            try { decision = HorseTripRepairPolicy.Process(host, TripRepairAdmitted()); }
+            var host = new TripRepairFileHost(this, files);
+            try { decision = HorseTripRepairPolicy.Process(host, TripRepairAdmitted(), tripRepairSession); }
             catch (Exception exception)
             {
                 if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair request (kept; retried later)", exception);
@@ -162,23 +138,22 @@ namespace KingmakerMountedCombat.Integration
             var notice = decision + ":" + host.RequestText;
             if (decision != HorseTripRepairDecision.Apply && string.Equals(notice, lastTripRepairNotice, StringComparison.Ordinal)) { return; }
             lastTripRepairNotice = notice;
-            logger.Info("KMC Horse Trip repair request: decision=" + decision +
+            logger.Info("KMC Horse Trip repair request: decision=" + decision + "; folder=" + files.Directory +
                 (decision == HorseTripRepairDecision.HorseNotLoaded ? " (request kept until that horse is loaded in the party)" : string.Empty) +
                 "; result=" + (host.Result ?? "<kept>") + ".");
         }
 
+        // The policy's host: the file lifecycle (HorseTripRepairFiles, user-data folder) and the loaded horse's FeatureCollection.
         private sealed class TripRepairFileHost : IHorseTripRepairHost<Feature>
         {
             private readonly HorseCompanionBlueprintService owner;
-            private readonly string requestPath;
-            private readonly string directory;
+            private readonly HorseTripRepairFiles files;
             private UnitEntityData horse;
 
-            internal TripRepairFileHost(HorseCompanionBlueprintService owner, string directory)
+            internal TripRepairFileHost(HorseCompanionBlueprintService owner, HorseTripRepairFiles files)
             {
                 this.owner = owner;
-                this.directory = directory;
-                requestPath = Path.Combine(directory, HorseTripRepairPolicy.RequestFileName);
+                this.files = files;
             }
 
             internal string RequestText { get; private set; }
@@ -187,9 +162,16 @@ namespace KingmakerMountedCombat.Integration
 
             public bool TryReadRequest(out string text)
             {
-                text = File.Exists(requestPath) ? File.ReadAllText(requestPath) : null;
+                var present = files.TryReadRequest(out text);
                 RequestText = text;
-                return text != null;
+                return present;
+            }
+
+            public bool TryReadClaim(out string text)
+            {
+                var present = files.TryReadClaim(out text);
+                if (present) RequestText = text;
+                return present;
             }
 
             public IList<Feature> CandidatesOf(string horseId, out bool loaded)
@@ -199,7 +181,10 @@ namespace KingmakerMountedCombat.Integration
                 return loaded ? TripRepairCandidates(horse) : new List<Feature>();
             }
 
-            // Removes exactly this fact instance and proves it: one candidate fewer and one fact fewer, or the request stays.
+            public bool StillPresent(Feature fact) => horse?.Descriptor?.Progression?.Features != null &&
+                horse.Descriptor.Progression.Features.Enumerable.Contains(fact);
+
+            // Removes exactly this fact instance and proves it: one candidate fewer and one fact fewer, or it throws.
             public void Remove(Feature fact)
             {
                 var features = horse.Descriptor.Progression.Features;
@@ -208,26 +193,26 @@ namespace KingmakerMountedCombat.Integration
                 features.RemoveFact(fact);
                 var after = TripRepairCandidates(horse).Count;
                 var factsAfter = features.Enumerable.Count();
+                owner.TripRepairAppliedCount += features.Enumerable.Contains(fact) ? 0 : 1;
                 if (after != before - 1 || factsAfter != factsBefore - 1 || features.Enumerable.Contains(fact))
                     throw new InvalidOperationException("The requested TrippingBite was not removed exactly (candidates " + before + "->" + after +
                         ", features " + factsBefore + "->" + factsAfter + ").");
-                owner.TripRepairAppliedCount++;
                 owner.logger.Info("Removed the inherited stock TrippingBite from the KMC Horse at the owner's request (MMR-06): horse=" +
                     horse.UniqueId + "; name=" + horse.CharacterName + "; candidates " + before + "->" + after + "; features " +
                     factsBefore + "->" + factsAfter + ".");
-                if (owner.reportedTripCandidates.Remove(horse.UniqueId)) owner.WriteTripCandidateReport();
             }
 
-            public void Consume(string suffix, string result)
+            public void Claim() => files.Claim();
+
+            public void ReleaseClaim() => files.ReleaseClaim();
+
+            public void WriteResult(string result)
             {
-                var target = requestPath + suffix;
-                if (File.Exists(target))
-                    target = requestPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + suffix;
-                File.Move(requestPath, target);
                 Result = result;
-                File.WriteAllText(Path.Combine(directory, HorseTripRepairPolicy.ResultFileName),
-                    DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture) + "\r\n" + result + "\r\n");
+                files.WriteResult(result);
             }
+
+            public void Close(bool claimed, string suffix) => files.Close(claimed, suffix);
         }
     }
 }
