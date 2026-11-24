@@ -6,7 +6,10 @@ using KingmakerMountedCombat.Domain;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// MMR-01 production seat attachment harness (review R1-F12). The ACTUAL KingmakerMountedPairRuntime attach/restore/
+// MMR-01 production seat attachment harness (reviews R1-F12, R5-F3, R5-F4). The facade's RiderMovementAgent keeps the rider
+// root on the owned position anchor as production's does (InitialConfiguration in Configure, then every frame before the
+// adapter's LateUpdate), the Horse Chest may animate per frame, and Unity's Time.deltaTime and the native AnimationManager's
+// Disabled flag are facades so paused (time scale 0) and disabled animation can be driven. The ACTUAL KingmakerMountedPairRuntime attach/restore/
 // replacement members and the ACTUAL MountedRiderPoseAdapter rig resolution, baseline lease, saddle calibration, frame,
 // seat and deconfiguration members are spliced in by scripts/Test-MountedAlpha2SeatAttachment.ps1 and compiled with the
 // real Domain sources (ScopedTransformAttachmentLease, ScopedPoseBaselineLease, AnimatedSaddlePosition,
@@ -104,7 +107,17 @@ namespace UnityEngine
         public void GetComponents<T>(List<T> results) where T : Component => gameObject.GetComponents(results);
     }
 
-    public class Behaviour : Component { public bool enabled { get; set; } = true; }
+    public class Behaviour : Component
+    {
+        public bool enabled { get; set; } = true;
+        public bool isActiveAndEnabled => enabled && gameObject.activeSelf;
+    }
+
+    // Unity's frame delta: 0 while Kingmaker's pause suspends Time.timeScale (TimeController.Suspend).
+    public static class Time
+    {
+        public static float deltaTime = 1f / 60f;
+    }
 
     public class MonoBehaviour : Behaviour { }
 
@@ -302,10 +315,17 @@ namespace KingmakerMountedCombat.Integration
     // Facade of the native humanoid surface the adapter reads: a live Animator and the CharacterAvatar under which the rig is.
     internal sealed class Character : MonoBehaviour { }
 
+    // Facade of the native AnimationManager surface the adapter reads (its Disabled flag; enabled/active as a Behaviour).
+    internal sealed class HarnessAnimationManager : MonoBehaviour
+    {
+        public bool Disabled { get; set; }
+    }
+
     internal sealed class UnitEntityView : MonoBehaviour
     {
         public object Animator => this;
         public Character CharacterAvatar { get; set; }
+        public HarnessAnimationManager AnimationManager { get; set; }
     }
 
     internal sealed class UnitEntityData
@@ -348,11 +368,19 @@ namespace KingmakerMountedCombat.Integration
         public void Dispose() { Live--; }
     }
 
+    // Production RiderMovementAgent.Synchronize writes the rider root to anchor.TransformPoint(offset) at configuration and in
+    // its own Update/LateUpdate, before the pose adapter's LateUpdate (execution order 32000).
     internal sealed class RiderMovementAgent : MonoBehaviour
     {
         internal int Deconfigures;
-        public void Configure(UnitEntityData mount, Transform anchor, Vector3 offset, Vector3 euler) { }
-        public void Deconfigure() { Deconfigures++; }
+        private Transform anchor;
+        private Vector3 anchorOffset;
+        public void Configure(UnitEntityData mount, Transform mountAnchor, Vector3 offset, Vector3 euler)
+        {
+            anchor = mountAnchor; anchorOffset = offset; Sync();
+        }
+        internal void Sync() { if (anchor != null) transform.position = anchor.TransformPoint(anchorOffset); }
+        public void Deconfigure() { Deconfigures++; anchor = null; }
     }
 
     internal sealed class MountedRiderPoseAdapter : MonoBehaviour
@@ -365,6 +393,8 @@ namespace KingmakerMountedCombat.Integration
         /* ADAPTER_SADDLE */
         /* ADAPTER_CALIBRATION */
         /* ADAPTER_SETTLE */
+        /* ADAPTER_NORMALIZED */
+        /* ADAPTER_ADVANCE */
         /* ADAPTER_NOTIFY */
         /* ADAPTER_SCALE */
         /* ADAPTER_DECONFIGURE */
@@ -447,6 +477,8 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal MountedRiderPoseAdapter PoseAdapter => poseAdapter;
+        // Harness: the frame's rider-root synchronization by the movement agent (production order: before the adapter LateUpdate).
+        internal void HarnessSync() => riderOverride?.Sync();
         internal bool PoseComponentOwned => poseComponentOwned;
         internal bool ReplacementReleased => replacementRiderViewReleaseVerified;
 
@@ -551,6 +583,7 @@ internal static class Program
         }
         var unit = new KingmakerMountedCombat.Integration.UnitEntityData(id) { View = view.AddComponent<KingmakerMountedCombat.Integration.UnitEntityView>() };
         unit.View.CharacterAvatar = avatar.AddComponent<KingmakerMountedCombat.Integration.Character>();
+        unit.View.AnimationManager = view.AddComponent<KingmakerMountedCombat.Integration.HarnessAnimationManager>();
         return new Rider { Unit = unit, Pelvis = pelvis.transform };
     }
 
@@ -558,6 +591,7 @@ internal static class Program
     {
         internal KingmakerMountedCombat.Integration.UnitEntityData Unit;
         internal Transform Root;
+        internal Transform Chest;
     }
 
     private static readonly Vector3 ChestLocal = new Vector3(0f, 1.5024f, 0.4674f);
@@ -570,20 +604,43 @@ internal static class Program
         var source = new GameObject(sourceName);
         source.transform.SetParent(view.transform, false);
         source.transform.localPosition = ChestLocal;
-        return new Mount { Unit = new KingmakerMountedCombat.Integration.UnitEntityData(id) { View = view.AddComponent<KingmakerMountedCombat.Integration.UnitEntityView>() }, Root = view.transform };
+        return new Mount { Unit = new KingmakerMountedCombat.Integration.UnitEntityData(id) { View = view.AddComponent<KingmakerMountedCombat.Integration.UnitEntityView>() }, Root = view.transform, Chest = source.transform };
     }
 
     private static int Adapters(GameObject view) => view.GetComponents<KingmakerMountedCombat.Integration.MountedRiderPoseAdapter>().Length;
     private static int ConfiguredAdapters(GameObject view) =>
         view.GetComponents<KingmakerMountedCombat.Integration.MountedRiderPoseAdapter>().Count(adapter => adapter.IsConfigured);
 
-    // Engine frames while mounted: the animator writes its own pelvis pose (cast, walk, idle) before LateUpdate.
+    // Engine frames while mounted: the movement agent keeps the rider root on its anchor, then the animator writes its own
+    // pelvis pose (cast, walk, idle) before the adapter's LateUpdate.
     private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, IEnumerable<float> animatedHeights)
     {
+        Time.deltaTime = 1f / 60f;
         foreach (var height in animatedHeights)
-            runtime.PoseAdapter.HarnessFrame(() => pelvis.localPosition = new Vector3(0f, height, 0f));
+            runtime.PoseAdapter.HarnessFrame(() => { runtime.HarnessSync(); pelvis.localPosition = new Vector3(0f, height, 0f); });
         return pelvis.position;
     }
+
+    // One frame of the full rig: the Horse Chest height (mount-root-local Y), the rider's animated pelvis height and the frame
+    // delta (0 = paused: Kingmaker suspends Time.timeScale).
+    private struct RigFrame { public float Pelvis, ChestY, Delta; public RigFrame(float pelvis, float chestY, float delta) { Pelvis = pelvis; ChestY = chestY; Delta = delta; } }
+
+    private static Vector3 Drive(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, Mount mount, IEnumerable<RigFrame> frames)
+    {
+        foreach (var frame in frames)
+        {
+            Time.deltaTime = frame.Delta;
+            mount.Chest.localPosition = new Vector3(ChestLocal.x, frame.ChestY, ChestLocal.z);
+            var f = frame;
+            runtime.PoseAdapter.HarnessFrame(() => { runtime.HarnessSync(); pelvis.localPosition = new Vector3(0f, f.Pelvis, 0f); });
+        }
+        Time.deltaTime = 1f / 60f;
+        return pelvis.position;
+    }
+
+    private const float Dt = 1f / 60f;
+    private static IEnumerable<RigFrame> Rig(float pelvis, float chestY, int frames, float delta = Dt) =>
+        Enumerable.Repeat(new RigFrame(pelvis, chestY, delta), frames);
 
     private static IEnumerable<float> Hold(float height, int frames) => Enumerable.Repeat(height, frames);
 
@@ -617,7 +674,8 @@ internal static class Program
     {
         Engine.Reset();
         var mountRoot = new Vector3(10f, 0f, 5f);
-        var settleBudget = SettledSeatSampler.MinimumFrames + 80;
+        var minimumFrames = (int)Math.Ceiling(SettledSeatSampler.MinimumAnimationSeconds / Dt);
+        var settleBudget = (int)Math.Ceiling((SettledSeatSampler.MinimumAnimationSeconds + SettledSeatSampler.StableWindowSeconds) / Dt) + 60;
 
         Check("first mount from an animated cast pose settles on the rider's own idle pose: provisional then settled seat, both logged", () =>
         {
@@ -628,13 +686,13 @@ internal static class Program
             runtime.AttachPresentation(PairOf(cast, mount));
             var provisional = Frames(runtime, cast.Pelvis, Hold(1.20f, 1));
             var settling = runtime.PoseAdapter.SeatCalibrationSettles && !runtime.PoseAdapter.SeatCalibrationSettled;
-            var settled = Frames(runtime, cast.Pelvis, CastThenIdle(1.20f, IdleHeight, SettledSeatSampler.MinimumFrames + 10, 40));
+            var settled = Frames(runtime, cast.Pelvis, CastThenIdle(1.20f, IdleHeight, minimumFrames + 10, settleBudget));
             var expected = ExpectedSettledSeat(cast.Pelvis, IdleHeight);
             var lines = SeatLines("rider-cast");
             Console.WriteLine("  provisional=" + provisional + " settled=" + settled + " expected=" + expected +
                 " frames=" + runtime.PoseAdapter.SeatSettleFrames + " lines=" + string.Join(" | ", lines));
             var ok = settling && runtime.PoseAdapter.SeatCalibrationSettled && Near(settled, expected) && provisional.y - settled.y > 0.2f &&
-                runtime.PoseAdapter.SeatSettleFrames > SettledSeatSampler.MinimumFrames + 10 &&
+                runtime.PoseAdapter.SeatSettleFrames > minimumFrames + 10 &&
                 lines.Count == 2 && lines[0].Contains("phase=attach") && lines[0].Contains("observedSeatFromSource=") &&
                 lines[0].Contains("appliedSeatFromSource=") && lines[1].Contains("phase=settled") && lines[1].Contains("frames=" + runtime.PoseAdapter.SeatSettleFrames) &&
                 Math.Abs(runtime.PoseAdapter.CalibrationAppliedSeatFromSource.Y - runtime.PoseAdapter.CalibrationObservedSeatFromSource.Y + 0.25f) < 0.0005f;
@@ -669,7 +727,7 @@ internal static class Program
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var first = Frames(runtime, rider.Pelvis, CastThenIdle(1.25f, IdleHeight, SettledSeatSampler.MinimumFrames, 40));
+            var first = Frames(runtime, rider.Pelvis, CastThenIdle(1.25f, IdleHeight, minimumFrames, settleBudget));
             var firstSettled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
@@ -742,7 +800,7 @@ internal static class Program
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var restless = Enumerable.Range(0, SettledSeatSampler.MaximumFrames + 5).Select(frame => (frame % 2) == 0 ? 1.10f : 1.11f);
+            var restless = Enumerable.Range(0, (int)Math.Ceiling(SettledSeatSampler.MaximumAnimationSeconds / Dt) + 5).Select(frame => (frame % 2) == 0 ? 1.10f : 1.11f);
             var seat = Frames(runtime, rider.Pelvis, restless);
             var expectedProvisional = rider.Pelvis.parent.position + new Vector3(0f, 1.10f, 0f) + U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             var lines = SeatLines("rider-g");
@@ -751,6 +809,129 @@ internal static class Program
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
             return ok;
+        });
+
+        // R5-F3. The pelvis relative to the Chest once both rigs reach identical idle geometry (Chest at its idle height, rider
+        // pelvis at its idle height), in the mount root frame.
+        Func<Mount, Rider, Vector3> pelvisFromChest = (m, r) => r.Pelvis.position - m.Chest.position;
+        var expectedFromChest = U(MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset) + new Vector3(0f, IdleHeight, 0f) +
+            U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+        Check("R5-F3: two attachments with the Chest at different heights, rider root synchronized as production does, settle on the same pelvis relative to the Chest", () =>
+        {
+            var mount = NewMount("horse-h", "Chest", mountRoot);
+            var rider = NewRider("rider-h", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
+            var runtime = NewRuntime();
+            // First attachment: the Horse breathes in (Chest 6 cm high) in the frame Mount Companion fires.
+            mount.Chest.localPosition = ChestLocal + new Vector3(0f, 0.06f, 0f);
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            var anchorHigh = rider.Unit.View.transform.position;
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var high = pelvisFromChest(mount, rider);
+            var highSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            // Second attachment: the Chest 4 cm low at attachment; afterwards both rigs run the identical idle geometry.
+            mount.Chest.localPosition = ChestLocal - new Vector3(0f, 0.04f, 0f);
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            var anchorLow = rider.Unit.View.transform.position;
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var low = pelvisFromChest(mount, rider);
+            var lowSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            var lines = SeatLines("rider-h");
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            // The counterexample's raw input: the synchronized rider roots (anchors) differ by the 10 cm Chest displacement, which a
+            // raw pelvis-minus-current-Chest sample would have carried into the seat.
+            var anchorDifference = anchorHigh.y - anchorLow.y;
+            Console.WriteLine("  high=" + high + " low=" + low + " expected=" + expectedFromChest + " anchorDifference=" + anchorDifference +
+                " lines=" + string.Join(" | ", lines));
+            return highSettled && lowSettled && Near(high, low) && Near(high, expectedFromChest) && Math.Abs(anchorDifference - 0.10f) < 0.0001f &&
+                lines.Count == 4 && lines.All(line => line.Contains("anchorFromSource=(0.0000,-0.0800,0.0000)")) &&
+                Near(rider.Pelvis.localPosition, new Vector3(0f, IdleHeight, 0f));
+        });
+
+        Check("R5-F3: after view replacement the new view, attached with yet another Chest height, settles on the same pelvis relative to the Chest", () =>
+        {
+            var mount = NewMount("horse-i", "Chest", mountRoot);
+            var rider = NewRider("rider-i", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(7f, 0f, 2f), IdleHeight);
+            var oldView = rider.Unit.View.gameObject;
+            var runtime = NewRuntime();
+            mount.Chest.localPosition = ChestLocal + new Vector3(0f, 0.05f, 0f);
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var before = pelvisFromChest(mount, rider);
+            var replacement = NewRider("rider-i-replacement", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(0f, 0f, 0f), 1.05f);
+            replacement.Unit.View.transform.SetParent(oldView.transform.parent, false);
+            rider.Unit.View = replacement.Unit.View;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            mount.Chest.localPosition = ChestLocal - new Vector3(0f, 0.03f, 0f);
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, replacement.Pelvis, mount, new[] { new RigFrame(1.05f, ChestLocal.y, Dt) }.Concat(Rig(IdleHeight, ChestLocal.y, settleBudget)));
+            var after = pelvisFromChest(mount, replacement);
+            var single = ConfiguredAdapters(replacement.Unit.View.gameObject) == 1 && Adapters(oldView) == 0 && runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            Console.WriteLine("  before=" + before + " after=" + after + " expected=" + expectedFromChest);
+            return single && Near(before, expectedFromChest) && Near(after, expectedFromChest) && !runtime.HasPresentationAttachmentResidue;
+        });
+
+        Check("R5-F4: a high cast held through 120 paused updates never settles; resumed to idle it settles there and matches the remount control", () =>
+        {
+            var mount = NewMount("horse-j", "Chest", mountRoot);
+            var rider = NewRider("rider-j", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.20f);
+            var runtime = NewRuntime();
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            // Paused (time scale 0) through 120 render updates with the cast pose held, then 60 more with the animation manager disabled.
+            Drive(runtime, rider.Pelvis, mount, Rig(1.20f, ChestLocal.y, 120, 0f));
+            rider.Unit.View.AnimationManager.Disabled = true;
+            Drive(runtime, rider.Pelvis, mount, Rig(1.20f, ChestLocal.y, 60));
+            rider.Unit.View.AnimationManager.Disabled = false;
+            var pausedSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            var ignored = runtime.PoseAdapter.SeatIgnoredFrames;
+            var held = pelvisFromChest(mount, rider);
+            // Resumed: the cast animates on, blends, then idle.
+            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.20f, IdleHeight, 60, settleBudget).Select(height => new RigFrame(height, ChestLocal.y, Dt)));
+            var resumed = pelvisFromChest(mount, rider);
+            var resumedSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            // Remount control from idle.
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var control = pelvisFromChest(mount, rider);
+            var controlSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            Console.WriteLine("  held=" + held + " ignored=" + ignored + " resumed=" + resumed + " control=" + control);
+            return !pausedSettled && ignored == 180 && held.y - expectedFromChest.y > 0.2f && resumedSettled && controlSettled &&
+                Near(resumed, control) && Near(resumed, expectedFromChest);
+        });
+
+        Check("R5-F4: sub-2 mm per-frame pelvis drift does not settle while drifting; once still it settles there and matches the remount control", () =>
+        {
+            var mount = NewMount("horse-k", "Chest", mountRoot);
+            var rider = NewRider("rider-k", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight + 0.36f);
+            var runtime = NewRuntime();
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            // 1.5 mm per frame for 240 frames (4 s of animation, well past the minimum), sinking to idle.
+            var drift = Enumerable.Range(0, 240).Select(frame => new RigFrame(IdleHeight + 0.0015f * (240 - frame), ChestLocal.y, Dt));
+            Drive(runtime, rider.Pelvis, mount, drift);
+            var driftSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var still = pelvisFromChest(mount, rider);
+            var stillSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            Console.WriteLine("  driftSettled=" + driftSettled + " still=" + still + " expected=" + expectedFromChest);
+            return !driftSettled && stillSettled && Near(still, expectedFromChest);
         });
 
         Check("the actual adapter refuses a second configuration of the same rider view while mounted", () =>

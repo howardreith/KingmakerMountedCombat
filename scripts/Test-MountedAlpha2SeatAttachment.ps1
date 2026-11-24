@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$TemplatePath,[string]$OutputDirectory)
-# MMR-01 production seat attachment check (review R1-F12). Splices the ACTUAL KingmakerMountedPairRuntime attach/restore/
+# MMR-01 production seat attachment check (reviews R1-F12, R5-F3, R5-F4). Splices the ACTUAL KingmakerMountedPairRuntime attach/restore/
 # replacement members, the ACTUAL MountedRiderPoseAdapter rig resolution, baseline lease, saddle calibration, frame, seat and
 # settle, notice and deconfiguration members, and the ACTUAL SupportedMountedProfile settled-seat expression into
 # tests/Chunk7Diagnostics/HorseSeatAttachmentTemplate.cs (the Unity hierarchy facade of the chunk7 attachment slot harness
@@ -29,6 +29,8 @@ $members=[ordered]@{
  'ADAPTER_SADDLE'=(Extract $adapter 'public void ConfigureAnimatedSaddle(')
  'ADAPTER_CALIBRATION'=(Extract $adapter 'private void AcquireSaddleCalibration(')
  'ADAPTER_SETTLE'=(Extract $adapter 'private void ObserveSettlingSeat()')
+ 'ADAPTER_NORMALIZED'=(ExtractExpression $adapter 'private PoseVector3 NormalizedSeatSample() =>')
+ 'ADAPTER_ADVANCE'=(Extract $adapter 'private float SeatAnimationAdvanceSeconds()')
  'ADAPTER_NOTIFY'=(Extract $adapter 'private void NotifySeatCalibration(')
  'ADAPTER_SCALE'=(Extract $adapter 'internal void CompensateMountScale(Transform exactAnchor)')
  'ADAPTER_DECONFIGURE'=(Extract $adapter 'public void Deconfigure()')

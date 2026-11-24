@@ -304,4 +304,23 @@ $notice = $calibrationType.GetMethod('FormatNotice')
 Check (CallsMethod $runtimeType $settles.GetGetMethod()) 'MMR-01: pair attachment passes the profile''s settled-seat flag to the pose adapter'
 Check (CallsMethod $adapterType $observe) 'MMR-01: the adapter''s seat frames decide the settled sample through SettledSeatSampler.Observe'
 Check (CallsMethod $runtimeType $notice) 'MMR-01: pair attachment logs the attachment and settled seat samples (seatCalibration lines) on the normal path'
+# R5-F3/F4: the normalized seat sample and the animation-advance gate bind installed members.
+Check (CallsMethod $adapterType ($calibrationType.GetMethod('NormalizedSeatFromSource'))) 'MMR-01 (R5-F3): the adapter samples the seat through the normalized anchor-relation-plus-rider-local formula'
+# Cross-module call sites carry MemberRef tokens: resolve each call site and compare the resolved member.
+function CallsResolved([Reflection.MethodBase]$Method, [Reflection.MethodBase]$Target) {
+    $il = $Method.GetMethodBody().GetILAsByteArray()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { if ($Method.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { return $true } } catch { } } }
+    $false
+}
+$advance = $adapterType.GetMethod('SeatAnimationAdvanceSeconds', [Reflection.BindingFlags]'Instance,NonPublic')
+$nativeAnimation = GameType 'Kingmaker.Visual.Animation.AnimationManager'
+$disabled = $nativeAnimation.GetProperty('Disabled').GetGetMethod()
+$unityTime = [Type]::GetType('UnityEngine.Time, UnityEngine.CoreModule', $true)
+$deltaTime = $unityTime.GetProperty('deltaTime').GetGetMethod()
+Check ((CallsResolved $advance $disabled) -and (CallsResolved $advance $deltaTime)) 'MMR-01 (R5-F4): the settle gate reads the rider AnimationManager.Disabled flag and Unity Time.deltaTime'
+$updateDt = $nativeAnimation.GetMethod('Update', [Type[]]@([single]))
+Check (CallsResolved $updateDt $disabled) 'MMR-01 (R5-F4): installed AnimationManager advances its animations only while not Disabled'
+$suspend = (GameType 'Kingmaker.Controllers.TimeController').GetMethod('Suspend')
+$setScale = $unityTime.GetProperty('timeScale').GetSetMethod()
+Check (CallsResolved $suspend $setScale) 'MMR-01 (R5-F4): installed TimeController.Suspend (pause) sets Time.timeScale, so a paused frame has no animation delta'
 Write-Host ('Mounted alpha 2 native contract PASS=' + $script:passed + ' FAIL=0')

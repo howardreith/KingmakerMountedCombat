@@ -552,11 +552,13 @@ namespace KingmakerMountedCombat.Integration
                 // MMR-01 (review R1-F12): the attachment and settled seat samples are logged on every successful attachment.
                 var calibrationRider = rider?.UniqueId;
                 var calibrationCorrection = supportedProfile.AnimatedSeatCorrection;
-                poseAdapter.SeatCalibrationNotice = (phase, observed, applied, frames) =>
-                    logger.Info(AnimatedSaddleCalibration.FormatNotice(phase, calibrationRider, observed, applied, calibrationCorrection, frames));
+                poseAdapter.SeatCalibrationNotice = (phase, observed, applied, frames, seconds, anchorFromSource) =>
+                    logger.Info(AnimatedSaddleCalibration.FormatNotice(phase, calibrationRider, observed, applied, calibrationCorrection, frames,
+                        seconds, anchorFromSource));
+                // Review R5-F3: the adapter normalizes the seat by the rider position anchor this attachment placed.
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
                     ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null,
-                    supportedProfile.SettlesSeatFromIdlePose);
+                    supportedProfile.SettlesSeatFromIdlePose, positionAnchor);
                 if (supportedProfile.SmallRiderBody != null)
                 {
                     poseAdapter.CompensateMountScale(positionAnchor);
