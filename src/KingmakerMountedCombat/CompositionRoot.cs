@@ -73,8 +73,9 @@ namespace KingmakerMountedCombat
                     horseCompanion, settings, lifecycleLedger, logger);
                 world.BindControls(nativeControls);
                 persistence = new MountedPersistenceService(world, settings, logger);
-                // MMR-06: the saved-Horse fact repair waits for a settled world (no save worker, no pending restoration).
-                horseCompanion.InheritedFactRepairBlocked = () => persistence.ActiveSaveWorkerRunning || persistence.CombatRestorationPending;
+                // MMR-06: the saved-Horse fact repair uses the same update-time write gate as Mounted Shield's writes.
+                horseCompanion.InheritedFactRepairAllowed = () => MountedWorldWriteGate.Allows(IsEnabled, persistence.SaveSuspended,
+                    persistence.AreaTransitionPending, persistence.CombatRestorationPending, persistence.ActiveSaveWorkerRunning, persistence.LoadInFlight);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 explorationObserver = new MountedExplorationObserver(world, logger);
@@ -87,8 +88,8 @@ namespace KingmakerMountedCombat
                 // Event-time writes follow the ordinary update gates; event-time removals only stay clear of an archive
                 // worker serializing the live graphs and of an owned load replacing the world.
                 mountedShield = new MountedShieldService(horseCompanion, world,
-                    () => IsEnabled && !persistence.SaveSuspended && !persistence.AreaTransitionPending && !persistence.CombatRestorationPending &&
-                        !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight,
+                    () => MountedWorldWriteGate.Allows(IsEnabled, persistence.SaveSuspended, persistence.AreaTransitionPending,
+                        persistence.CombatRestorationPending, persistence.ActiveSaveWorkerRunning, persistence.LoadInFlight),
                     () => !persistence.ActiveSaveWorkerRunning && !persistence.LoadInFlight, logger);
                 // Mounted Shield is selectable only while both its benefits can apply (services on, the service enabled).
                 var shieldService = mountedShield;

@@ -642,6 +642,7 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.AdditionalTemplates = CloneArray(mammothUnit.AdditionalTemplates);
             // The Mammoth's facts without its inert TrippingBite (MMR-06): HorseCompanionBlueprintService.InheritedFacts.cs.
             horseUnit.AddFacts = HorseInheritedFacts(mammothUnit.AddFacts);
+            inheritedTrippingBiteSuccessor = DonorSuccessorFeature(mammothUnit.AddFacts);
             horseUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(classLevels, "KMC_Horse_AddClassLevels"),

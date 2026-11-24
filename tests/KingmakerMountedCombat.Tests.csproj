@@ -215,6 +215,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedAttackClickDropDiagnostic.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedFollowThroughPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldWriteGate.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseStrikeDiagnostic.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />

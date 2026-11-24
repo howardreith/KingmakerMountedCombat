@@ -536,20 +536,25 @@ namespace KingmakerMountedCombat.Tests
             Func<LoadedUnit, int> repair = unit => { var n = unit.Stale; unit.Stale = 0; removals += n; return n; };
             int changed;
             var first = new LoadedUnit("horse-1");
-            // Save worker, pending restoration, a native load or a disabled service: zero removals, object still pending.
-            foreach (var admitted in new[] {
-                HorseInheritedFactRepairPolicy.MayRepair(true, true, true), HorseInheritedFactRepairPolicy.MayRepair(true, false, false),
-                HorseInheritedFactRepairPolicy.MayRepair(false, true, false) })
+            // The composition root's write gate (shared with Mounted Shield) through disable, save suspension, an area transition,
+            // a pending restoration, a save worker and an owned load, plus a native load: zero removals, object still pending.
+            bool Admitted(bool enabled = true, bool suspended = false, bool area = false, bool restoration = false, bool worker = false,
+                bool load = false, bool nativeLoading = false) =>
+                HorseInheritedFactRepairPolicy.MayRepair(true, !nativeLoading,
+                    !MountedWorldWriteGate.Allows(enabled, suspended, area, restoration, worker, load));
+            foreach (var admitted in new[] { Admitted(enabled: false), Admitted(suspended: true), Admitted(area: true),
+                Admitted(restoration: true), Admitted(worker: true), Admitted(load: true), Admitted(nativeLoading: true) })
             {
                 TestRunner.True(!ledger.TryRun(first, admitted, repair, out changed) && changed == 0 && removals == 0 && !ledger.IsCompleted(first),
                     "A protected phase repaired or completed the Horse.");
             }
+            TestRunner.True(Admitted() && !HorseInheritedFactRepairPolicy.MayRepair(false, true, false), "The settled gate or a disposed service was misread.");
             // A failed pass leaves the object pending; the next settled update retries it once.
             var failed = false;
             try { ledger.TryRun(first, true, unit => { throw new InvalidOperationException("simulated"); }, out changed); }
             catch (InvalidOperationException) { failed = true; }
             TestRunner.True(failed && !ledger.IsCompleted(first) && removals == 0, "A failed pass was recorded as complete.");
-            TestRunner.True(ledger.TryRun(first, HorseInheritedFactRepairPolicy.MayRepair(true, true, false), repair, out changed) && changed == 1 &&
+            TestRunner.True(ledger.TryRun(first, Admitted(), repair, out changed) && changed == 1 &&
                 ledger.IsCompleted(first), "The settled retry did not repair the Horse.");
             TestRunner.True(!ledger.TryRun(first, true, repair, out changed) && removals == 1, "A completed Horse was repaired twice.");
             // A reload: a new object with the same stable ID is examined again, independently of the old one.

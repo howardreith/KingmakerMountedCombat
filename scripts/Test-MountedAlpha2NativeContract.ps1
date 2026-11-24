@@ -124,9 +124,17 @@ $otherTrigger = New-Native $maneuverType
 $maneuverType.GetField('Maneuver').SetValue($otherTrigger, [Enum]::ToObject($combatManeuverType, $maneuver))
 $other = New-Fact '0123456789abcdef0123456789abcdef' @($otherTrigger)
 $sameIdNoTrigger = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @()
+$disarm = New-Native $maneuverType
+$maneuverType.GetField('Category').SetValue($disarm, [Enum]::ToObject($categoryType, $category))
+$maneuverType.GetField('Maneuver').SetValue($disarm, [Enum]::Parse($combatManeuverType, 'Disarm'))
+$sameIdDisarm = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($disarm)
+$claw = New-Native $maneuverType
+$maneuverType.GetField('Category').SetValue($claw, [Enum]::Parse($categoryType, 'Claw'))
+$maneuverType.GetField('Maneuver').SetValue($claw, [Enum]::ToObject($combatManeuverType, $maneuver))
+$sameIdClaw = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($claw)
 $stock = $service.GetMethod('IsStockTrippingBite', $any)
-Check ([bool]$stock.Invoke($null, @($tb)) -and -not [bool]$stock.Invoke($null, @($other)) -and -not [bool]$stock.Invoke($null, @($sameIdNoTrigger)) -and
-    -not [bool]$stock.Invoke($null, @($na)) -and -not [bool]$stock.Invoke($null, @($td)) -and -not [bool]$stock.Invoke($null, @($null))) 'only the installed stock TrippingBite identity with its bite-Trip trigger is the withheld grant'
+Check ([bool]$stock.Invoke($null, @($tb)) -and -not [bool]$stock.Invoke($null, @($other)) -and -not [bool]$stock.Invoke($null, @($sameIdNoTrigger)) -and -not [bool]$stock.Invoke($null, @($sameIdDisarm)) -and -not [bool]$stock.Invoke($null, @($sameIdClaw)) -and
+    -not [bool]$stock.Invoke($null, @($na)) -and -not [bool]$stock.Invoke($null, @($td)) -and -not [bool]$stock.Invoke($null, @($null))) 'only the installed stock identity with its exact Bite/Trip trigger is the withheld grant (another GUID, no trigger, Disarm or Claw are not)'
 $donor = [Array]::CreateInstance($unitFactType, 4); $donor.SetValue($tb, 0); $donor.SetValue($na, 1); $donor.SetValue($td, 2); $donor.SetValue($other, 3)
 $inherited = $service.GetMethod('HorseInheritedFacts', $any).Invoke($null, @(, $donor))
 Check ($inherited.Length -eq 3 -and [object]::ReferenceEquals($inherited[0], $na) -and [object]::ReferenceEquals($inherited[1], $td) -and [object]::ReferenceEquals($inherited[2], $other)) 'Horse inherits [NaturalArmor7, TripDefenseFourLegs, another mod''s maneuver fact] in order, without the stock TrippingBite'
@@ -156,11 +164,26 @@ $itemTrip = New-LiveFeature $tb $null (New-Native $itemType) $null
 $cutsceneTrip = New-LiveFeature $tb $null $null ([Runtime.Serialization.FormatterServices]::GetUninitializedObject($cutsceneType))
 $otherSourceless = New-LiveFeature $other $null $null $null
 $armor = New-LiveFeature $na $null $null $null; $defense = New-LiveFeature $td $null $null $null
-$saved = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $inheritedTrip, $defense, $sourcedTrip, $itemTrip, $cutsceneTrip, $otherSourceless)) { $saved.Add($f) }
-$found = $stale.Invoke($null, [object[]]@(, $saved))
-Check ($found.Count -eq 1 -and [object]::ReferenceEquals($found[0], $inheritedTrip)) 'a saved horse: only the sourceless inherited stock TrippingBite is stale; progression-, item- and cutscene-granted copies, another sourceless maneuver fact, natural armor and trip defense stay'
-$clean = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $defense, $otherSourceless)) { $clean.Add($f) }
-Check ($stale.Invoke($null, [object[]]@(, $clean)).Count -eq 0 -and $stale.Invoke($null, [object[]]@(, $null)).Count -eq 0) 'a repaired or new horse has nothing to remove (idempotent)'
+# Attributable provenance (review R2 R1-F1): the donor successor is the first BlueprintFeature after the stock grant; a buff-type
+# fact between them (as a non-feature NaturalArmor would be) is skipped.
+$buffType = GameType 'Kingmaker.UnitLogic.Buffs.Blueprints.BlueprintBuff'
+$nonFeature = New-Native $buffType
+$successorOf = $service.GetMethod('DonorSuccessorFeature', $any)
+$donorShape = [Array]::CreateInstance($unitFactType, 3); $donorShape.SetValue($tb, 0); $donorShape.SetValue($nonFeature, 1); $donorShape.SetValue($td, 2)
+Check ([object]::ReferenceEquals($successorOf.Invoke($null, @(, $donorShape)), $td) -and $null -eq $successorOf.Invoke($null, @(, $null))) 'the donor successor is the first feature after the stock grant'
+function List($Items) { $l = [Activator]::CreateInstance($listType); foreach ($f in $Items) { $l.Add($f) }; , $l }
+function Stale($Items, $Successor) { , $stale.Invoke($null, [object[]]@((List $Items), $Successor)) }
+# A legacy horse: native Initialize added [TrippingBite, TripDefenseFourLegs] in donor order, before its level features.
+$legacy = Stale @($inheritedTrip, $defense, $armor, $sourcedTrip, $itemTrip, $cutsceneTrip, $otherSourceless) $td
+Check ($legacy.Count -eq 1 -and [object]::ReferenceEquals($legacy[0], $inheritedTrip)) 'a legacy horse: only the sourceless stock grant immediately before its donor successor is stale; sourced, item, cutscene and other-mod copies stay'
+# An alpha-2 horse (created without the grant) that later received the stock fact directly: appended after its other features.
+$direct = New-LiveFeature $tb $null $null $null
+Check ((Stale @($defense, $armor, $direct) $td).Count -eq 0) 'an alpha-2 horse''s directly granted stock copy (not before its donor successor) is kept'
+Check ((Stale @($inheritedTrip, $armor, $defense) $td).Count -eq 0) 'a stock copy not immediately followed by the donor successor is kept (origin not provable)'
+Check ((Stale @($inheritedTrip, $defense) $null).Count -eq 0) 'without a provable donor successor nothing is removed'
+$sourcedSuccessor = New-LiveFeature $td (New-Native $progressionType) $null $null
+Check ((Stale @($inheritedTrip, $sourcedSuccessor) $td).Count -eq 0) 'a successor that is itself sourced does not attribute the copy'
+Check ((Stale @($armor, $defense, $otherSourceless) $td).Count -eq 0 -and $stale.Invoke($null, [object[]]@($null, $td)).Count -eq 0) 'a repaired or new horse has nothing to remove (idempotent)'
 # ---- 3. MMR-02/04/05/07 installed contracts the production paths bind -------------------------------------------------
 $module = $game.ManifestModule
 function MemberAt([int]$Token) { $module.ResolveMember($Token) }
@@ -183,7 +206,7 @@ $inCombat = $combatState.GetField('m_InCombat', [Reflection.BindingFlags]'Instan
 $canActTokens = IlTokens $canAct
 Check ($canActTokens.ContainsKey($waiting.MetadataToken) -and $canActTokens.ContainsKey($inCombat.MetadataToken)) 'MMR-04/05: CanActInCombat reads m_InCombat and IsWaitingInitiative (false outside combat; the product gates only in combat)'
 $patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
-Check ($null -ne $patches.GetMethod('PairedIgnoreClickPostfix', $any) -and $null -ne $patches.GetMethod('PairedIgnoreClickPrefix', $any)) 'MMR-02: the product carries the IgnoreClick prefix and the admission postfix'
+Check ($null -ne $patches.GetMethod('PairedIgnoreClickPostfix', $any) -and $null -ne $patches.GetMethod('PairedIgnoreClickPrefix', $any)) 'MMR-02: the product carries the IgnoreClick prefix and the read-only drop-diagnostic postfix'
 $handle = GameType 'Kingmaker.Visual.Animation.Actions.AnimationActionHandle'
 Check ($null -ne $handle.GetProperty('SpeedScale')) 'MMR-07: native handle SpeedScale (reported on the terminal line)'
 # The native horse animation bundle the Horse view loads (identity only; its decoded contents are recorded in

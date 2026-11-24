@@ -571,6 +571,7 @@
     <Compile Include="Domain\PairedAttackClickDropDiagnostic.cs" />
     <Compile Include="Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="Domain\MountedFollowThroughPolicy.cs" />
+    <Compile Include="Domain\MountedWorldWriteGate.cs" />
     <Compile Include="Domain\HorseStrikeDiagnostic.cs" />
     <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
