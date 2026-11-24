@@ -31,6 +31,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-02: only a rider attack click dropped by native's rider-path check is admitted", PairedAttackClickAdmission);
             runner.Run("MMR-04/05: real-time melee intent approaches while its strike is not yet ready", RealTimeApproachWhileWaiting);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
+            runner.Run("R1-F4/F5/F6: follow-through is melee-only, yields to newer work, and skips an individually unable actor", FollowThroughEligibility);
+            runner.Run("R1-F9/F10: native start waits travel instead of striking; movement restrictions stay put", RealTimeStartWaitsTravel);
+            runner.Run("R1-F7: the early approach is released through the exact own-move release", EarlyApproachRelease);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -460,6 +463,88 @@ namespace KingmakerMountedCombat.Tests
             reused.Release();
             reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
+        }
+
+        private static void FollowThroughEligibility()
+        {
+            // Turn-based, paired, the horse addressable on the activation.
+            MountedStockAttackDecision Next(bool riderReady, bool mountReady, bool melee = true, bool competing = false, bool explicitMount = false) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderReady, mountReady, !melee, true,
+                    riderIsLegalActor: !explicitMount,
+                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, true, false, true, melee, competing));
+            // R1-F4: an adjacent target clicked with a bow leaves the horse's Standard alone; the melee click reaches it once.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, true, melee: false), "A rider bow click spent the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(false, true), "The melee order did not reach the eligible horse.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, false), "A spent horse was dispatched again.");
+            // R1-F5: newer competing work on either actor ends the old intent without a horse attack.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, true, competing: true), "A newer order was overridden by follow-through.");
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, false, true), "An explicit mount order lost its meaning.");
+            // R1-F6: a rider with a Standard but individually unable (dazed, ended) is skipped; the capable horse attacks alone.
+            var dazedRider = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, false, true, false, false, false);
+            var endedRider = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, false, false, false, false);
+            var capableHorse = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, true, false, false, false);
+            var unableHorse = MountedStrikeReadinessPolicy.CanStrikeNow(true, true, false, true, false, false, false);
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(dazedRider, capableHorse), "A dazed rider discarded the horse's order.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(endedRider, capableHorse), "An ended rider discarded the horse's order.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(capableHorse, unableHorse), "The reciprocal: a capable rider lost its attack.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(dazedRider, unableHorse), "An unable horse attacked.");
+            // Turn-based readiness ignores the real-time-only start waits.
+            TestRunner.True(MountedStrikeReadinessPolicy.CanStrikeNow(true, true, true, true, true, true, true), "Turn-based gained a real-time wait.");
+        }
+
+        private static void RealTimeStartWaitsTravel()
+        {
+            MountedStockAttackDecision Next(bool riderReady, bool mountReady, bool travel, bool outOfReach = true) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, riderReady, mountReady, false, false,
+                    targetOutOfReach: outOfReach, approachPermitted: travel);
+            var travelOk = MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, true, false);
+            // Initiative, busy hands and a scheduled equipment update each leave the strike unready but permit travel.
+            foreach (var wait in new[] { new[] { true, false, false }, new[] { false, true, false }, new[] { false, false, true } })
+            {
+                var ready = MountedStrikeReadinessPolicy.CanStrikeNow(false, true, true, true, wait[0], wait[1], wait[2]);
+                TestRunner.True(!ready, "A native start wait was treated as a startable strike.");
+                TestRunner.Equal(MountedStockAttackDecision.ApproachWhileWaiting, Next(ready, ready, travelOk), "A start wait stopped the pair from travelling.");
+            }
+            // Once every wait clears, one dispatch, never before.
+            var startable = MountedStrikeReadinessPolicy.CanStrikeNow(false, true, true, true, false, false, false);
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(startable, false, travelOk), "A startable rider was not dispatched.");
+            // A mount that cannot act or move, or a Hold-forbidden automatic intent, waits in place.
+            foreach (var restriction in new[] { MountedStrikeReadinessPolicy.MayTravelWhileWaiting(false, true, false),
+                MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, false, false), MountedStrikeReadinessPolicy.MayTravelWhileWaiting(true, true, true) })
+                TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, restriction), "A movement restriction was overridden.");
+            // Inside the pair's mount-origin reach (and line of sight) the pair waits without moving.
+            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, travelOk, outOfReach: false), "An in-reach pair kept moving.");
+        }
+
+        private sealed class FakeMoveHost : IMountedOwnMoveHost
+        {
+            public object Slot; public object Successor; public bool OwnFinished; public bool OwnHeld = true; public bool Stopped; public int Interrupts;
+            public object MoveSlot => Slot;
+            public bool Holds(object command) => OwnHeld && ReferenceEquals(command, Slot);
+            public bool HasOtherLiveCommand(object own) => Successor != null;
+            public bool IsFinished(object command) => OwnFinished;
+            public void Interrupt(object command) { Interrupts++; OwnFinished = true; }
+            public void SweepFinished() { OwnHeld = false; Slot = Successor; }
+            public void StopAgent() { Stopped = true; }
+        }
+
+        private static void EarlyApproachRelease()
+        {
+            var own = new object();
+            // Hold/AI-off/strike handoff with no successor: interrupted, removed, the agent stopped.
+            var alone = new FakeMoveHost { Slot = own };
+            var released = MountedOwnMovePolicy.Release(alone, own);
+            TestRunner.True(alone.Interrupts == 1 && alone.Slot == null && alone.Stopped && released.OwnReleased && !released.SuccessorRetained,
+                "The early approach left its path or command behind.");
+            // A successor the sweep promoted keeps the movement: the agent is not stopped.
+            var successor = new object();
+            var replaced = new FakeMoveHost { Slot = own, Successor = successor };
+            released = MountedOwnMovePolicy.Release(replaced, own);
+            TestRunner.True(ReferenceEquals(replaced.Slot, successor) && !replaced.Stopped && released.SuccessorRetained, "A successor order was stopped.");
+            // A failed admission (never held): released without touching the successor that displaced it.
+            var failed = new FakeMoveHost { Slot = successor, Successor = successor, OwnHeld = false, OwnFinished = true };
+            released = MountedOwnMovePolicy.Release(failed, own);
+            TestRunner.True(failed.Interrupts == 0 && ReferenceEquals(failed.Slot, successor) && !failed.Stopped, "A failed admission disturbed the successor.");
         }
 
         private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }

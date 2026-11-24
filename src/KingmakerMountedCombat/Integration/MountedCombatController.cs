@@ -1004,31 +1004,105 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // MMR-05 pre-approach: one controller-owned mount move toward a real-time melee intent's target while neither actor
-        // may strike yet. Not a player order (no native Hold on arrival, not the player-move watch); it never displaces
-        // another mount command and is interrupted before the pair command is dispatched, so the command's own exact
-        // delegated approach and strike timing are unchanged.
+        // may strike yet. Not a player order (not the player-move watch); it never displaces another mount command, is the
+        // pair's own move for door arbitration, and is released through the exact own-move release (interrupt, sweep, stop
+        // the agent only when no successor owns the movement) before the pair command is dispatched and on every intent end.
+        // Native UnitMoveTo.OnAction sets a player-faction executor's HoldState on arrival in real-time combat: the move is
+        // retired as soon as the pair is in reach, and a Hold its arrival wrote is restored (review R1-F7/F8).
         private UnitMoveTo stockPreApproach;
+        private UnitEntityData stockPreApproachTarget;
         private Vector3 stockPreApproachPoint;
+        private bool stockPreApproachMountHeldBefore;
         internal int StockPreApproachStartCount { get; private set; }
         internal int StockPreApproachRetiredCount { get; private set; }
+        internal int StockPreApproachRouteFailureCount { get; private set; }
         internal string LastStockPreApproachRetirement { get; private set; }
 
         private static bool WaitingInitiative(UnitEntityData unit) =>
             unit.CombatState != null && unit.IsInCombat && !unit.CombatState.CanActInCombat;
 
+        private bool ActorStrikeReady(UnitEntityData actor, bool turnBased, TurnController turn)
+        {
+            if (actor == null) return false;
+            var state = actor.Descriptor?.State;
+            var hands = Game.Instance?.HandsEquipmentController;
+            var addressable = !turnBased || !settings.EnablePairedActivation || turn?.Unit == actor || unifiedTurn.CanAddressActor(actor, turn);
+            return MountedStrikeReadinessPolicy.CanStrikeNow(turnBased, actor.HasStandardAction(),
+                state != null && state.CanAct && actor.IsAbleToAct(), addressable, WaitingInitiative(actor),
+                actor.AreHandsBusyWithAnimation, hands != null && hands.IsUpdateScheduledFor(actor));
+        }
+
+        // Accepted newer work on either actor (review R1-F5): a live player command beside the pair's own and native
+        // reactions or genuinely coexisting Free/Swift actions, or a foreign queued order, on the rider or on the mount.
+        private bool HasPairCompetingWork(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (HasRiderPlayerOperation(rider, mount)) return true;
+            var slots = new List<MountedAutomaticSlotFacts>();
+            var raw = mount?.Commands?.Raw;
+            if (raw != null)
+                foreach (var command in raw)
+                {
+                    if (command == null) continue;
+                    slots.Add(new MountedAutomaticSlotFacts
+                    {
+                        Finished = command.IsFinished,
+                        AiOrigin = command.AiAction != null,
+                        PairOwnedOrReaction = command is MountedPairSingleAttack || command is UnitAttackOfOpportunity ||
+                            ReferenceEquals(command, stockPreApproach),
+                        CoexistsWithAttack = (command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift) &&
+                            (command.IsStarted || command.IsUnitEnoughClose)
+                    });
+                }
+            return MountedAutomaticAttackPolicy.HasPlayerOperation(slots, 0);
+        }
+
+        // The strike path's own reach (review R1-F9): mount-origin mechanics distance within mount + target corpulence +
+        // the rider weapon's range (MountedPairSingleAttack.EvaluateCurrentNativeAdmission), and the native UnitAttack
+        // command line of sight from the rider's eye (object id 0: UnitAttack does not override GetTargetLOSObjectId).
+        private bool IsTargetInPairMeleeReach(UnitEntityData target)
+        {
+            var rider = relationship.Rider; var mount = relationship.Mount;
+            var weapon = rider?.GetFirstWeapon();
+            if (rider?.View == null || mount?.View == null || target?.View == null || weapon?.Blueprint == null) return false;
+            return MountedPairSingleAttack.WithinPairMeleeReach(rider, mount, target, weapon.AttackRange.Meters);
+        }
+
         private void DriveStockPreApproach(UnitEntityData mount, UnitEntityData target)
         {
             var commands = mount?.Commands;
             if (commands == null || mount.View == null || target?.View == null) return;
-            if (stockPreApproach != null && !stockPreApproach.IsFinished && commands.Contains(stockPreApproach))
+            var live = stockPreApproach != null && !stockPreApproach.IsFinished && commands.Contains(stockPreApproach);
+            if (live)
             {
                 // A moving target: replan once it has drifted, otherwise keep the live move.
                 var drift = target.Position - stockPreApproachPoint; drift.y = 0f;
                 if (drift.magnitude < MountedCarriedApproachPolicy.ReplanEpsilonMetres) return;
-                stockPreApproach.Interrupt(false);
-                commands.RemoveFinishedAndUpdateQueue();
+                RetireStockPreApproach("target moved; replanning");
             }
-            stockPreApproach = null;
+            else if (stockPreApproach != null)
+            {
+                // The move ended without bringing the pair into reach. A failed route (or an arrival that still lacks
+                // reach or line of sight to an unmoved target) is not requested again: it ends the intent through the
+                // ordinary refusal, and an automatic intent records the target unreachable for the rider's brain (A05).
+                var ended = stockPreApproach;
+                var drift = target.Position - stockPreApproachPoint; drift.y = 0f;
+                var routeFailed = ended.Result != UnitCommand.ResultType.Success || drift.magnitude < MountedCarriedApproachPolicy.ReplanEpsilonMetres;
+                RetireStockPreApproach(routeFailed ? "route ended without reach" : "arrived; target moved");
+                if (routeFailed)
+                {
+                    StockPreApproachRouteFailureCount++;
+                    if (stockIntent.Automatic) automaticApproachFailedTarget = target;
+                    var automatic = stockIntent.Automatic;
+                    ClearStockAttackIntent("early approach could not reach the target", true);
+                    LastStockAttackObservation = "rt-pre-approach-route-failed";
+                    if (!automatic)
+                    {
+                        LastFeedback = "The mounted pair cannot reach that target.";
+                        ShowStockFeedback();
+                    }
+                    return;
+                }
+            }
             if (MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(commands, null))
             {
                 LastStockAttackObservation = "rt-pre-approach-yields-to-mount-command";
@@ -1040,12 +1114,27 @@ namespace KingmakerMountedCombat.Integration
                 pairRadius, mount.View.Corpulence, target.View.Corpulence))
             {
                 CreatedByPlayer = false,
-                ShowTargetMarker = false
+                ShowTargetMarker = false,
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
             };
-            commands.Run(move);
-            if (!commands.Contains(move)) { LastStockAttackObservation = "rt-pre-approach-refused"; return; }
             stockPreApproach = move;
+            stockPreApproachTarget = target;
             stockPreApproachPoint = target.Position;
+            stockPreApproachMountHeldBefore = mount.HoldState;
+            try
+            {
+                commands.Run(move);
+                if (!ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), move) || commands.Queue.Contains(move))
+                    throw new InvalidOperationException("The early approach did not acquire only the mount's Move slot.");
+            }
+            catch (Exception exception)
+            {
+                // A failed admission leaves nothing of ours behind (a successor it displaced is never touched).
+                RetireStockPreApproach("admission failed");
+                LastStockAttackObservation = "rt-pre-approach-refused";
+                TryLog(() => "Mounted early approach not admitted: " + exception.Message);
+                return;
+            }
             StockPreApproachStartCount++;
             LastStockAttackObservation = "rt-approach-while-waiting";
         }
@@ -1055,12 +1144,13 @@ namespace KingmakerMountedCombat.Integration
             var move = stockPreApproach;
             if (move == null) return;
             stockPreApproach = null;
+            stockPreApproachTarget = null;
             StockPreApproachRetiredCount++;
             LastStockPreApproachRetirement = reason;
-            var commands = relationship.Mount?.Commands;
-            if (move.IsFinished || commands == null || !commands.Contains(move)) return;
-            move.Interrupt(false);
-            commands.RemoveFinishedAndUpdateQueue();
+            var mount = relationship.Mount;
+            if (mount?.Commands == null) return;
+            MountedOwnMovePolicy.Release(new MountedCarriedApproach.MountMoveSlotHost(mount), move);
+            if (move.IsActed && !stockPreApproachMountHeldBefore && mount.HoldState) mount.HoldState = false;
         }
 
         public void Cancel(string reason)
@@ -1517,24 +1607,31 @@ namespace KingmakerMountedCombat.Integration
             // where it stands: exactly the ranged rule.
             var automaticOrigin = stockIntent.Automatic;
             var stationary = automaticOrigin && AutomaticMovementForbidden(rider);
-            // MMR-04/05: in real-time combat an actor still waiting its initiative cannot strike (native would hold an
-            // unstarted command without approaching), so it is not dispatched yet; the approach below does not wait for it.
+            // MMR-03/04/05 (reviews R1-F4/F5/F6/F9/F10): each actor is offered only when its own strike can start now (TB:
+            // Standard, capability, addressability; RT also no initiative, busy-hands or equipment wait, which permit travel
+            // but would leave a dispatched command unstarted). The horse joins a rider's ordinary order only for melee and
+            // only while neither actor holds newer competing work. A waiting RT melee intent travels when its target is
+            // outside the pair's mount-origin reach or command line of sight and the mount may move.
+            var dispatchTurn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
             var decision = UnifiedMountedStockAttackPolicy.DecideNext(
                 relationship.State == RelationshipState.Mounted && rider != null && mount != null,
                 targetValid,
                 HasActiveCommand,
                 turnBased,
-                rider != null && rider.HasStandardAction() && (turnBased || !WaitingInitiative(rider)),
-                mount != null && mount.HasStandardAction() && (turnBased || !WaitingInitiative(mount)),
+                ActorStrikeReady(rider, turnBased, dispatchTurn),
+                ActorStrikeReady(mount, turnBased, dispatchTurn),
                 ranged || stationary,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
                 UnifiedMountedStockAttackPolicy.MountJoinsIntent(turnBased, stockIntent.MountActor, settings.UseLegacyUnifiedTurn,
                     settings.EnablePairedActivation, stockIntent.Automatic,
-                    turnBased && mount != null && unifiedTurn.CanAddressActor(mount, Game.Instance?.TurnBasedCombatController?.CurrentTurn)),
+                    turnBased && mount != null && unifiedTurn.CanAddressActor(mount, dispatchTurn),
+                    !ranged, turnBased && !stockIntent.MountActor && HasPairCompetingWork(rider, mount)),
                 settings.EnablePairedActivation && stockIntent.PreferMount,
-                !turnBased && !IsTargetInRiderReach(target),
-                !turnBased && !(ranged || stationary));
+                !turnBased && !IsTargetInPairMeleeReach(target),
+                !turnBased && !ranged && !stationary && mount != null && MountedStrikeReadinessPolicy.MayTravelWhileWaiting(
+                    mount.Descriptor?.State != null && mount.Descriptor.State.CanAct,
+                    mount.Descriptor?.State != null && mount.Descriptor.State.CanMove, AutomaticMovementForbidden(rider) && automaticOrigin));
 
             if (decision == MountedStockAttackDecision.ApproachWhileWaiting)
             {
@@ -2097,7 +2194,8 @@ namespace KingmakerMountedCombat.Integration
             var disposition = DecideDoorAdmission(mountCommands, exactDoor);
             // The pair's own recovery move or its carried approach move is the only kind of busy Move slot a door click
             // may replace (native: the rider's new Standard replaces its pending cast; the pair's movement follows it).
-            var ownMountMove = pendingDoorSettlement?.RecoveryMove != null ? (UnitCommand)pendingDoorSettlement.RecoveryMove : carriedApproach?.DelegatedMove;
+            var ownMountMove = pendingDoorSettlement?.RecoveryMove != null ? (UnitCommand)pendingDoorSettlement.RecoveryMove :
+                (UnitCommand)carriedApproach?.DelegatedMove ?? stockPreApproach;
             var busyOnlyWithOwnRecovery = ownMountMove != null && mountCommands != null &&
                 ReferenceEquals(mountCommands.GetCommand(UnitCommand.CommandType.Move), ownMountMove) &&
                 mountCommands.Standard == null && mountCommands.GetCommand(UnitCommand.CommandType.Free) == null &&
