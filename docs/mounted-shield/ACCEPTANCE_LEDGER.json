@@ -313,6 +313,11 @@
         "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
         "change": "A planned step completes only on the attempt that consumed its plan; forced rolls are exactly the scenario's planned attempts by the designated hostile (reviews PN11-F3, PN11-F5).",
         "status": "BLOCKED"
+      },
+      "continuation_9": {
+        "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
+        "change": "A planned total is injected only through a legal d20; an unattainable plan fails the measurement; every record's attack total is the native attack's; forced rolls are authorized across the whole measurement (reviews PN12-F1, PN12-F3, PN12-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -353,6 +358,11 @@
         "driver_and_reader": "sprint6-shield-rt MS-check-rt: preference off and spent use refuse while the mount keeps its +3 contribution; sprint6-shield-tb spent use likewise.",
         "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
         "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      },
+      "continuation_9": {
+        "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
+        "change": "The equipment change keeps the Swift cooldown and the window expiry as well as the use flags (review PN12-F6).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -449,6 +459,11 @@
         "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
         "change": "Every refusal leaves the hit and the rider's Swift, window, use and debt unchanged; every record is bound to its attack rule (review PN11-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_9": {
+        "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
+        "change": "Every refusal's native hit stands with its critical state and damage (review PN12-F2).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -484,6 +499,11 @@
       "continuation_8": {
         "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
         "change": "Each attempt carries its own pair's amount: measured +3, the identified second pair its observed amount, others 0 (review PN11-F6).",
+        "status": "BLOCKED"
+      },
+      "continuation_9": {
+        "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
+        "change": "Each known mount is defended only by its established rider (review PN12-F5).",
         "status": "BLOCKED"
       }
     },
@@ -844,6 +864,14 @@
     "candidate_dll_sha256": "51e100c5e68d795c45fdb3af367571edf9d74c85e6030368b7debfee34c0f4bc",
     "candidate_dll_mvid": "b1300e95-ac52-417d-85b8-788b56a6448e",
     "reason": "Supplemental review round 11 corrections (PN11-F1..F7 in 720a51ee), including two production fixes; row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_9": {
+    "recorded": "2026-11-23",
+    "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
+    "candidate_dll_sha256": "069f9fb906382216b3b41343dc53da43a9521808316f54d8e8b7dfa338c283d4",
+    "candidate_dll_mvid": "65a1a09b-ce5a-46c1-aac2-5e86344d7018",
+    "reason": "Supplemental review round 12 corrections (PN12-F1..F6 in ed717538), diagnostic injection and reader only; row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }

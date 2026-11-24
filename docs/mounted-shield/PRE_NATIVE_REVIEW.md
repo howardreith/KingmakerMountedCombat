@@ -261,3 +261,24 @@ Budget `mounted-shield` 9.9 of 90 min. To be reviewed in round 11.
 Fast gate (controller, focused) on `720a51ee`: PASS, 61.2 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 174/0, native contract 91/0). DLL `51e100c5e68d795c45fdb3af367571edf9d74c85e6030368b7debfee34c0f4bc`, MVID `b1300e95-ac52-417d-85b8-788b56a6448e`.
 Budget `mounted-shield` 10.92 of 90 min. To be reviewed in round 12.
+
+## Round 12 — candidate `df564e749268f856020c78a7a1395049156663e0` (production `720a51ee`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-df564e74`. Started 2026-11-23, 19.6 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-df564e74/`.
+- **Verdict: CHANGES REQUIRED.** The round-11 publication fixes address both reported production defects; no new production
+  defect in the shipped feature. Six findings in the diagnostic roll injection and the qualification reader.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN12-F1 | A planned check could submit a d20 outside 1-20 (calibration from displayed Mobility, native rule-local penalties in the roll), and the reader rejected a legal roll whose aggregate bonus fell below +3 through a native penalty. | **Fixed** in `ed717538`: the production `ControlledSkillCheck` (used only through the diagnostic scenario hook) injects a die only when a legal 1-20 reaches the planned total at the native roll boundary; otherwise the native die rolls, the use stays committed, and the record is marked `plannedUnattainable` (not forced), which fails the measurement. The reader judges KMC's contribution by its identified modifier, not by the aggregate bonus. Native contract: an equality total with a native -2 reached by die 19 on the production check, and an equality needing 22 reported unattainable (94/0). Reader: unattainable fails the row; an in-range check with a native penalty is accepted. |
+| PN12-F2 | A refused follow-up could suppress the native hit and pass on the service's own before/after strings. | **Fixed** in `ed717538`: for every refusal of a check row, the bound native attack must still hit at the event and after the rule, keep its result (not Parried or Miss), keep its critical state and deal its damage. Negative with only the native observer suppressed. |
+| PN12-F3 | Forced-roll accounting stopped at the check rows. | **Fixed** in `ed717538`: every forced defense of the whole measurement (any case, or none at cleanup) must be one of the check rows' planned attempts, matched by case, step, rule, rider, mount and hostile. Negatives for a forced defense under MS-pairs and with no case; a natural control is accepted. |
+| PN12-F4 | The forced boundary could pass against the defense service's copy of the attack operands. | **Fixed** in `ed717538`: every record's attack d20 and bonus must equal the bound native attack's, and its attack total their sum. Negative changing only the native attack's bonus. |
+| PN12-F5 | A known rider could defend the other known mount. | **Fixed** in `ed717538`: each known mount (the measured mount; on RT the second mount established in MS-pairs) may be defended only by the rider established for it, before amount or cost is judged. Negative with the second rider defending the first mount; the +2 second-pair control is accepted. |
+| PN12-F6 | The equipment-swap check ignored the Swift cooldown and window expiry. | **Fixed** in `ed717538`: the three same-frame samples must also agree on `swift` and `windowEndTicks`, both present. Negatives for a refunded cooldown and an extended expiry; the fixture now carries both fields. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate (controller, focused) on `ed717538`: PASS, 64.9 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 184/0, native contract 94/0). DLL `069f9fb906382216b3b41343dc53da43a9521808316f54d8e8b7dfa338c283d4`, MVID `65a1a09b-ce5a-46c1-aac2-5e86344d7018`.
+Budget `mounted-shield` 11.98 of 90 min. To be reviewed in round 13.
