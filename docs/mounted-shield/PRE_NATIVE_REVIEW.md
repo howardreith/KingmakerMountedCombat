@@ -375,3 +375,16 @@ Validate-Source 153/0, focused 18/18 incl. native contract 111/0 and shield read
 Note: one offline admission probe during this work created a stray budget ledger
 `runtime-state/workflow-budgets/mounted-shield-admission-probe-unused.json` (one 0-second failed WhatIf entry, no launch); it
 is left in place and recorded here.
+
+## Controller final review, round 2 (on `39c5d755`)
+
+`changes_required`. Verified: R1-F1, R1-F3, R1-F4, R1-F5, R1-F7. Rejected: R1-F2 (diagnostic consistency), R1-F6 (event-only
+critical). New: R2-F1, R2-F2. All corrected in `fedb7008` (controller focused gate PASS, 70.0 s: components 1525/0,
+Validate-Source 153/0, focused 18/18 incl. native contract 114/0, shield readers 217/0).
+
+| ID | Disposition |
+| --- | --- |
+| R1-F2 | **Fixed:** one production rule, `MountedShieldService.EffectiveShieldDelta` (non-stacking competitors only; zero on touch AC and when the calculation ignores shields), drives the Brilliant Energy correction, the diagnostic band setup and each observed attack's context, which now carries the attack's own touch and Brilliant Energy state. Native contract: KMC +3 beside a force-stacking +4 adds 3; beside an ordinary +4 adds 0; a Brilliant Energy or touch calculation adds 0; the production Brilliant Energy controls are unchanged. The reader refuses a band miss against a shield-ignoring AC. |
+| R1-F6 | **Fixed:** the defense acts inside `RuleAttackRoll.OnTrigger` before the `IAttackHandler` event, so for every defense of a check row the native result and critical flag at the hit event and after the rule must equal the record's final ones (hit flags consistent); a negation must show Parried or Miss and no critical at the event too. Negatives: a natural negation exposing a confirmed critical at the event, a planned negation with only its event critical set; an ordinary-Miss negation control is accepted. |
+| R2-F1 | **Fixed:** the producer selects and the reader requires a native AC-miss result (`Miss`, `DodgeAC`, `ArmorAC`, `ShieldAC`) at the event and finally, with zero damage. Accepted rows for all four; negatives for MirrorImage, Concealment and damage. |
+| R2-F2 | **Fixed:** every active owner-facing reference (CURRENT.md, AUTONOMOUS-RESUME.md, HANDOFF section 0, PRIVATE-ALPHA.md) was populated from the final archive and manifest and read back: `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip`, SHA-256 `8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c`, 4,283,148 bytes, DLL `2822469373d20a47eaff21c305c8325329dfbc10f5138ea95ce46a8b9476fe41`, MVID `c4e178d8-355d-4a79-93ad-ff1af7cb7c7b`, Info.json 0.2.16-alpha.1 / ManagerVersion 0.31.1. Earlier identities stay only in dated historical entries. |

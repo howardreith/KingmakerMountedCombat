@@ -15,7 +15,8 @@ native qualification.
   types, and UMM binding checks against 0.31.1 and the installed 0.33.0). Offline only.
 - Package validation 11/0 and embedded-icon identity on this exact DLL.
 - Independent read-only code/safety review: PASS FOR GUARDED NATIVE TESTING on `bb903669` (no live use planned). The controller's
-  final review round 1 then required seven corrections, made in `6fb53633` (this source); its next round reviews them.
+  final review rounds 1 and 2 then required corrections, made in `6fb53633` and `fedb7008` (this source); its next round
+  reviews them.
 - Not run: any game start (the no-save smoke was dropped because that path does not snapshot UMM settings), any save
   creation, any gameplay.
 
@@ -25,10 +26,10 @@ native qualification.
 | --- | --- |
 | Version | `0.2.16-alpha.1` (version.json, Info.json `Version`, `BuildIdentity.ProductVersion`; assembly version stays `0.1.0.0`) |
 | Loader | Info.json `ManagerVersion` `0.31.1` (build reference and declared minimum); installed native target UMM 0.33.0 unchanged |
-| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-6fb53633-diagnostic.zip`, SHA-256 `c3d80a58afa52d0506b001c2cfbddc776af1ade9b6796a5d5f3522c2f725b0bb`, 4282758 bytes |
-| DLL | `KingmakerMountedCombat.dll`, SHA-256 `e2fda1f2f0e41618729f59ab855c7848e27500df3b4222589e42e506b4723825`, MVID `1f6af610-74f3-4c8c-ba9a-421c02b2781e` |
+| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip`, SHA-256 `8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c`, 4,283,148 bytes |
+| DLL | `KingmakerMountedCombat.dll`, SHA-256 `2822469373d20a47eaff21c305c8325329dfbc10f5138ea95ce46a8b9476fe41`, MVID `c4e178d8-355d-4a79-93ad-ff1af7cb7c7b` |
 | Icon | one embedded `KingmakerMountedCombat.Assets.MountedShieldFeat.png`, SHA-256 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` |
-| Source | commit `6fb53633f0aabf035616b8b61b3d2a3efc226513` on `codex/mounted-shield` (draft PR #61) |
+| Source | commit `fedb70086495599273824a500da3b2b5c7122c08` on `codex/mounted-shield` (draft PR #61) |
 
 The packaging path names every package `…-diagnostic.zip` (repository convention for agent-built packages); the alpha
 identity is the version and this record.

@@ -1090,5 +1090,18 @@
       "version": "0.2.16-alpha.1"
     },
     "reason": "Controller final review round 1 corrections (R1-F1..F7 in 6fb53633), including the Brilliant Energy stacking rule (production) and the Shield-row base-only admission (runner); native parts still deferred to the owner's private-alpha playtest; no native work."
+  },
+  "continuation_14": {
+    "recorded": "2026-11-24",
+    "candidate_source": "fedb70086495599273824a500da3b2b5c7122c08",
+    "candidate_dll_sha256": "2822469373d20a47eaff21c305c8325329dfbc10f5138ea95ce46a8b9476fe41",
+    "candidate_dll_mvid": "c4e178d8-355d-4a79-93ad-ff1af7cb7c7b",
+    "package": {
+      "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip",
+      "sha256": "8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c",
+      "bytes": 4283148,
+      "version": "0.2.16-alpha.1"
+    },
+    "reason": "Controller final review round 2 corrections (R1-F2, R1-F6, R2-F1, R2-F2 in fedb7008); native parts still deferred to the owner's private-alpha playtest; no native work."
   }
 }
