@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Integration
         public int SeatSettleFrames => seatSampler == null ? 0 : seatSampler.FramesToSettle;
         public float SeatSettleAnimationSeconds => seatSampler == null ? 0f : seatSampler.AnimationSecondsToSettle;
         public int SeatIgnoredFrames => seatSampler == null ? 0 : seatSampler.IgnoredFrames;
+        public int SeatCorrections => seatSampler == null ? 0 : seatSampler.Corrections;
         // Review R5-F3: the attachment-frame anchor relation (rider position anchor minus Chest, mount root frame).
         public PoseVector3 CalibrationAnchorFromSource { get; private set; }
         // Set by the pair runtime before ConfigureAnimatedSaddle: (phase, observed, applied, frames, animation seconds, anchor
@@ -224,22 +225,30 @@ namespace KingmakerMountedCombat.Integration
         // Chest in the mount root frame (after native animation and the profile pelvis offset, before this frame's seat write;
         // the frame lease restored the previous write before the animator pass). On the frame it settles, the saddle is
         // re-acquired once from that sample; a pose that never settles keeps the attachment sample.
+        // Round 6 (R5-F4): sampling continues after the first settle while the sampler's correction horizon is open; a later
+        // evidenced stable window that differs from the applied basis by more than the threshold re-acquires the saddle once
+        // more (phase=corrected).
         private void ObserveSettlingSeat()
         {
-            if (seatSampler == null || seatSampler.Settled || seatSampler.GaveUp) return;
+            if (seatSampler == null || !seatSampler.Observing) return;
             var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
             var observed = NormalizedSeatSample();
-            if (!seatSampler.Observe(observed, SeatAnimationAdvanceSeconds()))
+            var outcome = seatSampler.Observe(observed, SeatAnimationAdvanceSeconds());
+            if (outcome == SeatSampleOutcome.GaveUp)
             {
-                if (seatSampler.GaveUp)
-                    NotifySeatCalibration("unsettled", observed, CalibrationAppliedSeatFromSource, seatSampler.Frames, seatSampler.AnimationSeconds);
+                NotifySeatCalibration("unsettled", observed, CalibrationAppliedSeatFromSource, seatSampler.Frames, seatSampler.AnimationSeconds);
                 return;
             }
+            if (outcome != SeatSampleOutcome.Settled && outcome != SeatSampleOutcome.Corrected) return;
             animatedSaddle.Release();
             animatedSaddle.Acquire(source, source + seatSampler.SettledSample, seatCorrection);
             CalibrationAppliedSeatFromSource = seatSampler.SettledSample;
-            NotifySeatCalibration("settled", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.FramesToSettle,
-                seatSampler.AnimationSecondsToSettle);
+            if (outcome == SeatSampleOutcome.Settled)
+                NotifySeatCalibration("settled", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.FramesToSettle,
+                    seatSampler.AnimationSecondsToSettle);
+            else
+                NotifySeatCalibration("corrected", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.Frames,
+                    seatSampler.AnimationSeconds);
         }
 
         // Review R5-F3: the attachment-frame anchor relation plus the rider-local pelvis (pelvis minus the rider root, which
