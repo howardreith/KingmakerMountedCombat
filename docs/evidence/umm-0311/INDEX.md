@@ -1,6 +1,6 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs exported 2026-11-24 05:35 UTC for candidate commit `11df053b77fbb437cf8e564ce3e9abda770f0dd5`. Each row names what produced that output (its
+Machine-generated outputs exported 2026-11-24 05:46 UTC for candidate commit `11df053b77fbb437cf8e564ce3e9abda770f0dd5`. Each row names what produced that output (its
 source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
@@ -26,11 +26,11 @@ python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_
 | `chunk7-native-loader-contracts.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `c88bbbc74594096b25d5f6735714f0de33f5f019d4136c97aecef1ae5bb23f76` | `c88bbbc74594096b25d5f6735714f0de33f5f019d4136c97aecef1ae5bb23f76` |
 | `frozen-product-source.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `f2efad2ecc1c5484d20b38d6215e2fd35e5a7481023fe742cbe74f17fb073533` | `7d2d05f4bd62edcde9d129fd9a2f15a44b2cc1a3d9c59d9bb8bacb7863f4a07a` |
 | `umm-loader-contract-checks.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `b8ef07a7592cdd528baf4fe21ea4b9aef55d1615f411e2e159ee646f0064ba8b` | `cdb3581887f2308c0742862c45f2388c2611364c60a7662f458e731921ffe58f` |
-| `test-harness-summary.json` | 11df053b, not a qualifying run (a Kingmaker process was running); includes the f5a9f386 baseline | `70c7f600fa6811a5591b25e7178045d64142eaf342eee4d2b0cb24f4d9ffe679` | `3fca9d4ae444cd9d239deb398e62d8cd602db6d0b84ec6dcc58c9ee3728a7c24` |
-| `api-audit.json` | reused static audit of the unchanged DLL d20474bf, recorded at f5a9f386 | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` |
-| `observer-api-audit.json` | reused static audit of the unchanged observer DLL f9697f91, recorded at f5a9f386 | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` |
-| `loader-profile-inventory.json` | restored unchanged: measured 2026-11-24T03:41:11Z for candidate 272238ce (Git blob a9ef6700 of 215d68fe) | `50e250f7b159cdcbb7391ee87cf6d149146fba80e7c46c50553bd8235e6e90b8` | `50e250f7b159cdcbb7391ee87cf6d149146fba80e7c46c50553bd8235e6e90b8` |
-| `onboarding-check-project.json` | controller check-project record from enrollment (reused) | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` |
+| `test-harness-summary.json` | 11df053b (run at e4e32899, docs and evidence only after 11df053b), with the f5a9f386 baseline | `48dc2496a3e3fb749b7f71934cfb422445b4a548e1679bd9a192d769022a84fd` | `0a92876b0884195715bdc7e091e501f2ee82483d5a381947e88055b941fd06c5` |
+| `api-audit.json` | reused static audit of the unchanged DLL d20474bf, recorded at f5a9f386 | `1e14f1bebceb5e393708dfea190ffbe976dbdf2984b17e04d28f6d59b64ae051` (original output, from its first export) | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` |
+| `observer-api-audit.json` | reused static audit of the unchanged observer DLL f9697f91, recorded at f5a9f386 | `947bef18032f59a5ad94bf75960872a7d7a65929279eeba13b9dc44a9ee08c35` (original output, from its first export) | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` |
+| `loader-profile-inventory.json` | restored unchanged: measured 2026-11-24T03:41:11Z for candidate 272238ce (Git blob a9ef6700 of 215d68fe) | `b7fd62e64b23924a183c857f6a8998d2daaa58082166a11525fdf47ac3a7c9fb` (original output, from its first export) | `50e250f7b159cdcbb7391ee87cf6d149146fba80e7c46c50553bd8235e6e90b8` |
+| `onboarding-check-project.json` | controller check-project record from enrollment (reused) | `3f91e4988954c4e8fe5851f52152cbcb82e729e5f91b41cb40027e10d17aabc1` (original output, from its first export) | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` |
 | `loader-profiles.md` | fleet loader-profile record (reused) | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` |
 | `loader-api-audit-Program.cs.txt` | audit tool source (reused) | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` |
 | `loader-api-audit-csproj.txt` | audit tool project (reused) | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` |
