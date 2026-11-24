@@ -1127,6 +1127,15 @@ namespace KingmakerMountedCombat.Integration
                 // ordinary refusal, and an automatic intent records the target unreachable for the rider's brain (A05).
                 var ended = stockPreApproach;
                 var drift = target.Position - stockPreApproachPoint; drift.y = 0f;
+                // A newer order that replaced the move (native Run interrupted it, or another command owns the mount's
+                // movement) retires the intent quietly: that order is the player's, not an unreachable target.
+                if (ended.Result == UnitCommand.ResultType.Interrupt || MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(commands, ended))
+                {
+                    RetireStockPreApproach("replaced by a newer mount order");
+                    ClearStockAttackIntent("early approach replaced by a newer mount order", true);
+                    LastStockAttackObservation = "rt-pre-approach-replaced";
+                    return;
+                }
                 var routeFailed = ended.Result != UnitCommand.ResultType.Success || drift.magnitude < MountedCarriedApproachPolicy.ReplanEpsilonMetres;
                 RetireStockPreApproach(routeFailed ? "route ended without reach" : "arrived; target moved");
                 if (routeFailed)
