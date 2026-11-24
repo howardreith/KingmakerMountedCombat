@@ -4,7 +4,7 @@ param()
 # these checks and nothing broader (docs/VALIDATION-POLICY.md 3: no silent broadening):
 #   1. Test-MountedAlpha2NativeContract.ps1: MMR-06 installed data (the stock Mammoth's AddFacts carry TrippingBite =
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter and saved-horse
-#      repair on genuine objects; the installed members the MMR-02 click admission, the MMR-04/05 readiness gate and the
+#      repair-candidate predicate (owner-requested removal only) on genuine objects; the installed members the MMR-02 click admission, the MMR-04/05 readiness gate and the
 #      MMR-07 telemetry bind; the native horse animation bundle identity.
 #   1d. Test-MountedAlpha2LifecycleContract.ps1: review round 4 seams (native slot/queue acceptance, the carrier Hold write,
 #      the pre-start approach hook and untouched native start gate, the turn-based click probe and policy, the installed

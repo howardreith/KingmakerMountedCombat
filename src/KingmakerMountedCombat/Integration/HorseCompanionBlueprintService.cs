@@ -319,6 +319,7 @@ namespace KingmakerMountedCombat.Integration
 
             observedOwnersThisUpdate.Clear();
             expiredObservationOwners.Clear();
+            loadedHorsesThisUpdate.Clear();
             try
             {
                 foreach (var reference in party)
@@ -334,11 +335,12 @@ namespace KingmakerMountedCombat.Integration
                     {
                         observedOwnersThisUpdate.Add(owner.UniqueId);
                         var pet = owner.Descriptor.Pet;
-                        try { RepairInheritedHorseFacts(pet); }
+                        // MMR-06: reports a saved Horse's sourceless stock TrippingBite; nothing is removed without the owner's request.
+                        try { ObserveInheritedTripCandidates(pet); }
                         catch (Exception exception)
                         {
-                            // The object stays pending (LoadedInstanceRepairLedger) and is retried on a later settled update.
-                            if (!inheritedFactRepairFailureReported) logger.Exception("KMC Horse inherited-fact repair (retried later)", exception);
+                            // The object stays pending (LoadedInstanceRepairLedger) and is examined again on a later settled update.
+                            if (!inheritedFactRepairFailureReported) logger.Exception("KMC Horse Trip repair candidate report (retried later)", exception);
                             inheritedFactRepairFailureReported = true;
                         }
                         var rank = fact.GetRank();
@@ -391,6 +393,9 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
 
+                // MMR-06: the owner's explicit Horse Trip repair request, against the horses loaded in this enumeration.
+                ProcessHorseTripRepairRequest();
+
                 // This cache contains observation values only, never native progression
                 // or cleanup obligations. Retire absence only after a complete
                 // authoritative PartyCharacters enumeration, not a partial read.
@@ -402,6 +407,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 observedOwnersThisUpdate.Clear();
                 expiredObservationOwners.Clear();
+                loadedHorsesThisUpdate.Clear();
             }
         }
 
@@ -642,7 +648,6 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.AdditionalTemplates = CloneArray(mammothUnit.AdditionalTemplates);
             // The Mammoth's facts without its inert TrippingBite (MMR-06): HorseCompanionBlueprintService.InheritedFacts.cs.
             horseUnit.AddFacts = HorseInheritedFacts(mammothUnit.AddFacts);
-            inheritedTrippingBiteSuccessor = DonorSuccessorFeature(mammothUnit.AddFacts);
             horseUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(classLevels, "KMC_Horse_AddClassLevels"),

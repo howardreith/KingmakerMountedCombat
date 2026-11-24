@@ -6,8 +6,9 @@ param([string]$Configuration = 'Release')
 #     companion's AddFacts are exactly [TrippingBite, NaturalArmor7, TripDefenseFourLegs]; TrippingBite's only component is
 #     ManeuverOnAttack(Category=Bite, Maneuver=Trip); the stock Dog and Wolf companions carry the same TrippingBite.
 #  2. The compiled product on genuine Kingmaker objects created without Unity: the Horse's inherited facts drop exactly the
-#     intrinsic attack-maneuver trigger and keep the rest in order; a horse saved before the repair loses only a
-#     sourceless inherited trigger, never a sourced (class/progression/selection) grant or another fact.
+#     intrinsic attack-maneuver trigger and keep the rest in order; on a saved horse nothing is removed automatically: a
+#     sourceless exact stock grant on the KMC Horse is only a repair candidate (removed on the owner's written request),
+#     never a sourced (class/progression/selection/item/cutscene) grant, another shape or GUID, or another unit's fact.
 # MMR-02/04/05/07: the installed members the click admission, the real-time readiness gate and the bite telemetry bind, and
 # the native horse animation bundle identity.
 # Not covered (native game evidence): the live registration, the stock Dog/Wolf/Riding Dog in play, a bite hit's rulebook
@@ -156,34 +157,42 @@ function New-LiveFeature($Blueprint, $Source, $Item, $Cutscene) {
     if ($null -ne $Cutscene) { SetField $feature $factType '<SourceCutscene>k__BackingField' $Cutscene }
     $feature
 }
-$listType = [Collections.Generic.List`1].MakeGenericType($liveFeatureType)
-$stale = $service.GetMethod('StaleInheritedAttackManeuvers', $any)
+# Existing horses (review R3 R1-F1): nothing is removed automatically. The saved state cannot tell the alpha-1 inherited copy
+# from a sourceless copy granted another way, so the product only reports candidates and removes one fact from one horse on
+# the owner's written request (HorseTripRepairPolicy; tests/HorseTripRepairPolicyTests.cs covers the request lifecycle).
+$candidate = $service.GetMethod('IsTripRepairCandidate', $any)
+$horseGuid = $service.GetField('UnitGuid', $any).GetRawConstantValue()
+$mammothGuid = $service.GetField('MammothUnitGuid', $any).GetRawConstantValue()
+function IsCandidate([string]$UnitGuid, $Feature) { [bool]$candidate.Invoke($null, [object[]]@($UnitGuid, $Feature)) }
 $inheritedTrip = New-LiveFeature $tb $null $null $null
 $sourcedTrip = New-LiveFeature $tb (New-Native $progressionType) $null $null
 $itemTrip = New-LiveFeature $tb $null (New-Native $itemType) $null
 $cutsceneTrip = New-LiveFeature $tb $null $null ([Runtime.Serialization.FormatterServices]::GetUninitializedObject($cutsceneType))
 $otherSourceless = New-LiveFeature $other $null $null $null
-$armor = New-LiveFeature $na $null $null $null; $defense = New-LiveFeature $td $null $null $null
-# Attributable provenance (review R2 R1-F1): the donor successor is the first BlueprintFeature after the stock grant; a buff-type
-# fact between them (as a non-feature NaturalArmor would be) is skipped.
-$buffType = GameType 'Kingmaker.UnitLogic.Buffs.Blueprints.BlueprintBuff'
-$nonFeature = New-Native $buffType
-$successorOf = $service.GetMethod('DonorSuccessorFeature', $any)
-$donorShape = [Array]::CreateInstance($unitFactType, 3); $donorShape.SetValue($tb, 0); $donorShape.SetValue($nonFeature, 1); $donorShape.SetValue($td, 2)
-Check ([object]::ReferenceEquals($successorOf.Invoke($null, @(, $donorShape)), $td) -and $null -eq $successorOf.Invoke($null, @(, $null))) 'the donor successor is the first feature after the stock grant'
-function List($Items) { $l = [Activator]::CreateInstance($listType); foreach ($f in $Items) { $l.Add($f) }; , $l }
-function Stale($Items, $Successor) { , $stale.Invoke($null, [object[]]@((List $Items), $Successor)) }
-# A legacy horse: native Initialize added [TrippingBite, TripDefenseFourLegs] in donor order, before its level features.
-$legacy = Stale @($inheritedTrip, $defense, $armor, $sourcedTrip, $itemTrip, $cutsceneTrip, $otherSourceless) $td
-Check ($legacy.Count -eq 1 -and [object]::ReferenceEquals($legacy[0], $inheritedTrip)) 'a legacy horse: only the sourceless stock grant immediately before its donor successor is stale; sourced, item, cutscene and other-mod copies stay'
-# An alpha-2 horse (created without the grant) that later received the stock fact directly: appended after its other features.
-$direct = New-LiveFeature $tb $null $null $null
-Check ((Stale @($defense, $armor, $direct) $td).Count -eq 0) 'an alpha-2 horse''s directly granted stock copy (not before its donor successor) is kept'
-Check ((Stale @($inheritedTrip, $armor, $defense) $td).Count -eq 0) 'a stock copy not immediately followed by the donor successor is kept (origin not provable)'
-Check ((Stale @($inheritedTrip, $defense) $null).Count -eq 0) 'without a provable donor successor nothing is removed'
-$sourcedSuccessor = New-LiveFeature $td (New-Native $progressionType) $null $null
-Check ((Stale @($inheritedTrip, $sourcedSuccessor) $td).Count -eq 0) 'a successor that is itself sourced does not attribute the copy'
-Check ((Stale @($armor, $defense, $otherSourceless) $td).Count -eq 0 -and $stale.Invoke($null, [object[]]@($null, $td)).Count -eq 0) 'a repaired or new horse has nothing to remove (idempotent)'
+$armor = New-LiveFeature $na $null $null $null
+Check (IsCandidate $horseGuid $inheritedTrip) 'a sourceless exact stock TrippingBite on the KMC Horse is a repair candidate (reported, removed only on request)'
+Check (-not (IsCandidate $horseGuid $sourcedTrip) -and -not (IsCandidate $horseGuid $itemTrip) -and -not (IsCandidate $horseGuid $cutsceneTrip)) 'an independently granted copy that records a source fact, item or cutscene is never a candidate'
+Check (-not (IsCandidate $horseGuid $otherSourceless) -and -not (IsCandidate $horseGuid (New-LiveFeature $sameIdDisarm $null $null $null)) -and
+    -not (IsCandidate $horseGuid (New-LiveFeature $sameIdClaw $null $null $null)) -and -not (IsCandidate $horseGuid (New-LiveFeature $sameIdNoTrigger $null $null $null)) -and
+    -not (IsCandidate $horseGuid $armor) -and -not (IsCandidate $horseGuid $null)) 'another GUID with the same trigger, the stock GUID with Disarm, Claw or no trigger, and unrelated facts are not candidates'
+Check (-not (IsCandidate $mammothGuid $inheritedTrip) -and -not (IsCandidate '0123456789abcdef0123456789abcdef' $inheritedTrip) -and -not (IsCandidate $null $inheritedTrip)) 'a TrippingBite on any unit other than the exact KMC Horse (stock Dog, Wolf, Mammoth, Riding Dog) is not a candidate'
+Check ($null -eq $service.GetMethod('StaleInheritedAttackManeuvers', $any) -and $null -eq $service.GetMethod('DonorSuccessorFeature', $any)) 'the positional saved-fact deletion rule is gone from the product'
+# Structural: the only product code in the service that removes a fact is the owner-request host's Remove.
+$removers = New-Object 'System.Collections.Generic.List[string]'
+foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
+    foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
+        $body = $m.GetMethodBody(); if ($null -eq $body) { continue }
+        $il = $body.GetILAsByteArray()
+        for ($i = 0; $i -le $il.Length - 5; $i++) {
+            if ($il[$i] -ne 0x28 -and $il[$i] -ne 0x6F) { continue }
+            try { $callee = $m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
+            if ($callee.Name -ceq 'RemoveFact' -and $callee.DeclaringType.Assembly -eq $game) { $removers.Add($t.Name + '.' + $m.Name); break }
+        }
+    }
+}
+Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.Remove') ('the only fact removal in the Horse service is the owner-request host (' + ($removers -join ', ') + ')')
+$policy = KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy'
+Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('CandidateReportFileName').GetRawConstantValue() -ceq 'horse-trip-repair-candidates.txt') 'the owner-facing request and candidate report file names'
 # ---- 3. MMR-02/04/05/07 installed contracts the production paths bind -------------------------------------------------
 $module = $game.ManifestModule
 function MemberAt([int]$Token) { $module.ResolveMember($Token) }
