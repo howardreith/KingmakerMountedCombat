@@ -995,7 +995,72 @@ namespace KingmakerMountedCombat.Integration
                 Cancel("combat ended");
             }
 
+            if (stockPreApproach != null && (!HasStockAttackIntent || chargeOwner != null || relationship.State != RelationshipState.Mounted ||
+                CombatController.IsInTurnBasedCombat()))
+            {
+                RetireStockPreApproach("intent, mount or real time ended");
+            }
             TryDriveStockAttackIntent();
+        }
+
+        // MMR-05 pre-approach: one controller-owned mount move toward a real-time melee intent's target while neither actor
+        // may strike yet. Not a player order (no native Hold on arrival, not the player-move watch); it never displaces
+        // another mount command and is interrupted before the pair command is dispatched, so the command's own exact
+        // delegated approach and strike timing are unchanged.
+        private UnitMoveTo stockPreApproach;
+        private Vector3 stockPreApproachPoint;
+        internal int StockPreApproachStartCount { get; private set; }
+        internal int StockPreApproachRetiredCount { get; private set; }
+        internal string LastStockPreApproachRetirement { get; private set; }
+
+        private static bool WaitingInitiative(UnitEntityData unit) =>
+            unit.CombatState != null && unit.IsInCombat && !unit.CombatState.CanActInCombat;
+
+        private void DriveStockPreApproach(UnitEntityData mount, UnitEntityData target)
+        {
+            var commands = mount?.Commands;
+            if (commands == null || mount.View == null || target?.View == null) return;
+            if (stockPreApproach != null && !stockPreApproach.IsFinished && commands.Contains(stockPreApproach))
+            {
+                // A moving target: replan once it has drifted, otherwise keep the live move.
+                var drift = target.Position - stockPreApproachPoint; drift.y = 0f;
+                if (drift.magnitude < MountedCarriedApproachPolicy.ReplanEpsilonMetres) return;
+                stockPreApproach.Interrupt(false);
+                commands.RemoveFinishedAndUpdateQueue();
+            }
+            stockPreApproach = null;
+            if (MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(commands, null))
+            {
+                LastStockAttackObservation = "rt-pre-approach-yields-to-mount-command";
+                return;
+            }
+            var weapon = relationship.Rider?.GetFirstWeapon();
+            var pairRadius = mount.View.Corpulence + target.View.Corpulence + (weapon?.AttackRange.Meters ?? 0f);
+            var move = new UnitMoveTo(target.Position, MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(
+                pairRadius, mount.View.Corpulence, target.View.Corpulence))
+            {
+                CreatedByPlayer = false,
+                ShowTargetMarker = false
+            };
+            commands.Run(move);
+            if (!commands.Contains(move)) { LastStockAttackObservation = "rt-pre-approach-refused"; return; }
+            stockPreApproach = move;
+            stockPreApproachPoint = target.Position;
+            StockPreApproachStartCount++;
+            LastStockAttackObservation = "rt-approach-while-waiting";
+        }
+
+        private void RetireStockPreApproach(string reason)
+        {
+            var move = stockPreApproach;
+            if (move == null) return;
+            stockPreApproach = null;
+            StockPreApproachRetiredCount++;
+            LastStockPreApproachRetirement = reason;
+            var commands = relationship.Mount?.Commands;
+            if (move.IsFinished || commands == null || !commands.Contains(move)) return;
+            move.Interrupt(false);
+            commands.RemoveFinishedAndUpdateQueue();
         }
 
         public void Cancel(string reason)
@@ -1277,7 +1342,7 @@ namespace KingmakerMountedCombat.Integration
         {
             return HasActiveDoorInteraction || HasPendingDoorSettlement || HasLiveCarriedApproach ||
                 HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending ||
-                MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(mount?.Commands, stockIntentCommand?.DelegatedMove);
+                MountedCarriedApproach.MountMoveSlotHost.HasOtherLive(mount?.Commands, stockIntentCommand?.DelegatedMove ?? stockPreApproach);
         }
 
         private bool HasRiderPlayerOperation(UnitEntityData rider, UnitEntityData mount)
@@ -1452,21 +1517,31 @@ namespace KingmakerMountedCombat.Integration
             // where it stands: exactly the ranged rule.
             var automaticOrigin = stockIntent.Automatic;
             var stationary = automaticOrigin && AutomaticMovementForbidden(rider);
+            // MMR-04/05: in real-time combat an actor still waiting its initiative cannot strike (native would hold an
+            // unstarted command without approaching), so it is not dispatched yet; the approach below does not wait for it.
             var decision = UnifiedMountedStockAttackPolicy.DecideNext(
                 relationship.State == RelationshipState.Mounted && rider != null && mount != null,
                 targetValid,
                 HasActiveCommand,
                 turnBased,
-                rider != null && rider.HasStandardAction(),
-                mount != null && mount.HasStandardAction(),
+                rider != null && rider.HasStandardAction() && (turnBased || !WaitingInitiative(rider)),
+                mount != null && mount.HasStandardAction() && (turnBased || !WaitingInitiative(mount)),
                 ranged || stationary,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
                 UnifiedMountedStockAttackPolicy.MountJoinsIntent(turnBased, stockIntent.MountActor, settings.UseLegacyUnifiedTurn,
                     settings.EnablePairedActivation, stockIntent.Automatic,
                     turnBased && mount != null && unifiedTurn.CanAddressActor(mount, Game.Instance?.TurnBasedCombatController?.CurrentTurn)),
-                settings.EnablePairedActivation && stockIntent.PreferMount);
+                settings.EnablePairedActivation && stockIntent.PreferMount,
+                !turnBased && !IsTargetInRiderReach(target),
+                !turnBased && !(ranged || stationary));
 
+            if (decision == MountedStockAttackDecision.ApproachWhileWaiting)
+            {
+                DriveStockPreApproach(mount, target);
+                return;
+            }
+            RetireStockPreApproach(decision == MountedStockAttackDecision.Wait ? "in reach or not permitted" : "dispatch");
             if (decision == MountedStockAttackDecision.Wait)
             {
                 return;
@@ -1587,6 +1662,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void ClearStockAttackIntent(string reason, bool countCancellation)
         {
+            RetireStockPreApproach(reason);
             var target = stockIntentTarget;
             if (target != null && countCancellation)
             {

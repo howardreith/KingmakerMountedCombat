@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
             runner.Run("MMR-02: only a rider attack click dropped by native's rider-path check is admitted", PairedAttackClickAdmission);
+            runner.Run("MMR-04/05: real-time melee intent approaches while its strike is not yet ready", RealTimeApproachWhileWaiting);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -458,6 +459,29 @@ namespace KingmakerMountedCombat.Tests
             reused.Release();
             reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
+        }
+
+        private static void RealTimeApproachWhileWaiting()
+        {
+            MountedStockAttackDecision Next(bool turnBased = false, bool active = false, bool riderReady = false, bool mountReady = false,
+                bool outOfReach = true, bool permitted = true, bool preferMount = false) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, active, turnBased, riderReady, mountReady, false, false,
+                    preferMount: preferMount, targetOutOfReach: outOfReach, approachPermitted: permitted);
+            // Combat start (both still waiting initiative) or both Standard cooldowns running: move now, strike later.
+            TestRunner.Equal(MountedStockAttackDecision.ApproachWhileWaiting, Next(), "A waiting real-time melee intent stood still.");
+            // The strike itself is never released early: once an actor is ready it is dispatched, never before.
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(riderReady: true), "A ready rider was not dispatched.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(mountReady: true), "A ready mount was not dispatched.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(riderReady: true, mountReady: true, preferMount: true), "The preferred mount lost its turn.");
+            // Already in reach, a ranged rider or a held (Hold / completed player move) automatic intent: wait in place.
+            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(outOfReach: false), "An in-reach intent kept moving.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(permitted: false), "A ranged or held intent approached.");
+            // A live pair command owns the pair; turn-based behavior is unchanged.
+            TestRunner.Equal(MountedStockAttackDecision.Wait, Next(active: true), "A pre-approach competed with the live pair command.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(turnBased: true), "Turn-based gained a free pre-approach.");
+            // Callers that do not supply the new facts keep the old Wait.
+            TestRunner.Equal(MountedStockAttackDecision.Wait, UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, false, false, false),
+                "The default decision changed.");
         }
 
         private static void PairedAttackClickAdmission()
