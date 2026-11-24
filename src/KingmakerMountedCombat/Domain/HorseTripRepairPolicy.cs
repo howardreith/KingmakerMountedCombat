@@ -26,7 +26,10 @@ namespace KingmakerMountedCombat.Domain
         FinishedApplied,
         // A claim stranded without a recorded removal in this session (for example the game closed mid-request): nothing is
         // removed; the owner checks the horse and writes a new request.
-        Interrupted
+        Interrupted,
+        // The claimed request had to wait (its horse is not loaded) but the owner wrote a newer request meanwhile: the claimed
+        // one is set aside unchanged (review R5-F1) and the newer one is processed on its own later.
+        Superseded
     }
 
     public static class HorseTripRepairPolicy
@@ -38,6 +41,7 @@ namespace KingmakerMountedCombat.Domain
         public const string AppliedSuffix = ".applied";
         public const string RefusedSuffix = ".refused";
         public const string InterruptedSuffix = ".interrupted";
+        public const string SupersededSuffix = ".superseded";
         private const string RequestPrefix = "horse=";
 
         // A repair candidate: every term must hold. An independently granted copy that records its provenance (a source
@@ -83,14 +87,18 @@ namespace KingmakerMountedCombat.Domain
             "unchanged. The change is written to your save the next time the game saves; to undo it, reload a save made before this " +
             "repair (if you already reloaded one, the fact is back: write a new request to remove it again).";
 
-        // The whole request lifecycle against its host (review R4-F5).
+        // The whole request lifecycle against its host (reviews R4-F5, R5-F1).
         //  - A stranded claim is settled first: if this session recorded its removal, only the reporting is finished (never a
         //    second removal, also after a reload restored the fact); otherwise it is closed as interrupted, unchanged.
-        //  - Pending and HorseNotLoaded keep the request. Malformed, no-candidate and ambiguous requests are refused (result
-        //    written, request renamed); nothing changes.
-        //  - Apply: claim the request (rename) before any mutation; remove; a removal that throws while the fact is still
-        //    present releases the claim and propagates (retried later); once the fact is gone the outcome is recorded in the
-        //    session before any reporting, so a failing result write or rename can only be finished as applied.
+        //  - A present request with the write gate closed is pending: nothing is claimed, read for a decision or changed.
+        //  - Otherwise the request is CLAIMED FIRST (atomic rename) and every selection and disposition is made from the bytes
+        //    of the claimed file alone (review R5-F1): a request the owner replaced before the claim is judged as replaced; one
+        //    written after the claim is a separate, later request. The request observed before the claim only signals presence.
+        //  - HorseNotLoaded returns the claim to the request name, unless a newer request appeared meanwhile: then the claimed
+        //    one is set aside unchanged as superseded. Malformed, no-candidate and ambiguous claimed requests are refused.
+        //  - Apply removes the fact named by the claimed bytes; a removal that throws while the fact is still present returns
+        //    the claim and propagates (retried later); once the fact is gone the outcome is recorded in the session before any
+        //    reporting, so a failing result write or rename can only be finished as applied.
         public static HorseTripRepairDecision Process<TFact>(IHorseTripRepairHost<TFact> host, bool gateAdmitted, HorseTripRepairSession session)
             where TFact : class
         {
@@ -114,24 +122,38 @@ namespace KingmakerMountedCombat.Domain
                 host.Close(true, InterruptedSuffix);
                 return HorseTripRepairDecision.Interrupted;
             }
+            string observed;
+            if (!host.TryReadRequest(out observed)) return HorseTripRepairDecision.NoRequest;
+            if (!gateAdmitted) return HorseTripRepairDecision.Pending;
+            host.Claim();
             string text;
-            if (!host.TryReadRequest(out text)) return HorseTripRepairDecision.NoRequest;
+            if (!host.TryReadClaim(out text)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
             var horseId = ParseRequest(text);
             var loaded = false;
             IList<TFact> candidates = null;
-            if (horseId != null && gateAdmitted) candidates = host.CandidatesOf(horseId, out loaded);
-            var decision = Decide(true, horseId, gateAdmitted, loaded, candidates == null ? 0 : candidates.Count);
+            if (horseId != null) candidates = host.CandidatesOf(horseId, out loaded);
+            var decision = Decide(true, horseId, true, loaded, candidates == null ? 0 : candidates.Count);
             switch (decision)
             {
+                case HorseTripRepairDecision.HorseNotLoaded:
+                    if (host.ReleaseClaim()) break;
+                    host.WriteResult("Superseded: the request for horse " + horseId + " was waiting for that horse to be loaded when a newer " +
+                        "request was written, so it was set aside unchanged; the newer request is processed on its own.");
+                    host.Close(true, SupersededSuffix);
+                    return HorseTripRepairDecision.Superseded;
                 case HorseTripRepairDecision.Apply:
                     var fact = candidates[0];
-                    host.Claim();
                     try { host.Remove(fact); }
                     catch (Exception)
                     {
                         if (host.StillPresent(fact))
                         {
-                            host.ReleaseClaim();
+                            if (!host.ReleaseClaim())
+                            {
+                                host.WriteResult("Superseded: removing the TrippingBite from horse " + horseId + " failed with nothing changed, " +
+                                    "and a newer request was written meanwhile, so this one was set aside; the newer request is processed on its own.");
+                                host.Close(true, SupersededSuffix);
+                            }
                             throw;
                         }
                     }
@@ -144,16 +166,16 @@ namespace KingmakerMountedCombat.Domain
                 case HorseTripRepairDecision.Malformed:
                     host.WriteResult("Refused: the request must contain exactly one line of the form horse=<UniqueId> (copy it from the " +
                         "KMC log line 'KMC Horse Trip repair candidate'); blank lines and lines starting with # are ignored. Nothing was changed.");
-                    host.Close(false, RefusedSuffix);
+                    host.Close(true, RefusedSuffix);
                     break;
                 case HorseTripRepairDecision.NoCandidate:
                     host.WriteResult("Refused: horse " + horseId + " has no sourceless stock TrippingBite to remove. Nothing was changed.");
-                    host.Close(false, RefusedSuffix);
+                    host.Close(true, RefusedSuffix);
                     break;
                 case HorseTripRepairDecision.Ambiguous:
                     host.WriteResult("Refused: horse " + horseId + " has " + candidates.Count +
                         " sourceless stock TrippingBite facts, so the inherited one cannot be singled out. Nothing was changed.");
-                    host.Close(false, RefusedSuffix);
+                    host.Close(true, RefusedSuffix);
                     break;
             }
             return decision;
@@ -191,7 +213,8 @@ namespace KingmakerMountedCombat.Domain
         bool StillPresent(TFact fact);
         void Remove(TFact fact);
         void Claim();
-        void ReleaseClaim();
+        // Returns the claim to the request name; false (claim kept) when a newer request exists.
+        bool ReleaseClaim();
         void WriteResult(string result);
         // Renames the claim (claimed) or the request to request + suffix.
         void Close(bool claimed, string suffix);
@@ -223,12 +246,23 @@ namespace KingmakerMountedCombat.Domain
             return text != null;
         }
 
-        public void Claim() => File.Move(RequestPath, ClaimPath);
+        // Test hooks only (review R5-F1 evidence): invoked immediately before and after the claim rename, so a test can replace
+        // the request at the exact moment between observation and claim, or write a newer request after it. Unset in production.
+        public Action BeforeClaim { get; set; }
+        public Action AfterClaim { get; set; }
 
-        public void ReleaseClaim()
+        public void Claim()
         {
-            if (File.Exists(RequestPath)) throw new IOException("A newer request exists; the claim is kept.");
+            BeforeClaim?.Invoke();
+            File.Move(RequestPath, ClaimPath);
+            AfterClaim?.Invoke();
+        }
+
+        public bool ReleaseClaim()
+        {
+            if (File.Exists(RequestPath)) return false;
             File.Move(ClaimPath, RequestPath);
+            return true;
         }
 
         public void WriteResult(string result) =>

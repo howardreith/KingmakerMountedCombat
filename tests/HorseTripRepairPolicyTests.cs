@@ -22,6 +22,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-06: a closed gate, an unloaded horse and a failed removal keep the request for a retry", PendingAndRetry);
             runner.Run("R4-F5: failures after removal, at the claim, the result write and the final rename never record a refusal", ReportingFailures);
             runner.Run("R4-F5: a stranded claim finishes as applied without a second removal, also after a reload; a restart closes it unchanged", StrandedClaims);
+            runner.Run("R5-F1: a request replaced between observation and claim is judged by the claimed bytes (apply and refusal)", ReplacedBeforeClaim);
+            runner.Run("R5-F1: a request written after the claim is a separate later request; a waiting claim yields to it unchanged", WrittenAfterClaim);
         }
 
         private sealed class Fact
@@ -87,8 +89,10 @@ namespace KingmakerMountedCombat.Tests
 
         private sealed class Host : IHorseTripRepairHost<Fact>
         {
-            private readonly HorseTripRepairFiles files;
+            public readonly HorseTripRepairFiles files;
             public int Removals;
+            // Which horse each removal touched, in order (the integration logs the same horse ID at its removal).
+            public readonly List<string> RemovedFrom = new List<string>();
             public bool FailRemovalBefore, FailRemovalAfter, FailClaim, FailResultWrite, FailClose;
             public readonly List<Horse> Loaded = new List<Horse>();
             private Horse current;
@@ -112,6 +116,7 @@ namespace KingmakerMountedCombat.Tests
                 if (FailRemovalBefore) { FailRemovalBefore = false; throw new InvalidOperationException("simulated failure before removal"); }
                 TestRunner.True(current.Facts.Remove(fact), "The removed fact was not the horse's own instance.");
                 Removals++;
+                RemovedFrom.Add(current.Id);
                 if (FailRemovalAfter) { FailRemovalAfter = false; throw new InvalidOperationException("simulated failure after RemoveFact"); }
             }
 
@@ -121,7 +126,7 @@ namespace KingmakerMountedCombat.Tests
                 files.Claim();
             }
 
-            public void ReleaseClaim() => files.ReleaseClaim();
+            public bool ReleaseClaim() => files.ReleaseClaim();
 
             public void WriteResult(string result)
             {
@@ -154,6 +159,9 @@ namespace KingmakerMountedCombat.Tests
         private static readonly string Refused = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.RefusedSuffix;
         private static readonly string Interrupted = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.InterruptedSuffix;
         private static readonly string ResultFile = HorseTripRepairPolicy.ResultFileName;
+        private static readonly string Superseded = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.SupersededSuffix;
+
+        private static string Archive(Folders folders, string name) => File.ReadAllText(Path.Combine(folders.UserData, name));
 
         private static string[] Files(params string[] names) => names.OrderBy(name => name, StringComparer.Ordinal).ToArray();
 
@@ -382,6 +390,124 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Interrupted && host.Removals == 0 &&
                     Candidates(horse).Count == 1 && folders.UserFiles().SequenceEqual(Files(Interrupted, ResultFile)) &&
                     folders.Result().Contains("Interrupted"), "A stranded claim from an earlier session removed something or was not closed.");
+            }
+        }
+
+        // Review R5-F1 counterexample through the production policy and the production file host: the owner replaces a valid
+        // request for horse A with one for horse B at the exact moment between the policy's observation and its claim rename.
+        private static void ReplacedBeforeClaim()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A") + "\r\n";
+            var forB = "# replaced\r\n" + HorseTripRepairPolicy.FormatRequestLine("horse-B") + "\r\n";
+            // Applicable: A observed, B claimed. Only B's fact is removed; archive, result and removal log all name B.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.BeforeClaim = () => folders.Request(forB);
+                TestRunner.Equal(HorseTripRepairDecision.Apply, Run(host, session), "The replaced request was not applied.");
+                TestRunner.True(host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) && Candidates(b).Count == 0 && Candidates(a).Count == 1 && a.Facts.Count == 4,
+                    "The fact removed was not the one named by the claimed bytes: " + string.Join(",", host.RemovedFrom.ToArray()));
+                TestRunner.True(folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)) && Archive(folders, Applied) == forB &&
+                    folders.Result().Contains("horse-B") && !folders.Result().Contains("horse-A"),
+                    "The archive, result and removal disagree about which request was claimed.");
+            }
+            // Refusal: a valid A replaced by a malformed B before the claim. Nothing is removed; the refused archive is B's bytes.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                const string malformed = "horse=horse-A\r\nhorse=horse-B\r\n";
+                host.files.BeforeClaim = () => folders.Request(malformed);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Malformed && host.Removals == 0 && Candidates(a).Count == 1,
+                    "A valid observation overrode the malformed claimed bytes.");
+                TestRunner.True(folders.UserFiles().SequenceEqual(Files(Refused, ResultFile)) && Archive(folders, Refused) == malformed &&
+                    folders.Result().StartsWith(folders.Result().Substring(0, 0)) && folders.Result().Contains("Refused"),
+                    "The refusal did not archive the claimed bytes.");
+            }
+            // Refusal for a horse without a candidate: B names a horse with only a sourced copy; refused quoting B, A untouched.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); b.Facts[0].Sourceless = false;
+                host.Loaded.Add(a); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.BeforeClaim = () => folders.Request(forB);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.NoCandidate && host.Removals == 0 &&
+                    Candidates(a).Count == 1 && Archive(folders, Refused) == forB && folders.Result().Contains("horse-B") && !folders.Result().Contains("horse-A"),
+                    "A refusal of the claimed request acted on, or named, the observed one.");
+            }
+            // The reverse: a malformed observation replaced by a valid B is applied to B (the observation decides nothing).
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var b = LegacyHorse("horse-B"); host.Loaded.Add(b);
+                folders.Request("please fix my horse");
+                host.files.BeforeClaim = () => folders.Request(forB);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
+                    Archive(folders, Applied) == forB, "A malformed observation refused a valid claimed request.");
+            }
+            // Control: no replacement; the request for A applies to A with A's bytes archived.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                folders.Request(forA);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A" }) &&
+                    Candidates(b).Count == 1 && Archive(folders, Applied) == forA && folders.Result().Contains("horse-A"),
+                    "The unreplaced control did not apply to its own horse.");
+            }
+            // A closed write gate claims nothing: the request (whatever its bytes) stays untouched.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                var claims = 0; host.files.BeforeClaim = () => claims++;
+                TestRunner.True(Run(host, new HorseTripRepairSession(), false) == HorseTripRepairDecision.Pending && claims == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Request)) && host.Removals == 0, "A closed gate claimed or changed the request.");
+            }
+        }
+
+        private static void WrittenAfterClaim()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            // A request written right after the claim is not merged into the claimed one: A applies now, B on the next check.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.AfterClaim = () => { folders.Request(forB); host.files.AfterClaim = null; };
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A" }) &&
+                    Archive(folders, Applied) == forA && folders.UserFiles().Contains(Request) && folders.Result().Contains("horse-A"),
+                    "The claimed request was not processed on its own bytes, or the later request was lost.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-B" }) &&
+                    Candidates(a).Count == 0 && Candidates(b).Count == 0 && folders.Result().Contains("horse-B") && !folders.UserFiles().Contains(Request),
+                    "The later request was not processed separately.");
+                var archives = folders.UserFiles().Where(name => name.EndsWith(HorseTripRepairPolicy.AppliedSuffix, StringComparison.Ordinal)).ToArray();
+                TestRunner.True(archives.Length == 2 && archives.Select(name => Archive(folders, name)).OrderBy(x => x, StringComparer.Ordinal)
+                    .SequenceEqual(new[] { forA, forB }), "The two applied archives do not hold exactly the two claimed requests.");
+            }
+            // A waiting claim (its horse not loaded) yields to a newer request written meanwhile: set aside unchanged as
+            // superseded, the newer request kept and processed on its own; the waiting horse is never touched.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var b = LegacyHorse("horse-B"); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.AfterClaim = () => { folders.Request(forB); host.files.AfterClaim = null; };
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Superseded && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Request, Superseded, ResultFile)) && Archive(folders, Superseded) == forA &&
+                    Archive(folders, Request) == forB && folders.Result().Contains("horse-A") && folders.Result().Contains("Superseded"),
+                    "A waiting claim overwrote, merged or dropped the newer request.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
+                    Archive(folders, Applied) == forB, "The newer request was not processed on its own after the superseded one.");
+            }
+            // Control: a waiting claim with no newer request returns to the request name, byte for byte, for a later update.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); host.Loaded.Add(LegacyHorse("horse-Z"));
+                folders.Request(forA);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.HorseNotLoaded && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Request)) && Archive(folders, Request) == forA, "A waiting claim was not returned unchanged.");
             }
         }
     }

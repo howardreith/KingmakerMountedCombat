@@ -204,7 +204,7 @@ namespace KingmakerMountedCombat.Integration
 
             public void Claim() => files.Claim();
 
-            public void ReleaseClaim() => files.ReleaseClaim();
+            public bool ReleaseClaim() => files.ReleaseClaim();
 
             public void WriteResult(string result)
             {
