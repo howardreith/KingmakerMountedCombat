@@ -200,7 +200,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (s6NextPlan == null || s6NextPlan == "natural") return null;
             // Mounted Shield rows (supplemental review PN9-F3): only the measured rider's hit on the measured mount by the row's
             // hostile is planned; a hit on any other pair (the second rider stays mounted after MS-pairs) rolls naturally.
-            if (Sprint6Shield && !Sprint6MeasuredPair(record.Rider, record.Mount, record.Attacker)) return null;
+            // The plan is armed for one attempt and consumed by it (review PN10-F2); the consuming attempt is recorded.
+            if (Sprint6Shield) return Sprint6ShieldPlannedTotal(record);
             var delta = s6NextPlan == "success" ? 1 : s6NextPlan == "equal" ? 0 : -1;
             return record.AttackResult + delta;
         }
@@ -471,7 +472,11 @@ namespace KingmakerMountedCombat.Diagnostics
             for (var index = s6Records.Count - 1; index >= s6AttemptsAtStep; index--)
             {
                 var record = (JObject)s6Records[index];
-                if (Sprint6MeasuredPair((string)record["rider"], (string)record["mountId"], (string)record["attacker"])) return record;
+                if (!Sprint6MeasuredPair((string)record["rider"], (string)record["mountId"], (string)record["attacker"])) continue;
+                // The record that completes the step, for the reader (supplemental review PN10-F3).
+                var completed = s6Facts["stepRecords"] as JObject ?? (JObject)(s6Facts["stepRecords"] = new JObject());
+                completed[s6Step.ToString(System.Globalization.CultureInfo.InvariantCulture)] = record["ruleIdentity"];
+                return record;
             }
             return null;
         }

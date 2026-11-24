@@ -272,6 +272,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool DrainSprint6ShieldFixture()
         {
             if (!Sprint6Shield || s9Measure == null) return true;
+            s9Plan.Clear();
             s9DrainAttempts++;
             var restore = new JObject { ["attempts"] = s9DrainAttempts }; s9Measure["drain"] = restore;
             restore["setup"] = s9Setup.Release();
@@ -293,6 +294,36 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private bool s9TemporaryGreater;
+
+        // One planned attempt at a time (supplemental review PN10-F2): armed together with its step's record boundary, for the
+        // measured rider, mount and the row's hostile, consumed by the first qualifying attempt, cleared on step exit and drain.
+        private readonly PlannedAttempt s9Plan = new PlannedAttempt();
+
+        private void ShieldArm(string plan, int step)
+        {
+            s6NextPlan = plan;
+            s9Plan.Arm(plan, plan == "success" ? 1 : plan == "equal" ? 0 : -1, rider.UniqueId, horse.UniqueId, target.UniqueId);
+            s6Step = step; s6BoundStep = step; s6BoundAt = Time.time; s6StrikesThisStep = 0; s6AttemptsAtStep = s6Records.Count;
+        }
+
+        private void ShieldDisarm()
+        {
+            s9Plan.Clear();
+            s6NextPlan = "natural";
+        }
+
+        private int? Sprint6ShieldPlannedTotal(MountedCombatDefenseRecord record)
+        {
+            var total = s9Plan.Consume(record.Rider, record.Mount, record.Attacker, record.AttackResult, System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(record.Rule));
+            if (total != null)
+            {
+                // The attempt that completed the planned step, with its hostile, for the reader (review PN10-F3).
+                var planned = s6Facts["plannedAttempts"] as JObject ?? (JObject)(s6Facts["plannedAttempts"] = new JObject());
+                planned[s6Step.ToString(System.Globalization.CultureInfo.InvariantCulture)] = new JObject { ["identity"] = s9Plan.ConsumedBy, ["attacker"] = record.Attacker,
+                    ["rider"] = record.Rider, ["mount"] = record.Mount, ["plan"] = s9Plan.Plan };
+            }
+            return total;
+        }
 
         private bool ShieldReleaseGreater()
         {
@@ -838,24 +869,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     Sprint6SpawnTarget("ms-rt"); s6Step = 1; return;
                 case 1:
                     if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return;
-                    ShieldStep("combatStart"); ShieldCalibrate("equal"); s6NextPlan = "equal"; s6Step = 2; return;
+                    ShieldStep("combatStart"); ShieldCalibrate("equal"); ShieldArm("equal", 2); return;
                 // Equality of the shield-modified total fails and the hit stands.
                 case 2:
                     if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
-                    ShieldStep("equal"); s6Step = 3; return;
-                case 3: if (!Sprint6RealTimeUsageFree(rider)) return; ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 4; return;
+                    ShieldStep("equal"); ShieldDisarm(); s6Step = 3; return;
+                case 3: if (!Sprint6RealTimeUsageFree(rider)) return; ShieldCalibrate("success"); ShieldArm("success", 4); return;
                 case 4:
                     if (Sprint6RecordSinceStep() == null) { Sprint6Command(horse); return; }
                     ShieldStep("success");
                     // Equipment changes during the running use neither refund nor restart it.
                     var before = Sprint6State(rider); s9Equipment.Unequip(); var unequipped = Sprint6State(rider); s9Equipment.Equip(s9Mundane["heavy"]);
                     s6Facts["equipmentDuringUse"] = new JObject { ["before"] = before, ["unequipped"] = unequipped, ["reequipped"] = Sprint6State(rider) };
-                    s6NextPlan = "natural"; s6Frames = 0; s6Step = 5; return;
+                    ShieldDisarm(); s6Frames = 0; s6Step = 5; return;
                 case 5:
                     if (++s6Frames < Sprint6ShieldSettleFrames) return;
                     if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
                     ShieldStep("spentRefused"); s6Step = 6; return;
-                case 6: if (!Sprint6RealTimeUsageFree(rider)) return; Sprint6SetPreference(false, "off"); s6NextPlan = "natural"; s6Step = 7; return;
+                case 6: if (!Sprint6RealTimeUsageFree(rider)) return; Sprint6SetPreference(false, "off"); ShieldDisarm(); s6Step = 7; return;
                 case 7:
                     if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
                     ShieldStep("preferenceOffRefused"); Sprint6SetPreference(true, "on");
@@ -869,11 +900,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 8:
                     if (!Sprint6RealTimeUsageFree(rider)) return;
                     s9Setup.Add(horse.Stats.AC, 4, "competing", ModifierDescriptor.Shield);
-                    ShieldStep("competingBeforeCheck"); ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 9; return;
+                    ShieldStep("competingBeforeCheck"); ShieldCalibrate("success"); ShieldArm("success", 9); return;
                 case 9:
                     if (Sprint6RecordSinceStep() == null) { Sprint6RuleStrike(horse); return; }
                     ShieldStep("competingCheck"); ShieldRequireReleased("competing"); ShieldCalibrate(null);
-                    s6NextPlan = "natural"; s6Step = 10; return;
+                    ShieldDisarm(); s6Step = 10; return;
                 // A hit that Mounted Shield's AC turns into a miss: no check, no use. The hostile's bonus is aimed so a total
                 // inside the shield's band (AC - 3 .. AC - 1) is likely; only actual strikes count against the bound, and the
                 // qualifying attack itself is recorded (supplemental review PN4-F10).
@@ -990,10 +1021,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!rider.IsInCombat || !horse.IsInCombat) return;
                     if (WaitForNativeCastingPrincipal(true, turn?.Unit == rider, rider.CombatState.CanActInCombat, () => EndCastingNativeTurn(turn))) return;
                     if (!rider.HasSwiftAction() || !Sprint6RiderTurn(turn)) return;
-                    s6Turn = turn; ShieldStep("ownTurnBefore"); ShieldCalibrate("success"); s6NextPlan = "success"; s6Step = 2; return;
+                    s6Turn = turn; ShieldStep("ownTurnBefore"); ShieldCalibrate("success"); ShieldArm("success", 2); return;
                 case 2:
                     if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
-                    ShieldStep("ownTurnNegated"); s6NextPlan = "natural"; s6Step = 3; return;
+                    ShieldStep("ownTurnNegated"); ShieldDisarm(); s6Step = 3; return;
                 case 3:
                     if (Sprint6RecordSinceStep() == null) { Sprint6OpportunityStrike(horse); return; }
                     ShieldStep("ownTurnSecondRefused"); s6Step = 4; return;
@@ -1005,9 +1036,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     s6Turn = turn; ShieldStep("renewed"); s6Step = 5; return;
                 case 5:
                     if (!Sprint6AdvanceTo(turn, target)) return;
-                    ShieldCalibrate("equal"); s6NextPlan = "equal"; s6Step = 6; return;
+                    ShieldCalibrate("equal"); ShieldArm("equal", 6); return;
                 case 6:
-                    if (Sprint6RecordSinceStep() != null) { ShieldStep("offTurnEqual"); ShieldCalibrate(null); s6Frames = 0; s6Step = 7; return; }
+                    if (Sprint6RecordSinceStep() != null) { ShieldStep("offTurnEqual"); ShieldCalibrate(null); ShieldDisarm(); s6Frames = 0; s6Step = 7; return; }
                     Sprint6HostileTurnStrike(turn);
                     return;
                 default:

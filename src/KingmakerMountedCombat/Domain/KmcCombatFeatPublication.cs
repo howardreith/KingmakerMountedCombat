@@ -387,9 +387,10 @@ namespace KingmakerMountedCombat.Domain
                 if (pair.Value.Offers(current, feat)) continue;
                 T[] value;
                 if (!suspensionKeys.Contains(pair.Key) && !withheldKeys[(int)feat].Contains(pair.Key)) continue;
-                if (!pair.Value.TryMove(current, pair.Value.Mask(Offered), out value)) value = pair.Value.With(current, feat);
+                // Only the suspended feat goes back, into the list as it now stands (supplemental review PN10-F1): a list another
+                // mod changed during the suspension (Mounted Archery removed, entries added) keeps that change.
+                value = pair.Value.With(current, feat);
                 if (value != null) { write(pair.Key, value); continue; }
-                if (pair.Value.Matches(current, pair.Value.Mask(Offered))) continue;
                 error = (error == null ? "" : error + " ") + "Feat selection " + name(pair.Key) + " no longer holds a KMC entry to place the resumed feat after; it was not written.";
             }
             suspensionKeys.Clear();

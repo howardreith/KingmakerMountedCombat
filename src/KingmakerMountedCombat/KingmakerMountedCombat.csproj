@@ -488,6 +488,7 @@
     <Compile Include="Domain\MountedShieldPolicy.cs" />
     <Compile Include="Domain\FixtureHandCustody.cs" />
     <Compile Include="Domain\AttackCalculationSamples.cs" />
+    <Compile Include="Domain\PlannedAttempt.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />

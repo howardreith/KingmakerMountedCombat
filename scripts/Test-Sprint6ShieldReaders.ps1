@@ -98,6 +98,16 @@ function New-Pairs {
    remounted=(New-Snap 3);featRemoved=$removed;featRemovedSecond=(& $second);featReacquired=(New-Snap 3);serviceDisabledFirst=$off1;serviceDisabledSecond=$off2;serviceEnabledFirst=(New-Snap 3);serviceEnabledSecond=(& $second)}
   crossFirstToSecondMount=$cross1;crossSecondToFirstMount=$cross2;serviceDisableAccepted=$true;selectedBeforeSwitch=$rider;selectedAtSecondSnapshots=$owner;selectedAfterReturn=$rider}
 }
+# The driver's record of the record that completed each step, and of each planned attempt (review PN10-F3).
+function Add-Completion($Check,$M,[string]$Case){
+ $steps=[pscustomobject]@{}; $planned=[pscustomobject]@{}
+ foreach($x in @($M.records | Where-Object { [string]$_.case -ceq $Case -and [string]$_.rider -ceq $rider })){
+  $k=[string]$x.step; if($null -ne $steps.PSObject.Properties[$k]){ continue }
+  $steps | Add-Member -MemberType NoteProperty -Name $k -Value $x.ruleIdentity
+  if([string]$x.plan -cin @('success','equal')){ $planned | Add-Member -MemberType NoteProperty -Name $k -Value ([pscustomobject]@{identity=$x.ruleIdentity;attacker=$x.attacker;rider=$x.rider;mount=$x.mountId;plan=$x.plan}) }
+ }
+ $Check | Add-Member stepRecords $steps; $Check | Add-Member plannedAttempts $planned
+}
 function New-Real {
  $m=New-Measure 'sprint6-shield-rt'; $free=New-State; $win=New-State $false $false $true; $c='MS-check-rt'
  Add-Attack $m $c 2 'equal' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT' $false
@@ -113,6 +123,7 @@ function New-Real {
   bandMiss=[pscustomobject]@{identity=$bandId;attacker=$hostile;target=$mount;d20=10;bonus=12;ac=24;acContext=[pscustomobject]@{owned=3;ownedCount=1;otherShield=0;effective=3;acResult=24;acAttackType='Melee';attackType='Melee'};isHitAtEvent=$false}
   equipmentDuringUse=[pscustomobject]@{before=$win;unequipped=$win;reequipped=$win};unrelatedMobility=[pscustomobject]@{stat=12;bonus=0;displayed=12;dc=10;result=20;frame=900;contributions=2}
   band=[pscustomobject]@{amount=3;ac=24;otherShield=0;effectiveDelta=3;acWithoutShield=21;attackBonusBefore=30;adjustment=-18};bandAttempts=9}
+ Add-Completion $check $m $c
  New-Envelope $m @([pscustomobject]@{name='MS-selection';status='PASS';evidence=(New-Selection $true)},[pscustomobject]@{name='MS-equipment';status='PASS';evidence=(New-Equipment)},
   [pscustomobject]@{name='MS-pairs';status='PASS';evidence=(New-Pairs)},[pscustomobject]@{name='MS-check-rt';status='PASS';evidence=$check})
 }
@@ -122,6 +133,7 @@ function New-Turn {
  Add-Attack $m $c 3 'natural' 'UsageSpent' 'None' $spent $spent 6 6 $true 'TB'
  Add-Attack $m $c 6 'equal' 'None' 'BorrowNextSwift' $free $owed 0 0 $false 'TB' $false
  $check=[pscustomobject]@{steps=[pscustomobject]@{ownTurnBefore=(New-Snap 3);ownTurnNegated=(New-Snap 3);ownTurnSecondRefused=(New-Snap 3);renewed=(New-Snap 3);offTurnEqual=(New-Snap 3)}}
+ Add-Completion $check $m $c
  New-Envelope $m @([pscustomobject]@{name='MS-rider-feat';status='PASS';evidence=(New-Selection $false)},[pscustomobject]@{name='MS-check-tb';status='PASS';evidence=$check})
 }
 function Accept($Artifact,[string]$Scenario){ try { Assert-KmcSprint6FeatEvidence -Request ([pscustomobject]@{scenario=$Scenario}) -Artifact $Artifact -Status 'PASS'; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
@@ -228,6 +240,17 @@ $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 4).swiftAfter=12; Reject $r $rs 'a 
 $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 2).stateBefore=(New-State $false $false $true); Reject $r $rs 'a real-time use with a window already open refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 2).swiftAfter=12; Reject $r $ts 'an own-turn use charged twice refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 6).stateBefore=(New-State $false $true); Reject $r $ts 'an off-turn use with a debt already owed refuses (PN6-F7)'
+# Supplemental review round 10.
+function Add-OtherPair($R,[int]$Step,[double]$SwiftAfter){ $m=$R.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' $Step 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 $SwiftAfter $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.attackRules[-1].target=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$false; $m }
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $m.attackRules[-1].target=$mount; Reject $r $rs 'another pair''s defense whose attack rule targets the measured mount refuses (PN10-F3)'
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 12; Reject $r $rs 'a double Swift charge on another rider''s natural defense refuses (PN10-F4)'
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $m.records[-1].mode='TB'; $m.records[-1].commitment='BorrowNextSwift'; $m.records[-1].stateAfter=(New-State $true $true); $m.records[-1].swiftAfter=0; Reject $r $rs 'another rider''s turn-based commitment on the real-time row refuses (PN10-F4)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'UsageSpent' 'None' (New-State $false $false $true) (New-State $false $false $true) 6 6 $false 'RT'; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a legitimate follow-up strike refused as UsageSpent in the planned step is accepted (PN10-F3)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').stepRecords.'4'=99999; Reject $r $rs 'a step completed by an unrecorded attack refuses (PN10-F3)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; (RowOf $r 'MS-check-rt').plannedAttempts.'4'.identity=12345; Reject $r $rs 'a planned attempt that is not the record completing the step refuses (PN10-F3)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 2; ($r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }).target=$pet; Reject $r $rs 'a measured record whose attack rule targets another mount refuses (PN10-F3)'
+$r=Copy-MS $real; $sel=RowOf $r 'MS-selection'; $sel.selections=@($sel.selections)+@([pscustomobject]@{name='ExtraFeatSelection';guid='0123456789abcdef0123456789abcdef'}); $sel.threeFeatSelections=@($sel.threeFeatSelections)+@([pscustomobject]@{guid='0123456789abcdef0123456789abcdef';name='ExtraFeatSelection';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')}); $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a third supported selection with its own valid tail is accepted (PN10-F5 control)'
+$sel.threeFeatSelections=@($sel.threeFeatSelections | Select-Object -First 2); Reject $r $rs 'a third supported selection without its observation refuses (PN10-F5)'
 # Supplemental review round 9.
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'
@@ -237,8 +260,8 @@ $r=Copy-MS $real; foreach($l in (RowOf $r 'MS-selection').levels){ foreach($e in
 $r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'SpendCurrentSwift' (New-State) (New-State $true) 0 6 $false 'TB'; Reject $r $ts 'an off-turn Swift spend refuses (PN9-F4)'
 $r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'BorrowNextSwift' (New-State) (New-State $true $true) 0 0 $true 'TB'; Reject $r $ts 'an own-turn borrow refuses (PN9-F4)'
 $r=Copy-MS $real; Add-Attack $r.observations.sprint6Feat 'MS-check-rt' 11 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $r.observations.sprint6Feat.skillChecks[-1].kmcShieldModifiers=0; $r.observations.sprint6Feat.skillChecks[-1].kmcShieldTotal=0; Reject $r $rs 'a natural roll of the measured pair without the native +3 refuses (PN9-F4)'
-$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$true; Reject $r $rs 'a planned roll on another pair''s defense refuses (PN9-F3)'
-$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$false; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'another pair''s natural defense during a planned step is accepted and does not replace the measured record (PN9-F3)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.attackRules[-1].target=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$true; Reject $r $rs 'a planned roll on another pair''s defense refuses (PN9-F3)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.attackRules[-1].target=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$false; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'another pair''s natural defense during a planned step is accepted and does not replace the measured record (PN9-F3)'
 # Supplemental review round 8.
 $r=Copy-MS $real; $x=(RowOf $r 'MS-selection').threeFeatSelections[0]; $x.archery=0; $x.kmcTail=@('a1','a7d2e94c6f1b4830b5c9e28d17f3a604','671a301bd1774677a8bfa2873d33b191'); Reject $r $rs 'a three-feat observation with Mounted Archery absent refuses (PN8-F5)'
 $r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[0].archery=0; Reject $r $rs 'archery 0 with an exact tail claimed refuses (PN8-F5)'

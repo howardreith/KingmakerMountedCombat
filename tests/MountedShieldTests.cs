@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: resume leaves a foreign removal from a non-required list in place (review finding PN6-F1)", ResumeKeepsForeignRemoval);
             runner.Run("kmc publication: the explicit enable (publish, then resume) leaves a foreign removal in place (review finding PN8-F1)", EnableKeepsForeignRemoval);
             runner.Run("kmc publication: the explicit enable leaves another mod's removal of both Archery and Shield in place (review finding PN9-F2)", EnableKeepsDoubleForeignRemoval);
+            runner.Run("kmc publication: an Archery removal by another mod during the suspension survives the resume (review finding PN10-F1)", ResumeKeepsArcheryRemovedDuringSuspension);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -438,6 +439,25 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 &&
                 lists.Count("ordinary", lists.MountedArchery) == 1 && lists.Set.MountedShieldAvailable() && lists.Set.MountedArcheryAvailable() &&
                 !lists.Set.MountedShieldWithdrawn && !lists.Set.MountedArcheryWithdrawn, "The required lists offer both feats once and nothing is withdrawn.");
+        }
+
+        // Suspension first, then another mod removes Mounted Archery from a non-required list, then the root's explicit enable
+        // (publish, then resume): Mounted Shield returns once to that list as it now stands, and Archery stays removed.
+        private static void ResumeKeepsArcheryRemovedDuringSuspension()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            lists.Arrays["extra"] = lists.Arrays["extra"].Where(item => item != lists.MountedArchery).ToArray();
+            lists.Set.Apply(true, key => key);
+            lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(!lists.Has("extra", lists.MountedArchery) && lists.Count("extra", lists.MountedShield) == 1 && lists.Count("extra", lists.MountedCombat) == 1,
+                "The list keeps another mod's Archery removal and gets Mounted Shield back once.");
+            TestRunner.True(lists.Arrays["extra"].Last() == lists.MountedShield && lists.Arrays["extra"][lists.Arrays["extra"].Length - 2] == lists.MountedCombat,
+                "Mounted Shield returns after Mounted Combat, the last preceding KMC entry.");
+            TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 && lists.Count("ordinary", lists.MountedArchery) == 1 &&
+                lists.Set.MountedShieldAvailable() && lists.Set.MountedArcheryAvailable() && !lists.Set.MountedShieldWithdrawn && !lists.Set.MountedArcheryWithdrawn,
+                "The required lists offer each feat once and nothing is withdrawn.");
         }
 
         private static void PartialRegistration()
