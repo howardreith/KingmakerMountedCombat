@@ -31,6 +31,8 @@ namespace KingmakerMountedCombat.Integration
         // Mounted Shield's addition to this check's native Bonus (already inside CheckBonus and CheckResult); 0 when none.
         internal int ShieldBonus;
         internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced, ForcedHitContext;
+        // A diagnostic planned total that no die from 1 to 20 could reach at the native roll: the die rolled naturally instead.
+        internal bool PlannedUnattainable;
         internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
         internal RuleAttackRoll Rule;
@@ -177,6 +179,9 @@ namespace KingmakerMountedCombat.Integration
             try { record.ShieldBonus = mountedShield.ContributeToCheck(check, rider, mount); }
             catch (Exception exception) { logger.Exception("Mounted Shield check contribution", exception); }
             Rulebook.Trigger<RuleSkillCheck>(check);
+            // A planned total no legal die could reach is never injected (supplemental review PN12-F1): the die rolled naturally,
+            // the use stays committed as native spending requires, and the record says the measurement was unattainable.
+            if (check is ControlledSkillCheck controlled && controlled.Unattainable) { record.Forced = false; record.PlannedUnattainable = true; }
             record.CheckD20 = check.D20; record.CheckStat = check.StatValue; record.CheckBonus = (int)check.Bonus; record.CheckResult = check.RollResult; record.CheckDc = check.DC;
             record.Negated = MountedCombatDefensePolicy.Negates(check.RollResult, record.AttackResult);
             if (record.Negated)
@@ -195,12 +200,27 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Native RuleSkillCheck.OnTrigger sets StatValue and then rolls; every handler's Bonus was added before OnTrigger. The
-        // die is the planned total less exactly those two, so RollResult (D20 + StatValue + Bonus) is the planned total.
+        // die is the planned total less exactly those two, so RollResult (D20 + StatValue + Bonus) is the planned total, when a
+        // legal die (1..20) reaches it; otherwise the native die rolls and the check reports it was unattainable (PN12-F1).
         private sealed class ControlledSkillCheck : RuleSkillCheck
         {
             private readonly int plannedTotal;
+            internal bool Unattainable { get; private set; }
             internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal) : base(unit, StatType.SkillMobility, dc) { this.plannedTotal = plannedTotal; }
-            protected override RollEntry RollD20() => plannedTotal - StatValue - (int)Bonus;
+            protected override RollEntry RollD20()
+            {
+                int die;
+                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die)) return die;
+                Unattainable = true;
+                return base.RollD20();
+            }
+        }
+
+        // The die that makes D20 + StatValue + Bonus equal the planned total, when it is a legal d20 result.
+        internal static bool PlannedDie(int plannedTotal, int statValue, int bonus, out int die)
+        {
+            die = plannedTotal - statValue - bonus;
+            return die >= 1 && die <= 20;
         }
 
         private void ReportToLog(UnitEntityData rider, MountedCombatDefenseRecord record)

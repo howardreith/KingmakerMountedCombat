@@ -390,6 +390,16 @@ $plannedEqual = Planned 22 22 10 3 0; $plannedSuccess = Planned 22 23 10 3 2; $m
 Check ($plannedEqual.Result -eq 22 -and $plannedEqual.D20 -eq 9 -and -not $plannedEqual.Negates) 'the planned "equal" total is the +3 shield-modified result (die 9) and fails'
 Check ($plannedSuccess.Result -eq 23 -and $plannedSuccess.D20 -eq 8 -and $plannedSuccess.Negates) 'the planned success total lands one above with the shield and another bonus in the roll'
 Check ($mobilityOnly.Result -eq 25) 'a die derived from Mobility alone (12) would have tested 25, three above equality: the trap the planned total removes'
+# PN12-F1: a planned total is injected only through a legal die. An attack total of 30 against Mobility 10, +3 and a native -2
+# needs a 19 for equality (attainable, with the penalty inside the roll); an attack 20 + 15 needs 22 (unattainable: no die is
+# injected, the production check rolls natively and reports it).
+$plannedDie = (KmcType 'KingmakerMountedCombat.Integration.MountedCombatDefenseService').GetMethod('PlannedDie', $any)
+$dieArgs = [object[]]@(30, 10, 1, 0); $reachable = [bool]$plannedDie.Invoke($null, $dieArgs)
+Check ($reachable -and [int]$dieArgs[3] -eq 19) 'an equality total with a native -2 inside the roll is reached by a legal die (19)'
+$dieArgs = [object[]]@(35, 10, 3, 0); $unreachable = [bool]$plannedDie.Invoke($null, $dieArgs)
+Check (-not $unreachable -and [int]$dieArgs[3] -eq 22) 'an equality total needing a 22 is unattainable and is not injected'
+$penalised = Planned 30 30 10 3 -2
+Check ($penalised.Result -eq 30 -and $penalised.D20 -eq 19 -and -not $penalised.Negates) 'the production check reaches the planned equality with the native -2 inside the roll (die 19)'
 
 # 2e. Three-feat publication on genuine selection blueprints.
 function Feature-Array([object[]]$Items) { $array = [Array]::CreateInstance($featureType, $Items.Count); for ($i = 0; $i -lt $Items.Count; $i++) { $array.SetValue($Items[$i], $i) }; , $array }

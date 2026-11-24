@@ -19,7 +19,7 @@ function Add-Attack($M,[string]$Case,[int]$Step,[string]$Plan,[string]$Refusal,[
  $check=$(if(-not $attempted){0}elseif($Plan -ceq 'success'){26}elseif($Plan -ceq 'equal'){25}else{30})
  $negated=$attempted -and $check -gt $total
  $result=$(if($negated){'Parried'}else{'Hit'})
- $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$rider;mountId=$mount;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;abilityGuid=$null;forcedHitContext=$false;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');negated=$negated;checkD20=$(if($attempted){$check-$stat-$bonus}else{0});checkStat=$(if($attempted){$stat}else{0});checkBonus=$bonus;checkResult=$check;checkDc=$(if($attempted){$total+1}else{0});shieldBonus=$bonus;swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwiftBefore=0;mountSwiftAfter=0;mountDamageAtRecord=0}
+ $M.records+=[pscustomobject]@{case=$Case;step=$Step;plan=$Plan;ruleIdentity=$script:id;rider=$rider;mountId=$mount;attacker=$hostile;mode=$Mode;attackD20=15;attackBonus=10;attackResult=$total;resultBefore='Hit';resultAfter=$result;criticalBefore=$false;criticalAfter=$false;opportunity=$Opportunity;riderTurn=$RiderTurn;abilityGuid=$null;forcedHitContext=$false;refusal=$Refusal;commitment=$Commitment;attempted=$attempted;forced=($attempted -and $Plan -cne 'natural');plannedUnattainable=$false;negated=$negated;checkD20=$(if($attempted){$check-$stat-$bonus}else{0});checkStat=$(if($attempted){$stat}else{0});checkBonus=$bonus;checkResult=$check;checkDc=$(if($attempted){$total+1}else{0});shieldBonus=$bonus;swiftBefore=$SwiftBefore;swiftAfter=$SwiftAfter;stateBefore=$Before;stateAfter=$After;mountSwiftBefore=0;mountSwiftAfter=0;mountDamageAtRecord=0}
  $M.attackRules+=[pscustomobject]@{identity=$script:id;attacker=$hostile;target=$mount;d20=15;bonus=10;ac=24;autoHit=$false;opportunity=$Opportunity;charge=$false;attackerCommand=$(if($Opportunity){$null}else{'UnitAttack'});resultAtEvent=$result;isHitAtEvent=(-not $negated);criticalAtEvent=$false;sneakAtEvent=$false;resultAfterRule=$result;isHitAfterRule=(-not $negated);damageRules=$(if($negated){0}else{1});damage=$(if($negated){0}else{4})}
  if($attempted){ $M.skillChecks+=[pscustomobject]@{actor=$rider;d20=$check-$stat-$bonus;stat=$stat;bonus=$bonus;result=$check;dc=$total+1;passed=$negated;frame=$script:id;kmcShieldModifiers=1;kmcShieldTotal=3} }
 }
@@ -108,6 +108,7 @@ function Add-Completion($Check,$M,[string]$Case){
  }
  $Check | Add-Member stepRecords $steps; $Check | Add-Member plannedAttempts $planned; $Check | Add-Member hostile $hostile
 }
+function New-UseSample { [pscustomobject]@{spent=$false;owed=$false;window=$true;windowIdentity=7;swift=6;windowEndTicks=638000000000000000} }
 function New-Real {
  $m=New-Measure 'sprint6-shield-rt'; $free=New-State; $win=New-State $false $false $true; $c='MS-check-rt'
  Add-Attack $m $c 2 'equal' 'None' 'RealTimeWindow' $free $win 0 6 $false 'RT' $false
@@ -121,7 +122,7 @@ function New-Real {
  $script:id++; $bandId=$script:id; $m.attackRules+=[pscustomobject]@{identity=$script:id;attacker=$hostile;target=$mount;d20=10;bonus=12;ac=24;acContext=[pscustomobject]@{owned=3;ownedCount=1;otherShield=0;effective=3;acResult=24;acAttackType='Melee';attackType='Melee'};autoHit=$false;opportunity=$false;charge=$false;attackerCommand=$null;resultAtEvent='Miss';isHitAtEvent=$false;criticalAtEvent=$false;sneakAtEvent=$false;resultAfterRule='Miss';isHitAfterRule=$false;damageRules=0;damage=0}
  $check=[pscustomobject]@{steps=[pscustomobject]@{combatStart=(New-Snap 3);equal=(New-Snap 3);success=(New-Snap 3);spentRefused=(New-Snap 3);preferenceOffRefused=(New-Snap 3);competingBeforeCheck=(New-Snap 3 4 -Others @(4));competingCheck=(New-Snap 3 4 -Others @(4));bandDone=(New-Snap 3)}
   bandMiss=[pscustomobject]@{identity=$bandId;attacker=$hostile;target=$mount;d20=10;bonus=12;ac=24;acContext=[pscustomobject]@{owned=3;ownedCount=1;otherShield=0;effective=3;acResult=24;acAttackType='Melee';attackType='Melee'};isHitAtEvent=$false}
-  equipmentDuringUse=[pscustomobject]@{before=$win;unequipped=$win;reequipped=$win};unrelatedMobility=[pscustomobject]@{stat=12;bonus=0;displayed=12;dc=10;result=20;frame=900;contributions=2}
+  equipmentDuringUse=[pscustomobject]@{before=(New-UseSample);unequipped=(New-UseSample);reequipped=(New-UseSample)};unrelatedMobility=[pscustomobject]@{stat=12;bonus=0;displayed=12;dc=10;result=20;frame=900;contributions=2}
   band=[pscustomobject]@{amount=3;ac=24;otherShield=0;effectiveDelta=3;acWithoutShield=21;attackBonusBefore=30;adjustment=-18};bandAttempts=9}
  Add-Completion $check $m $c
  New-Envelope $m @([pscustomobject]@{name='MS-selection';status='PASS';evidence=(New-Selection $true)},[pscustomobject]@{name='MS-equipment';status='PASS';evidence=(New-Equipment)},
@@ -263,6 +264,17 @@ $r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 11
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandAttempts=0; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a qualifying miss before the driver''s first strike (0 strikes) is accepted (PN11-F7)'
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').hostile='second-hostile'; Reject $r $rs 'a miss by another hostile than the designated one refuses (PN11-F7)'
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').PSObject.Properties.Remove('hostile'); Reject $r $rs 'a row without its designated hostile refuses (PN11-F7)'
+# Supplemental review round 12.
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; $x.plannedUnattainable=$true; $x.forced=$false; Reject $r $rs 'a planned total that was unattainable at the native roll fails the row (PN12-F1)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; $x.checkBonus=1; $x.checkStat=12; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'an in-range check whose native penalty brings the aggregate bonus below +3, with the identified +3, is accepted (PN12-F1)'
+$r=Copy-MS $real; $m=Add-FollowUp $r 6; $m.attackRules[-1].resultAtEvent='Parried'; $m.attackRules[-1].resultAfterRule='Parried'; $m.attackRules[-1].isHitAtEvent=$false; $m.attackRules[-1].isHitAfterRule=$false; $m.attackRules[-1].damageRules=0; Reject $r $rs 'a refused follow-up whose native attack was suppressed refuses (PN12-F2)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-pairs' 3 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT' $false; $m.records[-1].forced=$true; Reject $r $rs 'a forced defense outside the check rows refuses (PN12-F3)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m $null 0 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT' $false; $m.records[-1].forced=$true; Reject $r $rs 'a forced defense with no case (cleanup) refuses (PN12-F3)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-pairs' 3 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT' $false; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a natural defense outside the check rows is accepted (PN12-F3 control)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; ($r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }).bonus=12; Reject $r $rs 'a planned check against an attack total that differs from the native attack refuses (PN12-F4)'
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $m.records[-1].mountId=$mount; $m.attackRules[-1].target=$mount; $m.records[-1].shieldBonus=0; $m.skillChecks[-1].kmcShieldModifiers=0; $m.skillChecks[-1].kmcShieldTotal=0; Reject $r $rs 'the second rider defending the first mount refuses (PN12-F5)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').equipmentDuringUse.reequipped.swift=0; Reject $r $rs 'an equipment change that refunded the Swift cooldown refuses (PN12-F6)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').equipmentDuringUse.reequipped.windowEndTicks=638000000100000000; Reject $r $rs 'an equipment change that extended the window refuses (PN12-F6)'
 # Supplemental review round 9.
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'

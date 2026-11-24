@@ -236,10 +236,12 @@ function Get-KmcShieldRecord($Measure,[string]$Case,[int]$Step,$E){
  }
  $found[0]
 }
-# A defense record and its native attack rule name the same attacker and the same mount (review PN10-F3).
+# A defense record and its native attack rule name the same attacker and the same mount (review PN10-F3), and the attack total
+# the record compares against is the native attack's own d20 and bonus (review PN12-F4).
 function Assert-KmcShieldRecordRule($Measure,$R){
  $rule=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$R.ruleIdentity })
  if($rule.Count -ne 1 -or [string]$rule[0].attacker -cne [string]$R.attacker -or [string]$rule[0].target -cne [string]$R.mountId){ throw 'Mounted Shield a defense record''s attack rule names another attacker or mount' }
+ if([int]$rule[0].d20 -ne [int]$R.attackD20 -or [int]$rule[0].bonus -ne [int]$R.attackBonus -or [int]$R.attackResult -ne [int]$rule[0].d20+[int]$rule[0].bonus){ throw 'Mounted Shield a defense record''s attack total is not the native attack''s own' }
 }
 function Assert-KmcShieldOtherPairsNatural($Measure,[string]$Case){
  foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $Case -and ([string]$_.rider -cne [string]$Measure.rider -or [string]$_.mountId -cne [string]$Measure.mount) })){
@@ -252,6 +254,11 @@ $script:KmcShieldPlans=@{ 'MS-check-rt'=[ordered]@{'2'='equal';'4'='success';'9'
 # attempts exactly the scenario's planned steps, each the record that completed its step, made by the row's designated hostile;
 # the forced records exactly those attempts; and every refusal leaves the hit standing and the rider's Swift, window, use and
 # debt as they were.
+function Assert-KmcShieldEstablishedRider($Measure,$Pairs,$X){
+ $known=@{ ([string]$Measure.mount)=[string]$Measure.rider }
+ if($null -ne $Pairs){ $known[[string]$Pairs.steps.bothSecond.mount]=[string]$Pairs.steps.bothSecond.rider }
+ if($known.ContainsKey([string]$X.mountId) -and $known[[string]$X.mountId] -cne [string]$X.rider){ throw 'Mounted Shield a rider defended a mount established for another rider' }
+}
 function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
  $plans=$script:KmcShieldPlans[$Case]; $planned=Get-KmcShieldProperty $E 'plannedAttempts'; $steps=Get-KmcShieldProperty $E 'stepRecords'
  $hostile=[string](Get-KmcShieldProperty $E 'hostile')
@@ -270,6 +277,10 @@ function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
   if($x.attempted -ne $true){
    if([string]$x.resultAfter -cne [string]$x.resultBefore -or $x.negated -eq $true -or [double]$x.swiftAfter -ne [double]$x.swiftBefore -or
      ($x.stateAfter | ConvertTo-Json -Compress) -cne ($x.stateBefore | ConvertTo-Json -Compress)){ throw ('Mounted Shield '+$Case+': a refused defense changed the hit or the rider''s Swift, window, use or debt') }
+   # The bound native attack itself still hits, keeps its critical state and deals its damage (review PN12-F2).
+   $rule=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
+   if($rule.isHitAtEvent -ne $true -or $rule.isHitAfterRule -ne $true -or [string]$rule.resultAfterRule -cne [string]$rule.resultAtEvent -or [string]$rule.resultAtEvent -cmatch '^(Parried|Miss)$' -or
+     [bool]$x.criticalAfter -ne [bool]$x.criticalBefore -or [int]$rule.damageRules -lt 1){ throw ('Mounted Shield '+$Case+': a refused defense''s native hit did not stand') }
   }
  }
 }
@@ -303,7 +314,9 @@ function Assert-KmcShieldRecord($R,[string]$What,$Measure){
  Assert-KmcShieldCommitted $R $What
  $row=Get-KmcShieldCheckRow $Measure $R
  if([int]$row.kmcShieldModifiers -ne 1 -or [int]$row.kmcShieldTotal -ne 3){ throw ('Mounted Shield '+$What+': the native roll did not hold exactly one +3 Mounted Shield modifier') }
- if([int]$R.shieldBonus -ne 3 -or [int]$R.checkBonus -lt 3 -or [int]$R.checkResult -ne [int]$R.checkD20+[int]$R.checkStat+[int]$R.checkBonus -or [int]$R.checkDc -ne [int]$R.attackResult+1){ throw ('Mounted Shield '+$What+': the native check did not carry the +3 addition exactly once') }
+ # KMC's own +3 is judged by its identified modifier in the roll above; the aggregate bonus may hold native penalties (PN12-F1).
+ if([int]$R.shieldBonus -ne 3 -or [int]$R.checkResult -ne [int]$R.checkD20+[int]$R.checkStat+[int]$R.checkBonus -or [int]$R.checkDc -ne [int]$R.attackResult+1){ throw ('Mounted Shield '+$What+': the native check did not carry the +3 addition exactly once') }
+ if((Get-KmcShieldProperty $R 'plannedUnattainable') -eq $true){ throw ('Mounted Shield '+$What+': the planned total was unattainable at the native roll; the measurement failed') }
  if($R.forced -ne $true){ throw ('Mounted Shield '+$What+': the boundary row is not a labeled planned total') }
  if([int]$R.checkD20 -lt 1 -or [int]$R.checkD20 -gt 20){ throw ('Mounted Shield '+$What+': the planned total needed a die outside 1..20') }
 }
@@ -317,7 +330,10 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  if([int]$r.checkResult -ne [int]$r.attackResult+1){ throw 'Mounted Shield success was not one above the attack result' }
  Assert-KmcShieldRecord $r 'success' $Measure; Assert-KmcSprint6Negated $Measure $r 'Mounted Shield success'
  $u=$E.equipmentDuringUse
- foreach($k in 'spent','owed','window','windowIdentity'){ if([string]$u.before.$k -cne [string]$u.unequipped.$k -or [string]$u.before.$k -cne [string]$u.reequipped.$k){ throw 'Mounted Shield an equipment change refunded or restarted the running use' } }
+ # The same-frame samples' Swift cooldown and window expiry too (review PN12-F6): no refund, no restarted or extended window.
+ foreach($k in 'spent','owed','window','windowIdentity','swift','windowEndTicks'){
+  if($null -eq $u.before.$k -or [string]$u.before.$k -cne [string]$u.unequipped.$k -or [string]$u.before.$k -cne [string]$u.reequipped.$k){ throw 'Mounted Shield an equipment change refunded or restarted the running use' }
+ }
  Assert-KmcSprint6Refused $Measure (Get-KmcShieldRecord $Measure $c 5 $E) 'UsageSpent' 'Mounted Shield spent use'
  Assert-KmcShieldSnapshot $E.steps.spentRefused 3 'spent use'
  Assert-KmcSprint6Refused $Measure (Get-KmcShieldRecord $Measure $c 7 $E) 'PreferenceOff' 'Mounted Shield preference off'
@@ -344,6 +360,8 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  Assert-KmcShieldRowRecords $Measure $E $c
  foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
   $measured=[string]$x.rider -ceq [string]$Measure.rider -and [string]$x.mountId -ceq [string]$Measure.mount
+  # A known mount is defended only by the rider established for it (review PN12-F5).
+  Assert-KmcShieldEstablishedRider $Measure $Pairs $x
   # Each pair's own amount (review PN11-F6): the measured pair +3; the identified second pair its observed amount; anyone else 0.
   $expected=$(if($measured){3}elseif($null -ne $Pairs -and [string]$x.rider -ceq [string]$Pairs.steps.bothSecond.rider -and [string]$x.mountId -ceq [string]$Pairs.steps.bothSecond.mount){[int]$Pairs.steps.bothSecond.amount}else{0})
   if([int]$x.shieldBonus -ne $expected){ throw 'Mounted Shield a check carried another pair''s Mounted Shield amount' }
@@ -379,6 +397,7 @@ function Assert-KmcShieldCheckTurnBased($Measure,$E){
  Assert-KmcShieldRowRecords $Measure $E $c
  foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
   $measured=[string]$x.rider -ceq [string]$Measure.rider -and [string]$x.mountId -ceq [string]$Measure.mount
+  Assert-KmcShieldEstablishedRider $Measure $null $x
   if(-not $measured -and [int]$x.shieldBonus -ne 0){ throw 'Mounted Shield a check carried another pair''s Mounted Shield amount' }
   if([string]$x.mode -cne 'TB' -or [string]$x.commitment -cnotin @('SpendCurrentSwift','BorrowNextSwift')){ throw 'Mounted Shield a turn-based row attempt was not a turn-based commitment' }
   # The rider's own turn spends this turn's Swift; any other moment borrows the next (review PN9-F4).
@@ -416,6 +435,18 @@ function Assert-KmcSprint6ShieldRows($Measure,$Rows,[string]$Scenario){
  } else {
   Assert-KmcShieldSelection $Rows['MS-rider-feat'].evidence $false
   Assert-KmcShieldCheckTurnBased $Measure $Rows['MS-check-tb'].evidence
+ }
+ # Every forced defense of the whole measurement (acquisition to cleanup, any case or none) is one of the check rows' planned
+ # attempts, in its own case (review PN12-F3).
+ $authorized=@{}
+ foreach($case in @($script:KmcShieldPlans.Keys)){
+  $row=$Rows[$case]; if($null -eq $row){ continue }
+  $planned=Get-KmcShieldProperty $row.evidence 'plannedAttempts'
+  if($null -eq $planned){ continue }
+  foreach($p in $planned.PSObject.Properties){ $authorized[$case+'|'+[string]$p.Value.identity+'|'+[string]$p.Value.rider+'|'+[string]$p.Value.mount+'|'+[string]$p.Value.attacker+'|'+$p.Name]=$true }
+ }
+ foreach($x in @($Measure.records | Where-Object { $_.forced -eq $true })){
+  if(-not $authorized.ContainsKey([string]$x.case+'|'+[string]$x.ruleIdentity+'|'+[string]$x.rider+'|'+[string]$x.mountId+'|'+[string]$x.attacker+'|'+[string]$x.step)){ throw 'Mounted Shield a forced defense outside the authorized planned attempts' }
  }
  # The fixture actors' hands and every setup modifier must be verifiably restored (supplemental review PN4-F4).
  $drain=Get-KmcShieldProperty $m 'drain'
