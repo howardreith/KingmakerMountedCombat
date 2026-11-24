@@ -2,8 +2,8 @@
   "schema": "kmc.mission.acceptance.v1",
   "mission_id": "kmc-mounted-alpha2-melee-pose-20261124",
   "template_status": "EXECUTED",
-  "source_commit": "66492352fa95b0c20855524799722f4125130a7f",
-  "package_sha256": "aeb816de72d13397e4800046859d1e4cf33ccc166f34747ec21afede6a400dc5",
+  "source_commit": "a0f741b524507b31de4a28af379c33872dd861bb",
+  "package_sha256": "26f73f66211cc7d11f08eaa7bdb1625eb8f4f8031f9183c31e94f881edc5985e",
   "checkpoint_scope": "private alpha source/offline delivery; unperformed native/visual/save-load observations remain pending",
   "issues": [
     {
@@ -21,14 +21,14 @@
         "89f5482b"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "Test-MountedAlpha2SeatAttachment.ps1 (actual runtime and adapter settle/notice members)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Settle thresholds are design choices; a mid-fight mount may settle on the combat stance",
+        "Settle thresholds are design choices; mid-fight mount may settle on the combat stance; culled-animator time unverified",
         "Rendered pose unobserved"
       ]
     },
@@ -45,15 +45,15 @@
         "cb253463"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "MountedAlpha2LifecycleTests TurnBasedClickAdmission",
         "lifecycle contract: shared grant, route probe, ForcedPath"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Real routes, turn accounting and both initiative arrangements unobserved in game; a validated route is used only for the same click and turn"
+        "Real routes, turn accounting and both initiative arrangements unobserved in game; native pathfinding replaced by a stand-in in the harness"
       ]
     },
     {
@@ -73,8 +73,8 @@
         "cb253463"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs (retained-order ledger)",
         "tests/MountedStockAttackPolicyTests.cs"
       ],
@@ -98,8 +98,8 @@
         "cb253463"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs EngagementAttribution, NativeTargetChoice (model)",
         "installed Character_Brain actions/considerations pinned byte-exact"
       ],
@@ -121,14 +121,14 @@
         "cb253463"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs PreStartApproach"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Timing unmeasured in game; a horse ready first attacks after the rider's waiting strike"
+        "Timing unmeasured in game; native approach and pathfinding replaced by stand-ins in the harness"
       ]
     },
     {
@@ -147,8 +147,8 @@
         "e5d02e40"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "tests/HorseTripRepairPolicyTests.cs (5)"
       ],
       "native_status": "not_run",
@@ -171,8 +171,8 @@
         "07890d08"
       ],
       "checks": [
-        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
-        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "offline on a0f741b5: components 1561/0, native 66/0, lifecycle 64/0, bite 28/0, seat 11/0, attack-path harness 27/0, chunk7 slot 8/0, Validate-Source 153/0",
+        "controller focused gate on the records head (receipt in the round-6 developer report)",
         "scripts/Test-MountedAlpha2BiteContract.ps1 24/0 (genuine handle/action/manager objects)",
         "tests/HorseStrikeHandleBindingTests.cs (7)"
       ],
@@ -244,14 +244,14 @@
       "id": "S09",
       "status": "met",
       "evidence": [
-        "package receipt for the 66492352 ZIP; Validate-Package 11/0"
+        "package receipt for the a0f741b5 ZIP; Validate-Package 11/0"
       ]
     },
     {
       "id": "S10",
-      "status": "pending_controller_review_round_5",
+      "status": "pending_controller_review_round_6",
       "evidence": [
-        "rounds 1-4 changes_required; owner resume with original scope; dispositions in HANDOFF.md section 3"
+        "rounds 1-5 changes_required; owner extension to 7 rounds; dispositions in HANDOFF.md section 3"
       ]
     }
   ],
@@ -344,17 +344,23 @@
     }
   ],
   "package": {
-    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.4-mounted-alpha4-66492352-diagnostic.zip",
-    "bytes": 4308850,
-    "version": "0.2.16-alpha.4",
+    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.5-mounted-alpha5-a0f741b5-diagnostic.zip",
+    "bytes": 4310723,
+    "version": "0.2.16-alpha.5",
     "umm_minimum": "0.31.1",
-    "dll_sha256": "99cad9609b2149d11b740fd7777206cadd092f82b35a7bb073b970aba39a883d",
-    "dll_mvid": "fe54643a-b8a6-4cb8-89a9-6a4d48883970",
+    "dll_sha256": "3bffb0ce1427782413ad1ca7d98f8a72c2f313b9e94e513e3b023047bc6653dd",
+    "dll_mvid": "e73663c1-c6a4-451f-a5e5-135c22b82eaa",
     "icon_sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0",
-    "superseded_not_for_playtest": "alpha.2 c5b147a6 d82368ce3f9f8b7d9fc4d6fd4f151c40d0947aaed43c76dd3bf54aa1257a9b05; alpha.3 bd63035e 3be62a3d4a95dbef235f5964743e0f4866ddd020d56d9386d85ecb521808850f"
+    "superseded_not_for_playtest": "alpha.2 c5b147a6; alpha.3 bd63035e; alpha.4 66492352 aeb816de72d13397e4800046859d1e4cf33ccc166f34747ec21afede6a400dc5"
   },
   "base": {
     "main": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
     "relationship": "PR #61 merged (merge commit); main tree identical to accepted Shield archive 122a9f94"
+  },
+  "review_progress": {
+    "round_4": "verified 7 of 12 prior; 8 new",
+    "round_5": "verified 10 of 13 prior (R3-F1, R4-F1, R4-F2 rejected); 9 new; 12 open = 11 blockers + R5-F9 optional",
+    "extension": "owner resume --max-rounds 7",
+    "round_6": "pending"
   }
 }
