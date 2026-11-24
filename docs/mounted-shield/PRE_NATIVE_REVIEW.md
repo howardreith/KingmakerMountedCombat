@@ -356,3 +356,22 @@ feature.
 identity recheck PASS): **PASS FOR GUARDED NATIVE TESTING** under the no-live-use plan; PN14-F1 and F2 resolved; the smoke
 protection gap remains open for any later live run. Nonblocking: an optional regression asserting the full parent artifact
 text; the handoff identities (updated in this commit).
+
+## Controller final review, round 1 (on `d5fe3820`, private-alpha milestone)
+
+`changes_required`, seven findings, all corrected in `6fb53633` (controller focused gate PASS, 87.3 s: components 1525/0,
+Validate-Source 153/0, focused 18/18 incl. native contract 111/0 and shield readers 206/0).
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| R1-F1 | The Shield gameplay scenarios could run without base-only staging and so without the profile snapshot and Areas isolation. | **Fixed:** the runner refuses `sprint6-shield-rt`/`-tb` without `-BaseGameOnly` before its workflow admission (no budget or state written). Native contract: the real runner refuses both without it; the parsed runner shows the refusal precedes admission, and for base-only staging the snapshot block (which enters Areas isolation) and the post-exit restoration are selected, with the real `Test-KmcPersistenceAreasIsolationSelection` true for both. Historical fixture and retained-dependency guards unchanged. |
+| R1-F2 | Brilliant Energy gave excess AC with a force-stacking foreign Shield bonus. | **Fixed (production):** only non-stacking Shield modifiers compete with KMC's non-stacking bonus (native `Modifier.Stacks`); the diagnostic AC context uses the same rule. Native contract: a genuine `StackMode.ForceStack` +4 — identical Brilliant Energy melee and touch AC with and without Mounted Shield (the round-0 rule gave 13 instead of 10). |
+| R1-F3 | The focused gate accepted an alpha version the replay reader rejected. | **Fixed:** `Resolve-KmcChunk7ReplaySubscriberContract` admits `0.2.N-alpha.M` as release N (first-release boundary and malformed refusals kept); the contract test calls the real resolver for the candidate, the release, a too-early release and alpha, and malformed shapes (29/0). |
+| R1-F4 | The two-pair reader could count the same mount twice. | **Fixed:** the producer records the acquired owner and companion; every first/second, cross-pair and disabled snapshot must name exactly its pair. Negatives: a duplicated disabled snapshot, a duplicated cross direction, missing identities. |
+| R1-F5 | A Mirror Image result could qualify as a Mounted Shield miss. | **Fixed:** the producer selects and the reader requires an ordinary native `Miss` at the event and in the final outcome. Negatives: Mirror Image and a final hit with the same arithmetic. |
+| R1-F6 | A negated natural defense could pass with its native attack dealing damage. | **Fixed:** every negated attempt (any pair, planned or natural) must end Parried or Miss, not hit, with no damage rule and critical confirmation cleared. Negatives: a damaging natural negation and a planned negation keeping its critical. |
+| R1-F7 | The focused gate supplied the answer to the physical-shield predicate. | **Fixed:** `MountedShieldService.EffectiveShield` runs on a genuine UnitDescriptor/UnitBody/HandsEquipmentSet/HandSlot carrying a genuine ItemEntityShield and genuine AC modifiers: accepted; rejected after slot deactivation, after removal of its armor's modifier, with another item's or a spell's Shield modifier; accepted again after restoration. |
+
+Note: one offline admission probe during this work created a stray budget ledger
+`runtime-state/workflow-budgets/mounted-shield-admission-probe-unused.json` (one 0-second failed WhatIf entry, no launch); it
+is left in place and recorded here.

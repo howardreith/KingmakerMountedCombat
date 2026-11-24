@@ -4,7 +4,7 @@ Read CURRENT.md's first section, docs/mounted-shield/HANDOFF.md section 0 (priva
 docs/mounted-shield/PRIVATE-ALPHA.md.
 
 - Done: amendment 2 recorded (revision 2, `d735f07d`); alpha version 0.2.16-alpha.1; closure review and targeted recheck PASS
-  on `bb903669`; focused gate PASS; package `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-bb903669-diagnostic.zip`
+  on `bb903669` (controller round-1 corrections in `6fb53633`); focused gate PASS; package `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-6fb53633-diagnostic.zip`
   (`fa5fb284…`). No native work (zero guarded starts); no agent-generated save (save-backed routes need the historical
   qualification suite; no desktop-control tool).
 - Next: the controller's final review on the records head; the owner's private-alpha playtest. A later live smoke first needs

@@ -129,12 +129,14 @@ historical `KMC_AUTOMATION_BASELINE`/`WORKING` pair with its qualification recor
 **Private alpha (owner amendment 2; prepared under owner amendments revision 2 sha256 d735f07ddc3131f5d90ae6094232e474b958614c6f432696956166a25d7d5c73).** The milestone is now an installable private alpha
 for the owner's own playtesting; the full native gameplay, persistence, compatibility and UI matrix is deferred to that
 playtest. See [PRIVATE-ALPHA.md](PRIVATE-ALPHA.md) for install, rollback, the playtest checklist and limitations.
-- **Source:** production `bb903669c038c9b35802e467c5ba3394b586997b` (alpha version `0.2.16-alpha.1` from `c2ec676e`; replay-subscriber contract
-  test reads `0.2.N-alpha.M` as release N in `8189d4da`; closure batch in `bb903669`). Later commits are records only.
-- **Package (supported `Package.ps1`):** `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-bb903669-diagnostic.zip`, SHA-256 `fa5fb284e889e414093ee8b939deb330084eb029f3d02f622f094ac6444fd34a`,
-  4282758 bytes, Validate-Package 11/0; DLL `91e87536f7a37270ddac7db2dfd6942926cb385a844e3452a4b2f471626e2918`, MVID `62f8f8fa-7b05-4d10-91bb-0181635dfa9c`; one
-  embedded icon resource `fd519874…` (4,408 bytes, 64x64 RGBA). The `8189d4da` packages (`9f78094d…` and the alias-branch
-  `fbf2af59…`) are superseded and are not the candidate.
+- **Source:** production `6fb53633f0aabf035616b8b61b3d2a3efc226513` (alpha version `0.2.16-alpha.1` from `c2ec676e`; replay-subscriber contract
+  in `8189d4da`; closure batch in `bb903669`; controller round-1 corrections in `6fb53633`). Later commits are records only.
+- **Controller:** final review round 1 on `d5fe3820`: `changes_required`, seven findings (R1-F1–F7), all corrected in
+  `6fb53633` (PRE_NATIVE_REVIEW.md, controller round 1); round 2 follows on the records head.
+- **Package (supported `Package.ps1`):** `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-6fb53633-diagnostic.zip`, SHA-256 `c3d80a58afa52d0506b001c2cfbddc776af1ade9b6796a5d5f3522c2f725b0bb`,
+  4282758 bytes, Validate-Package 11/0; DLL `e2fda1f2f0e41618729f59ab855c7848e27500df3b4222589e42e506b4723825`, MVID `1f6af610-74f3-4c8c-ba9a-421c02b2781e`; one
+  embedded icon resource `fd519874…` (4,408 bytes, 64x64 RGBA). The `8189d4da` packages (`9f78094d…`, alias `fbf2af59…`) and
+  the `bb903669` package (`fa5fb284…`) are superseded and are not the candidate.
 - **Checks executed:** controller focused Fast gate PASS on `bb903669` in 65.9 s (components 1525/0, Validate-Source 153/0,
   focused 18/18 incl. rollback 68/0, shield readers 199/0, native contract 100/0, UMM bindings 25/0 against 0.31.1 and 0.33.0),
   charged to budget `mounted-shield` (16.53 of 90 min after it); earlier gate PASS on `8189d4da` (58.5 s). Full WhatIf for the
