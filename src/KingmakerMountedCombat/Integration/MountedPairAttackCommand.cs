@@ -183,6 +183,12 @@ namespace KingmakerMountedCombat.Integration
         public bool AttackAnimationFinished { get; set; }
 
         public bool AttackAnimationInterrupted { get; set; }
+
+        // MMR-07 owner-log evidence: the native routine compresses every limb's clip into one window with one SpeedScale
+        // (UnitAttack.ConfigureAnimations), so a short bite clip in a Bite/Hoof/Hoof routine can play very fast.
+        public float AttackAnimationSpeedScale { get; set; } = float.NaN;
+
+        public int RoutineAttackCount { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
@@ -1830,7 +1836,9 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationActionType = horsePrimaryAnimationActionType,
                 AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
-                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
+                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted,
+                AttackAnimationSpeedScale = horsePrimaryAnimationHandle != null ? horsePrimaryAnimationHandle.SpeedScale : float.NaN,
+                RoutineAttackCount = AllAttacks?.Count ?? 0
             };
         }
 
