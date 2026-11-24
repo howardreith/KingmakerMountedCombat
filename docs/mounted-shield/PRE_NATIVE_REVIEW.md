@@ -239,3 +239,25 @@ Budget `mounted-shield` 8.43 of 90 min. To be reviewed in round 10.
 Fast gate (controller, focused) on `241e68be`: PASS, 88.6 s (components 1521/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 164/0, native contract 91/0). DLL `a5ff8e54008789f0c3079fbd0fe3ceb8c8a94f4988aec5bef474e6df0f027e8f`, MVID `48c32ec4-a5dc-4aa8-aae9-f611608d3cb3`.
 Budget `mounted-shield` 9.9 of 90 min. To be reviewed in round 11.
+
+## Round 11 — candidate `64648d26101237d903c68befdeb71cf2da6b8800` (production `241e68be`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-64648d26`. Started 2026-11-23, 15.58 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-64648d26/`.
+- **Verdict: CHANGES REQUIRED.** Two production defects in the suspension bookkeeping (PN11-F1, PN11-F2) and five
+  driver/reader defects.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN11-F1 | A list where KMC removed Shield but no KMC entry remained (another mod removed Mounted Combat, Archery unavailable) was skipped by Resume, and the refresh then withdrew Shield globally, disabling both benefits. | **Fixed** in `720a51ee` (production): the suspension bookkeeping is now one per-feat record of the lists where KMC itself caused the feat's absence; Resume returns the feat to each of them as it stands, after the last preceding KMC entry or, with none left, appended (foreign order kept). Component case: Archery unregistered, Mounted Combat removed from the fighter list by another mod, stop and explicit enable: Shield appended once, foreign order kept, available and never withdrawn. |
+| PN11-F2 | A Shield offer another mod reintroduced during the suspension was stripped without a record and never restored. | **Fixed** in `720a51ee` (production): every removal made while enforcing a suspension (`RemoveClosed`, the explicit enable's refresh included) is added to the same record, never for a permanent withdrawal. Component case: the extra list lacks Shield at the stop, another mod puts it back, KMC strips it, the resume restores it once; the controls where a foreign removal persists still pass. |
+| PN11-F3 | A follow-up refusal arriving with the planned success replaced it as the completing record, and a refusal before the qualifying attack could advance the step. | **Fixed** in `720a51ee`: a planned step completes only on exactly the attempt that consumed its plan (`PlannedAttempt.CompletingIndex`, used by the driver's step completion); a natural step on the first record of the measured pair. Component cases with both records present and with a refusal arriving first. |
+| PN11-F4 | Additional refusals escaped target and rider-cost validation. | **Fixed** in `720a51ee`: every defense record of a check row is bound to its attack rule's attacker and mount, and every refusal must leave the hit standing and the rider's Swift cooldown, window, use and debt unchanged. Negatives for a refused follow-up that charged Swift, targeted another mount, or turned the hit. |
+| PN11-F5 | A forced roll outside the plan could pass. | **Fixed** in `720a51ee`: the planned steps come from the scenario (RT 2 equal, 4 success, 9 success; TB 2 success, 6 equal); the planned attempts must be exactly those, each the designated hostile's completing attack, and the forced records exactly those attempts. Negatives for a forced boundary record relabeled natural and a forced extra hit. |
+| PN11-F6 | The second rider's check could carry the first rider's +3. | **Fixed** in `720a51ee`: each attempt's expected Mounted Shield amount is its pair's own: the measured pair +3, the second pair identified in MS-pairs its observed amount (+2), anyone else 0. Negative with +3 on the second rider's roll; the +2 control is accepted. |
+| PN11-F7 | The band reader required one hostile across the row and at least one driver strike. | **Fixed** in `720a51ee`: the driver records the row's designated hostile at spawn; the qualifying miss must be that hostile's; other hostiles' attacks are judged on their own; 0 to 120 driver strikes. Controls for a second hostile's attack and a miss before the first strike; negatives for another hostile's miss and a missing designation. The PN4-F10 case now checks the 120-strike bound. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate (controller, focused) on `720a51ee`: PASS, 61.2 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 174/0, native contract 91/0). DLL `51e100c5e68d795c45fdb3af367571edf9d74c85e6030368b7debfee34c0f4bc`, MVID `b1300e95-ac52-417d-85b8-788b56a6448e`.
+Budget `mounted-shield` 10.92 of 90 min. To be reviewed in round 12.

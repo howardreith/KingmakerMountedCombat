@@ -308,6 +308,11 @@
         "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
         "change": "A planned total is armed with its step boundary for one attempt of the measured pair and consumed once; the completing record and its attack rule are bound per step (reviews PN10-F2, PN10-F3).",
         "status": "BLOCKED"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "A planned step completes only on the attempt that consumed its plan; forced rolls are exactly the scenario's planned attempts by the designated hostile (reviews PN11-F3, PN11-F5).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -388,6 +393,11 @@
         "candidate_source": "05ef7f8f6c4d4fe54d49e58107ba23f0d2b54d2c",
         "change": "The band miss's shield terms are the sample of the exact calculation the attack references (RuleAttackRoll.ACRule) (review PN8-F2).",
         "status": "BLOCKED"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "The band miss is the designated hostile's, with 0..120 driver strikes (review PN11-F7).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -434,6 +444,11 @@
         "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
         "change": "Every attempted defense of every pair is held to mode, turn, commitment and exact Swift accounting (review PN10-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "Every refusal leaves the hit and the rider's Swift, window, use and debt unchanged; every record is bound to its attack rule (review PN11-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -464,6 +479,11 @@
       "continuation_6": {
         "candidate_source": "d7e1ee0c1e68763c5d7da5946993e78e9b004564",
         "change": "Planned rolls and step completion are bound to the measured pair; the UI selection switch is observed through the native single selection (reviews PN9-F3, PN9-F6).",
+        "status": "BLOCKED"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "Each attempt carries its own pair's amount: measured +3, the identified second pair its observed amount, others 0 (review PN11-F6).",
         "status": "BLOCKED"
       }
     },
@@ -547,6 +567,11 @@
         "candidate_source": "bb0c53d5c9847bb76f11636b6533337d67f3d364",
         "change": "Terminal stop: Mounted Shield offers are suspended reversibly and resumed only by an explicit enable (review PN4-F3); a refused toggle changes nothing (review PN4-F2). Offline: rollback test 57/0 with the native CanSelect, component case, compiled order.",
         "status": "BLOCKED"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "Resume returns Shield to every list where KMC caused its absence, appended when no KMC entry remains, so a stop and enable never withdraw it (review PN11-F1, production).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -622,6 +647,11 @@
       "continuation_7": {
         "candidate_source": "241e68bebe73ab81ba9269d951841d5df0fb5161",
         "change": "Resume reinserts only the suspended feat into the current list, so a foreign Archery removal during the suspension survives (review PN10-F1, production).",
+        "status": "PASS"
+      },
+      "continuation_8": {
+        "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+        "change": "Removals made while enforcing a suspension are recorded and undone by Resume; foreign removals are kept (review PN11-F2, production).",
         "status": "PASS"
       }
     },
@@ -806,6 +836,14 @@
     "candidate_dll_sha256": "a5ff8e54008789f0c3079fbd0fe3ceb8c8a94f4988aec5bef474e6df0f027e8f",
     "candidate_dll_mvid": "48c32ec4-a5dc-4aa8-aae9-f611608d3cb3",
     "reason": "Supplemental review round 10 corrections (PN10-F1..F5 in 241e68be), including one production fix; row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_8": {
+    "recorded": "2026-11-23",
+    "candidate_source": "720a51eea0a04dbdbe52963e2559380d7883d6cf",
+    "candidate_dll_sha256": "51e100c5e68d795c45fdb3af367571edf9d74c85e6030368b7debfee34c0f4bc",
+    "candidate_dll_mvid": "b1300e95-ac52-417d-85b8-788b56a6448e",
+    "reason": "Supplemental review round 11 corrections (PN11-F1..F7 in 720a51ee), including two production fixes; row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }
