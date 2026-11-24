@@ -1,5 +1,7 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
+    # Runtime loader profile (planning/UMM-LOADER-PROFILES.json runtime records); default: the measured owner installation.
+    [string]$RuntimeLoaderProfileId,
     [ValidateSet(
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','finalize-f1-creation-ui','finalize-f1-finish','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
@@ -402,6 +404,11 @@ $labRoot=Get-KmcLabRoot
 $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.json')|ConvertFrom-Json
 $fingerprintPath=Join-Path $repoRoot 'planning\ENVIRONMENT-FINGERPRINT.json'
 $fingerprint=Read-KmcJson $fingerprintPath
+# The runtime loader profile is resolved here, before anything else is admitted: the selected profile (default: the
+# measured owner installation) must be the installed loader, and it is carried to dependency admission, the native
+# inventory, the result reader and the admission receipt.
+. (Join-Path $repoRoot 'scripts\runtime\RuntimeLoaderProfile.ps1')
+$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment $RuntimeLoaderProfileId $fingerprint
 $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'
@@ -506,20 +513,21 @@ if([string]::IsNullOrWhiteSpace($PackagePath)){
 $PackagePath=[IO.Path]::GetFullPath($PackagePath)
 $packageManifestPath=$PackagePath+'.manifest.json'
 & (Join-Path $repoRoot 'scripts\Validate-Source.ps1')
-& (Join-Path $repoRoot 'scripts\Validate-Package.ps1') -PackagePath $PackagePath
-$manifest=Assert-KmcPackageManifest $PackagePath $packageManifestPath
+# One standalone measurement per package, reused by every admission below.
+$measuredPackage=Get-KmcMeasuredPackage -PackagePath $PackagePath
+$manifest=Assert-KmcPackageManifest $PackagePath $packageManifestPath -Measured $measuredPackage
 $observerManifest=$null
 if($isNormalPlayer){
     $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
-    & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
-    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath -FrozenF1Observer:($Scenario-ceq'finalize-f1-finish')
+    $measuredObserver=Get-KmcMeasuredPackage -PackagePath $ObserverPackagePath -Generator 'scripts/Package-Observer.ps1'
+    $observerManifest=Assert-KmcNormalPlayerObserverManifest $ObserverPackagePath -FrozenF1Observer:($Scenario-ceq'finalize-f1-finish') -Measured $measuredObserver
 }
 if($isObserver){
     # The observer is built from the exact candidate commit; the candidate DLL
     # itself is what this run keeps out of the process.
     $ObserverPackagePath=[IO.Path]::GetFullPath($ObserverPackagePath)
-    & (Join-Path $repoRoot 'scripts\Validate-ObserverPackage.ps1') -PackagePath $ObserverPackagePath
-    $observerManifest=Assert-KmcPackageManifest $ObserverPackagePath ($ObserverPackagePath+'.manifest.json') -Generator 'scripts/Package-Observer.ps1'
+    $measuredObserver=Get-KmcMeasuredPackage -PackagePath $ObserverPackagePath -Generator 'scripts/Package-Observer.ps1'
+    $observerManifest=Assert-KmcPackageManifest $ObserverPackagePath ($ObserverPackagePath+'.manifest.json') -Generator 'scripts/Package-Observer.ps1' -Measured $measuredObserver
     if([string]$observerManifest.commit-cne[string]$manifest.commit-or[string]$observerManifest.branch-cne[string]$manifest.branch){throw 'The removal-observer package was not built from the candidate commit.'}
 }
 if($isManualReview -and (
@@ -1170,7 +1178,8 @@ try{
         $admissionReceipt=[ordered]@{schemaVersion=1;runId=$actualRunId;
             transactionToken=[string]$lock.Token;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencies=$baseGameDependencies;
             transactionStatePath=$modsTransactionStatePath;stagedStateSha256=(Get-KmcSha256 $modsTransactionStatePath);
-            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false}
+            nativeInventoryObserved=$false;nativeCompatibilityQualified=$false;
+            runtimeLoaderProfile=[ordered]@{id=$runtimeLoaderProfile.Id;umm=$runtimeLoaderProfile.UmmFullName;ummSha256=$runtimeLoaderProfile.UmmSha256;harmony2=$runtimeLoaderProfile.Harmony2FullName;harmony2Sha256=$runtimeLoaderProfile.Harmony2Sha256}}
         if($retainedDependencies.Count-ne0){$admissionReceipt['retainedDependencies']=@($retainedDependencies|ForEach-Object{[ordered]@{id=$_.id;version=$_.version;sourceRunId=$_.sourceRunId;dllName=$_.dllName;dllSha256=$_.dllSha256;digest=$_.digest;fileCount=$_.fileCount}})}
         Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') $admissionReceipt
     }
@@ -1348,7 +1357,7 @@ try{
         }else{
             $candidateHash=Get-KmcSha256 $gameResultPath
             $gameResultHash=$candidateHash
-            & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
+            & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -RuntimeLoaderProfileId $runtimeLoaderProfile.Id -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
         }
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
@@ -1364,7 +1373,7 @@ try{
             $inventoryManifest=Read-KmcJson $inventoryManifestPath
             $inventory=Read-KmcChunk7ManifestArtifact $request $inventoryManifest 'runtime-loader-inventory.json' 'runtime-loader-inventory'
             if($inventory.observations.processId-ne$process.Id){throw 'Loader inventory came from a different native process.'}
-            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies -RetainedDependencies $retainedDependencies
+            Assert-KmcBaseGameNativeInventory $request $inventory $baseGameDependencies -RetainedDependencies $retainedDependencies -LoaderProfileId $runtimeLoaderProfile.Id
             $baseGameNativeInventoryObserved=$true
             $baseGameNativeInventorySha256=Get-KmcSha256 (Join-Path $evidenceRoot 'runtime-loader-inventory.json')
         }

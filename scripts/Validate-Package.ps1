@@ -8,7 +8,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
-$loaderPins = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'loader-reference-pins.json') | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'LoaderPins.ps1')
+# The pin definition is validated before its reference list is trusted (offline; no download or cache).
+$loaderPins = Read-KmcLoaderPinDefinition (Join-Path $PSScriptRoot 'loader-reference-pins.json')
 $version = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json
 $expectedProductVersion = [string]$version.productVersion
 $expectedAssemblyVersion = [string]$version.assemblyVersion
@@ -82,7 +84,7 @@ try {
     $dllRecord = @($entryRecords | Where-Object path -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll')[0]
     $result = [pscustomobject]@{
         schemaVersion=1; packagePath=$resolvedPackage; packageSha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $resolvedPackage).Hash.ToLowerInvariant()
-        dllSha256=[string]$dllRecord.sha256; dllMvid=[string]$identity.mvid; entries=@($entryRecords | Sort-Object path); references=$references
+        dllSha256=[string]$dllRecord.sha256; dllMvid=[string]$identity.mvid; version=[string]$info.Version; entries=@($entryRecords | Sort-Object path); references=$references
     }
 }
 finally {

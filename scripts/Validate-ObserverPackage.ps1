@@ -12,7 +12,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'UmmLoaderContracts.ps1')
-$loaderPins = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'loader-reference-pins.json') | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'LoaderPins.ps1')
+# The pin definition is validated before its reference list is trusted (offline; no download or cache).
+$loaderPins = Read-KmcLoaderPinDefinition (Join-Path $PSScriptRoot 'loader-reference-pins.json')
 $identityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'tools\KmcRemovalObserver\ObserverIdentity.cs')
 $identityMatch = [Regex]::Match($identityText, 'internal const string ProductVersion = "([^"]+)";')
 if (-not $identityMatch.Success) { throw 'Observer identity source lacks its product version.' }

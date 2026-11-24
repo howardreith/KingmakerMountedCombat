@@ -50,6 +50,7 @@ function Get-ZipEntryBytes([string]$Zip, [string]$Name) {
     try { $entry = @($archive.Entries | Where-Object { $_.FullName.Replace('\', '/') -ceq $Name })[0]; $reader = $entry.Open(); $buffer = [IO.MemoryStream]::new(); try { $reader.CopyTo($buffer); return , $buffer.ToArray() } finally { $reader.Dispose(); $buffer.Dispose() } }
     finally { $archive.Dispose() }
 }
+function Get-DllEntryName([string]$Zip, [string]$Name) { $a = [IO.Compression.ZipFile]::OpenRead($Zip); try { return @($a.Entries | Where-Object { $_.FullName.Replace('\', '/') -like "*/$Name" })[0].FullName } finally { $a.Dispose() } }
 function Get-InfoEntryName([string]$Zip) { $a = [IO.Compression.ZipFile]::OpenRead($Zip); try { return @($a.Entries | Where-Object { $_.FullName.Replace('\', '/') -like '*/Info.json' })[0].FullName } finally { $a.Dispose() } }
 
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('kmc-package-boundary-' + [Guid]::NewGuid().ToString('N'))
@@ -83,12 +84,12 @@ try {
         [IO.File]::WriteAllText($pinsFile, $pinsOriginal)
     }
 
-    # 2. Real packages from the clone (both shipping products), built by the qualification packaging routes.
-    $pkg = Invoke-PS @('-File', (Join-Path $clone 'scripts\Package.ps1'), '-ArtifactQualifier', 'boundary')
-    $obsPkg = Invoke-PS @('-File', (Join-Path $clone 'scripts\Package-Observer.ps1'), '-ArtifactQualifier', 'boundary')
+    # 2. Real packages from the clone (both shipping products) from one combined qualification packaging build.
+    $pkg = Invoke-PS @('-File', (Join-Path $clone 'scripts\Package.ps1'), '-IncludeRemovalObserver', '-ArtifactQualifier', 'boundary')
+    $obsPkg = $pkg
     $mainZip = @(Get-ChildItem -LiteralPath $artifacts -Filter 'KingmakerMountedCombat-*-boundary-diagnostic.zip')[0].FullName
     $observerZip = @(Get-ChildItem -LiteralPath $artifacts -Filter 'KmcRemovalObserver-*-boundary-diagnostic.zip')[0].FullName
-    Add-Case 'packages-built-by-qualification-routes' ($pkg.ExitCode -eq 0 -and $obsPkg.ExitCode -eq 0) "main $(Get-Sha $mainZip); observer $(Get-Sha $observerZip)"
+    Add-Case 'packages-built-by-combined-qualification-route' ($pkg.ExitCode -eq 0 -and $obsPkg.ExitCode -eq 0) "main $(Get-Sha $mainZip); observer $(Get-Sha $observerZip)"
 
     # 3. Both standalone validators: genuine packages pass; scalar-string minimum required; a DLL compiled against another
     #    loader and extra loader, Harmony or game payloads are refused.
@@ -113,11 +114,31 @@ try {
         }
     }
     $releasedDll = Get-ZipEntryBytes $ReleasedPackage 'KingmakerMountedCombat/KingmakerMountedCombat.dll'
-    $mainDllEntry = @([IO.Compression.ZipFile]::OpenRead($mainZip).Entries | Where-Object { $_.FullName -like '*KingmakerMountedCombat.dll' })[0].FullName
+    $mainDllEntry = Get-DllEntryName $mainZip 'KingmakerMountedCombat.dll'
     $variant = Join-Path $artifacts 'main-released-umm-0.33-dll.zip'
     New-ZipVariant $mainZip $variant @{ $mainDllEntry = $releasedDll }
     $r = Invoke-PS @('-File', $validators.main, '-PackagePath', $variant)
     Add-Case 'main-validator-dll-compiled-against-umm-0.33-rejected' ($r.ExitCode -ne 0 -and $r.Output -match 'UnityModManager') ("released 0.2.15 DLL (UnityModManager 0.33.0.0): " + (Get-Reason $r.Output))
+
+    # 3b. Both standalone validators apply the pin definition before trusting it (offline; no download or cache): missing,
+    #     duplicated or mismapped pins and a minimum/UMM-version disagreement are refused; genuine pins are accepted again.
+    foreach ($bad in @(
+        @{ Name = 'missing-harmony12-pin'; Edit = { param($j) $j.references = @($j.references | Where-Object Name -ne '0Harmony12') } },
+        @{ Name = 'duplicated-umm-pin'; Edit = { param($j) $j.references = @($j.references) + @(@($j.references | Where-Object Name -eq 'UnityModManager')[0]) } },
+        @{ Name = 'mismapped-harmony12-pin'; Edit = { param($j) @($j.references | Where-Object Name -eq '0Harmony12')[0].File = '0Harmony.dll' } },
+        @{ Name = 'minimum-umm-version-disagreement'; Edit = { param($j) $j.minimumManagerVersion = '0.32.4' } })) {
+        $j = $pinsOriginal | ConvertFrom-Json; & $bad.Edit $j
+        [IO.File]::WriteAllText($pinsFile, ($j | ConvertTo-Json -Depth 6))
+        foreach ($kind in @('main', 'observer')) {
+            $r = Invoke-PS @('-File', $validators[$kind], '-PackagePath', $zips[$kind])
+            Add-Case "$kind-validator-$($bad.Name)-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'pin file must define|Invalid or duplicate|must equal the declared minimum') (Get-Reason $r.Output)
+        }
+        [IO.File]::WriteAllText($pinsFile, $pinsOriginal)
+    }
+    foreach ($kind in @('main', 'observer')) {
+        $r = Invoke-PS @('-File', $validators[$kind], '-PackagePath', $zips[$kind])
+        Add-Case "$kind-validator-canonical-pins-accepted-again" ($r.ExitCode -eq 0) "exit $($r.ExitCode)"
+    }
 
     # 4. Runtime admission binds the DLL inside the ZIP to the manifest (both products): matching pairs pass; an outer ZIP
     #    whose identity is correct but whose DLL belongs to another build is refused before staging.
@@ -141,6 +162,28 @@ try {
     $manifest.packagePath = $swapped; $manifest.packageSha256 = Get-Sha $swapped
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath ($swapped + '.manifest.json') -Encoding UTF8
     $r = & $admit $swapped ($swapped + '.manifest.json') 'scripts/Package.ps1'
+    $swappedResult = $r
+    # Common admission with only the receipt version changed.
+    $versionOnly = Join-Path $artifacts 'main-version-only.manifest.json'
+    $vm = Get-Content -LiteralPath ($mainZip + '.manifest.json') -Raw | ConvertFrom-Json; $vm.version = '9.9.9'
+    $vm | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $versionOnly -Encoding UTF8
+    $vr = & $admit $mainZip $versionOnly 'scripts/Package.ps1'
+    Add-Case 'common-admission-receipt-version-only-changed-rejected' ($vr.ExitCode -ne 0 -and $vr.Output -match 'not the build its manifest names') (Get-Reason $vr.Output)
+    # Normal-player observer admission: matching receipt accepted; correct outer hash with stale DLL fields refused.
+    $np = Join-Path $clone 'scripts\runtime\Chunk7NormalPlayerEvidence.ps1'
+    $npAdmit = { param($zip) Invoke-PS @('-Command', ". '$($harness.Replace("'", "''"))'; . '$($np.Replace("'", "''"))'; `$m = Assert-KmcNormalPlayerObserverManifest '$($zip.Replace("'", "''"))'; 'ADMITTED ' + `$m.measuredPackage.dllSha256") }
+    $r = & $npAdmit $observerZip
+    Add-Case 'normal-player-observer-matching-receipt-accepted' ($r.ExitCode -eq 0 -and $r.Output -match 'ADMITTED [0-9a-f]{64}') "exit $($r.ExitCode)"
+    foreach ($stale in @(@('dll-hash', 'dllSha256', ('0' * 64)), @('mvid', 'dllMvid', ([Guid]::NewGuid().ToString())))) {
+        $copy = Join-Path $artifacts ("observer-stale-$($stale[0]).zip")
+        Copy-Item -LiteralPath $observerZip -Destination $copy
+        $om = Get-Content -LiteralPath ($observerZip + '.manifest.json') -Raw | ConvertFrom-Json
+        $om.packagePath = $copy; $om.packageSha256 = Get-Sha $copy; $om.($stale[1]) = $stale[2]
+        $om | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath ($copy + '.manifest.json') -Encoding UTF8
+        $r = & $npAdmit $copy
+        Add-Case "normal-player-observer-stale-$($stale[0])-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'not the build its manifest names') (Get-Reason $r.Output)
+    }
+    $r = $swappedResult
     Add-Case 'admission-correct-outer-zip-with-another-builds-dll-rejected' ($ob.ExitCode -eq 0 -and $r.ExitCode -ne 0 -and $r.Output -match 'not the build its manifest names') ("other build exit $($ob.ExitCode); " + (Get-Reason $r.Output))
 
     # 5. Reuse of compiled outputs (-SkipBuild) only while the loader inputs that produced them are unchanged.
@@ -159,10 +202,39 @@ try {
         Add-Case "reuse-after-$($change.Name)-change-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'cannot reuse these outputs') (Get-Reason $r.Output)
         & $change.Undo
     }
+    # Output bytes, the component runner and compiled sources are part of the receipt.
+    $shipping = Join-Path $clone 'bin\Release\KingmakerMountedCombat.dll'
+    $runner = Join-Path $clone 'bin\Tests\Release\KingmakerMountedCombat.Tests.exe'
+    $shippingBytes = [IO.File]::ReadAllBytes($shipping); $runnerBytes = [IO.File]::ReadAllBytes($runner)
+    $probeSource = Join-Path $clone $probe; $probeOriginal = [IO.File]::ReadAllText($probeSource)
+    foreach ($change in @(
+        @{ Name = 'replaced-shipping-dll'; Apply = { [IO.File]::WriteAllBytes($shipping, [byte[]]($shippingBytes + [byte[]](0))) }; Undo = { [IO.File]::WriteAllBytes($shipping, $shippingBytes) } },
+        @{ Name = 'removed-shipping-dll'; Apply = { Remove-Item -LiteralPath $shipping }; Undo = { [IO.File]::WriteAllBytes($shipping, $shippingBytes) } },
+        @{ Name = 'replaced-component-runner'; Apply = { [IO.File]::WriteAllBytes($runner, [byte[]]($runnerBytes + [byte[]](0))) }; Undo = { [IO.File]::WriteAllBytes($runner, $runnerBytes) } },
+        @{ Name = 'changed-compiled-source'; Apply = { [IO.File]::WriteAllText($probeSource, $probeOriginal + "`r`n// changed`r`n") }; Undo = { [IO.File]::WriteAllText($probeSource, $probeOriginal) } })) {
+        & $change.Apply
+        $r = & $stampCheck
+        Add-Case "reuse-after-$($change.Name)-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'cannot reuse these outputs') (Get-Reason $r.Output)
+        & $change.Undo
+    }
+    $r = & $stampCheck
+    Add-Case 'reuse-accepted-again-after-restoring-outputs-and-sources' ($r.ExitCode -eq 0 -and $r.Output -match 'REUSABLE') "exit $($r.ExitCode)"
+    # Plan mode reports the same first check, read-only, for a current and a missing receipt.
+    $tiersScript = Join-Path $clone 'scripts\Test-Tiers.ps1'
+    $stampFile = Join-Path $clone 'bin\Release\.loader-input-stamp'
+    $stampBefore = Get-Sha $stampFile
+    $planCurrent = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-Plan')
+    Move-Item -LiteralPath $stampFile -Destination ($stampFile + '.aside')
+    $planMissing = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-Plan')
+    Move-Item -LiteralPath ($stampFile + '.aside') -Destination $stampFile
+    Add-Case 'plan-mode-reports-reuse-check-read-only' ($planCurrent.Output -match 'reuse check.*receipt current' -and $planMissing.Output -match 'reuse check.*MISSING build receipt' -and (Get-Sha $stampFile) -ceq $stampBefore) 'plan lists the reuse check first; the receipt is unchanged'
+    # Fast and Full reuse boundaries refuse stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
-    $tiers = Invoke-PS @('-File', (Join-Path $clone 'scripts\Test-Tiers.ps1'), '-Tier', 'Fast', '-SkipBuild')
+    $tiers = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild')
+    $full = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild')
     [IO.File]::WriteAllText($projectFile, $projectOriginal)
     Add-Case 'test-tiers-skipbuild-with-old-outputs-refused' ($tiers.ExitCode -ne 0 -and $tiers.Output -match 'cannot reuse these outputs') (Get-Reason $tiers.Output)
+    Add-Case 'full-admission-with-old-outputs-refused-before-umbrella' ($full.ExitCode -ne 0 -and $full.Output -match 'cannot reuse these outputs' -and $full.Output -notmatch 'FULL umbrella \(scripts/Test\.ps1\) \(') (Get-Reason $full.Output)
 
     $failed = @($cases | Where-Object { -not $_.passed })
     $summary = [ordered]@{ schema = 'kmc.package-admission-reuse-tests.v1'; commit = $commit; released_fixture_sha256 = Get-Sha $ReleasedPackage

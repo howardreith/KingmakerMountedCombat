@@ -30,7 +30,7 @@ function Get-KmcChunk7NormalPlayerChecks([switch]$PreviousPackageLoad) {
 
 # The observer is harness tooling: bound to the clean execution HEAD that built it,
 # never to the KMC product commit (which may be an archived frozen candidate).
-function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[switch]$FrozenF1Observer){
+function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[switch]$FrozenF1Observer,$Measured){
  $repoRoot=Get-KmcRepositoryRoot;$labRoot=Get-KmcLabRoot
  $package=[IO.Path]::GetFullPath($ObserverPackagePath)
  if(-not$package.StartsWith([IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Observer package is outside the KMC artifacts root.'}
@@ -58,6 +58,10 @@ function Assert-KmcNormalPlayerObserverManifest([string]$ObserverPackagePath,[sw
   [string]$manifest.packagePath-cne$package-or[string]$manifest.packageSha256-cne(Get-KmcSha256 $package)){
   throw 'Observer manifest does not bind the exact clean execution HEAD and observer ZIP.'
  }
+ # The observer DLL inside the ZIP must be the build the manifest names (the caller's one measurement, reused).
+ $observerMeasured=if($null-ne$Measured){$Measured}else{Get-KmcMeasuredPackage -PackagePath $package -Generator 'scripts/Package-Observer.ps1'}
+ Assert-KmcManifestMatchesMeasuredPackage -Manifest $manifest -Measured $observerMeasured
+ $manifest | Add-Member -NotePropertyName measuredPackage -NotePropertyValue $observerMeasured -Force
  $manifest
 }
 

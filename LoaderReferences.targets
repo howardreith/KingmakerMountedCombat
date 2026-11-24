@@ -7,36 +7,4 @@
   <Target Name="ValidatePinnedLoaderReferences" BeforeTargets="ResolveAssemblyReferences">
     <Exec Command="&quot;$(LoaderReferencePowerShell)&quot; -NoLogo -NoProfile -ExecutionPolicy Bypass -File &quot;$(PinnedLoaderReferenceCheck)&quot; -VerifyOnly -ReferenceDirectory &quot;$(PinnedLoaderReferenceDir)&quot;" />
   </Target>
-  <!-- After reference-assembly selection, immediately before compilation (also for direct MSBuild, including Test-Tiers):
-       the UnityModManager and 0Harmony12 inputs Csc receives (@(ReferencePathWithRefAssemblies), and @(ReferencePath)
-       for the classic targets) must be exactly the verified files in the pinned directory, so a stray HintPath, a
-       renamed or substituted file, or the installed loader can never be compiled against. -->
-  <Target Name="AssertPinnedLoaderReferencesResolved" BeforeTargets="CoreCompile">
-    <!-- Runs immediately before CoreCompile, after every reference-selection step (including any later rewrite of the
-         list), and checks @(ReferencePathWithRefAssemblies), the exact list Csc receives (Microsoft.CSharp.Core.targets). -->
-    <PropertyGroup>
-      <_KmcPinnedLoaderDirectory>$([MSBuild]::NormalizeDirectory('$(PinnedLoaderReferenceDir)'))</_KmcPinnedLoaderDirectory>
-      <_KmcPinsText>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)scripts\loader-reference-pins.json'))</_KmcPinsText>
-      <_KmcUmmPinSha256>$([System.Text.RegularExpressions.Regex]::Match($(_KmcPinsText), '"File":\s*"UnityModManager\.dll"[^}]*?"Sha256":\s*"([0-9a-f]{64})"').Groups[1].Value)</_KmcUmmPinSha256>
-      <_KmcHarmony12PinSha256>$([System.Text.RegularExpressions.Regex]::Match($(_KmcPinsText), '"File":\s*"0Harmony12\.dll"[^}]*?"Sha256":\s*"([0-9a-f]{64})"').Groups[1].Value)</_KmcHarmony12PinSha256>
-    </PropertyGroup>
-    <ItemGroup>
-      <_KmcLoaderCompilerInputUnique Include="@(ReferencePathWithRefAssemblies)" />
-    </ItemGroup>
-    <ItemGroup>
-      <_KmcResolvedUmm Include="@(_KmcLoaderCompilerInputUnique)" Condition="'%(Filename)' == 'UnityModManager' or $([System.String]::Copy('%(_KmcLoaderCompilerInputUnique.FusionName)').StartsWith('UnityModManager,'))" />
-      <_KmcResolvedHarmony12 Include="@(_KmcLoaderCompilerInputUnique)" Condition="'%(Filename)' == '0Harmony12' or $([System.String]::Copy('%(_KmcLoaderCompilerInputUnique.FusionName)').StartsWith('0Harmony12,'))" />
-      <_KmcResolvedOutside Include="@(_KmcResolvedUmm)" Condition="'%(FullPath)' != '$(_KmcPinnedLoaderDirectory)UnityModManager.dll'" />
-      <_KmcResolvedOutside Include="@(_KmcResolvedHarmony12)" Condition="'%(FullPath)' != '$(_KmcPinnedLoaderDirectory)0Harmony12.dll'" />
-    </ItemGroup>
-    <Error Condition="'@(_KmcResolvedUmm->Count())' != '1'" Text="Exactly one UnityModManager compiler input is required; resolved: @(_KmcResolvedUmm)" />
-    <Error Condition="'@(_KmcResolvedHarmony12->Count())' != '1'" Text="Exactly one 0Harmony12 compiler input is required; resolved: @(_KmcResolvedHarmony12)" />
-    <Error Condition="'@(_KmcResolvedOutside)' != ''" Text="Loader compiler references must be the verified files in the pinned directory $(_KmcPinnedLoaderDirectory); resolved: @(_KmcResolvedOutside)" />
-    <Error Condition="'$(_KmcUmmPinSha256)' == '' or '$(_KmcHarmony12PinSha256)' == ''" Text="scripts\loader-reference-pins.json does not define both loader SHA-256 values." />
-    <GetFileHash Files="@(_KmcResolvedUmm);@(_KmcResolvedHarmony12)" Algorithm="SHA256">
-      <Output TaskParameter="Items" ItemName="_KmcLoaderCompilerHash" />
-    </GetFileHash>
-    <Error Condition="'%(_KmcLoaderCompilerHash.Filename)' == 'UnityModManager' and '%(_KmcLoaderCompilerHash.FileHash)' != '$(_KmcUmmPinSha256.ToUpperInvariant())'" Text="The UnityModManager compiler input differs from its pin: %(_KmcLoaderCompilerHash.Identity)" />
-    <Error Condition="'%(_KmcLoaderCompilerHash.Filename)' == '0Harmony12' and '%(_KmcLoaderCompilerHash.FileHash)' != '$(_KmcHarmony12PinSha256.ToUpperInvariant())'" Text="The 0Harmony12 compiler input differs from its pin: %(_KmcLoaderCompilerHash.Identity)" />
-  </Target>
 </Project>

@@ -1548,6 +1548,12 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
     # The selected runtime loader profile (default: the measured owner installation) supplies the exact UnityModManager
     # and Harmony 2 shared-state creator identities.
     $loaderProfile=Get-KmcRuntimeLoaderProfile $LoaderProfileId
+    if($PSBoundParameters.ContainsKey('LoaderProfileId')){
+        # A current run names its profile: its UnityModManager and Harmony 2 are verified in both the dependency receipt and
+        # the native observations, independently of the optional native-cache and shared-state observations.
+        Assert-KmcExactObservedLoaderDependency @($Artifact.observations.loadedAssemblies) $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager' $loaderProfile.UmmFullName $loaderProfile.UmmMvid $loaderProfile.UmmSha256
+        Assert-KmcExactObservedLoaderDependency @($Artifact.observations.loadedAssemblies) $Dependencies 'Kingmaker_Data/Managed/UnityModManager/0Harmony.dll' '0Harmony' $loaderProfile.Harmony2FullName $loaderProfile.Harmony2Mvid $loaderProfile.Harmony2Sha256
+    }
     Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'runtime-loader-inventory'
     if($Artifact.status-cne'PASS'-or$Artifact.observations.capturedInNativeProcess-ne$true-or
         -not(Test-KmcExactJsonInteger $Artifact.observations.processId)-or$Artifact.observations.processId-le0){throw 'Live loader inventory is incomplete.'}

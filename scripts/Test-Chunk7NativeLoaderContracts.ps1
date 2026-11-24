@@ -92,6 +92,35 @@ $mh=$mixed.observations.loadedAssemblies|Where-Object name -CEQ '0Harmony';$mh.f
 Reject 'owner UMM with the baseline Harmony creator (owner profile)' {Assert-KmcBaseGameNativeInventory $request $mixed $mixedDeps}
 Reject 'owner UMM with the baseline Harmony creator (baseline profile)' {Assert-KmcBaseGameNativeInventory $request $mixed $mixedDeps -LoaderProfileId 'umm-0.31.1'}
 Reject 'profile without a runtime record' {Assert-KmcBaseGameNativeInventory $request $exact $pinned -LoaderProfileId 'umm-0.33.2'}
+# A selected profile verifies the loader stack even when neither the native-cache nor the shared-state observation
+# appears (the candidate loaded from its staged path; no HarmonySharedState).
+$plain=Copy-TestValue $exact;$plainDeps=Copy-TestValue $pinned
+$plain.observations.loadedAssemblies=@($plain.observations.loadedAssemblies|Where-Object name -CNE 'HarmonySharedState')
+($plain.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location=(Join-Path $plainDeps.modsRoot 'KingmakerMountedCombat\KingmakerMountedCombat.dll')
+Check 'owner profile verifies its loader stack without cache or shared-state rows' {Assert-KmcBaseGameNativeInventory $request $plain $plainDeps -LoaderProfileId 'umm-0.33.0'}
+$plainMixed=Copy-TestValue $plain;$plainMixedDeps=Copy-TestValue $plainDeps
+($plainMixedDeps.files|Where-Object relativePath -CEQ $harmonyRelative).sha256=$h2311
+$pmh=$plainMixed.observations.loadedAssemblies|Where-Object name -CEQ '0Harmony';$pmh.fullName='0Harmony, Version=2.3.1.1, Culture=neutral, PublicKeyToken=null';$pmh.mvid='6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6';$pmh.sha256=$h2311
+Reject 'mixed UMM/Harmony without cache or shared state (owner profile)' {Assert-KmcBaseGameNativeInventory $request $plainMixed $plainMixedDeps -LoaderProfileId 'umm-0.33.0'}
+Reject 'mixed UMM/Harmony without cache or shared state (baseline profile)' {Assert-KmcBaseGameNativeInventory $request $plainMixed $plainMixedDeps -LoaderProfileId 'umm-0.31.1'}
+$plainBaseline=Copy-TestValue $baseline;$plainBaselineDeps=Copy-TestValue $baselineDeps
+$plainBaseline.observations.loadedAssemblies=@($plainBaseline.observations.loadedAssemblies|Where-Object name -CNE 'HarmonySharedState')
+($plainBaseline.observations.loadedAssemblies|Where-Object name -CEQ 'KingmakerMountedCombat').location=(Join-Path $plainBaselineDeps.modsRoot 'KingmakerMountedCombat\KingmakerMountedCombat.dll')
+Check 'baseline profile verifies its loader stack without cache or shared-state rows' {Assert-KmcBaseGameNativeInventory $request $plainBaseline $plainBaselineDeps -LoaderProfileId 'umm-0.31.1'}
+$plainNoHarmony=Copy-TestValue $plain;$plainNoHarmony.observations.loadedAssemblies=@($plainNoHarmony.observations.loadedAssemblies|Where-Object name -CNE '0Harmony')
+Reject 'selected profile with no observed Harmony 2' {Assert-KmcBaseGameNativeInventory $request $plainNoHarmony $plainDeps -LoaderProfileId 'umm-0.33.0'}
+# Launcher-side resolution against the measured environment, and the launcher wiring of the resolved profile.
+$fingerprint=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'planning/ENVIRONMENT-FINGERPRINT.json') -Raw|ConvertFrom-Json
+Check 'launcher resolves the default owner profile for the measured environment' {$r=Resolve-KmcRuntimeLoaderProfileForEnvironment '' $fingerprint;if($r.Id-cne'umm-0.33.0'){throw 'Default profile was not the owner installation.'}}
+Check 'launcher resolves the explicit owner profile' {$r=Resolve-KmcRuntimeLoaderProfileForEnvironment 'umm-0.33.0' $fingerprint;if($r.Harmony2Sha256-cne$harmonyHash){throw 'Owner Harmony 2 identity differs.'}}
+Reject 'launcher refuses the baseline profile in the measured owner environment' {Resolve-KmcRuntimeLoaderProfileForEnvironment 'umm-0.31.1' $fingerprint}
+Check 'launcher carries the resolved profile to the inventory, the result reader and the admission receipt' {
+ $launcher=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'))
+ foreach($needle in @('[string]$RuntimeLoaderProfileId','$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment $RuntimeLoaderProfileId $fingerprint','-LoaderProfileId $runtimeLoaderProfile.Id','-RuntimeLoaderProfileId $runtimeLoaderProfile.Id','runtimeLoaderProfile=[ordered]@{id=$runtimeLoaderProfile.Id')){
+  if($launcher.IndexOf($needle)-lt0){throw ('Launcher does not carry the profile: '+$needle)}
+ }
+ if($launcher.IndexOf('$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment')-gt$launcher.IndexOf('Get-KmcMeasuredPackage -PackagePath $PackagePath')){throw 'The profile is not resolved before package admission.'}
+}
 Check 'exact pinned Harmony memory identity and UMM candidate cache' {
  $scope=Assert-KmcBaseGameNativeInventory $request $exact $pinned -PassThru
  if($scope.fileBackedAssemblyCount-ne5-or$scope.inMemoryAssemblyCount-ne1-or$scope.dynamicAssemblyCount-ne0-or

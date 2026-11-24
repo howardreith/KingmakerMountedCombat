@@ -29,6 +29,7 @@
           "mvid": "6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6",
           "sha256": "5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f"
         },
+        "nativeEligibility": "not eligible here: the launcher refuses it until a guarded environment with UMM 0.31.1 and Harmony 2.3.1.1 is the measured installation",
         "note": "Baseline runtime identity for a separately prepared guarded environment: UMM 0.31.1 with lib.harmony 2.3.1.1 net48 as the shared-state creator. Not installed on the development machine; no native run is implied."
       }
     },
@@ -62,6 +63,7 @@
           "mvid": "4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc",
           "sha256": "df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80"
         },
+        "nativeEligibility": "eligible: the installed loader of the measured environment (default profile of the guarded launcher)",
         "note": "Measured owner installation and the default native target: Harmony 2.3.6 is the HarmonySharedState creator (lib.harmony 2.3.6 net48, byte-identical to the installed 0Harmony.dll)."
       }
     },

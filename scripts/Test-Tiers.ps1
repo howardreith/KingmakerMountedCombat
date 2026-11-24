@@ -108,7 +108,12 @@ if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
 $components = Join-Path $repoRoot ('bin/Tests/' + $Configuration + '/KingmakerMountedCombat.Tests.exe')
 $productDll = Join-Path $repoRoot ('bin/' + $Configuration + '/KingmakerMountedCombat.dll')
 $steps = New-Object 'System.Collections.Generic.List[object]'
+. (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
+# Reused outputs (-SkipBuild) are admitted only against the build receipt written next to them; plan mode reports the
+# same first check, read-only.
+$reuseState = if ($SkipBuild) { Test-KmcLoaderInputStamp $repoRoot $Configuration } else { $null }
 function Add-Step([string]$Name, [string]$Detail, [string]$Prerequisite) { $steps.Add([pscustomobject]@{ Name = $Name; Detail = $Detail; Prerequisite = $Prerequisite }) }
+if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } }) }
 if ($Tier -eq 'Full') {
     Add-Step 'FULL umbrella (scripts/Test.ps1)' ('Test.ps1 -AssemblyTarget ' + $AssemblyTarget + $(if ($SkipBuild) { ' -SkipBuild' } else { '' }) + '; task: ' + $QualificationTask) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test.ps1')) { 'present' } else { 'MISSING Test.ps1' })
 } else {
@@ -238,12 +243,12 @@ function Invoke-TestScript([string]$Name, [string[]]$Extra = @(), [string]$Path 
 }
 $outcome = 'failed'
 try {
+    if ($SkipBuild) { Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration } }
     if ($Tier -eq 'Full') {
         $fullArguments = @('-AssemblyTarget', $AssemblyTarget)
         if ($SkipBuild) { $fullArguments += '-SkipBuild' }
         Invoke-Tiered 'FULL umbrella (scripts/Test.ps1)' { Invoke-TestScript 'Test.ps1' $fullArguments }
     } else {
-        . (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
         if (-not $SkipBuild) {
             Invoke-Tiered 'build' {
                 if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild not found.' }
@@ -251,10 +256,6 @@ try {
                 if ($exit -ne 0) { throw 'Build failed.' }
                 Write-KmcLoaderInputStamp $repoRoot $Configuration
             }
-        }
-        else {
-            # Reused outputs must have been built from the current loader inputs.
-            Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration }
         }
         Invoke-Tiered 'FAST components' {
             if(-not(Test-Path -LiteralPath $components)){throw 'Compiled component runner missing.'}

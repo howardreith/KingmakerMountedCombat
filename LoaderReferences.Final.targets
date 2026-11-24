@@ -1,0 +1,21 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Imported last by both shipping projects (after Microsoft.CSharp.targets, and so after Directory.Build.targets and
+       every other standard or repository-level hook), so this BeforeTargets="CoreCompile" check is the last to run before
+       compilation. The UnityModManager and 0Harmony12 entries Csc receives (@(ReferencePathWithRefAssemblies)) must be
+       exactly the verified files in the pinned directory, and their bytes are re-verified against the parsed pin file. -->
+  <Target Name="AssertPinnedLoaderReferencesResolved" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_KmcPinnedLoaderDirectory>$([MSBuild]::NormalizeDirectory('$(PinnedLoaderReferenceDir)'))</_KmcPinnedLoaderDirectory>
+    </PropertyGroup>
+    <ItemGroup>
+      <_KmcResolvedUmm Include="@(ReferencePathWithRefAssemblies)" Condition="'%(Filename)' == 'UnityModManager' or $([System.String]::Copy('%(ReferencePathWithRefAssemblies.FusionName)').StartsWith('UnityModManager,'))" />
+      <_KmcResolvedHarmony12 Include="@(ReferencePathWithRefAssemblies)" Condition="'%(Filename)' == '0Harmony12' or $([System.String]::Copy('%(ReferencePathWithRefAssemblies.FusionName)').StartsWith('0Harmony12,'))" />
+      <_KmcResolvedOutside Include="@(_KmcResolvedUmm)" Condition="'%(FullPath)' != '$(_KmcPinnedLoaderDirectory)UnityModManager.dll'" />
+      <_KmcResolvedOutside Include="@(_KmcResolvedHarmony12)" Condition="'%(FullPath)' != '$(_KmcPinnedLoaderDirectory)0Harmony12.dll'" />
+    </ItemGroup>
+    <Error Condition="'@(_KmcResolvedUmm->Count())' != '1'" Text="Exactly one UnityModManager compiler input is required; resolved: @(_KmcResolvedUmm)" />
+    <Error Condition="'@(_KmcResolvedHarmony12->Count())' != '1'" Text="Exactly one 0Harmony12 compiler input is required; resolved: @(_KmcResolvedHarmony12)" />
+    <Error Condition="'@(_KmcResolvedOutside)' != ''" Text="Loader compiler references must be the verified files in the pinned directory $(_KmcPinnedLoaderDirectory); resolved: @(_KmcResolvedOutside)" />
+    <Exec Command="&quot;$(LoaderReferencePowerShell)&quot; -NoLogo -NoProfile -ExecutionPolicy Bypass -File &quot;$(PinnedLoaderReferenceCheck)&quot; -VerifyCompilerInputs &quot;@(_KmcResolvedUmm->'%(FullPath)')|@(_KmcResolvedHarmony12->'%(FullPath)')&quot;" />
+  </Target>
+</Project>

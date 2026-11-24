@@ -113,6 +113,27 @@ try {
     Remove-Item -LiteralPath $rewriteTargets
     Add-Case 'late-compiler-list-rewrite-refused-product' ($lr.ExitCode -ne 0 -and $lr.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and $lr.Output -notmatch 'KingmakerMountedCombat -> ' -and (Get-Sha $dll) -ceq $dllBeforeRewrite) ([regex]::Match($lr.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
     Add-Case 'late-compiler-list-rewrite-refused-observer' ($lro.ExitCode -ne 0 -and $lro.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and -not (Test-Path -LiteralPath (Join-Path $observerOut 'KmcRemovalObserver.dll'))) ([regex]::Match($lro.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
+    # A repository-level hook at the same CoreCompile boundary (Directory.Build.targets, BeforeTargets="CoreCompile") that
+    # rewrites the list: the final check is imported after it and still refuses before emission, for both projects.
+    [IO.File]::WriteAllText($rewriteTargets, $rewrite.Replace('AfterTargets=`"FindReferenceAssembliesForReferences`"', 'BeforeTargets=`"CoreCompile`"').Replace('AfterTargets="FindReferenceAssembliesForReferences"', 'BeforeTargets="CoreCompile"'))
+    $dllBeforeHook = Get-Sha $dll
+    $hp = & $buildNoClean @()
+    $hookObserverOut = Join-Path $temp 'observer hook out'
+    $hpo = Invoke-Native $msbuild @($observerProject, '/nologo', '/v:m', '/nr:false', '/t:Build', '/p:Configuration=Release', "/p:OutDir=$hookObserverOut\")
+    Remove-Item -LiteralPath $rewriteTargets
+    Add-Case 'corecompile-boundary-hook-rewrite-refused-product' ($hp.ExitCode -ne 0 -and $hp.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and $hp.Output -notmatch 'KingmakerMountedCombat -> ' -and (Get-Sha $dll) -ceq $dllBeforeHook) ([regex]::Match($hp.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
+    Add-Case 'corecompile-boundary-hook-rewrite-refused-observer' ($hpo.ExitCode -ne 0 -and $hpo.Output -match 'Loader compiler references must be the verified files in the pinned directory' -and -not (Test-Path -LiteralPath (Join-Path $hookObserverOut 'KmcRemovalObserver.dll'))) ([regex]::Match($hpo.Output, 'Loader compiler references must be the verified files[^\n]{0,120}').Value)
+
+    # The final hash expectations come from the parsed pin file: a valid reformatted, reordered copy is accepted.
+    $pinsFile = Join-Path $clone 'scripts\loader-reference-pins.json'
+    $pinsOriginal = [IO.File]::ReadAllText($pinsFile)
+    $parsed = $pinsOriginal | ConvertFrom-Json
+    $reordered = [ordered]@{ references = @(@($parsed.references) | Sort-Object Name -Descending | ForEach-Object { [ordered]@{ Sha256 = $_.Sha256; Version = $_.Version; File = $_.File; Name = $_.Name; Url = $_.Url; ArchiveEntry = $_.ArchiveEntry; ArchiveSha256 = $_.ArchiveSha256 } }); manifests = $parsed.manifests; minimumManagerVersion = $parsed.minimumManagerVersion; description = $parsed.description; schemaVersion = $parsed.schemaVersion }
+    [IO.File]::WriteAllText($pinsFile, ($reordered | ConvertTo-Json -Depth 6))
+    $rf = & $build @()
+    [IO.File]::WriteAllText($pinsFile, $pinsOriginal)
+    Add-Case 'reformatted-reordered-pin-file-accepted' ($rf.ExitCode -eq 0 -and $rf.Output -match 'Loader compiler inputs: PASS' -and (Get-LoaderRefs $dll) -ceq '0Harmony12 1.2.0.1, UnityModManager 0.31.1.0') "exit $($rf.ExitCode)"
+
     $obs = Invoke-Native $msbuild @($observerProject, '/nologo', '/v:m', '/nr:false', '/t:Rebuild', '/p:Configuration=Release', "/p:OutDir=$observerOut\")
     $obsRefs = if (Test-Path -LiteralPath (Join-Path $observerOut 'KmcRemovalObserver.dll')) { Get-LoaderRefs (Join-Path $observerOut 'KmcRemovalObserver.dll') } else { 'no DLL' }
     Add-Case 'observer-compiles-against-pinned-loader' ($obs.ExitCode -eq 0 -and $obsRefs -ceq '0Harmony12 1.2.0.1, UnityModManager 0.31.1.0') "exit $($obs.ExitCode); observer DLL references $obsRefs"
