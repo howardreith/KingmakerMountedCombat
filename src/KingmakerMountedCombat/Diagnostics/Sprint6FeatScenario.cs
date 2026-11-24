@@ -89,7 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
             context["acFrame"] = Time.frameCount;
             acSamples.Record(attack, evt, context);
         }
-        public void OnEventDidTrigger(RuleAttackRoll evt) { acSamples.Close(evt); JObject row; if (rows.TryGetValue(evt, out row)) { row["resultAfterRule"] = evt.Result.ToString(); row["isHitAfterRule"] = evt.IsHit; } }
+        public void OnEventDidTrigger(RuleAttackRoll evt) { acSamples.Close(evt); JObject row; if (rows.TryGetValue(evt, out row)) { row["resultAfterRule"] = evt.Result.ToString(); row["isHitAfterRule"] = evt.IsHit; row["criticalAfterRule"] = evt.IsCriticalConfirmed; } }
         public void OnEventAboutToTrigger(RuleDealDamage evt)
         {
             JObject row;
@@ -107,7 +107,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // Mounted Shield's own modifiers inside this check's native Bonus: how many, and their total (none outside the
             // hit-negation check, exactly one of the eligible amount inside it).
             var shield = evt.Bonus.Modifiers.Where(modifier => string.Equals(modifier.SourceComponent, MountedShieldService.CheckSourceComponent, StringComparison.Ordinal)).ToArray();
-            SkillChecks.Add(new JObject { ["actor"] = evt.Initiator.UniqueId, ["d20"] = (int)evt.D20, ["stat"] = evt.StatValue, ["bonus"] = (int)evt.Bonus, ["result"] = evt.RollResult, ["dc"] = evt.DC, ["passed"] = evt.IsPassed, ["frame"] = Time.frameCount,
+            SkillChecks.Add(new JObject { ["actor"] = evt.Initiator.UniqueId, ["d20"] = (int)evt.D20, ["stat"] = evt.StatValue, ["bonus"] = (int)evt.Bonus, ["result"] = evt.RollResult,
+                ["baseResult"] = (int)evt.D20 + evt.StatValue + (int)evt.Bonus, ["dc"] = evt.DC, ["passed"] = evt.IsPassed, ["frame"] = Time.frameCount,
                 ["kmcShieldModifiers"] = shield.Length, ["kmcShieldTotal"] = shield.Sum(modifier => modifier.ModValue) });
         }
     }
@@ -233,7 +234,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rider"] = r.Rider, ["mountId"] = r.Mount, ["attacker"] = r.Attacker, ["weapon"] = r.Weapon, ["mode"] = r.Mode, ["round"] = r.Round, ["frame"] = r.Frame,
                 ["attackD20"] = r.AttackD20, ["attackBonus"] = r.AttackBonus, ["attackResult"] = r.AttackResult, ["targetAc"] = r.TargetAc, ["resultBefore"] = r.ResultBefore, ["resultAfter"] = r.ResultAfter,
                 ["criticalBefore"] = r.CriticalBefore, ["criticalAfter"] = r.CriticalAfter, ["opportunity"] = r.AttackOfOpportunity, ["riderTurn"] = r.RiderTurn,
-                ["abilityGuid"] = r.AbilityGuid, ["forcedHitContext"] = r.ForcedHitContext, ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["plannedUnattainable"] = r.PlannedUnattainable, ["negated"] = r.Negated,
+                ["abilityGuid"] = r.AbilityGuid, ["forcedHitContext"] = r.ForcedHitContext, ["refusal"] = r.Refusal.ToString(), ["commitment"] = r.Commitment.ToString(), ["attempted"] = r.Attempted, ["forced"] = r.Forced, ["plannedUnattainable"] = r.PlannedUnattainable, ["checkBaseResult"] = r.CheckBaseResult, ["negated"] = r.Negated,
                 ["checkD20"] = r.CheckD20, ["checkStat"] = r.CheckStat, ["checkBonus"] = r.CheckBonus, ["checkResult"] = r.CheckResult, ["checkDc"] = r.CheckDc, ["shieldBonus"] = r.ShieldBonus,
                 ["swiftBefore"] = r.SwiftBefore, ["swiftAfter"] = r.SwiftAfter, ["stateBefore"] = Sprint6StateOf(r.StateBefore), ["stateAfter"] = Sprint6StateOf(r.StateAfter),
                 ["mountSwiftBefore"] = r.MountSwiftBefore, ["mountSwiftAfter"] = r.MountSwiftAfter, ["mountDamageAtRecord"] = horse.Damage });

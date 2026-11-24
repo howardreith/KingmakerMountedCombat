@@ -147,8 +147,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Finish()
         {
             if(completed)return;
+            // Errors the child reports while it is disposed (an interrupted fixture's residue: actor, hand, item, modifier)
+            // are transferred into this failed artifact before the child is released (supplemental review PN14-F1).
+            var childErrorsBefore=tranche==null?0:tranche.Errors.Count;
             try {tranche?.Dispose();}
             catch(Exception e){Fail("CM01-native-mammoth-child-cleanup","Child cleanup: "+e);}
+            if(tranche!=null && tranche.Errors.Count>childErrorsBefore)
+                Fail("CM01-native-mammoth-child-residue","Child cleanup residue: "+string.Join(" | ",tranche.Errors.Skip(childErrorsBefore).ToArray()));
             tranche=null;
             if(capturedIntake)
             {

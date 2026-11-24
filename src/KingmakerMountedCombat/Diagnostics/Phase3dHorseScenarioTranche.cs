@@ -794,6 +794,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!completed || cleanupError)
             {
                 BestEffortCleanup();
+                // An interrupted child never reaches the polling drain: the shield fixture is drained now and any residue is
+                // reported in this child's errors with its exact actors, hands, items and modifiers (PN13-F1, PN14-F1).
+                try { TerminateSprint6Fixture(); }
+                catch (Exception exception) { AddCleanupError("Mounted Shield fixture after interruption", exception); }
             }
             ruleProbe?.Dispose();
             ruleProbe = null;
@@ -6198,9 +6202,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
-            // Sprint 6 and Mounted Shield diagnostic hooks and fixture, on every interruption path (supplemental review PN13-F1).
-            try { TerminateSprint6Fixture(); }
-            catch (Exception exception) { AddCleanupError("Sprint 6 hooks and Mounted Shield fixture", exception); }
+            // Sprint 6 and Mounted Shield diagnostic hooks, detached on every cleanup path (supplemental review PN13-F1). The
+            // ordinary cleanup then keeps the shield fixture pending through the polling drain's own retry bound (PN14-F1).
+            try { DetachSprint6Hooks(); }
+            catch (Exception exception) { AddCleanupError("Sprint 6 hooks", exception); }
             if (IsChunk6bCharge)
             {
                 MountedChargeAdmissionFault.AfterQueue = null;

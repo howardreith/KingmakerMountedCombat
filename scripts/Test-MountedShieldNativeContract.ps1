@@ -461,7 +461,13 @@ Check ($resume -gt $selection -and @($enable | Where-Object { $_ -ceq 'HorseComp
 # PN13-F1: every interruption path detaches the roll hook and observers before the shield fixture drain.
 $tranche = KmcType 'KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche'
 $best = Calls ($tranche.GetMethod('BestEffortCleanup', $any)); $terminate = Calls ($tranche.GetMethod('TerminateSprint6Fixture', $any)); $detach = Calls ($tranche.GetMethod('DetachSprint6Hooks', $any))
-Check ((At $best 'Phase3dHorseScenarioTranche.TerminateSprint6Fixture') -ge 0) 'the interruption cleanup (BestEffortCleanup) terminates the Sprint 6 hooks and shield fixture'
+$dispose = Calls ($tranche.GetMethod('Dispose', $any))
+Check ((At $best 'Phase3dHorseScenarioTranche.DetachSprint6Hooks') -ge 0 -and (At $best 'Phase3dHorseScenarioTranche.TerminateSprint6Fixture') -lt 0) 'every cleanup path detaches the Sprint 6 hooks; the ordinary cleanup leaves the fixture to the polling drain''s retry bound (PN14-F1)'
+Check ((At $dispose 'Phase3dHorseScenarioTranche.BestEffortCleanup') -ge 0 -and (At $dispose 'Phase3dHorseScenarioTranche.TerminateSprint6Fixture') -gt (At $dispose 'Phase3dHorseScenarioTranche.BestEffortCleanup')) 'an interrupted child (disposed before completion) drains the shield fixture and reports residue (PN13-F1, PN14-F1)'
+$mammoth = KmcType 'KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine'
+$finish = Calls ($mammoth.GetMethod('Finish', $any))
+$disposeAt = At $finish 'Phase3dHorseScenarioTranche.Dispose'; $errorsAfter = [Array]::LastIndexOf($finish, 'Phase3dHorseScenarioTranche.get_Errors')
+Check ($disposeAt -ge 0 -and $errorsAfter -gt $disposeAt) 'the Mammoth parent reads the child''s errors after disposing it, so interruption residue reaches its failed artifact (PN14-F1)'
 Check ((At $terminate 'Phase3dHorseScenarioTranche.DetachSprint6Hooks') -ge 0 -and (At $terminate 'Phase3dHorseScenarioTranche.DetachSprint6Hooks') -lt (At $terminate 'Phase3dHorseScenarioTranche.DrainSprint6ShieldFixture')) 'the hooks are detached before the shield fixture drain'
 Check ((At $detach 'MountedCombatDefenseService.set_ScenarioCheckTotal') -ge 0 -and (At $detach 'Sprint6RuleObserver.Dispose') -ge 0 -and (At $detach 'Phase3dHorseScenarioTranche.ClearSprint6ShieldPlan') -ge 0) 'detaching clears the roll hook, disposes the rule observer and clears the armed plan'
 

@@ -33,6 +33,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool Attempted, Negated, CriticalBefore, CriticalAfter, AttackOfOpportunity, RiderTurn, Forced, ForcedHitContext;
         // A diagnostic planned total that no die from 1 to 20 could reach at the native roll: the die rolled naturally instead.
         internal bool PlannedUnattainable;
+        // The native D20 + StatValue + Bonus before RollResult's SuccessBonus; CheckResult is the native final result.
+        internal int CheckBaseResult;
         internal float SwiftBefore, SwiftAfter, MountSwiftBefore, MountSwiftAfter;
         internal MountedCombatDefenseState StateBefore, StateAfter;
         internal RuleAttackRoll Rule;
@@ -185,6 +187,9 @@ namespace KingmakerMountedCombat.Integration
             // A planned total no legal die could reach is never injected (supplemental review PN12-F1): the die rolled naturally,
             // the use stays committed as native spending requires, and the record says the measurement was unattainable.
             if (check is ControlledSkillCheck controlled && controlled.Unattainable) { record.Forced = false; record.PlannedUnattainable = true; }
+            // Forced only when the override actually supplied the die (native OnTrigger can take 10 without rolling; review PN14-F3).
+            if (check is ControlledSkillCheck supplied && !supplied.Supplied) record.Forced = false;
+            record.CheckBaseResult = check.D20 + check.StatValue + (int)check.Bonus;
             record.CheckD20 = check.D20; record.CheckStat = check.StatValue; record.CheckBonus = (int)check.Bonus; record.CheckResult = check.RollResult; record.CheckDc = check.DC;
             record.Negated = MountedCombatDefensePolicy.Negates(check.RollResult, record.AttackResult);
             if (record.Negated)
@@ -210,12 +215,13 @@ namespace KingmakerMountedCombat.Integration
             private readonly int plannedTotal;
             private readonly bool legalDieOnly;
             internal bool Unattainable { get; private set; }
+            internal bool Supplied { get; private set; }
             internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal, bool legalDieOnly) : base(unit, StatType.SkillMobility, dc)
             { this.plannedTotal = plannedTotal; this.legalDieOnly = legalDieOnly; }
             protected override RollEntry RollD20()
             {
                 int die;
-                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die) || !legalDieOnly) return die;
+                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die) || !legalDieOnly) { Supplied = true; return die; }
                 Unattainable = true;
                 return base.RollD20();
             }
