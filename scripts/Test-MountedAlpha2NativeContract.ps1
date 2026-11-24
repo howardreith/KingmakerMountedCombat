@@ -191,4 +191,34 @@ Check ($null -ne $handle.GetProperty('SpeedScale')) 'MMR-07: native handle Speed
 $bundle = Join-Path $data 'StreamingAssets\Bundles\resource_2f17956095cd04b49a8f4c0bc88bb9ca'
 Check ((Get-FileHash -LiteralPath $bundle).Hash.ToLowerInvariant() -ceq '3edb2116adf8857e11e466613c3bde6376d6201910d6a21a3d8774ee8bf2b476') 'MMR-07: pinned native horse animation bundle identity'
 
+# ---- 4. MMR-01 seat wiring (review R1-F12): the compiled profile-to-adapter path, not a copy of it -------------------
+$profiles = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfiles'
+$profileType = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfile'
+$declared = $profileType.GetProperty('DeclaredSeatFromSource')
+$basis = (KmcType 'KingmakerMountedCombat.Domain.AnimatedSaddleCalibration').GetField('MediumHumanoidHorseSeatFromSource').GetValue($null)
+$horseProfile = $profiles.GetField('Horse', $any).GetValue($null); $mammothProfile = $profiles.GetField('Mammoth', $any).GetValue($null)
+$horseSeat = $declared.GetValue($horseProfile)
+Check ($null -ne $horseSeat -and $horseSeat.Equals($basis) -and [Math]::Abs($basis.Y - 0.8601) -lt 0.00001) 'MMR-01: the Horse profile declares the measured seat basis (pelvis-Chest 0.8601 up)'
+Check ($null -eq $declared.GetValue($mammothProfile)) 'MMR-01: the Mammoth keeps its observed calibration'
+$small = @($profiles.GetField('small', $any).GetValue($null))
+Check ($small.Count -gt 0 -and @($small | Where-Object { $null -ne $declared.GetValue($_) }).Count -eq 0) ('MMR-01: all ' + $small.Count + ' Small profiles keep their own fixed-from-source seat')
+function CallsMethod([Type]$Type, [Reflection.MethodBase]$Target) {
+    foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
+        foreach ($m in $t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) {
+            $body = $m.GetMethodBody(); if ($null -eq $body) { continue }
+            $il = $body.GetILAsByteArray()
+            for ($i = 0; $i -le $il.Length - 5; $i++) {
+                if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq $Target.MetadataToken) {
+                    try { if ($m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { return $true } } catch { }
+                }
+            }
+        }
+    }
+    $false
+}
+$runtimeType = KmcType 'KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime'
+$adapterType = KmcType 'KingmakerMountedCombat.Integration.MountedRiderPoseAdapter'
+$calibration = (KmcType 'KingmakerMountedCombat.Domain.AnimatedSaddleCalibration').GetMethod('CalibrationPelvis')
+Check (CallsMethod $runtimeType $declared.GetGetMethod()) 'MMR-01: pair attachment passes the profile''s declared seat to the pose adapter'
+Check (CallsMethod $adapterType $calibration) 'MMR-01: the adapter''s saddle acquisition calibrates through AnimatedSaddleCalibration.CalibrationPelvis'
 Write-Host ('Mounted alpha 2 native contract PASS=' + $script:passed + ' FAIL=0')

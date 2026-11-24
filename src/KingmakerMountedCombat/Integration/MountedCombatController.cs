@@ -995,6 +995,7 @@ namespace KingmakerMountedCombat.Integration
                 Cancel("combat ended");
             }
 
+            ObserveEngagementProgress();
             if (stockPreApproach != null && (!HasStockAttackIntent || chargeOwner != null || relationship.State != RelationshipState.Mounted ||
                 CombatController.IsInTurnBasedCombat()))
             {
@@ -1017,6 +1018,46 @@ namespace KingmakerMountedCombat.Integration
         internal int StockPreApproachRetiredCount { get; private set; }
         internal int StockPreApproachRouteFailureCount { get; private set; }
         internal string LastStockPreApproachRetirement { get; private set; }
+
+        private TimeSpan? engagementStartedAt;
+        private bool engagementReported;
+        private long engagementProposals, engagementRefused, engagementAccepted, engagementDispatched, engagementTravel;
+        internal string LastEngagementFirstStop { get; private set; }
+
+        // MMR-04 (review R1-F11): once per real-time combat, three game seconds after it began, one line naming where the
+        // pair's automatic engagement stands (MountedEngagementDiagnostic). Counters are deltas since that combat began.
+        private void ObserveEngagementProgress()
+        {
+            var game = Game.Instance;
+            if (game?.TimeController == null || relationship.State != RelationshipState.Mounted || !IsPairInCombat() ||
+                CombatController.IsInTurnBasedCombat())
+            {
+                engagementStartedAt = null;
+                engagementReported = false;
+                return;
+            }
+            var now = game.TimeController.GameTime;
+            if (!engagementStartedAt.HasValue)
+            {
+                engagementStartedAt = now;
+                engagementProposals = AutomaticProposalCount; engagementRefused = AutomaticRefusedCount;
+                engagementAccepted = AutomaticAdmittedCount + AutomaticContinuedCount; engagementDispatched = AutomaticDispatchCount;
+                engagementTravel = StockPreApproachStartCount;
+                return;
+            }
+            if (engagementReported || (now - engagementStartedAt.Value).TotalSeconds < MountedEngagementDiagnostic.ReportAfterSeconds) return;
+            engagementReported = true;
+            LastEngagementFirstStop = MountedEngagementDiagnostic.FirstStop(AutomaticProposalCount - engagementProposals,
+                AutomaticRefusedCount - engagementRefused, AutomaticAdmittedCount + AutomaticContinuedCount - engagementAccepted,
+                AutomaticDispatchCount - engagementDispatched, StockPreApproachStartCount - engagementTravel, HasActiveCommand,
+                LastAutomaticRefusal);
+            var rider = relationship.Rider;
+            TryLog(() => "Mounted real-time engagement: firstStop=" + LastEngagementFirstStop +
+                "; aiEnabled=" + (rider != null && rider.IsAIEnabled) + "; brainActive=" + (rider != null && rider.IsBrainActive) +
+                "; riderHold=" + (rider != null && rider.HoldState) + "; playerMoveHold=" + automaticGate.PlayerMoveHold +
+                "; intent=" + HasStockAttackIntent + "; lastObservation=" + LastStockAttackObservation +
+                "; lastPlayerOperation=" + (LastPlayerOperationDetail ?? "<none>") + ".");
+        }
 
         private static bool WaitingInitiative(UnitEntityData unit) =>
             unit.CombatState != null && unit.IsInCombat && !unit.CombatState.CanActInCombat;

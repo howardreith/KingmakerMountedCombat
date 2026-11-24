@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R1-F9/F10: native start waits travel instead of striking; movement restrictions stay put", RealTimeStartWaitsTravel);
             runner.Run("R1-F7: the early approach is released through the exact own-move release", EarlyApproachRelease);
             runner.Run("R1-F13: a horse strike line separates no handle, unplayed, interrupted and fast playback", HorseStrikeLines);
+            runner.Run("R1-F11: the engagement line names the first point automatic engagement stopped", EngagementFirstStop);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -515,6 +516,15 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, restriction), "A movement restriction was overridden.");
             // Inside the pair's mount-origin reach (and line of sight) the pair waits without moving.
             TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, travelOk, outOfReach: false), "An in-reach pair kept moving.");
+        }
+
+        private static void EngagementFirstStop()
+        {
+            TestRunner.Equal("no-proposal", MountedEngagementDiagnostic.FirstStop(0, 0, 0, 0, 0, false, null), "An absent proposal was misnamed.");
+            TestRunner.Equal("refused:hold-out-of-reach", MountedEngagementDiagnostic.FirstStop(2, 2, 0, 0, 0, false, "hold-out-of-reach"), "A refusal lost its reason.");
+            TestRunner.Equal("accepted-not-dispatched", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 0, false, null), "A stalled accepted intent was misnamed.");
+            TestRunner.Equal("travelling", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 0, 1, false, null), "A travelling intent was misnamed.");
+            TestRunner.Equal("engaging", MountedEngagementDiagnostic.FirstStop(1, 0, 1, 1, 1, true, null), "An engaging pair was misnamed.");
         }
 
         private static void HorseStrikeLines()

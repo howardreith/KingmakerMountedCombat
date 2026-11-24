@@ -216,6 +216,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedStrikeReadinessPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseStrikeDiagnostic.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
