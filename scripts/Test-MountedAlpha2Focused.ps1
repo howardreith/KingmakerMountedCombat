@@ -11,6 +11,8 @@ param()
 #   1d. Test-MountedAlpha2LifecycleContract.ps1: review round 4 seams (native slot/queue acceptance, the carrier Hold write,
 #      the pre-start approach hook and untouched native start gate, the turn-based click probe and policy, the installed
 #      Character_Brain actions/considerations and the proposal ranking reader's brain fields).
+#   1e. Test-MountedAlpha2AttackPathHarness.ps1: reviews R3-F1/R4-F2/R4-F1 on the ACTUAL MountedPairAttackCommand approach/start
+#      members, MountedPairSingleAttack, the approach prefix, the click probe and the route revalidator (counterexamples and controls).
 #   1b. Test-MountedAlpha2Package.ps1: the receipt for the exact alpha ZIP named in docs/mounted-melee/package-identity.json
 #      (archive hash/size/entries, enclosed DLL hash/MVID, version, UMM minimum, icon, manifest commit, Validate-Package).
 #   1c. Test-MountedAlpha2SeatAttachment.ps1: MMR-01 (review R1-F12) the actual runtime attach/restore/replacement and
@@ -40,7 +42,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2BiteContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedAlpha2SeatAttachment.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2BiteContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedAlpha2SeatAttachment.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),
