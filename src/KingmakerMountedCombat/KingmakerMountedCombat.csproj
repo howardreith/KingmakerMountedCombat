@@ -578,6 +578,7 @@
     <Compile Include="Domain\HorseTripRepairPolicy.cs" />
     <Compile Include="Domain\MountedWorldWriteGate.cs" />
     <Compile Include="Domain\HorseStrikeDiagnostic.cs" />
+    <Compile Include="Domain\HorseStrikeHandleBinding.cs" />
     <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />

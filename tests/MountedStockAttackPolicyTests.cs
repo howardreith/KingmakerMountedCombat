@@ -30,7 +30,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
             runner.Run("R1-F4/F6: follow-through uses dispatch admission and the accepted kind; newer work keeps the horse out", FollowThroughEligibility);
-            runner.Run("R1-F13/R2-F4: the exact Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
+            runner.Run("R1-F13/R2-F4 (formatter only): the Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);

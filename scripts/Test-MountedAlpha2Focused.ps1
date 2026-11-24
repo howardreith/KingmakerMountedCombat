@@ -6,6 +6,8 @@ param()
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter and saved-horse
 #      repair-candidate predicate (owner-requested removal only) on genuine objects; the installed members the MMR-02 click admission, the MMR-04/05 readiness gate and the
 #      MMR-07 telemetry bind; the native horse animation bundle identity.
+#   1a. Test-MountedAlpha2BiteContract.ps1: MMR-07 (review R1-F13) the production Horse Bite handle binding and strike
+#      reader on genuine Kingmaker handle/action/manager objects, and the compiled postfix/OnAction wiring.
 #   1d. Test-MountedAlpha2LifecycleContract.ps1: review round 4 seams (native slot/queue acceptance, the carrier Hold write,
 #      the pre-start approach hook and untouched native start gate, the turn-based click probe and policy, the installed
 #      Character_Brain actions/considerations and the proposal ranking reader's brain fields).
@@ -38,7 +40,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedAlpha2SeatAttachment.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MountedAlpha2NativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2BiteContract.ps1'),@('Test-MountedAlpha2Package.ps1'),@('Test-MountedAlpha2SeatAttachment.ps1'),@('Test-MountedPresentationContracts.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

@@ -222,6 +222,8 @@
     <Compile Include="HorseTripRepairPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldWriteGate.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseStrikeDiagnostic.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseStrikeHandleBinding.cs" />
+    <Compile Include="HorseStrikeHandleBindingTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
