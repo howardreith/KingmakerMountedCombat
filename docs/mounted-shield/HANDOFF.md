@@ -130,7 +130,8 @@ historical `KMC_AUTOMATION_BASELINE`/`WORKING` pair with its qualification recor
 for the owner's own playtesting; the full native gameplay, persistence, compatibility and UI matrix is deferred to that
 playtest. See [PRIVATE-ALPHA.md](PRIVATE-ALPHA.md) for install, rollback, the playtest checklist and limitations.
 - **Source:** production `cc17fe36f6fca17bcb7fafccf331e611454a2e4f` (alpha version `0.2.16-alpha.1` from `c2ec676e`; replay-subscriber contract
-  in `8189d4da`; closure batch in `bb903669`; controller round-1 corrections in `6fb53633`). Later commits are records only.
+  in `8189d4da`; closure batch in `bb903669`; controller corrections in `6fb53633` (round 1), `fedb7008` (round 2) and
+  `cc17fe36` (round 3)). Later commits are records only.
 - **Controller:** final review round 1 on `d5fe3820`: `changes_required`, seven findings (R1-F1–F7), all corrected in
   `6fb53633`; round 2 on `39c5d755`: `changes_required`, R1-F2, R1-F6 (rejected fixes) and R2-F1, R2-F2, corrected in
   `fedb7008`; round 3 on `41a49a5b`: `changes_required`, R3-F1, corrected in `cc17fe36` (PRE_NATIVE_REVIEW.md, controller
