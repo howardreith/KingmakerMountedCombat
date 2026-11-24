@@ -388,3 +388,12 @@ Validate-Source 153/0, focused 18/18 incl. native contract 114/0, shield readers
 | R1-F6 | **Fixed:** the defense acts inside `RuleAttackRoll.OnTrigger` before the `IAttackHandler` event, so for every defense of a check row the native result and critical flag at the hit event and after the rule must equal the record's final ones (hit flags consistent); a negation must show Parried or Miss and no critical at the event too. Negatives: a natural negation exposing a confirmed critical at the event, a planned negation with only its event critical set; an ordinary-Miss negation control is accepted. |
 | R2-F1 | **Fixed:** the producer selects and the reader requires a native AC-miss result (`Miss`, `DodgeAC`, `ArmorAC`, `ShieldAC`) at the event and finally, with zero damage. Accepted rows for all four; negatives for MirrorImage, Concealment and damage. |
 | R2-F2 | **Fixed:** every active owner-facing reference (CURRENT.md, AUTONOMOUS-RESUME.md, HANDOFF section 0, PRIVATE-ALPHA.md) was populated from the final archive and manifest and read back: `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip`, SHA-256 `8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c`, 4,283,148 bytes, DLL `2822469373d20a47eaff21c305c8325329dfbc10f5138ea95ce46a8b9476fe41`, MVID `c4e178d8-355d-4a79-93ad-ff1af7cb7c7b`, Info.json 0.2.16-alpha.1 / ManagerVersion 0.31.1. Earlier identities stay only in dated historical entries. |
+
+## Controller final review, round 3 (on `41a49a5b`)
+
+`changes_required`. Verified: R1-F2, R1-F6, R2-F1, R2-F2. New: R3-F1, corrected in `cc17fe36` (controller focused gate PASS,
+91.9 s: components 1525/0, Validate-Source 153/0, focused 18/18 incl. shield readers 220/0, native contract 114/0).
+
+| ID | Disposition |
+| --- | --- |
+| R3-F1 | **Fixed:** the band miss must be an ordinary, non-automatic roll with a d20 from 2 to 19 (a natural 20 hits at any AC), in `ShieldBandMiss` and the reader. The ShieldAC 10 + 12 at AC 24 (+3 effective) control is accepted; the same total from 20 + 2 and an automatic roll refuse; the four AC-miss classifications still pass. Package and handoff identities refreshed from the `cc17fe36` archive: `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip`, SHA-256 `d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545`, 4,283,262 bytes, DLL `cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974`, MVID `103a44bc-6bd0-4ffa-b12f-a6d8318660b3`. |

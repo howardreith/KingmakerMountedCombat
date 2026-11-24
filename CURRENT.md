@@ -1,9 +1,9 @@
 # MOUNTED SHIELD PRIVATE ALPHA (2026-11-24, OWNER AMENDMENT 2, PR #61)
 
 The current milestone is a reviewable **private alpha** for the owner's own playtesting. Package
-`artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip` (SHA-256
-`8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c`), version `0.2.16-alpha.1`, DLL `28224693…` (MVID
-`c4e178d8…`), source `fedb7008`. Independent targeted recheck PASS on `bb903669`; controller round-1 and round-2 corrections in `6fb53633` and `fedb7008`; offline gates pass. **No native testing
+`artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip` (SHA-256
+`d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545`), version `0.2.16-alpha.1`, DLL `cab993f6…` (MVID
+`103a44bc…`), source `cc17fe36`. Independent targeted recheck PASS on `bb903669`; controller round-1 to round-3 corrections in `6fb53633`, `fedb7008` and `cc17fe36`; offline gates pass. **No native testing
 occurred** (zero guarded starts) and no test save was created; all gameplay, persistence, compatibility and UI acceptance is
 deferred to the owner's alpha playtest. Install, rollback, checklist and limitations:
 [docs/mounted-shield/PRIVATE-ALPHA.md](docs/mounted-shield/PRIVATE-ALPHA.md). Not a release; 0.2.15 remains the current

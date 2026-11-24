@@ -15,7 +15,7 @@ native qualification.
   types, and UMM binding checks against 0.31.1 and the installed 0.33.0). Offline only.
 - Package validation 11/0 and embedded-icon identity on this exact DLL.
 - Independent read-only code/safety review: PASS FOR GUARDED NATIVE TESTING on `bb903669` (no live use planned). The controller's
-  final review rounds 1 and 2 then required corrections, made in `6fb53633` and `fedb7008` (this source); its next round
+  final review rounds 1 to 3 then required corrections, made in `6fb53633`, `fedb7008` and `cc17fe36` (this source); its next round
   reviews them.
 - Not run: any game start (the no-save smoke was dropped because that path does not snapshot UMM settings), any save
   creation, any gameplay.
@@ -26,10 +26,10 @@ native qualification.
 | --- | --- |
 | Version | `0.2.16-alpha.1` (version.json, Info.json `Version`, `BuildIdentity.ProductVersion`; assembly version stays `0.1.0.0`) |
 | Loader | Info.json `ManagerVersion` `0.31.1` (build reference and declared minimum); installed native target UMM 0.33.0 unchanged |
-| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-fedb7008-diagnostic.zip`, SHA-256 `8c1c5ae99c03dc53eab0cb64cd4a6f67685b61af0d26aebddb32a798d08c653c`, 4,283,148 bytes |
-| DLL | `KingmakerMountedCombat.dll`, SHA-256 `2822469373d20a47eaff21c305c8325329dfbc10f5138ea95ce46a8b9476fe41`, MVID `c4e178d8-355d-4a79-93ad-ff1af7cb7c7b` |
+| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip`, SHA-256 `d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545`, 4,283,262 bytes |
+| DLL | `KingmakerMountedCombat.dll`, SHA-256 `cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974`, MVID `103a44bc-6bd0-4ffa-b12f-a6d8318660b3` |
 | Icon | one embedded `KingmakerMountedCombat.Assets.MountedShieldFeat.png`, SHA-256 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` |
-| Source | commit `fedb70086495599273824a500da3b2b5c7122c08` on `codex/mounted-shield` (draft PR #61) |
+| Source | commit `cc17fe36f6fca17bcb7fafccf331e611454a2e4f` on `codex/mounted-shield` (draft PR #61) |
 
 The packaging path names every package `…-diagnostic.zip` (repository convention for agent-built packages); the alpha
 identity is the version and this record.

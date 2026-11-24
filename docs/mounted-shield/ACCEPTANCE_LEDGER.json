@@ -1103,5 +1103,18 @@
       "version": "0.2.16-alpha.1"
     },
     "reason": "Controller final review round 2 corrections (R1-F2, R1-F6, R2-F1, R2-F2 in fedb7008); native parts still deferred to the owner's private-alpha playtest; no native work."
+  },
+  "continuation_15": {
+    "recorded": "2026-11-24",
+    "candidate_source": "cc17fe36f6fca17bcb7fafccf331e611454a2e4f",
+    "candidate_dll_sha256": "cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974",
+    "candidate_dll_mvid": "103a44bc-6bd0-4ffa-b12f-a6d8318660b3",
+    "package": {
+      "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip",
+      "sha256": "d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545",
+      "bytes": 4283262,
+      "version": "0.2.16-alpha.1"
+    },
+    "reason": "Controller final review round 3 correction (R3-F1 in cc17fe36); native parts still deferred to the owner's private-alpha playtest; no native work."
   }
 }
