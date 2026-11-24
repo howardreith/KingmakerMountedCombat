@@ -39,6 +39,8 @@ Its module MVID is `230caa64-1cae-4f42-a86c-8f16b5faba9e`, length 204288 bytes, 
 
 ## Compatibility matrix and remaining checks
 
+*Dated 2026-11-23 (source checkpoint, history). Current status, results and native prerequisites: `CURRENT.md`.*
+
 | Runtime target | Evidence available for this checkpoint | Remaining |
 | --- | --- | --- |
 | 0.31.1, primary | Genuine package and DLL hashes verified; exact loader metadata available | Compile both products; bind every referenced UMM member; focused native startup/settings/toggle/mount/save-reload |
@@ -125,6 +127,28 @@ Not run: native game execution on any loader. The native harness targets the ins
   build (pins, verifier, MSBuild guard, project files, cached loader bytes).
 - Results are in CURRENT.md; `Test-PackageAdmissionAndReuse` exercises the standalone validators on real packages built in
   a disposable lab (including the released 0.2.15 DLL compiled against UMM 0.33.0.0), runtime admission and reuse.
+
+## Review round 3 (2026-11-24)
+
+- **Final compiler-input check.** `LoaderReferences.Final.targets`, imported by both projects after
+  `Microsoft.CSharp.targets` (so after `Directory.Build.targets` and any other repository-level hook), holds the
+  `BeforeTargets="CoreCompile"` check. A repository hook at the same boundary that rewrites the list is refused for both
+  projects. The two loader files are re-hashed by `Get-PinnedLoaderReferences.ps1 -VerifyCompilerInputs` against the
+  parsed pin file, so a valid reformatted or reordered pin file is accepted.
+- **One pin parser.** `scripts/LoaderPins.ps1` (`Read-KmcLoaderPinDefinition`) validates the pin definition offline. It
+  checks exactly the two canonical records, unique names, string fields through their end, paired archive fields, and that
+  the minimum equals the pinned UnityModManager version. The acquisition helper, the compiler check and both standalone
+  validators use it, so a missing, duplicated or mismapped pin is refused without a cache.
+- **One package measurement.** The launcher measures each package once with its standalone validator and passes that
+  result to the common and the normal-player observer admissions. Both compare package and DLL SHA-256, MVID, product
+  version and entries.
+- **Runtime profile at the launcher.** `Resolve-KmcRuntimeLoaderProfileForEnvironment` resolves the selected profile
+  against the measured installed loader before admission. The profile is passed to the native inventory and the result
+  reader, and recorded in the admission receipt. With a selected profile, UnityModManager and Harmony 2 are verified even
+  when no native-cache or shared-state observation appears. Profiles state their native eligibility.
+- **Reuse.** The build receipt binds compiled sources and output bytes (both DLLs and the component runner). Fast,
+  Candidate and Full check it first, and plan mode lists the check.
+- Records: `loader-profile-inventory.json` is restored, and the evidence index names the producer of every file.
 
 No version bump, merge, release, permanent installation, loader replacement or human-save operation occurred.
 The independent Mounted Shield draft PR 61 remains separate; it should consume the agreed baseline when this

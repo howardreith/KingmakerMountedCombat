@@ -6,44 +6,74 @@ pinned UnityModManager 0.31.1.0 and 0Harmony12 1.2.0.1 (`scripts/loader-referenc
 `scripts/Get-PinnedLoaderReferences.ps1` into ignored `obj/loader-references`; never the installed loader, never packaged).
 PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#reconciliation-with-pr-63-and-windows-validation-2026-11-24)).
 
-**Entry points.** `scripts/Build-Local.ps1` (acquire, build, record the loader-input identity);
-`scripts/Package.ps1 [-IncludeRemovalObserver] -ArtifactQualifier <q>` and `scripts/Package-Observer.ps1` (qualification
-packages and standalone validation); `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1` (any ZIP);
-`scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>` (the controller gate; `-SkipBuild` reuses outputs only
-while the loader inputs are unchanged). Runtime checks select a loader profile (`planning/UMM-LOADER-PROFILES.json`,
-`runtime`), default the measured owner installation.
+**Entry points (current).**
+- `scripts/Build-Local.ps1`: acquire the pins, build, and write the build receipt.
+- `scripts/Package.ps1 -IncludeRemovalObserver -ArtifactQualifier <q>`: one build packages and validates both products.
+  `scripts/Package-Observer.ps1` packages the observer alone.
+- `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1`: validate any ZIP.
+- `scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>`: the controller gate.
+  - `-SkipBuild` reuses outputs only while the build receipt (`bin/<cfg>/.loader-input-stamp`) is current. The receipt
+    covers the loader pins and their parser and verifier, both MSBuild loader targets, project files, every compiled
+    source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both DLLs
+    and the component runner.
+  - Fast, Candidate and Full check the receipt first, and `-Plan` lists that check.
+- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 [-RuntimeLoaderProfileId <id>]`: the guarded native launcher. It
+  resolves the profile against the measured installed loader before any admission (default `umm-0.33.0`, the owner
+  installation; `umm-0.31.1` is refused here) and records it in the admission receipt.
 
-**Candidate (source `f5a9f386`; later commits are documentation and evidence).**
+**Candidate (source `11df053b`; later commits are documentation and evidence).** Both DLLs are byte-identical to the
+round-2 candidate (`f5a9f386`): only build, validation and test scripts changed.
 
-| Product | DLL SHA-256 / MVID | Loader references | Package (qualifier `umm-0311-f5a9f386`) | Validator |
+| Product | DLL SHA-256 / MVID | Loader references | Package (qualifier `umm-0311-11df053b`) | Validator |
 | --- | --- | --- | --- | --- |
-| Mounted Combat | `d20474bf…756d` / `9db1be50-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `1d2c9240…aaa1` | 12/12 |
-| Removal observer | `f9697f91…1958` / `a5e1bb2f-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `5944cc74…11d9` | 8/8 |
+| Mounted Combat | `d20474bf…756d` / `9db1be50-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `89352f07…f78c` | 12/12 |
+| Removal observer | `f9697f91…1958` / `a5e1bb2f-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `43c5fc82…99ed` | 8/8 |
 
-Records: [`docs/evidence/umm-0311/`](docs/evidence/umm-0311/INDEX.md) (package and observer validation and manifests,
-both API audits, MSBuild and package-boundary tests, loader profiles).
+Records: [`docs/evidence/umm-0311/`](docs/evidence/umm-0311/INDEX.md). The index names the producer of every file.
 
 **Static API audit (both packaged DLLs).** Every UnityModManager and 0Harmony12 member each DLL binds resolves, by name and
 decoded signature, on UMM 0.31.1, 0.32.4, the owner's installed 0.33.0 and 0.33.4 (mod: 14 types/42 members; observer: 8
-types/20 members). Tool: the LoaderApiAudit sources committed as `loader-api-audit-Program.cs.txt` and
-`loader-api-audit-csproj.txt` (.NET 8; `dotnet build -c Release`, then
+types/20 members). The audit was recorded for the same DLL bytes at `f5a9f386` and is reused. Tool: the LoaderApiAudit
+sources committed as `loader-api-audit-Program.cs.txt` and `loader-api-audit-csproj.txt` (.NET 8;
+`dotnet build -c Release`, then
 `LoaderApiAudit.exe --mod <dll> --json <out> --assemblies UnityModManager,0Harmony12,0Harmony --profile "<id>=<UnityModManager.dll>;<0Harmony.dll>;<0Harmony12.dll>"`
 per profile). Profiles 0.31.1/0.32.4/0.33.4 are component-assembled from the author's NuGet packages; 0.33.0 is the
-owner's installed loader (`loader-profiles.md`). Static evidence only.
+owner's installed loader (`loader-profiles.md`). The full measured inventory of the four profiles, with the owner's
+extra `0Harmony-1.2.dll`, is `loader-profile-inventory.json` (measured for `272238ce`). Static evidence only.
 
-**Offline checks.** Component tests 153/153 (source count); Validate-Source 153/153; `Test-PinnedLoaderMsBuild` 9/9;
-`Test-PackageAdmissionAndReuse` 24/24; `Test-FrozenProductSource` 28/28; `Test-Chunk7NativeLoaderContracts` 107/107;
-`Test-UmmLoaderContractChecks` 22 passed with 4 unassessed inputs; `Test-Harness` 280 passed, 3 failed — the same three
-fail on the pre-reconciliation commit `a61c1a5c` (two need deleted Phase 3E artifacts, one composition-boundary check),
-so they are pre-existing and unrelated to this change.
+**Offline checks on `11df053b`.**
 
-**Native (not run on any row).**
+| Check | Result |
+| --- | --- |
+| `Test-PinnedLoaderMsBuild` | 12/12 |
+| `Test-PackageAdmissionAndReuse` | 45/45 |
+| `Test-FrozenProductSource` | 28/28 |
+| `Test-Chunk7NativeLoaderContracts` | 116/116 |
+| `Test-UmmLoaderContractChecks` | 23 passed, 2 unassessed inputs |
+| `Test-Harness` | not a qualifying run: 222 passed, 61 failed (below) |
+
+`Test-Harness` refuses runtime cases while any Kingmaker process exists, and another session's disposable game copy was
+running throughout. Its 61 failures:
+
+| Count | Cause |
+| --- | --- |
+| 42 | refused because a Kingmaker process was running |
+| 15 | refused on a fixture lock left by an earlier case that was itself refused |
+| 1 | follows those refusals (needs a rerun) |
+| 3 | the pre-existing failures (two need deleted Phase 3E artifacts, one composition-boundary check) |
+
+The last complete run is `f5a9f386`: 280 passed, 3 failed, the same three as on the pre-reconciliation commit `a61c1a5c`.
+Rerun `Test-Harness` without a game process before relying on it for this candidate.
+
+**Native (not run on any row).** The guarded launcher stages into the live installation's Mods folder under a
+transactional restore. This mission authorizes native runs only through approved disposable harnesses, and this
+repository has none that copies the game.
 
 | Loader | Prerequisite for a native row |
 | --- | --- |
-| 0.33.0 (installed, the default runtime profile) | A guarded native run of this candidate: the existing harness admits this profile; none was run for this change. |
-| 0.31.1 (baseline) | A guarded environment with the 0.31.1 loader and its Harmony 2.3.1.1 (the `runtime` profile record exists; the installed loader is 0.33.0). |
-| 0.32.4, 0.33.4 | A reviewed runtime profile with exact UMM and Harmony identities, then a guarded environment. |
+| 0.33.0 (installed, the default runtime profile) | A disposable game-copy harness for this repository, or the owner's explicit authorization for a guarded live-installation run. |
+| 0.31.1 (baseline) | That, plus an environment whose installed loader is 0.31.1 with Harmony 2.3.1.1. The `runtime` profile record exists; the launcher refuses the profile while the installed loader is 0.33.0. |
+| 0.32.4, 0.33.4 | A reviewed runtime profile with exact UMM and Harmony identities, then a guarded disposable environment. |
 
 Combined mod stacks: not run for this candidate. Historical native records keep their original 0.28.2/0.33.2 identities.
 No release, merge, installation, loader replacement or save mutation is part of this checkpoint.
