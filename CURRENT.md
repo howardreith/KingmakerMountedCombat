@@ -50,20 +50,12 @@ extra `0Harmony-1.2.dll`, is `loader-profile-inventory.json` (measured for `2722
 | `Test-FrozenProductSource` | 28/28 |
 | `Test-Chunk7NativeLoaderContracts` | 116/116 |
 | `Test-UmmLoaderContractChecks` | 23 passed, 2 unassessed inputs |
-| `Test-Harness` | not a qualifying run: 222 passed, 61 failed (below) |
+| `Test-Harness` | 280 passed, 3 failed |
 
-`Test-Harness` refuses runtime cases while any Kingmaker process exists, and another session's disposable game copy was
-running throughout. Its 61 failures:
-
-| Count | Cause |
-| --- | --- |
-| 42 | refused because a Kingmaker process was running |
-| 15 | refused on a fixture lock left by an earlier case that was itself refused |
-| 1 | follows those refusals (needs a rerun) |
-| 3 | the pre-existing failures (two need deleted Phase 3E artifacts, one composition-boundary check) |
-
-The last complete run is `f5a9f386`: 280 passed, 3 failed, the same three as on the pre-reconciliation commit `a61c1a5c`.
-Rerun `Test-Harness` without a game process before relying on it for this candidate.
+The three `Test-Harness` failures are the pre-existing ones, the same on `f5a9f386` and the pre-reconciliation commit
+`a61c1a5c`: two need deleted Phase 3E artifacts, and one is a composition-boundary check. An earlier run while another
+session's disposable game copy was running did not qualify (222/61), because Test-Harness refuses runtime cases while a
+Kingmaker process exists.
 
 **Native (not run on any row).** The guarded launcher stages into the live installation's Mods folder under a
 transactional restore. This mission authorizes native runs only through approved disposable harnesses, and this
