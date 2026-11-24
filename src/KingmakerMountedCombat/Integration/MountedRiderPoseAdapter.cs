@@ -33,6 +33,10 @@ namespace KingmakerMountedCombat.Integration
                 saddleSource.IsChildOf(saddleMountRoot));
 
         public long AnimatedSaddleSampleCount { get; private set; }
+        // MMR-01 diagnostics: the rider pose's own pelvis-to-source vector at attachment, and whether the declared basis
+        // replaced it (KingmakerMountedPairRuntime's seat line reports both).
+        public PoseVector3 CalibrationObservedSeatFromSource { get; private set; }
+        public bool CalibrationUsedDeclaredSeat { get; private set; }
         public double MaximumAnimatedSeatError { get; private set; }
         public Vector3 LastAnimatedSeatPosition { get; private set; }
 
@@ -151,7 +155,8 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection, bool seatIsFixedFromSource = false)
+        public void ConfigureAnimatedSaddle(Transform exactMountRoot, Transform exactSource, Vector3 anatomicalCorrection, bool seatIsFixedFromSource = false,
+            PoseVector3? declaredSeatFromSource = null)
         {
             if (!configured || exactMountRoot == null || exactSource == null ||
                 !exactSource.IsChildOf(exactMountRoot))
@@ -167,7 +172,13 @@ namespace KingmakerMountedCombat.Integration
                 if (seatIsFixedFromSource)
                     animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
                 else
-                    animatedSaddle.Acquire(source, ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)), ToPose(anatomicalCorrection));
+                {
+                    var observed = ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position));
+                    CalibrationObservedSeatFromSource = observed - source;
+                    animatedSaddle.Acquire(source, AnimatedSaddleCalibration.CalibrationPelvis(source, observed, declaredSeatFromSource),
+                        ToPose(anatomicalCorrection));
+                    CalibrationUsedDeclaredSeat = declaredSeatFromSource.HasValue;
+                }
             });
             animatedSaddleRequired = true;
         }

@@ -211,6 +211,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargePolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRequestPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddlePosition.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddleCalibration.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />

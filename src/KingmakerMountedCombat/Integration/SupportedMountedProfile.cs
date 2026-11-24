@@ -44,6 +44,11 @@ namespace KingmakerMountedCombat.Integration
         public PoseVector3 AnimatedSeatCorrection { get; }
         public bool UsesAnimatedSaddle { get; }
         public DeclaredSmallRiderBody SmallRiderBody { get; }
+        // MMR-01: the Horse seat is calibrated from a declared basis, not the rider's pose at attachment (Domain/
+        // AnimatedSaddleCalibration.cs). Null keeps the observed sample.
+        public PoseVector3? DeclaredSeatFromSource =>
+            BlueprintGuid == SupportedMountedProfiles.HorseBlueprintGuid && Id == "medium-humanoid-horse-v1"
+                ? AnimatedSaddleCalibration.MediumHumanoidHorseSeatFromSource : (PoseVector3?)null;
 
         internal static SupportedMountedProfile FromDeclaredSmall(DeclaredSmallMountedProfile declared)
         {

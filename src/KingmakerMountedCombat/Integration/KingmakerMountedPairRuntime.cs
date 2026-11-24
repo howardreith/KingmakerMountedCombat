@@ -550,7 +550,8 @@ namespace KingmakerMountedCombat.Integration
             if (supportedProfile.UsesAnimatedSaddle)
             {
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
-                    ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null);
+                    ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null,
+                    supportedProfile.DeclaredSeatFromSource);
                 if (supportedProfile.SmallRiderBody != null)
                 {
                     poseAdapter.CompensateMountScale(positionAnchor);
@@ -996,6 +997,8 @@ namespace KingmakerMountedCombat.Integration
                 ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
                 ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
                 ";seatGeometry={" + (poseAdapter?.ObserveSeatGeometry() ?? "unavailable") + "}" +
+                ";seatCalibration=" + (poseAdapter == null ? "<none>" : (poseAdapter.CalibrationUsedDeclaredSeat ? "declared" : "observed") +
+                    ";observedSeatFromSource=" + poseAdapter.CalibrationObservedSeatFromSource) +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

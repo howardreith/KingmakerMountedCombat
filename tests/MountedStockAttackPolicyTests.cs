@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
+            runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -423,6 +424,38 @@ namespace KingmakerMountedCombat.Tests
                 var repeat = saddle.Project(sample);
                 TestRunner.True((repeat - projected).Magnitude < 0.00001f, "Repeated phase accumulated translation.");
             }
+        }
+
+        private static void AnimatedSaddleDeclaredHorseBasis()
+        {
+            // Measured preview.3 sample: the basis HorseAnimatedSeatCorrection was tuned against.
+            var chest = new PoseVector3(0f, 1.5024f, 0.4674f);
+            var idlePelvis = new PoseVector3(-0.1892f, 2.3625f, 0.4849f);
+            // A first-mount sample taken mid-cast or while an approach walk blends out: pelvis higher and displaced.
+            var castPelvis = new PoseVector3(-0.05f, 2.6125f, 0.60f);
+            var declared = (PoseVector3?)AnimatedSaddleCalibration.MediumHumanoidHorseSeatFromSource;
+            PoseVector3 Seat(PoseVector3 observed, PoseVector3? basis, PoseVector3 animatedChest)
+            {
+                var saddle = new AnimatedSaddlePosition();
+                saddle.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, observed, basis), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+                return saddle.Project(animatedChest);
+            }
+            var accepted = Seat(idlePelvis, null, chest);
+            foreach (var animatedChest in new[] { chest, new PoseVector3(0.03f, 1.62f, 0.41f) })
+            {
+                var first = Seat(castPelvis, declared, animatedChest);
+                var remount = Seat(idlePelvis, declared, animatedChest);
+                TestRunner.True((first - remount).Magnitude < 0.00001f, "First mount and remount calibrated different Horse seats.");
+            }
+            TestRunner.True((Seat(castPelvis, declared, chest) - accepted).Magnitude < 0.0005f, "The declared Horse basis moved the accepted seat.");
+            // Without a declaration (Mammoth) the observed sample is retained: the pose-dependent height the Horse no longer takes.
+            TestRunner.True(Seat(castPelvis, null, chest).Y - accepted.Y > 0.2f, "The observed path no longer reflects its sample.");
+            // Release and reacquire through the same policy inherit nothing.
+            var reused = new AnimatedSaddlePosition();
+            reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, null), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+            reused.Release();
+            reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+            TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
         }
 
         private static void AnimatedSaddleCleanup()
