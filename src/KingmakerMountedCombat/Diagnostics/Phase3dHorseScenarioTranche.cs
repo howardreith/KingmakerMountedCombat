@@ -6198,6 +6198,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            // Sprint 6 and Mounted Shield diagnostic hooks and fixture, on every interruption path (supplemental review PN13-F1).
+            try { TerminateSprint6Fixture(); }
+            catch (Exception exception) { AddCleanupError("Sprint 6 hooks and Mounted Shield fixture", exception); }
             if (IsChunk6bCharge)
             {
                 MountedChargeAdmissionFault.AfterQueue = null;

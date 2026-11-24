@@ -258,6 +258,9 @@ function Assert-KmcShieldEstablishedRider($Measure,$Pairs,$X){
  $known=@{ ([string]$Measure.mount)=[string]$Measure.rider }
  if($null -ne $Pairs){ $known[[string]$Pairs.steps.bothSecond.mount]=[string]$Pairs.steps.bothSecond.rider }
  if($known.ContainsKey([string]$X.mountId) -and $known[[string]$X.mountId] -cne [string]$X.rider){ throw 'Mounted Shield a rider defended a mount established for another rider' }
+ # Both directions (review PN13-F4): a known rider pays only to defend its own established mount.
+ $mountOf=@{}; foreach($k in $known.Keys){ $mountOf[$known[$k]]=$k }
+ if($mountOf.ContainsKey([string]$X.rider) -and $mountOf[[string]$X.rider] -cne [string]$X.mountId){ throw 'Mounted Shield a known rider paid to defend another target than its own mount' }
 }
 function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
  $plans=$script:KmcShieldPlans[$Case]; $planned=Get-KmcShieldProperty $E 'plannedAttempts'; $steps=Get-KmcShieldProperty $E 'stepRecords'
@@ -279,8 +282,10 @@ function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
      ($x.stateAfter | ConvertTo-Json -Compress) -cne ($x.stateBefore | ConvertTo-Json -Compress)){ throw ('Mounted Shield '+$Case+': a refused defense changed the hit or the rider''s Swift, window, use or debt') }
    # The bound native attack itself still hits, keeps its critical state and deals its damage (review PN12-F2).
    $rule=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
-   if($rule.isHitAtEvent -ne $true -or $rule.isHitAfterRule -ne $true -or [string]$rule.resultAfterRule -cne [string]$rule.resultAtEvent -or [string]$rule.resultAtEvent -cmatch '^(Parried|Miss)$' -or
-     [bool]$x.criticalAfter -ne [bool]$x.criticalBefore -or [int]$rule.damageRules -lt 1){ throw ('Mounted Shield '+$Case+': a refused defense''s native hit did not stand') }
+   # The native result and critical state equal the refusal's prestate at the hit event and after the rule (review PN13-F2).
+   if($rule.isHitAtEvent -ne $true -or $rule.isHitAfterRule -ne $true -or [string]$rule.resultAtEvent -cne [string]$x.resultBefore -or [string]$rule.resultAfterRule -cne [string]$x.resultBefore -or
+     [string]$rule.resultAtEvent -cmatch '^(Parried|Miss)$' -or [bool]$rule.criticalAtEvent -ne [bool]$x.criticalBefore -or [bool]$x.criticalAfter -ne [bool]$x.criticalBefore -or
+     [int]$rule.damageRules -lt 1){ throw ('Mounted Shield '+$Case+': a refused defense''s native hit did not stand') }
   }
  }
 }
@@ -292,7 +297,9 @@ function Get-KmcShieldCheckRow($Measure,$R){
  $index=-1; for($i=0;$i -lt $attempted.Count;$i++){ if([string]$attempted[$i].ruleIdentity -ceq [string]$R.ruleIdentity){ $index=$i } }
  if($index -lt 0 -or $index -ge $checks.Count){ throw 'Mounted Shield a recorded check has no observed native roll' }
  $row=$checks[$index]
- if([int]$row.result -ne [int]$R.checkResult -or [int]$row.d20 -ne [int]$R.checkD20 -or [int]$row.dc -ne [int]$R.checkDc){ throw 'Mounted Shield the paired native roll is not this attempt''s roll' }
+ # The native roll's own stat, aggregate bonus and arithmetic, not only the service's copy (review PN13-F3).
+ if([int]$row.result -ne [int]$R.checkResult -or [int]$row.d20 -ne [int]$R.checkD20 -or [int]$row.dc -ne [int]$R.checkDc -or [int]$row.stat -ne [int]$R.checkStat -or
+   [int]$row.bonus -ne [int]$R.checkBonus -or [int]$row.result -ne [int]$row.d20+[int]$row.stat+[int]$row.bonus){ throw 'Mounted Shield the paired native roll is not this attempt''s roll' }
  $row
 }
 # The use was actually committed (supplemental review PN5-F8), not only labeled: the Sprint 6 state and cooldown evidence.
@@ -348,7 +355,9 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  $cc=(Get-KmcShieldAttackContext $Measure ([string]$r.ruleIdentity) 'the check under a stronger shield').context
  if([int]$cc.ownedCount -ne 1 -or [int]$cc.owned -ne 3 -or [int]$cc.otherShield -ne 4 -or [int]$cc.effective -ne 0){ throw 'Mounted Shield the competing +4 did not cover the AC of the checked attack' }
  Assert-KmcShieldRecord $r 'check under a stronger shield' $Measure; Assert-KmcSprint6Negated $Measure $r 'Mounted Shield check under a stronger shield'
- if([int]$E.unrelatedMobility.bonus -ne 0 -or [int]$E.unrelatedMobility.stat -ne [int]$E.unrelatedMobility.displayed){ throw 'Mounted Shield an unrelated Mobility check received an addition' }
+ # No Mounted Shield contribution to the unrelated check (its own observed KMC modifiers below); ordinary native modifiers are
+ # allowed (review PN13-F3).
+ if([int]$E.unrelatedMobility.stat -ne [int]$E.unrelatedMobility.displayed){ throw 'Mounted Shield an unrelated Mobility check received an addition' }
  $unrelatedRow=@($Measure.skillChecks | Where-Object { [int]$_.frame -eq [int]$E.unrelatedMobility.frame -and [int]$_.dc -eq [int]$E.unrelatedMobility.dc })
  if($unrelatedRow.Count -ne 1 -or [int]$unrelatedRow[0].kmcShieldModifiers -ne 0){ throw 'Mounted Shield an unrelated Mobility roll held a Mounted Shield modifier' }
  # Every attempted real-time use on this row, planned or natural, is a real-time window with exactly one Swift charge from an

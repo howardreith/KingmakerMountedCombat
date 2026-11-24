@@ -162,6 +162,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Sprint6Shield) s6Rules.TargetAcContext = ShieldAcContext;
             s6Service.Observed += Sprint6Observed;
             s6Service.ScenarioCheckTotal = Sprint6PlannedTotal;
+            s6Service.ScenarioLegalDieOnly = Sprint6Shield;
             s6Measure = new JObject { ["contract"] = "native-mounted-combat-feat-v1", ["mode"] = Sprint6Tb ? "TB" : "RT", ["rider"] = rider.UniqueId, ["mount"] = horse.UniqueId,
                 ["mountBlueprint"] = horse.Blueprint.AssetGuid, ["cases"] = new JArray(Sprint6Cases), ["records"] = s6Records, ["attackRules"] = s6Rules.Attacks, ["skillChecks"] = s6Rules.SkillChecks,
                 ["checkD20IsControlled"] = true, ["experienceIsDisclosedSetup"] = true,
@@ -175,14 +176,34 @@ namespace KingmakerMountedCombat.Diagnostics
             ResetLeafClock();
         }
 
+        // The diagnostic roll hook, its plan and the rule observer, detached first on every terminal path, whatever the fixture
+        // equipment's state (supplemental review PN13-F1).
+        private void DetachSprint6Hooks()
+        {
+            if (s6Service != null) { s6Service.ScenarioCheckTotal = null; s6Service.ScenarioLegalDieOnly = false; s6Service.Observed -= Sprint6Observed; s6Service = null; }
+            if (s6Rules != null) { s6Rules.Dispose(); s6Rules = null; }
+            ClearSprint6ShieldPlan();
+        }
+
+        // An interrupted scenario (the parent's continuity failure or an external disposal) never reaches the polling drain: the
+        // hooks are detached, then the shield fixture is drained best-effort; what could not be released stays in custody
+        // (the equipment record keeps the originals) and is reported (supplemental review PN13-F1).
+        private void TerminateSprint6Fixture()
+        {
+            DetachSprint6Hooks();
+            for (var attempt = 0; attempt < 3 && !DrainSprint6ShieldFixture(); attempt++) { }
+            var drain = s9Measure?["drain"] as JObject;
+            if (drain != null && drain.Value<bool?>("clean") != true)
+                errors.Add("Mounted Shield fixture residue after interruption: " + drain.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
         private JObject CaptureSprint6DeadlineProgress() => new JObject { ["stage"] = s6Stage, ["step"] = s6Step, ["caseIndex"] = s6CaseIndex,
             ["case"] = s6CaseIndex < Sprint6Cases.Length ? Sprint6Case : null, ["plan"] = s6NextPlan, ["facts"] = s6Facts?.DeepClone(), ["records"] = s6Records?.DeepClone(), ["state"] = Sprint6State(rider) };
 
         private bool DrainSprint6Fixture()
         {
+            DetachSprint6Hooks();
             if (!DrainSprint6ShieldFixture()) return false;
-            if (s6Service != null) { s6Service.ScenarioCheckTotal = null; s6Service.Observed -= Sprint6Observed; s6Service = null; }
-            if (s6Rules != null) { s6Rules.Dispose(); s6Rules = null; }
             var second = s6Owner == null ? null : relationship.World.Registry.FindActive(s6Owner)?.Boundary;
             if (second?.State == RelationshipState.Mounted)
             {

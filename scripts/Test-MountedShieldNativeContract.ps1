@@ -379,7 +379,7 @@ Check ($withOther.Result -eq 23 -and $withOther.Bonus -eq 5 -and $withOther.Nega
 $controlled = KmcType 'KingmakerMountedCombat.Integration.MountedCombatDefenseService+ControlledSkillCheck'
 $rollD20 = $controlled.GetMethod('RollD20', $any)
 function Planned([int]$Attack, [int]$Total, [int]$Stat, [int]$Shield, [int]$Other) {
-    $check = @($controlled.GetConstructors($any))[0].Invoke(@($null, ($Attack + 1), $Total))
+    $check = @($controlled.GetConstructors($any))[0].Invoke(@($null, ($Attack + 1), $Total, $true))
     if ($Other -ne 0) { [void]$addOther.Invoke($check.Bonus, @($Other, $null, 'other check bonus', (Descriptor 'Competence'))) }
     if ($Shield -gt 0) { [void]$addCheck.Invoke($null, @($check, $Shield, $riderFact)) }
     $checkType.GetProperty('StatValue').GetSetMethod($true).Invoke($check, @($Stat)) | Out-Null
@@ -400,6 +400,10 @@ $dieArgs = [object[]]@(35, 10, 3, 0); $unreachable = [bool]$plannedDie.Invoke($n
 Check (-not $unreachable -and [int]$dieArgs[3] -eq 22) 'an equality total needing a 22 is unattainable and is not injected'
 $penalised = Planned 30 30 10 3 -2
 Check ($penalised.Result -eq 30 -and $penalised.D20 -eq 19 -and -not $penalised.Negates) 'the production check reaches the planned equality with the native -2 inside the roll (die 19)'
+# PN13-F5: the legal-die guard is the Mounted Shield rows' request; the historical Sprint 6 rows keep their recorded behavior.
+$legacy = @($controlled.GetConstructors($any))[0].Invoke(@($null, 36, 36, $false))
+$checkType.GetProperty('StatValue').GetSetMethod($true).Invoke($legacy, @(10)) | Out-Null
+Check ([int]$rollD20.Invoke($legacy, @()) -eq 26) 'without the legal-die request the historical Sprint 6 injection is unchanged (die 26 for 36 against Mobility 10)'
 
 # 2e. Three-feat publication on genuine selection blueprints.
 function Feature-Array([object[]]$Items) { $array = [Array]::CreateInstance($featureType, $Items.Count); for ($i = 0; $i -lt $Items.Count; $i++) { $array.SetValue($Items[$i], $i) }; , $array }
@@ -454,6 +458,12 @@ Check ($disable -ge 0 -and $suspend -gt $disable -and $stopped -gt $suspend) 'th
 $enable = Calls ($rootType.GetMethod('SetEnabled', $any))
 $resume = At $enable 'HorseCompanionBlueprintService.ResumeMountedShieldOffers'; $selection = At $enable 'HorseCompanionBlueprintService.SetSelectionEnabled'
 Check ($resume -gt $selection -and @($enable | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -eq 1) 'only the explicit enable resumes the offers, after its selection transaction succeeds'
+# PN13-F1: every interruption path detaches the roll hook and observers before the shield fixture drain.
+$tranche = KmcType 'KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche'
+$best = Calls ($tranche.GetMethod('BestEffortCleanup', $any)); $terminate = Calls ($tranche.GetMethod('TerminateSprint6Fixture', $any)); $detach = Calls ($tranche.GetMethod('DetachSprint6Hooks', $any))
+Check ((At $best 'Phase3dHorseScenarioTranche.TerminateSprint6Fixture') -ge 0) 'the interruption cleanup (BestEffortCleanup) terminates the Sprint 6 hooks and shield fixture'
+Check ((At $terminate 'Phase3dHorseScenarioTranche.DetachSprint6Hooks') -ge 0 -and (At $terminate 'Phase3dHorseScenarioTranche.DetachSprint6Hooks') -lt (At $terminate 'Phase3dHorseScenarioTranche.DrainSprint6ShieldFixture')) 'the hooks are detached before the shield fixture drain'
+Check ((At $detach 'MountedCombatDefenseService.set_ScenarioCheckTotal') -ge 0 -and (At $detach 'Sprint6RuleObserver.Dispose') -ge 0 -and (At $detach 'Phase3dHorseScenarioTranche.ClearSprint6ShieldPlan') -ge 0) 'detaching clears the roll hook, disposes the rule observer and clears the armed plan'
 
 # 2g. The gameplay driver's setup custody (supplemental review PN5-F3) on a genuine stat whose change callback throws: the
 # write installs the modifier and throws before a handle returns, and the obligation still finds it, removes it through the

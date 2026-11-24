@@ -310,6 +310,8 @@ namespace KingmakerMountedCombat.Diagnostics
             s6Step = step; s6BoundStep = step; s6BoundAt = Time.time; s6StrikesThisStep = 0; s6AttemptsAtStep = s6Records.Count;
         }
 
+        private void ClearSprint6ShieldPlan() { s9Plan.Clear(); s9PlanStep = -1; }
+
         private void ShieldDisarm()
         {
             s9Plan.Clear(); s9PlanStep = -1;

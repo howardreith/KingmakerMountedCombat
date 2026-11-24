@@ -74,6 +74,9 @@ namespace KingmakerMountedCombat.Integration
         // chosen inside the native roll, after the stat value and every bonus (Mounted Shield's included) are fixed, so the
         // planned total is the check's actual RollResult. Null in ordinary play.
         internal Func<MountedCombatDefenseRecord, int?> ScenarioCheckTotal { get; set; }
+        // The diagnostic caller asks that a planned total be injected only through a legal d20 (the Mounted Shield rows,
+        // supplemental reviews PN12-F1, PN13-F5). Off, the historical Sprint 6 rows keep their recorded behavior unchanged.
+        internal bool ScenarioLegalDieOnly { get; set; }
         internal event Action<MountedCombatDefenseRecord> Observed;
 
         internal MountedCombatDefenseService(HorseCompanionBlueprintService blueprints, MountedWorldService world, MountedShieldService mountedShield,
@@ -171,7 +174,7 @@ namespace KingmakerMountedCombat.Integration
             // The DC is the first passing result, so the native pass/fail and its log line agree with the strict rule.
             // The game's difficulty setting adjusts other DCs, not an attack result.
             var dc = record.AttackResult + 1;
-            var check = planned.HasValue ? new ControlledSkillCheck(rider, dc, planned.Value) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
+            var check = planned.HasValue ? new ControlledSkillCheck(rider, dc, planned.Value, ScenarioLegalDieOnly) : new RuleSkillCheck(rider, StatType.SkillMobility, dc);
             check.IgnoreDifficultyBonusToDC = true;
             // Mounted Shield: the rider's eligible shield amount joins this one rule's native Bonus before it is triggered, so
             // the native roll, its log entry and the strict comparison below all include it. The use is already committed, so
@@ -205,12 +208,14 @@ namespace KingmakerMountedCombat.Integration
         private sealed class ControlledSkillCheck : RuleSkillCheck
         {
             private readonly int plannedTotal;
+            private readonly bool legalDieOnly;
             internal bool Unattainable { get; private set; }
-            internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal) : base(unit, StatType.SkillMobility, dc) { this.plannedTotal = plannedTotal; }
+            internal ControlledSkillCheck(UnitEntityData unit, int dc, int plannedTotal, bool legalDieOnly) : base(unit, StatType.SkillMobility, dc)
+            { this.plannedTotal = plannedTotal; this.legalDieOnly = legalDieOnly; }
             protected override RollEntry RollD20()
             {
                 int die;
-                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die)) return die;
+                if (PlannedDie(plannedTotal, StatValue, (int)Bonus, out die) || !legalDieOnly) return die;
                 Unattainable = true;
                 return base.RollD20();
             }
