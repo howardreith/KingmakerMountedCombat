@@ -31,7 +31,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("MMR-02 diagnostic: only native's rider-path refusal of its own predicted melee attack is logged", PairedAttackClickAdmission);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
             runner.Run("R1-F4/F5/F6, R2-F1: follow-through keeps the accepted kind, remembers newer work, and uses dispatch admission", FollowThroughEligibility);
-            runner.Run("R1-F13: a horse strike line separates no handle, unplayed, interrupted and fast playback", HorseStrikeLines);
+            runner.Run("R1-F13/R2-F4: the exact Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
             runner.Run("R1-F11: the engagement line names the first point automatic engagement stopped", EngagementFirstStop);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
@@ -515,15 +515,18 @@ namespace KingmakerMountedCombat.Tests
 
         private static void HorseStrikeLines()
         {
-            var bite = HorseStrikeDiagnostic.Format(1, 3, "Bite1d4", "Bite", true, "HorseAnimationSet_Bite", true, true, false, 2.4f, 0, 1, "kobold");
-            TestRunner.True(bite.Contains("playback=played") && bite.Contains("action=HorseAnimationSet_Bite") && bite.Contains("speedScale=2.4") &&
-                bite.Contains("special=Bite") && bite.Contains("index=1/3"), "A played, fast stock Bite was not identifiable: " + bite);
-            var missing = HorseStrikeDiagnostic.Format(1, 3, "Bite1d4", "Bite", false, null, false, false, false, 0f, 0, 0, "kobold");
-            TestRunner.True(missing.Contains("playback=no-handle") && !missing.Contains("action="), "A missing Bite handle was not identifiable: " + missing);
-            TestRunner.Equal("not-acted", HorseStrikeDiagnostic.Playback(true, true, false, false), "An unplayed handle was reported as played.");
-            TestRunner.Equal("interrupted", HorseStrikeDiagnostic.Playback(true, true, true, true), "An interrupted handle was reported as played.");
-            var hoof = HorseStrikeDiagnostic.Format(2, 3, "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2, "kobold");
-            TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("action=HorseAnimationSet_Hoof") && hoof.Contains("index=2/3"),
+            var bite = HorseStrikeDiagnostic.Format("horse-1", 1, 3, "Bite1d4", "Bite", true, "HorseAnimationSet_Bite", true, true, false, 2.4f, 0, 1,
+                "BiteAttack", 0.8f, "Playing", "kobold");
+            TestRunner.True(bite.Contains("horse=horse-1") && bite.Contains("handle=started,acted") && bite.Contains("action=HorseAnimationSet_Bite") &&
+                bite.Contains("speedScale=2.4") && bite.Contains("activeClip=BiteAttack") && bite.Contains("clipWeight=0.8") &&
+                bite.Contains("animationState=Playing") && bite.Contains("index=1/3") && !bite.Contains("playback"), "A stock Bite handle was not stated literally: " + bite);
+            var missing = HorseStrikeDiagnostic.Format("horse-1", 1, 3, "Bite1d4", "Bite", false, null, false, false, false, 0f, 0, 0, null, 0f, null, "kobold");
+            TestRunner.True(missing.Contains("handle=none") && !missing.Contains("activeClip"), "A missing Bite handle was not identifiable: " + missing);
+            TestRunner.Equal("started,not-acted", HorseStrikeDiagnostic.HandleState(true, true, false, false), "An unacted handle was misstated.");
+            TestRunner.Equal("started,acted,interrupted", HorseStrikeDiagnostic.HandleState(true, true, true, true), "An interrupted handle was misstated.");
+            var hoof = HorseStrikeDiagnostic.Format("horse-1", 2, 3, "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2,
+                "Left_Hoof_Attack", 1f, "Playing", "kobold");
+            TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("activeClip=Left_Hoof_Attack") && hoof.Contains("index=2/3"),
                 "The hoof control was not distinguishable: " + hoof);
         }
 

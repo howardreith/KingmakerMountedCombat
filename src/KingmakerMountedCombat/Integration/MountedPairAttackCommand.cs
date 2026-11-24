@@ -1006,15 +1006,18 @@ namespace KingmakerMountedCombat.Integration
         {
             try
             {
-                if (action != MountedCombatActionKind.MountPrimaryNatural || actionActor != mount || mount == null) return;
+                // Only the exact KMC Horse (not a Mammoth, Riding Dog or other mount's natural attack).
+                if (action != MountedCombatActionKind.MountPrimaryNatural || actionActor != mount || mount == null ||
+                    !string.Equals(mount.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) return;
                 var planned = PlannedAttack;
                 var weapon = planned?.Weapon?.Blueprint;
                 var handle = planned?.AnimationHandle;
-                TryLogInfo(HorseStrikeDiagnostic.Format(GetAttackIndex() + 1, AllAttacks.Count, weapon?.name,
+                var active = handle?.ActiveAnimation;
+                TryLogInfo(HorseStrikeDiagnostic.Format(mount.UniqueId, GetAttackIndex() + 1, AllAttacks.Count, weapon?.name,
                     weapon?.VisualParameters == null ? null : weapon.VisualParameters.SpecialAnimation.ToString(), handle != null,
                     handle?.Action?.name, handle != null && handle.IsStarted, handle != null && handle.IsActed,
                     handle != null && handle.IsInterrupted, handle?.SpeedScale ?? 0f, handle?.Variant ?? 0, handle?.VariantsCount ?? 0,
-                    Target?.UniqueId));
+                    active?.GetActiveClip()?.name, active?.GetWeight() ?? 0f, active?.State.ToString(), Target?.UniqueId));
             }
             catch (Exception)
             {
