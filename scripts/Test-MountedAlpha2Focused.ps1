@@ -24,7 +24,7 @@ param()
 #      registration, amounts, AC/check writes, publication and the embedded icon identity.
 #   5. Test-MountedArcheryFeatContract.ps1: the shared feat publication neighbor of the Horse registration service.
 #   6. chunk7\Test-Chunk7RangerSelectionContract.ps1: the Horse/Riding Dog selection transaction of the changed service.
-#   7. chunk7\Test-Chunk7ReplaySubscriberContract.ps1: the reviewed subscriber inventory and the 0.2.16-alpha.5 version.
+#   7. chunk7\Test-Chunk7ReplaySubscriberContract.ps1: the reviewed subscriber inventory and the 0.2.16-alpha.6 version.
 #   8. Test-FinalizeF1LocalizationKeys.ps1: localization consumers.
 #   9-13. Loader baseline: Test-UmmBuildReference.ps1, Test-Chunk7NativeLoaderContracts.ps1, Test-FrozenProductSource.ps1,
 #      Test-UmmLoaderContracts.ps1 against the genuine 0.31.1 reference and the installed 0.33.0 loader.
