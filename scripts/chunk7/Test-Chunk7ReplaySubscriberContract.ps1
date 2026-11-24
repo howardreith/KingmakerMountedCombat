@@ -132,10 +132,18 @@ $horseFact=((One 'product.horseFact')-split'\|')
 $productOwned=@{};foreach($line in Fact 'product.owned'){$parts=$line-split'\|';$productOwned[$parts[0]]=$parts[1]}
 $eventBus=@{};foreach($line in Fact 'eventbus'){$parts=$line-split'\|';$eventBus[$parts[0]]=$parts[1]}
 Write-Host ('INFO product '+$dll+' MVID '+(One 'product.mvid')+' declares '+$revision+'; native Assembly-CSharp MVID '+(One 'native.mvid'))
+# A release 0.2.N, or a private alpha of that release, 0.2.N-alpha.M (owner amendment 2): the release number N is what the
+# subscriber revision's first release is compared with.
+function Get-KmcReleaseNumber([string]$Version){ if($Version-cmatch'^0[.]2[.]([0-9]+)(?:-alpha[.][0-9]+)?$'){[int]$Matches[1]}else{$null} }
+Check 'the release-number reading accepts 0.2.N and 0.2.N-alpha.M and refuses other shapes' {
+ if((Get-KmcReleaseNumber '0.2.15')-ne15-or(Get-KmcReleaseNumber '0.2.16-alpha.1')-ne16){throw 'A release or private alpha was not read.'}
+ foreach($bad in '0.2.16-beta.1','0.2.16-alpha','1.2.16-alpha.1','0.2.16-alpha.1.2','0.2.x'){ if($null-ne(Get-KmcReleaseNumber $bad)){throw ('Accepted '+$bad)} }
+}
 Check 'the compiled producer declares a revision the reader holds and accepts as declared evidence' {
  if($null-eq$contract.firstRelease){throw 'The producer declares the implicit historical revision.'}
  $version=(Get-Content -Raw (Join-Path $repo 'version.json')|ConvertFrom-Json).productVersion
- if($version-cnotmatch'^0[.]2[.]([0-9]+)$'-or[int]$Matches[1]-lt$contract.firstRelease){throw ('Product version '+$version+' is outside the releases the reader accepts for '+$revision+'.')}
+ $release=Get-KmcReleaseNumber $version
+ if($null-eq$release-or$release-lt$contract.firstRelease){throw ('Product version '+$version+' is outside the releases the reader accepts for '+$revision+'.')}
 }
 Check 'producer and reader declare the same process-owned subscribers and interfaces' {
  if((Sorted $productOwned.Keys)-cne(Sorted @($contract.processOwned|ForEach-Object{$_.type}))){throw 'Process-owned subscriber types differ between producer and reader.'}
