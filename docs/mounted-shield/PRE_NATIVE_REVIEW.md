@@ -302,3 +302,32 @@ Budget `mounted-shield` 11.98 of 90 min. To be reviewed in round 13.
 Fast gate (controller, focused) on `64410a28`: PASS, 61.4 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 190/0, native contract 98/0). DLL `44ce0e786e8b495738168665d9260d86916c909a68f87280cb0f9ef460dcad65`, MVID `f817ee92-4ea3-4dcb-b1c9-81d8a7355175`.
 Budget `mounted-shield` 13 of 90 min. To be reviewed in round 14.
+
+## Round 14 — candidate `003564ed0ec4d88b2b2e925087a9019db94156d0` (production `64410a28`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-003564ed`. Started 2026-11-23, 17.13 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-003564ed/`.
+- **Verdict: CHANGES REQUIRED.** No defect in the shipped feature (the third round in a row); five diagnostic findings.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN14-F1 | An interrupted child's residue errors were dropped by the Mammoth parent, and the same termination at the start of ordinary cleanup could fail a run on a one-frame refusal. | **Fixed** in `cb1a881a`: `BestEffortCleanup` (every cleanup path) only detaches the hooks; the ordinary cleanup keeps the shield fixture on the polling drain's retry bound; `Dispose` of an interrupted child drains the fixture and records exact residue (actors, hands, items, modifiers from the drain record) in the child's errors; the Mammoth parent's `Finish` transfers the errors the child reported while being disposed into a failed `CM01-native-mammoth-child-residue` row before releasing it. Native contract reads the compiled order (100/0). **Limitation:** a real interruption after equip with a plan armed is native-only. |
+| PN14-F2 | A critical hit could lose its confirmation after the hit event and pass (refusals and failed equality). | **Fixed** in `cb1a881a`: the rule observer records `IsCriticalConfirmed` at rule completion; for every standing hit of a check row (refused, or attempted and not negated) the native result at completion and the critical flag at the event and at completion must equal the pre-defense result and critical. Negatives: final flag changed only, a refused critical losing confirmation, a failed equality with a changed flag; a preserved-critical control accepted. |
+| PN14-F3 | `Forced` was set without the override supplying the die (native take-10), and the arithmetic rejected a native SuccessBonus. | **Fixed** in `cb1a881a`: the record is forced only when `ControlledSkillCheck` actually supplied the die; the service and the observer record the native base result (D20 + StatValue + Bonus) besides the final `RollResult`; the reader requires the base arithmetic and accepts a final result above the base only as a SuccessBonus turning a failing base into a pass. Reader: a SuccessBonus pass accepted; a base result differing from the native roll refused. |
+| PN14-F4 | The unrelated-Mobility control did not bind the observed stat. | **Fixed** in `cb1a881a`: both the unrelated-check matcher and the MS-12 lookup bind the same rider's observed rule by stat as well (equal to the side observation's and the displayed value). Negative with a conflicting native stat. |
+| PN14-F5 | The historical `sprint6-feat-*` callers still inject dice above 20; calibrate them. | **Not done — owner decision.** These callers belong to the accepted Sprint 6 rows (their hostile setup and boundary assertions are part of that frozen, receipted run). PN13-F5 narrowed this feature's change so they behave exactly as recorded; recalibrating them changes historical diagnostics outside this mission and their receipts' meaning. Recorded as an owner decision, not fixed. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate (controller, focused) on `cb1a881a`: PASS, 60.4 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 197/0, native contract 100/0). DLL `0c4cf298df5955450b837dca024251ddc54d83001244c0c296d63d87eab2fea5`, MVID `37463f19-75f2-4514-8afe-83cffa4ea957`.
+Budget `mounted-shield` 14 of 90 min.
+
+## Endpoint of this continuation (2026-11-23)
+
+Fourteen supplemental rounds ran; none returned PASS FOR GUARDED NATIVE TESTING. Rounds 12, 13 and 14 found no defect in the
+shipped feature; their findings were in the diagnostic driver and the qualification reader, and each round's fixes were
+followed by new, finer findings of the same kind. The `cb1a881a` corrections for round 14 have not had a round of their own.
+Native acceptance is blocked regardless of the review: the exact historical qualified KMC fixture pair is absent
+(HANDOFF section 0). The developer report is submitted to the controller as **blocked** on that fixture, with the review state,
+the open owner decision (PN14-F5) and the remaining risk stated. No native run, readiness claim or controller final review
+followed.

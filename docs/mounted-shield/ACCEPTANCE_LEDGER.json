@@ -323,6 +323,11 @@
         "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
         "change": "The legal-die guard is requested only by the shield rows; native roll stat and bonus are bound (reviews PN13-F3, PN13-F5).",
         "status": "BLOCKED"
+      },
+      "continuation_11": {
+        "candidate_source": "cb1a881a5c6c8d3fe6b8c0e68c5a10e68b965177",
+        "change": "The forced flag means the override supplied the die; native base and final results are distinguished (review PN14-F3).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -343,6 +348,11 @@
         "driver_and_reader": "sprint6-shield-rt MS-check-rt triggers an unrelated native Mobility check (no Mounted Shield modifier, bonus 0); every snapshot requires no Mounted Shield modifier on the rider's Mobility stat.",
         "offline_evidence": "Reader behavior proven on synthetic evidence: scripts/Test-Sprint6ShieldReaders.ps1 63/0 (in the focused gate). Not native evidence.",
         "scope_and_limits": "Native part BLOCKED: No admitted KMC fixture: the registered owner-seed masters (scripts/runtime/Chunk7OwnerSeedRegistry.json, fixtures/owner-supplied/) are absent from the lab, and the save root holds no KMC_AUTOMATION_WORKING/BASELINE; other projects' fixtures are not relabeled. The UMM pin is resolved (0.31.1 build reference; 0.33.0 native target)."
+      },
+      "continuation_11": {
+        "candidate_source": "cb1a881a5c6c8d3fe6b8c0e68c5a10e68b965177",
+        "change": "The unrelated Mobility control binds the rider's observed rule by stat (review PN14-F4).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -473,6 +483,11 @@
       "continuation_10": {
         "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
         "change": "Refused hits keep their native result and critical state from the prestate (review PN13-F2).",
+        "status": "BLOCKED"
+      },
+      "continuation_11": {
+        "candidate_source": "cb1a881a5c6c8d3fe6b8c0e68c5a10e68b965177",
+        "change": "Standing hits keep their native critical confirmation at rule completion (review PN14-F2).",
         "status": "BLOCKED"
       }
     },
@@ -815,6 +830,11 @@
         "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
         "change": "Every interruption path detaches the diagnostic hooks and drains the shield fixture, reporting residue (review PN13-F1).",
         "status": "BLOCKED"
+      },
+      "continuation_11": {
+        "candidate_source": "cb1a881a5c6c8d3fe6b8c0e68c5a10e68b965177",
+        "change": "Ordinary cleanup keeps the shield fixture on the polling drain; interruption residue reaches the parent's failed artifact (review PN14-F1).",
+        "status": "BLOCKED"
       }
     }
   ],
@@ -900,6 +920,14 @@
     "candidate_dll_sha256": "44ce0e786e8b495738168665d9260d86916c909a68f87280cb0f9ef460dcad65",
     "candidate_dll_mvid": "f817ee92-4ea3-4dcb-b1c9-81d8a7355175",
     "reason": "Supplemental review round 13 corrections (PN13-F1..F5 in 64410a28), diagnostic lifecycle, roll-injection scope and reader only; row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_11": {
+    "recorded": "2026-11-23",
+    "candidate_source": "cb1a881a5c6c8d3fe6b8c0e68c5a10e68b965177",
+    "candidate_dll_sha256": "0c4cf298df5955450b837dca024251ddc54d83001244c0c296d63d87eab2fea5",
+    "candidate_dll_mvid": "37463f19-75f2-4514-8afe-83cffa4ea957",
+    "reason": "Supplemental review round 14 corrections (PN14-F1..F4 in cb1a881a; PN14-F5 left as an owner decision). Endpoint of this continuation: developer report blocked on the fixture; fourteen review rounds, none PASS, the last three without a shipped-feature defect; row statuses are unchanged (native parts BLOCKED).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }

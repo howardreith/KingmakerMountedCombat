@@ -13,8 +13,8 @@ foreground session; the verbatim prompt is kept outside the worktree at
 
 **Identities.** PR #61 (draft), enrollment `kmc-codex-mounted-shield-20261123114646-4433`, controller
 `C:/Dev/agent-review/versions/85dece1c…` (fingerprint `6d613def…`). Current production source
-`64410a28` (round-13 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
-`44ce0e786e8b495738168665d9260d86916c909a68f87280cb0f9ef460dcad65`, MVID `f817ee92-4ea3-4dcb-b1c9-81d8a7355175`. Round-12 source `ed717538`: DLL `069f9fb9…`, MVID `65a1a09b…`. Round-11 source `720a51ee`: DLL `51e100c5…`, MVID `b1300e95…`. Round-10 source `241e68be`: DLL `a5ff8e54…`, MVID `48c32ec4…`. Round-9 source `d7e1ee0c`: DLL `eb20b630…`, MVID `52301c4b…`. Round-8 source `05ef7f8f`: DLL `e8d6ff43…`, MVID `b854eb4b…`. Round-7 source `9bf75488`: DLL `362c2b14…`, MVID `50eafd79…`. Round-6 source `4092676b`: DLL `2cc090ed…`, MVID `4e4f4e83…`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
+`cb1a881a` (round-14 corrections; later commits are records only): DLL (gate build, deterministic) SHA-256
+`0c4cf298df5955450b837dca024251ddc54d83001244c0c296d63d87eab2fea5`, MVID `37463f19-75f2-4514-8afe-83cffa4ea957`. Round-13 source `64410a28`: DLL `44ce0e78…`, MVID `f817ee92…`. Round-12 source `ed717538`: DLL `069f9fb9…`, MVID `65a1a09b…`. Round-11 source `720a51ee`: DLL `51e100c5…`, MVID `b1300e95…`. Round-10 source `241e68be`: DLL `a5ff8e54…`, MVID `48c32ec4…`. Round-9 source `d7e1ee0c`: DLL `eb20b630…`, MVID `52301c4b…`. Round-8 source `05ef7f8f`: DLL `e8d6ff43…`, MVID `b854eb4b…`. Round-7 source `9bf75488`: DLL `362c2b14…`, MVID `50eafd79…`. Round-6 source `4092676b`: DLL `2cc090ed…`, MVID `4e4f4e83…`. Round-5 source `fb19d496`: DLL `70fdc113…`, MVID `bb2bf2b0…`. Round-4
 source `bb0c53d5`: DLL `5978e285…`, MVID `94c4e4d2…`. The final identities and package are in the closing records below. The first
 continuation source `cb74ad58` (DLL `1a80bc57…`, MVID `d7587812…`) was packaged as
 `artifacts/KingmakerMountedCombat-0.2.15-mounted-shield-cb74ad58-diagnostic.zip`, SHA-256
@@ -115,8 +115,16 @@ seven findings (PN11-F1–F7, two production: suspension bookkeeping), all fixed
 `720a51ee`: PASS, 61.2 s. Round 12 on `df564e74`: CHANGES REQUIRED, six findings (PN12-F1–F6, no new production defect in the
 shipped feature; the planned-roll injection and the qualification reader), all fixed in `ed717538`; controller focused gate on
 `ed717538`: PASS, 64.9 s. Round 13 on `f02f4ad1`: CHANGES REQUIRED, five findings (PN13-F1–F5, none in the shipped feature),
-all fixed in `64410a28`; controller focused gate on `64410a28`: PASS, 61.4 s. Round 14 and the controller endpoint follow in the
-review record.
+all fixed in `64410a28`; controller focused gate on `64410a28`: PASS, 61.4 s. Round 14 on `003564ed`: CHANGES REQUIRED, five findings (PN14-F1–F5, none in the shipped feature),
+F1–F4 fixed in `cb1a881a` (controller focused gate PASS, 60.4 s), F5 left as an owner decision.
+
+**Endpoint.** Fourteen supplemental rounds, none PASS; rounds 12–14 found no defect in the shipped feature, only finer
+diagnostic/reader findings, and the `cb1a881a` corrections are unreviewed. Native acceptance is blocked by the absent exact
+historical fixture pair in any case. The developer report went to the controller as **blocked** (fixture), carrying the owner
+amendment citation; no native run, no readiness claim and no final review. **Owner decisions open:** (1) supply the exact
+historical `KMC_AUTOMATION_BASELINE`/`WORKING` pair with its qualification records, or rule on another admissible route;
+(2) PN14-F5, whether the historical `sprint6-feat-*` rows should be recalibrated to legal dice (outside this mission);
+(3) whether further supplemental review rounds on the diagnostic driver and reader are wanted before a native run.
 
 ## 1. Outcome
 
