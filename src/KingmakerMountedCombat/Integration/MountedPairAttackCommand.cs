@@ -436,6 +436,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void AnnounceOwnMove(UnitMoveTo move)
         {
+            // Review R4-F8: finished moves (their callbacks have run) are released; the live carrier is kept.
+            issuedMoves.RemoveAll(issued => issued.IsFinished && !ReferenceEquals(issued, delegatedMove));
             issuedMoves.Add(move);
             OwnCommandIssuing?.Invoke(move);
         }
@@ -445,8 +447,15 @@ namespace KingmakerMountedCombat.Integration
         // mount's movement, driven here from native TickApproaching (MountedAttackApproachPrefix). Native alone starts the
         // command; the delegated move is the same single movement owner the started approach uses and adopts at start.
         internal Func<bool> PreStartMovementForbidden;
-        internal Func<bool> PreStartTargetPerceived;
+        // Review R4-F2: set for an automatic order only; an automatic target that left the rider group's perception produces no
+        // destination at any approach step (pre-start, native start, repath, carrier creation).
+        internal Func<bool> AutomaticTargetPerceived;
+        // Review R4-F1: the route the turn-based click probe validated; the first carrier follows it (ForcedPath).
+        internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
+        internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
+        // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
+        private bool nativePreStartApproaching;
         private int preStartFailedRoutes;
         private TimeSpan preStartRetryAt;
 
@@ -457,16 +466,59 @@ namespace KingmakerMountedCombat.Integration
 
         internal void AllowPreStartApproach()
         {
-            if (!chargeMode && action == MountedCombatActionKind.RiderMelee && actionActor == rider) preStartApproachAllowed = true;
+            if (!chargeMode && (action == MountedCombatActionKind.RiderMelee && actionActor == rider ||
+                action == MountedCombatActionKind.MountPrimaryNatural && actionActor == mount))
+                preStartApproachAllowed = true;
         }
 
-        internal void TickPreStartApproach()
+        // Review R1-F11: the exact command that owns the mount's movement for this order right now: its live delegated move
+        // while it holds the mount's Move slot, or this command itself while the horse approaches natively before its start.
+        internal object CurrentMovementOwner
         {
-            if (!preStartApproachAllowed || IsStarted || IsFinished) return;
+            get
+            {
+                var commands = mount?.Commands;
+                if (delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
+                    ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove)) return delegatedMove;
+                return nativePreStartApproaching && !IsStarted && !IsFinished ? this : null;
+            }
+        }
+
+        private bool AutomaticTargetUnperceived() =>
+            IsAutomaticOrigin && AutomaticTargetPerceived != null && !AutomaticTargetPerceived();
+
+        // Ends an automatic order whose target left perception, releasing its exact carrier; returns true when it ended.
+        private bool EndIfAutomaticTargetUnperceived()
+        {
+            if (!AutomaticTargetUnperceived()) return false;
+            StopDelegatedMove(false);
+            StopNativePreStartApproach();
+            if (!transaction.IsTerminal) transaction.Cancel("Automatic target left the rider group's perception.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, "automatic target left perception");
+            Interrupt();
+            return true;
+        }
+
+        private void StopNativePreStartApproach()
+        {
+            if (!nativePreStartApproaching) return;
+            nativePreStartApproaching = false;
+            ApproachRadius = InfiniteRange;
+            NeedLoS = false;
+            mount.View?.StopMoving();
+            PreStartMoveStopCount++;
+        }
+
+        // Returns true when native's own approach of this command should run this tick (the horse striker's case).
+        internal bool TickPreStartApproach()
+        {
+            if (!preStartApproachAllowed || IsStarted || IsFinished) return false;
             try
             {
                 RequireLiveExactPair();
-                if (TryEndExpectedTargetInvalidation()) return;
+                if (TryEndExpectedTargetInvalidation()) return false;
+                if (EndIfAutomaticTargetUnperceived()) return false;
+                if (actionActor == mount) return TickNativePreStartApproach();
                 var now = Kingmaker.Game.Instance.TimeController.GameTime;
                 var admissible = PreStartStrikeAdmissible();
                 if (delegatedMove != null && delegatedMove.IsFinished)
@@ -483,11 +535,12 @@ namespace KingmakerMountedCombat.Integration
                 var commands = mount.Commands;
                 var live = delegatedMove != null && !delegatedMove.IsFinished;
                 var decision = MountedPreStartApproachPolicy.Decide(
+                    actionActor.Commands != null && actionActor.Commands.Contains(this),
                     !TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
                     allowApproach && !chargeCleanupRequested,
                     IsStarted,
                     IsFinished,
-                    PreStartTargetPerceived == null || PreStartTargetPerceived(),
+                    true,
                     PreStartMovementForbidden != null && PreStartMovementForbidden(),
                     admissible,
                     live,
@@ -515,6 +568,31 @@ namespace KingmakerMountedCombat.Integration
             {
                 EndAfterFault(exception, "Mounted pair pre-start approach");
             }
+            return false;
+        }
+
+        // The horse is this command's executor: before native start, native's own UnitAttack approach moves it, with the
+        // strike's real admission radius and line of sight (EvaluateCurrentNativeAdmission sets them for a horse strike), so
+        // native starts it only once it is both close and ready, as for an unmounted attacker. Leaving the pre-start phase
+        // (Hold, turn-based, approach no longer permitted) restores the unbounded start radius and stops the horse.
+        private bool TickNativePreStartApproach()
+        {
+            var applies = MountedPreStartApproachPolicy.Decide(
+                actionActor.Commands != null && actionActor.Commands.Contains(this),
+                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
+                allowApproach && !chargeCleanupRequested, IsStarted, IsFinished, true,
+                PreStartMovementForbidden != null && PreStartMovementForbidden(), false, false, false, false, true, 0, true)
+                == MountedPreStartApproachAction.Issue;
+            if (!applies)
+            {
+                StopNativePreStartApproach();
+                return false;
+            }
+            var admitted = childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+            NeedLoS = true;
+            if (!admitted && !nativePreStartApproaching) PreStartMoveIssueCount++;
+            nativePreStartApproaching = !admitted;
+            return true;
         }
 
         private void PreStartRouteRefused(TimeSpan now)
@@ -1051,6 +1129,8 @@ namespace KingmakerMountedCombat.Integration
 
                 if (requiresApproach)
                 {
+                    StopNativePreStartApproach();
+                    if (EndIfAutomaticTargetUnperceived()) return;
                     var commands = mount.Commands;
                     if (!chargeMode && delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
                         ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove) && commands.Queue.Count == 0)
@@ -1078,6 +1158,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
+                    nativePreStartApproaching = false;
                     StartChildAttack();
                 }
             }
@@ -1378,6 +1459,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            if (EndIfAutomaticTargetUnperceived()) return;
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
@@ -1552,6 +1634,18 @@ namespace KingmakerMountedCombat.Integration
                 chargeCarrierView = mount.View;
                 chargeCarrierAgent = mount.View?.AgentASP;
                 chargeCarrierMotionOwned = true;
+            }
+            // Review R4-F1: the first carrier of a click-admitted turn-based order follows exactly the route the click probe
+            // validated (native TickApproaching follows a ForcedPath before any visualizer path). It is used once, only from
+            // the route's own start; a repath or a moved pair falls back to native routing.
+            var validated = ValidatedApproachRoute;
+            ValidatedApproachRoute = null;
+            if (validated != null && validated.Count >= 2 && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
+                HorizontalDistance(validated[0], mount.Position) <= 0.2f)
+            {
+                var route = new System.Collections.Generic.List<Vector3>(validated) { [0] = mount.Position };
+                delegatedMove.ForcedPath = new Pathfinding.ForcedPath(route);
+                ValidatedRouteFollowed = true;
             }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;

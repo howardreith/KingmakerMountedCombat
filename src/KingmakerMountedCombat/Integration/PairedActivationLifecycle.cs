@@ -80,6 +80,26 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount == activation.Partner;
         }
 
+        // MMR-02 (review R3-F2): the mount movement a click may rely on, in paired execution's own terms: the same
+        // eligibility as CanMovePairedMount (addressable partner, able to act, able to move) and the same effective mount
+        // context (PairedMovementContext: the mirrored step / single-move choice), then the remaining granted distance of the
+        // mount's allocation for that mode. A prone horse that must first stand (a Move) grants no approach here.
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)
+        {
+            step = false; singleMove = false;
+            var mount = activation?.Partner;
+            if (!CanAddressActor(mount, turn)) { reason = "mount-not-addressable"; return 0f; }
+            if (PartnerCanGetUp) { reason = "mount-must-stand"; return 0f; }
+            if (!mount.IsAbleToAct()) { reason = "mount-cannot-act"; return 0f; }
+            if (!mount.Descriptor.State.CanMove) { reason = "mount-cannot-move"; return 0f; }
+            var input = PairedMovementContext(turn);
+            step = input.EnabledFiveFootStep;
+            singleMove = input.EnabledSingleActionMove;
+            if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
+            reason = "granted";
+            return movementState.RemainingGrantedMetres(mount, step, singleMove);
+        }
+
         internal bool CanMovePairedMount(TurnController turn)
         {
             var mount = activation?.Partner;

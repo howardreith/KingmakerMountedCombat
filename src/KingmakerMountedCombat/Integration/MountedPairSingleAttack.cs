@@ -229,6 +229,32 @@ namespace KingmakerMountedCombat.Integration
             return EvaluateExactNativeGate();
         }
 
+        // MMR-02 (review R4-F1): the same admission evaluated for a hypothetical mount position on a route, with the rider
+        // carried at its current offset: the pair distance from the mount origin, the supported executor offset, then the
+        // native distance and command line of sight from the projected rider eye. Pure: it writes no command state.
+        internal MountedPairNativeAdmissionState EvaluateNativeAdmissionAtMountPosition(UnityEngine.Vector3 mountPosition)
+        {
+            UnitEntityData target = Target;
+            var planned = AllAttacks.Count == 0 ? null : PlannedAttack;
+            if (!usesMountedRiderReach || Executor != rider || rider == null || mount?.View == null || target?.View == null || planned == null)
+                return MountedPairNativeAdmissionState.Unavailable;
+            var radius = mount.View.Corpulence + target.View.Corpulence + planned.WeaponRange;
+            var executorPosition = mountPosition + (rider.Position - mount.Position);
+            var eye = mountPosition + (rider.EyePosition - mount.Position);
+            var pairDistance = GeometryUtils.MechanicsDistance(mountPosition, target.Position);
+            if (pairDistance > radius + MountedCombatSpatialPolicy.RangeTolerance) return MountedPairNativeAdmissionState.OutsidePairRange;
+            var executorDistance = GeometryUtils.MechanicsDistance(executorPosition, target.Position);
+            float nativeRadius;
+            if (!MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(radius, pairDistance, executorDistance, out nativeRadius))
+                return MountedPairNativeAdmissionState.UnsupportedExecutorOffset;
+            if (GeometryUtils.SqrMechanicsDistance(ApproachPoint, executorPosition) > nativeRadius * nativeRadius)
+                return MountedPairNativeAdmissionState.OutsideNativeDistance;
+            return Kingmaker.UnitLogic.Commands.Base.UnitCommand.IsUnitCloseEnough(ApproachPoint, executorPosition, eye, nativeRadius, true,
+                GetTargetLOSObjectId())
+                ? MountedPairNativeAdmissionState.Admitted
+                : MountedPairNativeAdmissionState.BlockedLineOfSight;
+        }
+
         internal bool TryPrepareNativeStartAdmission()
         {
             PairRangeSatisfiedAtNativeStart = false;

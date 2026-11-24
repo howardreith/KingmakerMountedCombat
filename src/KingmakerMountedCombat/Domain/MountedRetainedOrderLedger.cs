@@ -97,6 +97,20 @@ namespace KingmakerMountedCombat.Domain
             own.Add(command);
         }
 
+        // Review R4-F8: identities of commands that have finished (and whose acceptance and cleanup callbacks have therefore
+        // run) are released; the live carrier, its live repath replacement and anything the caller keeps stay recognized.
+        public int ReleaseFinished(System.Func<object, bool> finished)
+        {
+            if (finished == null) return 0;
+            return own.RemoveAll(item => finished(item));
+        }
+
+        // Review R4-F3: what counts as newer player work against a retained order. An explicit order yields only to work
+        // accepted AFTER it (the acceptance latch), so an older action already occupying a slot when the player clicked never
+        // retires it; an automatic order also keeps the occupied-slot protection (any live player operation).
+        public static bool NewerPlayerWork(bool automaticOrder, bool livePlayerOperation, bool acceptedAfterOrder) =>
+            acceptedAfterOrder || automaticOrder && livePlayerOperation;
+
         public bool IsRetainedOwn(object command)
         {
             if (command == null || Generation < 0) return false;

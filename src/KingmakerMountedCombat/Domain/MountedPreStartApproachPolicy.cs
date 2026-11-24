@@ -1,5 +1,12 @@
 namespace KingmakerMountedCombat.Domain
 {
+    public enum MountedEarlyStriker
+    {
+        None,
+        Rider,
+        Mount
+    }
+
     public enum MountedPreStartApproachAction
     {
         // Nothing to do (no pre-start approach applies, or nothing is live).
@@ -30,6 +37,7 @@ namespace KingmakerMountedCombat.Domain
         public const double RetrySeconds = 1d;
 
         public static MountedPreStartApproachAction Decide(
+            bool commandInSlot,
             bool realTime,
             bool approachPermitted,
             bool commandStarted,
@@ -44,7 +52,9 @@ namespace KingmakerMountedCombat.Domain
             int failedRoutes,
             bool retryDue)
         {
-            var applies = realTime && approachPermitted && !commandStarted && !commandFinished && targetPerceived && !movementForbidden;
+            // A queued command is never ticked by native (UnitActionController walks Commands.Raw only), exactly as an
+            // unmounted attacker's queued UnitAttack does not move until queue promotion places it in a slot.
+            var applies = commandInSlot && realTime && approachPermitted && !commandStarted && !commandFinished && targetPerceived && !movementForbidden;
             if (!applies) return moveLive ? MountedPreStartApproachAction.Stop : MountedPreStartApproachAction.None;
             // In legal range: hold position, as an unmounted attacker stops at its approach radius and waits to start.
             if (strikeAdmissibleNow) return moveLive ? MountedPreStartApproachAction.Stop : MountedPreStartApproachAction.None;
@@ -59,20 +69,23 @@ namespace KingmakerMountedCombat.Domain
             return failedRoutes == 0 || retryDue ? MountedPreStartApproachAction.Issue : MountedPreStartApproachAction.Wait;
         }
 
-        // Real-time dispatch of the rider's ordinary melee order while no actor is strike-ready: only when the target is not
-        // yet in mounted reach, movement is lawful, and the rider's Standard is unavailable for native timing alone (cooldown),
-        // never for a restriction. The order then waits in its native slot exactly as an unmounted UnitAttack does.
+        // Review R3-F1: which actor's strike an out-of-reach melee order is dispatched for while no actor is strike-ready.
+        // An explicit horse order is the horse's; an ordinary order is the rider's when the rider may make it (melee, no
+        // restriction, able to act and attack), otherwise the horse's when the horse may; else none.
+        public static MountedEarlyStriker SelectStriker(bool explicitMountOrder, bool riderMayStrike, bool mountMayStrike) =>
+            explicitMountOrder ? (mountMayStrike ? MountedEarlyStriker.Mount : MountedEarlyStriker.None) :
+            riderMayStrike ? MountedEarlyStriker.Rider : mountMayStrike ? MountedEarlyStriker.Mount : MountedEarlyStriker.None;
+
+        // Real-time dispatch of the selected striker's order while no actor is strike-ready: only when the planned strike is
+        // not admissible where the pair stands and movement is lawful. The order then waits in its native slot exactly as an
+        // unmounted UnitAttack does; native ShouldStartCommand alone decides the start (initiative, cooldown, hands).
         public static bool DispatchBeforeStrikeReadiness(
             bool realTime,
-            bool riderOrder,
-            bool meleeOrder,
+            bool strikerSelected,
             bool movementForbidden,
-            bool targetInMountedReach,
+            bool plannedStrikeAdmissibleNow,
             bool riderStandardReady,
-            bool mountStandardReady,
-            bool riderStandardRestricted,
-            bool riderCanAct) =>
-            realTime && riderOrder && meleeOrder && !movementForbidden && !targetInMountedReach &&
-            !riderStandardReady && !mountStandardReady && !riderStandardRestricted && riderCanAct;
+            bool mountStandardReady) =>
+            realTime && strikerSelected && !movementForbidden && !plannedStrikeAdmissibleNow && !riderStandardReady && !mountStandardReady;
     }
 }

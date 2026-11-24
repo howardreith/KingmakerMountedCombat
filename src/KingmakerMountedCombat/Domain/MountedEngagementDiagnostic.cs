@@ -63,13 +63,16 @@ namespace KingmakerMountedCombat.Domain
             if (IsOpen && !Reported && generation >= 0 && generation == OrderGeneration) Dispatched = true;
         }
 
-        // One update's mount movement. ownOrderLive: this record's order is the live automatic intent and its own pair
-        // command or delegated move is live.
-        public void ObserveDisplacement(float metres, bool ownOrderLive, bool playerOperation)
+        // Review R1-F11: one sampling interval of mount movement. It is the order's own travel only when the SAME exact carrier
+        // (the order's delegated move, or its own approaching command) owned the mount's movement at both ends of the
+        // interval; it is player travel only when a player operation was live at both ends. Any change of owner credits
+        // nothing for that interval, so the next interval starts from a fresh baseline.
+        public void ObserveInterval(float metres, object carrierAtStart, object carrierAtEnd, bool playerAtStart, bool playerAtEnd)
         {
             if (!IsOpen || Reported || metres <= 0f) return;
-            if (playerOperation) PlayerDisplacementMetres += metres;
-            else if (ownOrderLive) OwnDisplacementMetres += metres;
+            if (playerAtStart && playerAtEnd) PlayerDisplacementMetres += metres;
+            else if (!playerAtStart && !playerAtEnd && carrierAtStart != null && ReferenceEquals(carrierAtStart, carrierAtEnd))
+                OwnDisplacementMetres += metres;
         }
 
         public void ObservePlayerOperation()
@@ -94,6 +97,39 @@ namespace KingmakerMountedCombat.Domain
                 "; target=" + (ProposalTarget ?? "<none>") + "; nativeRanking=" + (ProposalRanking ?? "<none>") +
                 "; ownDisplacement=" + OwnDisplacementMetres.ToString("R", CultureInfo.InvariantCulture) +
                 "; playerDisplacement=" + PlayerDisplacementMetres.ToString("R", CultureInfo.InvariantCulture);
+        }
+    }
+
+    public struct NativeRankedCandidate
+    {
+        public object Unit;
+        public float Weight;
+        public float Distance;
+        public bool Eligible;
+    }
+
+    // MMR-04 (review R1-F11): native's TargetInfo.Sort orders by weight only and List.Sort is unstable, so candidates with the
+    // same weight (in reach: 0, or +1 for the last target) arrive in arbitrary order and the first one with the full score
+    // wins. Among the candidates native ranked EQUAL to its proposal and that native would score equally (Eligible), the
+    // mounted pair takes the nearest; a live automatic order already on one of them keeps it. Different weights (manual
+    // target, out-of-reach distance) are never reordered.
+    public static class NativeAttackTieBreak
+    {
+        public static object Choose(System.Collections.Generic.IList<NativeRankedCandidate> ranked, object proposed, object currentOrderTarget)
+        {
+            if (ranked == null || proposed == null) return proposed;
+            var found = false; var weight = 0f; var bestDistance = 0f;
+            foreach (var candidate in ranked)
+                if (ReferenceEquals(candidate.Unit, proposed)) { found = true; weight = candidate.Weight; bestDistance = candidate.Distance; break; }
+            if (!found || ReferenceEquals(currentOrderTarget, proposed)) return proposed;
+            var best = proposed;
+            foreach (var candidate in ranked)
+            {
+                if (candidate.Unit == null || candidate.Weight != weight || ReferenceEquals(candidate.Unit, proposed) || !candidate.Eligible) continue;
+                if (currentOrderTarget != null && ReferenceEquals(candidate.Unit, currentOrderTarget)) return currentOrderTarget;
+                if (candidate.Distance < bestDistance) { best = candidate.Unit; bestDistance = candidate.Distance; }
+            }
+            return best;
         }
     }
 

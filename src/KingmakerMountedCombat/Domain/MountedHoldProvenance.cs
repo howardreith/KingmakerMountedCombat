@@ -1,40 +1,39 @@
 namespace KingmakerMountedCombat.Domain
 {
-    // Review R1-F8. The pair's movement owner is the mount, so an automatic attack honors the mount's effective Hold as well
-    // as the rider's. Native writes UnitEntityData.HoldState (2.1.7b) in four places: the player's Hold (SelectionManagerBase
-    // .Hold, selected units) and Stop (cleared), UnitCommands.Run (cleared for a non-AI command) and UnitMoveTo.OnAction (set
-    // on a player-faction executor in real-time combat when its move acts). The last one also fires for the pair's own
+    // Reviews R1-F8 (rounds 3 and 4). The pair's movement owner is the mount, so an automatic attack honors the mount's Hold
+    // as well as the rider's. Native writes UnitEntityData.HoldState (2.1.7b) in four places: the player's Hold
+    // (SelectionManagerBase.Hold) and Stop (cleared), UnitCommands.Run (cleared for a non-AI command) and UnitMoveTo.OnAction
+    // (set on a player-faction executor in real-time combat when its move acts). The last also fires for the pair's own
     // delegated UnitMoveTo carrier, an artifact of carrying the attack's approach on a move command (an unmounted attacker's
-    // UnitAttack approach sets no Hold); KMC restores that write. The mount's Hold therefore restricts automatic movement only
-    // when the player put it there: a Hold input with the mount selected, or a completed player move (PlayerMoveHold). A Hold
-    // flag that predates this observation (for example one an earlier build's own carrier left in a save) is not the player's.
+    // UnitAttack approach sets no Hold); KMC undoes exactly that write in OnAction's postfix. Every other mount Hold is
+    // honored, including one that predates the pair (set before mounting, or left in a save): the only exception is a Hold
+    // for which KMC has positive provenance that its own carrier produced it and the undo did not take place.
     public sealed class MountedHoldProvenance
     {
-        private bool playerHold;
+        private bool carrierInduced;
 
-        public bool PlayerHoldObserved => playerHold;
+        public bool CarrierInducedHold => carrierInduced;
+
+        // The pair's own carrier set Hold in UnitMoveTo.OnAction and the undo could not be applied.
+        public void ObserveUnrestoredCarrierHold() => carrierInduced = true;
+
+        // Every update and at the player's Hold or Stop: once the flag is clear, or the player has expressed Hold, the
+        // carrier provenance no longer applies.
+        public void Observe(bool mountHoldNow)
+        {
+            if (!mountHoldNow) carrierInduced = false;
+        }
 
         public void ObservePlayerHoldInput(bool mountSelected)
         {
-            if (mountSelected) playerHold = true;
+            if (mountSelected) carrierInduced = false;
         }
 
-        public void ObservePlayerStopInput(bool mountSelected)
-        {
-            if (mountSelected) playerHold = false;
-        }
-
-        // Every update: once native has cleared the mount's Hold (a new order, Stop), the player's earlier Hold is gone.
-        public void Observe(bool mountHoldNow)
-        {
-            if (!mountHoldNow) playerHold = false;
-        }
-
-        public bool MountHeldByPlayer(bool mountHoldNow) => mountHoldNow && playerHold;
+        public bool MountHoldRestrictsAutomatic(bool mountHoldNow) => mountHoldNow && !carrierInduced;
 
         public static bool AutomaticMovementForbidden(bool riderMovementForbidden, bool completedPlayerMoveHold, bool mountCanMove,
-            bool mountHeldByPlayer) =>
-            riderMovementForbidden || completedPlayerMoveHold || !mountCanMove || mountHeldByPlayer;
+            bool mountHoldRestricts) =>
+            riderMovementForbidden || completedPlayerMoveHold || !mountCanMove || mountHoldRestricts;
 
         // UnitMoveTo.OnAction's Hold write is undone only for the pair's own exact delegated move.
         public static bool RestoreHoldAfterMoveAction(bool exactOwnDelegatedMove, bool holdBefore, bool holdAfter) =>

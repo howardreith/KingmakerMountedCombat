@@ -21,6 +21,33 @@ namespace KingmakerMountedCombat.Integration
         private static readonly FieldInfo EnemiesField =
             typeof(DecisionContext).GetField("m_Enemies", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        internal struct Candidate
+        {
+            public UnitEntityData Unit;
+            public float Weight;
+            public float Distance;
+        }
+
+        // The same live list, as native ranked it, for the pair's equal-rank tie-break (review R1-F11). Null when unavailable.
+        internal static List<Candidate> Candidates(UnitEntityData unit)
+        {
+            try
+            {
+                var context = ContextField?.GetValue(null) as DecisionContext;
+                if (context == null || unit == null || !ReferenceEquals(context.Unit, unit)) return null;
+                var enemies = EnemiesField?.GetValue(context) as List<TargetInfo>;
+                if (enemies == null) return null;
+                var result = new List<Candidate>(enemies.Count);
+                foreach (var info in enemies)
+                    if (info?.Unit != null) result.Add(new Candidate { Unit = info.Unit, Weight = info.Weight, Distance = info.Distance });
+                return result;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         internal static string Describe(UnitEntityData unit, UnitEntityData proposed)
         {
             try

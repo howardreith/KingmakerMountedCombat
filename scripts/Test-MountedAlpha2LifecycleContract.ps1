@@ -117,8 +117,13 @@ foreach ($name in @('BeginDelegatedMove', 'BeginPreStartMove')) {
 }
 $adopted = $pair.GetProperty('PreStartMoveAdoptedAtStart', $any).GetSetMethod($true)
 Check ((Calls (@(Method $pair 'OnStart')[0]) $adopted) -eq 1) 'R3-F1: native start adopts the live pre-start carrier (one movement owner)'
-$dispatchEarly = (KmcType 'KingmakerMountedCombat.Domain.MountedPreStartApproachPolicy').GetMethod('DispatchBeforeStrikeReadiness')
-Check ((Calls (@(Method $controller 'TryDriveStockAttackIntent')[0]) $dispatchEarly) -eq 1) 'R3-F1: real-time dispatch before readiness is decided by the production policy'
+$preStartPolicy = KmcType 'KingmakerMountedCombat.Domain.MountedPreStartApproachPolicy'
+$drive = @(Method $controller 'TryDriveStockAttackIntent')[0]
+Check ((Calls $drive ($preStartPolicy.GetMethod('DispatchBeforeStrikeReadiness'))) -eq 1 -and (Calls $drive ($preStartPolicy.GetMethod('SelectStriker'))) -eq 1) 'R3-F1: real-time dispatch before readiness selects the rider or horse striker by the production policy'
+Check ((Calls $drive (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1 -and (Calls (@(Method $controller 'PlannedStrikeAdmissibleNow')[0]) ((KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack').GetMethod('EvaluateCurrentNativeAdmission', $any))) -eq 1) 'R3-F1: the initial reach decision is the planned strike''s production admission'
+Check ((Calls $tick (@(Method $pair 'TickNativePreStartApproach')[0])) -eq 1) 'R3-F1: a horse strike waiting to start approaches with native''s own approach of that command'
+$tickOnUnit = @((GameType 'Kingmaker.Controllers.Units.UnitActionController').GetMethods($any) | Where-Object { (Calls $_ (@(Method (GameType 'Kingmaker.Controllers.Units.UnitActionController') 'TickCommand')[0])) -gt 0 })
+Check ($tickOnUnit.Count -eq 1 -and (Calls $tickOnUnit[0] ($commands.GetProperty('Raw').GetGetMethod())) -ge 1 -and (Calls $tickOnUnit[0] ($commands.GetProperty('Queue').GetGetMethod())) -eq 0) 'R3-F1: native ticks only slot commands (Raw), never the queue: a queued order moves only after promotion, as an unmounted one'
 $canAct = (GameType 'Kingmaker.Controllers.Combat.UnitCombatState').GetProperty('CanActInCombat').GetGetMethod()
 $should = @(Method (GameType 'Kingmaker.Controllers.Units.UnitActionController') 'ShouldStartCommand')[0]
 $cooldowns = @(Method (GameType 'Kingmaker.Controllers.Combat.UnitCombatState') 'HasCooldownForCommand')
@@ -129,12 +134,30 @@ $participant = KmcType 'KingmakerMountedCombat.Integration.MountedPairTurnPartic
 $admit = @(Method $participant 'AdmitPairedAttackClick')[0]
 $policy = (KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('Decide')
 $probe = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('Evaluate', $any)
-$granted = (KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter').GetMethod('RemainingGrantedMetres', $any)
-Check ((Calls $admit $policy) -eq 1 -and (Calls $admit $probe) -eq 1 -and (Calls $admit $granted) -eq 1) 'R3-F2: the IgnoreClick postfix decides through the policy, the probe and the mount''s granted movement'
+$movementState = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
+$grantHelper = @(Method $participant 'PairedMountGrantedMetres')[0]
+Check ((Calls $admit $policy) -eq 1 -and (Calls $admit $probe) -eq 1 -and (Calls $admit $grantHelper) -eq 1) 'R3-F2: the IgnoreClick postfix decides through the policy, the probe and the shared mount grant'
+$canMoveHelper = @(Method $participant 'CanMovePairedMount')[0]
+foreach ($term in @(@(Method $participant 'PairedMovementContext')[0], $movementState.GetMethod('HasGrantedMovement', $any), @(Method $participant 'CanAddressActor')[0], (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetMethod('IsAbleToAct'))) {
+    Check ((Calls $grantHelper $term) -ge 1 -and (Calls $canMoveHelper $term) -ge 1) ('R3-F2: the click grant and paired execution share ' + $term.Name)
+}
+Check ((Calls $grantHelper ($movementState.GetMethod('RemainingGrantedMetres', $any))) -eq 1) 'R3-F2: the click grant is the mount allocation''s remaining distance for the mirrored mode'
+Check ((Calls $admit (@(Method $participant 'PairedMovementContext')[0])) -eq 0 -and (Calls $admit ((GameType 'TurnBased.Controllers.TurnController').GetProperty('EnabledFiveFootStep').GetGetMethod())) -eq 0) 'R3-F2: the click decision reads no rider-context step flags of its own'
 $findPath = (GameType 'Kingmaker.View.UnitMovementAgent').GetMethod('FindPath')
 $closeEnough = $command.GetMethod('IsUnitCloseEnough', [Reflection.BindingFlags]'Static,Public')
-$evaluate = (KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack').GetMethod('EvaluateCurrentNativeAdmission', $any)
-Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $closeEnough) -eq 1 -and (Calls $probe $evaluate) -eq 1) 'R3-F2: the probe uses the strike''s production admission, the mount agent''s native FindPath and native IsUnitCloseEnough'
+$single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
+$evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
+$evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
+Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and (Calls $probe $evaluateAt) -eq 1) 'R4-F1: the probe walks the mount agent''s native route until the strike''s production admission passes'
+$offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
+Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
+$setForced = $command.GetProperty('ForcedPath').GetSetMethod()
+$getForced = $command.GetProperty('ForcedPath').GetGetMethod()
+Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F1: the click-admitted order''s carrier follows the validated route (ForcedPath)'
+$nativeApproach = MemberAt 0x060027A6
+$currentPathForUnit = MemberAt 0x0600700F
+Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeApproach $getForced) -lt (FirstOffset $nativeApproach $currentPathForUnit)) 'R4-F1: native turn-based TickApproaching follows a ForcedPath before any visualizer path'
+Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1) 'R4-F1: the validated route is bound to the exact click and handed to that order''s carrier'
 $visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
 Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'
 
@@ -164,4 +187,14 @@ $contextField = MemberAt 0x04005EC9; $enemiesField = MemberAt 0x04005ECF
 $reader = KmcType 'KingmakerMountedCombat.Integration.NativeBrainRankingReader'
 Check ($reader.GetField('ContextField', $any).GetValue($null) -eq $contextField -and $reader.GetField('EnemiesField', $any).GetValue($null) -eq $enemiesField) 'R1-F11: the proposal ranking reader reads AiBrainController.s_Context and DecisionContext.m_Enemies (04005EC9, 04005ECF)'
 Check ((Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) ($reader.GetMethod('Describe', $any))) -eq 1) 'R1-F11: every real-time automatic proposal carries native''s own ranking'
+# ---- 6. Round-4 corrections (R4-F2, R4-F3, R4-F8, R1-F11) ---------------------------------------------------------------
+$endUnperceived = @(Method $pair 'EndIfAutomaticTargetUnperceived')[0]
+foreach ($name in @('OnStart', 'TickApproach', 'TickPreStartApproach')) { Check ((Calls (@(Method $pair $name)[0]) $endUnperceived) -ge 1) ('R4-F2: ' + $name + ' ends an automatic order whose target left perception before any destination') }
+Check ((Calls $tryExecute ($pair.GetField('AutomaticTargetPerceived', $any))) -ge 1) 'R4-F2: every automatic order carries the rider group''s perception check'
+Check ((Calls (@(Method $controller 'TryRetireStockIntent')[0]) ($ledger.GetMethod('NewerPlayerWork'))) -eq 1) 'R4-F3: retirement distinguishes work accepted after an explicit order from older occupied slots'
+Check ((Calls (@(Method $controller 'Update')[0]) ($ledger.GetMethod('ReleaseFinished'))) -eq 1) 'R4-F8: finished command identities are released every update'
+$tieBreak = (KmcType 'KingmakerMountedCombat.Domain.NativeAttackTieBreak').GetMethod('Choose')
+Check ((Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) (@(Method $controller 'ResolveEqualRankTie')[0])) -eq 1 -and (Calls (@(Method $controller 'ResolveEqualRankTie')[0]) $tieBreak) -eq 1) 'R1-F11: equally ranked native candidates are resolved by the pair''s nearest-eligible tie-break before admission'
+$engage = @(Method $controller 'ObserveEngagementProgress')[0]
+Check ((Calls $engage ($pair.GetProperty('CurrentMovementOwner', $any).GetGetMethod($true))) -eq 1 -and (Calls $engage ((KmcType 'KingmakerMountedCombat.Domain.MountedEngagementRecord').GetMethod('ObserveInterval'))) -eq 1) 'R1-F11: travel is attributed to the exact carrier across each interval'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0')

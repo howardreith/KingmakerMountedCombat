@@ -18,10 +18,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R1-F5: newer work accepted by slot or queue overrides the order whether queued or finished; refused work never does", AcceptedWorkOverrides);
             runner.Run("R2-F1: the attack kind fixed at acceptance survives a deferred first drive and a weapon change", AttackKindAtAcceptance);
             runner.Run("R2-F5: newer player work in a mount slot retires a waiting real-time order; own carrier moves do not", RealTimeMountSlotSuccessor);
-            runner.Run("R1-F8: only the player's Hold on the mount restricts automatic movement; own carrier writes are undone", MountHoldProvenance);
-            runner.Run("R3-F1: real-time movement is admitted before strike readiness and released at range; native keeps the start", PreStartApproach);
+            runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
+            runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
+            runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
+            runner.Run("R3-F1: rider or horse striker moves before readiness, queued orders move after promotion; native keeps the start", PreStartApproach);
             runner.Run("R3-F2: a dropped turn-based click is admitted only for an in-range strike or a granted native mount route", TurnBasedClickAdmission);
-            runner.Run("R1-F11: engagement attribution follows one automatic order from proposal to its own displacement", EngagementAttribution);
+            runner.Run("R1-F11: engagement attribution credits only the same exact carrier across an interval", EngagementAttribution);
+            runner.Run("R1-F11: equally ranked eligible native candidates resolve to the nearest without oscillation", EqualRankTieBreak);
             runner.Run("R1-F11: model of the traced native target comparison (two eligible, nearer ineligible, manual target)", NativeTargetChoice);
         }
 
@@ -132,86 +135,118 @@ namespace KingmakerMountedCombat.Tests
             order.ObserveAccepted(preStartMove, PlayerMove, MountedAcceptedWorkRoute.Slot, "own");
             // The wrapper waits for readiness; the order's own carrier occupies the mount slot: no retirement.
             var ownSlot = new List<MountedAutomaticSlotFacts> { new MountedAutomaticSlotFacts { PairOwnedOrReaction = true } };
-            var live = MountedAutomaticAttackPolicy.HasPlayerOperation(ownSlot, 0) || order.Superseded(21);
-            TestRunner.True(MountedAutomaticAttackPolicy.RetireReason(true, true, true, true, true, false, false, true, live) == null,
+            var newer = MountedRetainedOrderLedger.NewerPlayerWork(true, MountedAutomaticAttackPolicy.HasPlayerOperation(ownSlot, 0), order.Superseded(21));
+            TestRunner.True(MountedAutomaticAttackPolicy.RetireReason(true, true, true, true, true, false, false, true, newer) == null,
                 "The order's own carrier retired its order.");
-            // A newer player command put directly into a mount slot while the old attack waits: on the update an actor becomes
-            // strike-ready, the controller's retirement reads it before any dispatch.
+            // A newer player command put directly into a mount slot while the old attack waits retires it on the update an
+            // actor becomes strike-ready, before any dispatch.
             order.ObserveAccepted(new object(), PlayerMove, MountedAcceptedWorkRoute.Slot, "mount:UnitMoveTo");
             var playerSlot = new List<MountedAutomaticSlotFacts> { new MountedAutomaticSlotFacts() };
-            live = MountedAutomaticAttackPolicy.HasPlayerOperation(playerSlot, 0) || order.Superseded(21);
-            TestRunner.Equal("newer player operation", MountedAutomaticAttackPolicy.RetireReason(true, true, true, true, true, false, false, true, live),
+            newer = MountedRetainedOrderLedger.NewerPlayerWork(true, MountedAutomaticAttackPolicy.HasPlayerOperation(playerSlot, 0), order.Superseded(21));
+            TestRunner.Equal("newer player operation", MountedAutomaticAttackPolicy.RetireReason(true, true, true, true, true, false, false, true, newer),
                 "A newer mount-slot order did not retire the waiting order.");
-            // The same for a player's real-time click order.
-            TestRunner.Equal("newer player operation", MountedAutomaticAttackPolicy.RetireReason(true, false, true, true, true, false, false, true, live),
-                "A newer mount-slot order did not retire the player's waiting order.");
+        }
+
+        // Review R4-F3: both orderings of a stationary player Standard on the horse and an explicit rider click.
+        private static void ExplicitOrderVersusOlderSlotWork()
+        {
+            var occupied = new List<MountedAutomaticSlotFacts> { new MountedAutomaticSlotFacts() };
+            var live = MountedAutomaticAttackPolicy.HasPlayerOperation(occupied, 0);
+            // 1. The horse's Standard was already running when the rider was clicked: the newer click survives it.
+            var click = new MountedRetainedOrderLedger(); click.Begin(31, false, true);
+            TestRunner.True(MountedAutomaticAttackPolicy.RetireReason(true, false, true, true, true, false, false, true,
+                MountedRetainedOrderLedger.NewerPlayerWork(false, live, click.Superseded(31))) == null, "An older mount action retired a newer rider click.");
+            // 2. A newer mount command accepted after the click still retires the older rider order.
+            click.ObserveAccepted(new object(), new MountedAcceptedWorkFacts { PlayerOrder = true }, MountedAcceptedWorkRoute.Slot, "mount:cast");
+            TestRunner.Equal("newer player operation", MountedAutomaticAttackPolicy.RetireReason(true, false, true, true, true, false, false, true,
+                MountedRetainedOrderLedger.NewerPlayerWork(false, live, click.Superseded(31))), "A newer mount command did not retire the older rider order.");
+            // Automatic proposals keep the occupied-slot protection.
+            var auto = new MountedRetainedOrderLedger(); auto.Begin(32, true, true);
+            TestRunner.True(MountedRetainedOrderLedger.NewerPlayerWork(true, live, auto.Superseded(32)), "An automatic order ignored an occupied slot.");
+        }
+
+        // Review R4-F8: a sustained order releases finished identities and keeps the live repath replacement.
+        private static void LedgerReleasesFinished()
+        {
+            var order = new MountedRetainedOrderLedger(); order.Begin(41, true, true);
+            var finished = new HashSet<object>();
+            var wrapper = new object(); order.RecordOwnIssued(41, wrapper);
+            object live = null;
+            for (var strike = 0; strike < 20; strike++)
+            {
+                var move = new object(); order.RecordOwnIssued(41, move);
+                if (live != null) finished.Add(live);
+                live = move;
+                order.ReleaseFinished(finished.Contains);
+            }
+            TestRunner.True(order.OwnCommandCount == 2 && order.IsRetainedOwn(live) && order.IsRetainedOwn(wrapper),
+                "Finished identities were retained (" + order.OwnCommandCount + ") or the live carrier was forgotten.");
         }
 
         private static void MountHoldProvenance()
         {
             var hold = new MountedHoldProvenance();
-            // A Hold flag the player never set (an earlier carrier's write left in a save): automatic movement stays lawful.
-            TestRunner.True(!MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHeldByPlayer(true)),
-                "A non-player Hold restricted automatic movement.");
-            // The player holds the mount (mount selected), the rider unheld: automatic movement is forbidden at admission.
-            hold.ObservePlayerHoldInput(true);
-            TestRunner.True(MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHeldByPlayer(true)),
-                "A held mount with an unheld rider moved automatically.");
-            // A Hold change before promotion or during travel: the next update's retirement sees it while the carrier is live.
+            // Hold set on the horse before the pair was established (or left in a save), rider unheld: honored.
+            TestRunner.True(MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHoldRestrictsAutomatic(true)),
+                "A Hold that predates the pair let the horse travel automatically.");
+            // A Hold change during travel: the next update's retirement stops the automatic approach.
             TestRunner.Equal("hold out of reach", MountedAutomaticAttackPolicy.RetireReason(true, true, true, true, true, false,
-                MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHeldByPlayer(true)), false, false),
+                MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHoldRestrictsAutomatic(true)), false, false),
                 "A Hold during travel did not stop the automatic approach.");
-            // Native clears the Hold (a new order, Stop): the restriction ends with it.
-            hold.Observe(false);
-            TestRunner.True(!hold.MountHeldByPlayer(true), "A cleared Hold kept restricting.");
-            hold.ObservePlayerHoldInput(false);
-            TestRunner.True(!hold.PlayerHoldObserved, "A Hold input without the mount selected was attributed to the mount.");
-            hold.ObservePlayerHoldInput(true); hold.ObservePlayerStopInput(true);
-            TestRunner.True(!hold.PlayerHoldObserved, "Stop did not clear the player's mount Hold.");
-            // Unheld control and the rider's own Hold / completed player move.
-            TestRunner.True(!MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, false), "An unheld pair was restricted.");
-            TestRunner.True(MountedHoldProvenance.AutomaticMovementForbidden(true, false, true, false) &&
-                MountedHoldProvenance.AutomaticMovementForbidden(false, true, true, false) &&
-                MountedHoldProvenance.AutomaticMovementForbidden(false, false, false, false), "Rider Hold, a completed player move or an immobile mount lost its effect.");
-            // The native Hold writes: UnitMoveTo.OnAction's write is undone only for the pair's own carrier; Run keeps the
-            // mount's Hold only for an automatic order's own move.
+            // Unheld horse: lawful.
+            TestRunner.True(!MountedHoldProvenance.AutomaticMovementForbidden(false, false, true, hold.MountHoldRestrictsAutomatic(false)),
+                "An unheld horse was restricted.");
+            // Exact carrier-produced Hold: the OnAction write is undone; only an undo that could not apply leaves positive
+            // provenance, and that one Hold alone is not honored.
             TestRunner.True(MountedHoldProvenance.RestoreHoldAfterMoveAction(true, false, true) &&
                 !MountedHoldProvenance.RestoreHoldAfterMoveAction(false, false, true) &&
                 !MountedHoldProvenance.RestoreHoldAfterMoveAction(true, true, true), "The carrier Hold restore was misapplied.");
+            hold.ObserveUnrestoredCarrierHold();
+            TestRunner.True(!hold.MountHoldRestrictsAutomatic(true), "A carrier-produced Hold with positive provenance restricted the pair.");
+            // The player's Hold or an explicit Stop/release ends that provenance.
+            hold.ObservePlayerHoldInput(true);
+            TestRunner.True(hold.MountHoldRestrictsAutomatic(true), "The player's Hold after a carrier write was not honored.");
+            hold.ObserveUnrestoredCarrierHold(); hold.Observe(false);
+            TestRunner.True(!hold.CarrierInducedHold && hold.MountHoldRestrictsAutomatic(true), "A released Hold kept its old provenance.");
+            TestRunner.True(MountedHoldProvenance.AutomaticMovementForbidden(true, false, true, false) &&
+                MountedHoldProvenance.AutomaticMovementForbidden(false, true, true, false) &&
+                MountedHoldProvenance.AutomaticMovementForbidden(false, false, false, false), "Rider Hold, a completed player move or an immobile mount lost its effect.");
             TestRunner.True(MountedHoldProvenance.NativeRunKeepsMountHold(true, true) && !MountedHoldProvenance.NativeRunKeepsMountHold(true, false) &&
                 !MountedHoldProvenance.NativeRunKeepsMountHold(false, true), "Run's Hold keep was misapplied.");
         }
 
         private static void PreStartApproach()
         {
-            // Dispatch before readiness: out of mounted reach, Standard only on cooldown, movement lawful.
-            bool Early(bool forbidden = false, bool inReach = false, bool riderReady = false, bool mountReady = false, bool restricted = false,
-                bool canAct = true, bool melee = true, bool riderOrder = true, bool realTime = true) =>
-                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(realTime, riderOrder, melee, forbidden, inReach, riderReady, mountReady, restricted, canAct);
+            // Striker selection: the rider when it may strike, otherwise the horse; an explicit horse order is the horse's.
+            TestRunner.Equal(MountedEarlyStriker.Rider, MountedPreStartApproachPolicy.SelectStriker(false, true, true), "The rider was not the striker.");
+            TestRunner.Equal(MountedEarlyStriker.Mount, MountedPreStartApproachPolicy.SelectStriker(false, false, true), "A horse-selected strike was not offered.");
+            TestRunner.Equal(MountedEarlyStriker.Mount, MountedPreStartApproachPolicy.SelectStriker(true, true, true), "An explicit horse order went to the rider.");
+            TestRunner.Equal(MountedEarlyStriker.None, MountedPreStartApproachPolicy.SelectStriker(true, true, false), "A restricted horse struck.");
+            TestRunner.Equal(MountedEarlyStriker.None, MountedPreStartApproachPolicy.SelectStriker(false, false, false), "A striker was invented.");
+            // Dispatch before readiness: planned strike not admissible where the pair stands, no actor ready, movement lawful.
+            bool Early(bool selected = true, bool forbidden = false, bool admissible = false, bool riderReady = false, bool mountReady = false, bool realTime = true) =>
+                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(realTime, selected, forbidden, admissible, riderReady, mountReady);
             TestRunner.True(Early(), "An out-of-reach order waited for strike readiness before moving.");
-            TestRunner.True(!Early(inReach: true) && !Early(riderReady: true) && !Early(mountReady: true),
-                "Dispatch before readiness replaced ordinary dispatch.");
-            TestRunner.True(!Early(restricted: true) && !Early(canAct: false) && !Early(forbidden: true) && !Early(melee: false) &&
-                !Early(riderOrder: false) && !Early(realTime: false), "A restricted, held, ranged, mount or turn-based order moved early.");
-            MountedPreStartApproachAction Step(bool started = false, bool perceived = true, bool forbidden = false, bool admissible = false,
+            TestRunner.True(!Early(admissible: true) && !Early(riderReady: true) && !Early(mountReady: true) && !Early(selected: false) &&
+                !Early(forbidden: true) && !Early(realTime: false), "Dispatch before readiness applied where it must not.");
+            MountedPreStartApproachAction Step(bool inSlot = true, bool started = false, bool perceived = true, bool forbidden = false, bool admissible = false,
                 bool live = false, bool owns = true, bool displaced = false, bool slotsFree = true, int failed = 0, bool retryDue = false, bool realTime = true) =>
-                MountedPreStartApproachPolicy.Decide(realTime, true, started, false, perceived, forbidden, admissible, live, owns, displaced, slotsFree, failed, retryDue);
-            // Movement is admitted while native still refuses the start (cooldown, initiative wait).
-            TestRunner.Equal(MountedPreStartApproachAction.Issue, Step(), "Movement was not admitted while the strike waited.");
+                MountedPreStartApproachPolicy.Decide(inSlot, realTime, true, started, false, perceived, forbidden, admissible, live, owns, displaced, slotsFree, failed, retryDue);
+            // Queue-only acceptance behind a native prerequisite: native never ticks a queued command (as for an unmounted
+            // attacker), so no movement; once promotion places the order in its slot, movement is admitted while the start waits.
+            TestRunner.Equal(MountedPreStartApproachAction.None, Step(inSlot: false), "A queued order moved before promotion.");
+            TestRunner.Equal(MountedPreStartApproachAction.Issue, Step(), "Movement was not admitted after promotion while the strike waited.");
             TestRunner.Equal(MountedPreStartApproachAction.Keep, Step(live: true), "The live carrier was not kept.");
             TestRunner.Equal(MountedPreStartApproachAction.Reissue, Step(live: true, displaced: true), "A moved target was not re-approached.");
-            // At legal range the pair stops and waits for native to start the attack (one attack, native expenditure).
             TestRunner.Equal(MountedPreStartApproachAction.Stop, Step(live: true, admissible: true), "The pair kept moving inside legal range.");
             TestRunner.Equal(MountedPreStartApproachAction.None, Step(admissible: true), "An in-range order moved.");
-            // Hold, a hidden target, turn-based mode, or the command leaving its unstarted phase release the exact carrier.
             TestRunner.True(Step(live: true, forbidden: true) == MountedPreStartApproachAction.Stop &&
                 Step(live: true, perceived: false) == MountedPreStartApproachAction.Stop &&
                 Step(live: true, realTime: false) == MountedPreStartApproachAction.Stop &&
-                Step(live: true, started: true) == MountedPreStartApproachAction.Stop, "The carrier outlived its lawful approach.");
-            // A newer order holds the mount: no carrier is forced in; a carrier that lost its slot is released.
+                Step(live: true, started: true) == MountedPreStartApproachAction.Stop &&
+                Step(live: true, inSlot: false) == MountedPreStartApproachAction.Stop, "The carrier outlived its lawful approach.");
             TestRunner.Equal(MountedPreStartApproachAction.Wait, Step(slotsFree: false), "A carrier was forced past a newer mount order.");
             TestRunner.Equal(MountedPreStartApproachAction.Stop, Step(live: true, owns: false), "A displaced carrier kept being driven.");
-            // Failed routes: bounded retries at the retry time, then the started command's own bounded approach decides.
             TestRunner.Equal(MountedPreStartApproachAction.Wait, Step(failed: 1, retryDue: false), "A failed route was retried at once.");
             TestRunner.Equal(MountedPreStartApproachAction.Issue, Step(failed: 1, retryDue: true), "A failed route was not retried.");
             TestRunner.Equal(MountedPreStartApproachAction.None, Step(failed: MountedPreStartApproachPolicy.MaximumFailedRoutes, retryDue: true),
@@ -260,23 +295,30 @@ namespace KingmakerMountedCombat.Tests
             record.ObserveProposal(100d, "kobold-1", "[*kobold-1:6:-0.006];bestScore=0.8", true, 4, null);
             TestRunner.True(record.IsOpen && record.OrderGeneration == 4, "An early proposal was dropped.");
             TestRunner.Equal("accepted-not-dispatched", record.FirstStop(), "An accepted order was misnamed.");
-            // Movement from an unrelated (non-own) source is not counted as the order's progress.
-            record.ObserveDisplacement(2f, false, false);
             record.ObserveDispatch(5);
-            TestRunner.Equal("accepted-not-dispatched", record.FirstStop(), "Another order's dispatch or movement was attributed.");
+            TestRunner.Equal("accepted-not-dispatched", record.FirstStop(), "Another order's dispatch was attributed.");
+            // Unrelated movement finishes between samples, then a stationary automatic wrapper is admitted: the interval that
+            // spans the change of owner credits nothing, and a wrapper without a carrier credits nothing.
+            var wrapper = new object();
             record.ObserveDispatch(4);
-            TestRunner.Equal("dispatched-not-moved", record.FirstStop(), "A stationary dispatch was counted as moving.");
-            record.ObserveDisplacement(1f, true, false);
-            TestRunner.Equal("dispatched-moved", record.FirstStop(), "The order's own displacement was missed.");
+            record.ObserveInterval(2.5f, null, null, false, false);
+            record.ObserveInterval(1.5f, null, wrapper, false, false);
+            record.ObserveInterval(0.0f, wrapper, wrapper, false, false);
+            TestRunner.Equal("dispatched-not-moved", record.FirstStop(), "Unrelated or change-of-owner movement was credited to a stationary wrapper.");
+            // A genuinely moving automatic carrier: the same exact carrier at both ends of each interval.
+            var carrier = new object();
+            record.ObserveInterval(0.4f, wrapper, carrier, false, false);
+            record.ObserveInterval(0.6f, carrier, carrier, false, false);
+            TestRunner.True(record.FirstStop() == "dispatched-moved" && System.Math.Abs(record.OwnDisplacementMetres - 0.6f) < 1e-5f,
+                "The carrier's own travel was misattributed: " + record.OwnDisplacementMetres);
             TestRunner.True(!record.Due(102d) && record.Due(103d), "The report time was wrong.");
             var line = record.Report();
-            TestRunner.True(line.Contains("order=4") && line.Contains("nativeRanking=[*kobold-1") && line.Contains("ownDisplacement=1"),
-                "The report lost its attribution: " + line);
+            TestRunner.True(line.Contains("order=4") && line.Contains("nativeRanking=[*kobold-1"), "The report lost its attribution: " + line);
             // A player operation before any automatic dispatch: player movement is never automatic progress.
             var player = new MountedEngagementRecord();
             player.Open(0d);
             player.ObservePlayerOperation();
-            player.ObserveDisplacement(3f, false, true);
+            player.ObserveInterval(3f, null, null, true, true);
             TestRunner.True(player.FirstStop() == "player-command" && player.OwnDisplacementMetres == 0f && player.PlayerDisplacementMetres == 3f,
                 "Player movement was attributed to the automatic order.");
             var refused = new MountedEngagementRecord();
@@ -284,6 +326,29 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal("refused:hold-out-of-reach", refused.FirstStop(), "A refusal lost its reason.");
             var none = new MountedEngagementRecord(); none.Open(0d);
             TestRunner.Equal("no-proposal", none.FirstStop(), "An absent proposal was misnamed.");
+        }
+
+        // Review R1-F11: the pair's tie-break among candidates native ranked equal (production NativeAttackTieBreak).
+        private static void EqualRankTieBreak()
+        {
+            var far = new object(); var near = new object(); var outside = new object();
+            NativeRankedCandidate C(object unit, float weight, float distance, bool eligible = true) =>
+                new NativeRankedCandidate { Unit = unit, Weight = weight, Distance = distance, Eligible = eligible };
+            // Two equally eligible in-reach hostiles in farther-first order: native would take the farther; the pair takes the nearer.
+            var ranked = new List<NativeRankedCandidate> { C(far, 0f, 2.4f), C(near, 0f, 1.6f), C(outside, -0.009f, 9f) };
+            TestRunner.True(ReferenceEquals(near, NativeAttackTieBreak.Choose(ranked, far, null)), "The nearer equally ranked hostile was not chosen.");
+            // The nearer one ineligible (unconscious, disliked, unattackable or invalid under Hold): native's proposal stands.
+            ranked[1] = C(near, 0f, 1.6f, false);
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, null)), "An ineligible nearer hostile was chosen.");
+            // Different weights (manual target, out-of-reach distance) are never reordered.
+            var manual = new object();
+            var withManual = new List<NativeRankedCandidate> { C(manual, 1000000f, 8f), C(near, 0f, 1.6f) };
+            TestRunner.True(ReferenceEquals(manual, NativeAttackTieBreak.Choose(withManual, manual, null)), "A manual target was replaced.");
+            // A live automatic order already on one of the tied candidates keeps it (no oscillation).
+            ranked[1] = C(near, 0f, 1.6f);
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, far)) &&
+                ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, near, far)), "A live order on a tied target oscillated.");
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, outside)) == false, "The tie-break ignored distance.");
         }
 
         private static void NativeTargetChoice()

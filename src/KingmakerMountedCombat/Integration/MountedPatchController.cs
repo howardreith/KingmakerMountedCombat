@@ -1336,8 +1336,8 @@ namespace KingmakerMountedCombat.Integration
                 {
                     // MMR-05 (review R3-F1): native ticks an unstarted command's approach while its start waits; the pair
                     // command's approach is its own delegated mount move.
-                    if (!pairAttack.IsStarted) pairAttack.TickPreStartApproach();
-                    return false;
+                    // The horse striker's own native approach runs only when the command asks for it.
+                    return !pairAttack.IsStarted && pairAttack.TickPreStartApproach();
                 }
                 // Sprint 3 (TRAP-01, SPELL-01): the rider's own unstarted native ability or discovered-trap interaction is
                 // approached by the mount. The driver runs the engine's own OnTickApproaching first and skips only the

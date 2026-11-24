@@ -250,7 +250,10 @@ namespace KingmakerMountedCombat.Integration
                 try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target); }
                 catch (Exception error) { logger.Exception("Turn-based rider attack click probe failed; native decision kept", error); }
             }
-            var granted = mount == null ? 0f : movementState.RemainingGrantedMetres(mount, context.EnabledFiveFootStep, context.EnabledSingleActionMove);
+            bool stepMode = false, singleMove = false;
+            var grantReason = "<not-read>";
+            var granted = riderAttack && probe != null && !probe.AdmissibleNow
+                ? PairedMountGrantedMetres(context, out stepMode, out singleMove, out grantReason) : 0f;
             string reason;
             var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
                 predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget, riderAttack,
@@ -261,11 +264,13 @@ namespace KingmakerMountedCombat.Integration
                 result = false;
                 AdmittedAttackClickCount++;
             }
+            // Review R4-F1: the admitted order's carrier follows exactly the validated route; any other outcome clears it.
+            combat?.RememberValidatedClickRoute(target, context, decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route : null);
             if (!meleeOnTarget) return;
             LastAttackClickDecision = decision + ":" + reason;
             logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +
                 "; rider=" + rider.UniqueId + "; target=" + target.UniqueId +
-                "; stepMode=" + context.EnabledFiveFootStep + "; singleMove=" + context.EnabledSingleActionMove +
+                "; mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason +
                 "; mountGrantedMetres=" + granted.ToString("R") +
                 "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") + "; probe=" + (probe?.Detail ?? "<not-run>") +
                 "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
