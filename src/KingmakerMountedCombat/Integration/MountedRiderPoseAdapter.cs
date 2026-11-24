@@ -168,19 +168,27 @@ namespace KingmakerMountedCombat.Integration
             baselineLease.PrimeFrame(() =>
             {
                 ApplyPose();
-                var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
-                if (seatIsFixedFromSource)
-                    animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
-                else
-                {
-                    var observed = ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position));
-                    CalibrationObservedSeatFromSource = observed - source;
-                    animatedSaddle.Acquire(source, AnimatedSaddleCalibration.CalibrationPelvis(source, observed, declaredSeatFromSource),
-                        ToPose(anatomicalCorrection));
-                    CalibrationUsedDeclaredSeat = declaredSeatFromSource.HasValue;
-                }
+                AcquireSaddleCalibration(anatomicalCorrection, seatIsFixedFromSource, declaredSeatFromSource);
             });
             animatedSaddleRequired = true;
+        }
+
+        // MMR-01 (review R1-F12): the one calibration of the animated saddle, inside the primed frame after the profile pose.
+        // The Horse receives its declared mount-root-local pelvis-minus-source basis; Small profiles keep their fixed-from-source
+        // seat; a profile without a declaration samples the posed pelvis. The observed sample is always kept for the seat line.
+        private void AcquireSaddleCalibration(Vector3 anatomicalCorrection, bool seatIsFixedFromSource, PoseVector3? declaredSeatFromSource)
+        {
+            var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
+            if (seatIsFixedFromSource)
+                animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
+            else
+            {
+                var observed = ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position));
+                CalibrationObservedSeatFromSource = observed - source;
+                animatedSaddle.Acquire(source, AnimatedSaddleCalibration.CalibrationPelvis(source, observed, declaredSeatFromSource),
+                    ToPose(anatomicalCorrection));
+                CalibrationUsedDeclaredSeat = declaredSeatFromSource.HasValue;
+            }
         }
 
         internal void CompensateMountScale(Transform exactAnchor)
@@ -281,20 +289,25 @@ namespace KingmakerMountedCombat.Integration
 
             if (animatedSaddleRequired)
             {
-                // This executes after native animation and the mechanics-only RiderMovementAgent.
-                // Project position through the root basis; never inherit the Chest rest quaternion.
-                // The seven-bone frame lease restores this visual-only pelvis write before animation.
-                if (!IsHealthy) { throw new InvalidOperationException("Owned Horse saddle frame changed."); }
-                var localSeat = animatedSaddle.Project(ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)));
-                LastAnimatedSeatPosition = saddleMountRoot.TransformPoint(ToUnity(localSeat));
-                pelvis.position = LastAnimatedSeatPosition;
-                MaximumAnimatedSeatError = Math.Max(MaximumAnimatedSeatError,
-                    Vector3.Distance(pelvis.position, LastAnimatedSeatPosition));
-                AnimatedSaddleSampleCount++;
+                ApplyAnimatedSeat();
             }
 
             ApplyLeg(leftLeg, profile.LeftLeg);
             ApplyLeg(rightLeg, profile.RightLeg);
+        }
+
+        // This executes after native animation and the mechanics-only RiderMovementAgent.
+        // Project position through the root basis; never inherit the Chest rest quaternion.
+        // The seven-bone frame lease restores this visual-only pelvis write before animation.
+        private void ApplyAnimatedSeat()
+        {
+            if (!IsHealthy) { throw new InvalidOperationException("Owned Horse saddle frame changed."); }
+            var localSeat = animatedSaddle.Project(ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position)));
+            LastAnimatedSeatPosition = saddleMountRoot.TransformPoint(ToUnity(localSeat));
+            pelvis.position = LastAnimatedSeatPosition;
+            MaximumAnimatedSeatError = Math.Max(MaximumAnimatedSeatError,
+                Vector3.Distance(pelvis.position, LastAnimatedSeatPosition));
+            AnimatedSaddleSampleCount++;
         }
 
         private void ApplyLeg(LegBinding binding, MountedRiderLegPoseProfile legProfile)

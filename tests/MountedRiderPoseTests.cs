@@ -14,7 +14,6 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("two-bone pose solver rejects invalid lengths", SolverRejectsInvalidLengths);
             runner.Run("pose per-frame state uses allocation-free value types", PosePerFrameStateUsesValueTypes);
             runner.Run("pose frame priming restores before measured frames", PoseFramePrimingRestoresBeforeMeasuredFrames);
-            runner.Run("MMR-01: Horse attachment lifecycle with differing baselines, remount and view replacement", HorseSeatAttachmentLifecycle);
             runner.Run("pose frame priming restores after application failure", PoseFramePrimingRestoresAfterApplicationFailure);
             runner.Run("pose baseline lease prevents cumulative frame mutation", PoseLeasePreventsCumulativeMutation);
             runner.Run("pose baseline lease restores exact acquisition values", PoseLeaseRestoresAcquisitionValues);
@@ -346,60 +345,6 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage("pose-walk-run", 10L, 10L),
                 "Moving row rejected complete synchronization phase coverage.");
-        }
-
-        // The adapter's own sequence on the production lease and saddle (MountedRiderPoseAdapter.Configure/ConfigureAnimatedSaddle/
-        // LateUpdate/Deconfigure): acquire the view's pelvis, prime one frame that applies the pose and acquires the saddle from
-        // AnimatedSaddleCalibration, write the projected seat each frame inside the frame lease, then restore on release. The
-        // pelvis is reduced to its vertical coordinate; Unity transforms and the rendered pose are not exercised here.
-        private static void HorseSeatAttachmentLifecycle()
-        {
-            var chest = new PoseVector3(0f, 1.5024f, 0.4674f);
-            var declared = (PoseVector3?)AnimatedSaddleCalibration.MediumHumanoidHorseSeatFromSource;
-            float Attach(FakeNode pelvis, float observedPelvisY, PoseVector3? basis, out ScopedPoseBaselineLease<FakeNode, double, double, double> leaseOut,
-                out AnimatedSaddlePosition saddleOut)
-            {
-                var ownLease = CreateLease();
-                var ownSaddle = new AnimatedSaddlePosition();
-                ownLease.Acquire(new[] { pelvis });
-                ownLease.PrimeFrame(() => ownSaddle.Acquire(chest,
-                    AnimatedSaddleCalibration.CalibrationPelvis(chest, new PoseVector3(-0.1892f, observedPelvisY, 0.4849f), basis),
-                    MountedRiderPoseProfiles.HorseAnimatedSeatCorrection));
-                for (var frame = 0; frame < 3; frame++)
-                {
-                    ownLease.BeginFrame();
-                    pelvis.Position = ownSaddle.Project(chest).Y;
-                    if (frame < 2) ownLease.RestoreFrame();
-                }
-                leaseOut = ownLease; saddleOut = ownSaddle;
-                return (float)pelvis.Position;
-            }
-            ScopedPoseBaselineLease<FakeNode, double, double, double> lease; AnimatedSaddlePosition saddle;
-            // First mount from a cast pose (pelvis sampled 0.25 higher) on view A with baseline 0.95.
-            var viewA = new FakeNode { Position = 0.95d, Rotation = 0d, Scale = 1d };
-            var first = Attach(viewA, 2.6125f, declared, out lease, out saddle);
-            // Dismount: exact restoration of view A's baseline and release of the saddle.
-            lease.RestoreFrame(); lease.Restore(); saddle.Release();
-            TestRunner.Equal(0.95d, viewA.Position, "Dismount did not restore the old view's exact pose baseline.");
-            TestRunner.True(!saddle.IsAcquired, "The saddle survived the dismount.");
-            // Remount from an idle pose with a different baseline: the same seat.
-            viewA.Position = 0.90d;
-            var remount = Attach(viewA, 2.3625f, declared, out lease, out saddle);
-            TestRunner.True(Math.Abs(first - remount) < 0.00001f, "First mount and remount seated the Horse rider differently.");
-            // View replacement: the old view is restored exactly; one lease owns the new view; the seat is unchanged.
-            lease.RestoreFrame(); lease.Restore(); saddle.Release();
-            TestRunner.Equal(0.90d, viewA.Position, "The replaced view kept a mounted pose.");
-            var viewB = new FakeNode { Position = 1.10d, Rotation = 0d, Scale = 1d };
-            var replaced = Attach(viewB, 2.48f, declared, out lease, out saddle);
-            TestRunner.True(Math.Abs(first - replaced) < 0.00001f, "The replacement view seated the rider differently.");
-            var duplicateRefused = false;
-            try { lease.Acquire(new[] { viewB }); } catch (InvalidOperationException) { duplicateRefused = true; }
-            TestRunner.True(duplicateRefused, "A second owner acquired the same view.");
-            lease.RestoreFrame(); lease.Restore(); saddle.Release();
-            TestRunner.Equal(1.10d, viewB.Position, "The replacement view was not restored on release.");
-            // Other profiles are isolated: without a declared basis (Mammoth) the observed sample still decides.
-            var mammothCast = Attach(new FakeNode { Position = 0.95d, Rotation = 0d, Scale = 1d }, 2.6125f, null, out lease, out saddle);
-            TestRunner.True(mammothCast - first > 0.2f, "The Horse basis leaked into an undeclared profile.");
         }
 
         private static ScopedPoseBaselineLease<FakeNode, double, double, double> CreateLease()

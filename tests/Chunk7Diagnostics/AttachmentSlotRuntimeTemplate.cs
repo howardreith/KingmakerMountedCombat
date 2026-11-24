@@ -280,7 +280,7 @@ namespace KingmakerMountedCombat.Integration
     using KingmakerMountedCombat.Diagnostics;
     using KingmakerMountedCombat.Logging;
 
-    internal sealed class UnitEntityView : MonoBehaviour { }
+    internal sealed class UnitEntityView : MonoBehaviour { public object CharacterAvatar => null; }
 
     internal sealed class UnitEntityData
     {
@@ -304,6 +304,14 @@ namespace KingmakerMountedCombat.Integration
         public bool UsesDiagnosticMammothOffsets, UsesAnimatedSaddle;
         public PoseVector3 SourceAnchorOffset, RiderEulerOffset, MountRootPositionOffset, AnimatedSeatCorrection;
         public MountedRiderPoseProfile RiderPoseProfile = new MountedRiderPoseProfile();
+        public object SmallRiderBody;
+        public PoseVector3? DeclaredSeatFromSource => null;
+    }
+
+    internal sealed class SmallRiderRigCompletion : IDisposable
+    {
+        internal SmallRiderRigCompletion(object avatar, IModLogger logger) { }
+        public void Dispose() { }
     }
 
     internal sealed class RiderMovementAgent : MonoBehaviour
@@ -325,7 +333,9 @@ namespace KingmakerMountedCombat.Integration
         public string ProfileId { get; private set; }
         public int BoneCount => 7;
         public void Configure(UnitEntityView view, MountedRiderPoseProfile profile) { configured = true; restored = false; ProfileId = profile.Id; }
-        public void ConfigureAnimatedSaddle(Transform root, Transform source, Vector3 correction) { }
+        public void ConfigureAnimatedSaddle(Transform root, Transform source, Vector3 correction, bool seatIsFixedFromSource = false,
+            PoseVector3? declaredSeatFromSource = null) { }
+        internal void CompensateMountScale(Transform anchor) { }
         public void Deconfigure() { Deconfigures++; configured = false; restored = true; }
     }
 
@@ -361,6 +371,7 @@ namespace KingmakerMountedCombat.Integration
         private bool poseBaselineRestoreVerified;
         private bool replacementRiderViewReleaseVerified;
         private bool presentationConfigured;
+        private SmallRiderRigCompletion smallRiderRig;
 
         /* CONSTRUCTOR */
 
