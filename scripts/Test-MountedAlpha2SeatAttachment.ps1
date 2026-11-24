@@ -2,7 +2,7 @@
 param([string]$RepositoryRoot,[string]$TemplatePath,[string]$OutputDirectory)
 # MMR-01 production seat attachment check (review R1-F12). Splices the ACTUAL KingmakerMountedPairRuntime attach/restore/
 # replacement members, the ACTUAL MountedRiderPoseAdapter rig resolution, baseline lease, saddle calibration, frame, seat and
-# deconfiguration members, and the ACTUAL SupportedMountedProfile declared-seat expression into
+# settle, notice and deconfiguration members, and the ACTUAL SupportedMountedProfile settled-seat expression into
 # tests/Chunk7Diagnostics/HorseSeatAttachmentTemplate.cs (the Unity hierarchy facade of the chunk7 attachment slot harness
 # with translation-only world positions), compiles them with the real Domain sources and runs the attach/frame/dismount/
 # remount/view-replacement sequence. Offline evidence only (nativeProof=false): the rendered seat stays an owner observation.
@@ -20,7 +20,7 @@ $profilePath=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Integration/S
 $domain=@('ScopedTransformAttachmentLease.cs','ScopedPoseBaselineLease.cs','AnimatedSaddlePosition.cs','AnimatedSaddleCalibration.cs','MountedRiderPoseProfile.cs','PoseVector3.cs')|ForEach-Object{Join-Path $RepositoryRoot ('src/KingmakerMountedCombat/Domain/'+$_)}
 $members=[ordered]@{
  'HORSE_GUID'=(ExtractExpression $profile 'internal const string HorseBlueprintGuid =')
- 'DECLARED_SEAT'=(ExtractExpression $profile 'public PoseVector3? DeclaredSeatFromSource =>')
+ 'SETTLED_SEAT'=(ExtractExpression $profile 'public bool SettlesSeatFromIdlePose =>')
  'ADAPTER_STATE'=(ExtractRegion $adapter 'private ScopedPoseBaselineLease<Transform, Vector3, Quaternion, Vector3> baselineLease;' 'internal double? ObserveCurrentAnimatedSeatResidual()')
  'ADAPTER_RESTORE_STATE'=(ExtractRegion $adapter 'public bool BaselineRestoreVerified =>' 'public string BoneInventory =>')
  'ADAPTER_RESIDUE'=(ExtractExpression $adapter 'public bool HasPoseResidue =>')
@@ -28,6 +28,8 @@ $members=[ordered]@{
  'ADAPTER_PRIME'=(Extract $adapter 'private void PrimeTimedPosePath()')
  'ADAPTER_SADDLE'=(Extract $adapter 'public void ConfigureAnimatedSaddle(')
  'ADAPTER_CALIBRATION'=(Extract $adapter 'private void AcquireSaddleCalibration(')
+ 'ADAPTER_SETTLE'=(Extract $adapter 'private void ObserveSettlingSeat()')
+ 'ADAPTER_NOTIFY'=(Extract $adapter 'private void NotifySeatCalibration(')
  'ADAPTER_SCALE'=(Extract $adapter 'internal void CompensateMountScale(Transform exactAnchor)')
  'ADAPTER_DECONFIGURE'=(Extract $adapter 'public void Deconfigure()')
  'ADAPTER_UPDATE'=(Extract $adapter 'private void Update()')

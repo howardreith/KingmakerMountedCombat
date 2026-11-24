@@ -549,9 +549,14 @@ namespace KingmakerMountedCombat.Integration
             poseAdapter.Configure(riderView, supportedProfile.RiderPoseProfile);
             if (supportedProfile.UsesAnimatedSaddle)
             {
+                // MMR-01 (review R1-F12): the attachment and settled seat samples are logged on every successful attachment.
+                var calibrationRider = rider?.UniqueId;
+                var calibrationCorrection = supportedProfile.AnimatedSeatCorrection;
+                poseAdapter.SeatCalibrationNotice = (phase, observed, applied, frames) =>
+                    logger.Info(AnimatedSaddleCalibration.FormatNotice(phase, calibrationRider, observed, applied, calibrationCorrection, frames));
                 poseAdapter.ConfigureAnimatedSaddle(mountView.transform, sourceAnchor,
                     ToUnity(supportedProfile.AnimatedSeatCorrection), supportedProfile.SmallRiderBody != null,
-                    supportedProfile.DeclaredSeatFromSource);
+                    supportedProfile.SettlesSeatFromIdlePose);
                 if (supportedProfile.SmallRiderBody != null)
                 {
                     poseAdapter.CompensateMountScale(positionAnchor);
@@ -997,8 +1002,11 @@ namespace KingmakerMountedCombat.Integration
                 ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
                 ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
                 ";seatGeometry={" + (poseAdapter?.ObserveSeatGeometry() ?? "unavailable") + "}" +
-                ";seatCalibration=" + (poseAdapter == null ? "<none>" : (poseAdapter.CalibrationUsedDeclaredSeat ? "declared" : "observed") +
-                    ";observedSeatFromSource=" + poseAdapter.CalibrationObservedSeatFromSource) +
+                ";seatCalibration=" + (poseAdapter == null ? "<none>" : (!poseAdapter.SeatCalibrationSettles ? "attachment" :
+                    poseAdapter.SeatCalibrationSettled ? "settled" : "provisional") +
+                    ";observedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationObservedSeatFromSource) +
+                    ";appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationAppliedSeatFromSource) +
+                    ";settleFrames=" + poseAdapter.SeatSettleFrames) +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

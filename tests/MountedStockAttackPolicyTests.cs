@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
-            runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
+            runner.Run("MMR-01: the Horse seat settles on the rider's own still pose, whatever the attachment frame showed", AnimatedSaddleSettledHorseSeat);
             runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
             runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
             runner.Run("R1-F4/F6: follow-through uses dispatch admission and the accepted kind; newer work keeps the horse out", FollowThroughEligibility);
@@ -430,36 +430,52 @@ namespace KingmakerMountedCombat.Tests
             }
         }
 
-        private static void AnimatedSaddleDeclaredHorseBasis()
+        private static void AnimatedSaddleSettledHorseSeat()
         {
-            // Measured preview.3 sample: the basis HorseAnimatedSeatCorrection was tuned against.
-            var chest = new PoseVector3(0f, 1.5024f, 0.4674f);
-            var idlePelvis = new PoseVector3(-0.1892f, 2.3625f, 0.4849f);
-            // A first-mount sample taken mid-cast or while an approach walk blends out: pelvis higher and displaced.
-            var castPelvis = new PoseVector3(-0.05f, 2.6125f, 0.60f);
-            var declared = (PoseVector3?)AnimatedSaddleCalibration.MediumHumanoidHorseSeatFromSource;
-            PoseVector3 Seat(PoseVector3 observed, PoseVector3? basis, PoseVector3 animatedChest)
+            // Synthetic mount-root-local pelvis-minus-Chest samples (not measurements): a cast pose held, a blend, then idle.
+            var chest = new PoseVector3(0f, 1.5f, 0.47f);
+            var idle = new PoseVector3(-0.19f, 0.86f, 0.02f);
+            var cast = new PoseVector3(-0.05f, 1.11f, 0.13f);
+            PoseVector3 Lerp(PoseVector3 a, PoseVector3 b, float t) => a + (b - a) * t;
+            SettledSeatSampler Run(Func<int, PoseVector3> pose, int frames, out int settledFrame, out int settleSignals)
+            {
+                var sampler = new SettledSeatSampler(); settledFrame = -1; settleSignals = 0;
+                for (var frame = 1; frame <= frames; frame++)
+                    if (sampler.Observe(pose(frame))) { settledFrame = frame; settleSignals++; }
+                return sampler;
+            }
+            int firstAt, firstSignals, remountAt, remountSignals, loadAt, loadSignals, neverAt, neverSignals;
+            // First mount: the cast clip holds still briefly (inside the minimum), animates until frame 150, blends for 10 frames, then idle.
+            var first = Run(f => f <= 40 ? cast : f <= 150 ? cast + new PoseVector3(0f, 0.01f * (float)Math.Sin(f * 0.7), 0f) : f <= 160 ? Lerp(cast, idle, (f - 150) / 10f) : idle, 400, out firstAt, out firstSignals);
+            // Remount from idle, and a mounted load whose first evaluated frame is the bind pose before the animator runs.
+            var remount = Run(f => idle, 400, out remountAt, out remountSignals);
+            var load = Run(f => f == 1 ? new PoseVector3(-0.19f, 1.30f, 0.02f) : idle, 400, out loadAt, out loadSignals);
+            TestRunner.True(first.Settled && remount.Settled && load.Settled && firstSignals == 1 && remountSignals == 1 && loadSignals == 1,
+                "A settling pose did not settle exactly once.");
+            TestRunner.True((first.SettledSample - idle).Magnitude < 0.00001f && (remount.SettledSample - idle).Magnitude < 0.00001f &&
+                (load.SettledSample - idle).Magnitude < 0.00001f, "First mount, load and remount settled on different samples.");
+            TestRunner.True(firstAt >= 160 + SettledSeatSampler.StableFrames && remountAt == SettledSeatSampler.MinimumFrames &&
+                first.FramesToSettle == firstAt, "The settle timing ignored the cast clip or the minimum frames.");
+            // Seats: the settled basis plus the accepted correction is the same for all three attachments.
+            PoseVector3 Seat(PoseVector3 basis)
             {
                 var saddle = new AnimatedSaddlePosition();
-                saddle.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, observed, basis), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
-                return saddle.Project(animatedChest);
+                saddle.Acquire(chest, chest + basis, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+                return saddle.Project(chest);
             }
-            var accepted = Seat(idlePelvis, null, chest);
-            foreach (var animatedChest in new[] { chest, new PoseVector3(0.03f, 1.62f, 0.41f) })
-            {
-                var first = Seat(castPelvis, declared, animatedChest);
-                var remount = Seat(idlePelvis, declared, animatedChest);
-                TestRunner.True((first - remount).Magnitude < 0.00001f, "First mount and remount calibrated different Horse seats.");
-            }
-            TestRunner.True((Seat(castPelvis, declared, chest) - accepted).Magnitude < 0.0005f, "The declared Horse basis moved the accepted seat.");
-            // Without a declaration (Mammoth) the observed sample is retained: the pose-dependent height the Horse no longer takes.
-            TestRunner.True(Seat(castPelvis, null, chest).Y - accepted.Y > 0.2f, "The observed path no longer reflects its sample.");
-            // Release and reacquire through the same policy inherit nothing.
-            var reused = new AnimatedSaddlePosition();
-            reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, null), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
-            reused.Release();
-            reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
-            TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
+            TestRunner.True((Seat(first.SettledSample) - Seat(remount.SettledSample)).Magnitude < 0.00001f &&
+                (Seat(load.SettledSample) - Seat(remount.SettledSample)).Magnitude < 0.00001f, "Settled seats differ.");
+            TestRunner.True(Seat(cast).Y - Seat(first.SettledSample).Y > 0.2f, "The provisional cast seat was not the high seat the owner reported.");
+            // A pose that never holds still keeps the provisional basis and gives up after the bound.
+            var never = Run(f => new PoseVector3(-0.19f, 0.86f + ((f % 2) == 0 ? 0.01f : 0f), 0.02f), SettledSeatSampler.MaximumFrames + 10,
+                out neverAt, out neverSignals);
+            TestRunner.True(!never.Settled && never.GaveUp && neverSignals == 0 && never.Frames == SettledSeatSampler.MaximumFrames,
+                "An unsettled pose settled or was sampled without bound.");
+            var nan = new SettledSeatSampler();
+            TestRunner.True(!nan.Observe(new PoseVector3(float.NaN, 0f, 0f)) && nan.Frames == 0, "A non-finite sample was counted.");
+            var line = AnimatedSaddleCalibration.FormatNotice("settled", "rider-1", idle, idle, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection, 46);
+            TestRunner.True(line.Contains("phase=settled") && line.Contains("observedSeatFromSource=(-0.1900,0.8600,0.0200)") &&
+                line.Contains("appliedSeatFromSource=") && line.Contains("seatCorrection=") && line.Contains("frames=46"), "The seat line lost a field: " + line);
         }
 
         private static void FollowThroughEligibility()

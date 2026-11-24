@@ -10,8 +10,8 @@ using UnityEngine.SceneManagement;
 // replacement members and the ACTUAL MountedRiderPoseAdapter rig resolution, baseline lease, saddle calibration, frame,
 // seat and deconfiguration members are spliced in by scripts/Test-MountedAlpha2SeatAttachment.ps1 and compiled with the
 // real Domain sources (ScopedTransformAttachmentLease, ScopedPoseBaselineLease, AnimatedSaddlePosition,
-// AnimatedSaddleCalibration, MountedRiderPoseProfile, PoseVector3) and the actual SupportedMountedProfile declared-seat
-// expression. Only Unity itself is a facade: the hierarchy semantics of AttachmentSlotRuntimeTemplate.cs plus
+// AnimatedSaddleCalibration with SettledSeatSampler, MountedRiderPoseProfile, PoseVector3) and the actual
+// SupportedMountedProfile settled-seat expression. Only Unity itself is a facade: the hierarchy semantics of AttachmentSlotRuntimeTemplate.cs plus
 // translation-only world positions. The one adapter member that is not actual is ApplyPose (its pelvis profile offsets and
 // leg IK need Unity rotation math); its stub performs only the actual animated-seat write. Offline evidence only: it
 // proves the attachment wiring and seat arithmetic, never the rendered pose.
@@ -330,7 +330,7 @@ namespace KingmakerMountedCombat.Integration
     }
 
     // The fields AttachPresentation reads, with the production Horse/Mammoth/Small values supplied by the program; the
-    // declared seat is the ACTUAL SupportedMountedProfile.DeclaredSeatFromSource expression.
+    // settled-seat flag is the ACTUAL SupportedMountedProfile.SettlesSeatFromIdlePose expression.
     internal sealed class SupportedMountedProfile
     {
         public string Id, BlueprintGuid, DisplayName, SourceAnchorName;
@@ -338,7 +338,7 @@ namespace KingmakerMountedCombat.Integration
         public PoseVector3 SourceAnchorOffset, RiderEulerOffset, MountRootPositionOffset, AnimatedSeatCorrection;
         public MountedRiderPoseProfile RiderPoseProfile;
         public DeclaredSmallRiderBody SmallRiderBody;
-        /* DECLARED_SEAT */
+        /* SETTLED_SEAT */
     }
 
     internal sealed class SmallRiderRigCompletion : IDisposable
@@ -364,6 +364,8 @@ namespace KingmakerMountedCombat.Integration
         /* ADAPTER_PRIME */
         /* ADAPTER_SADDLE */
         /* ADAPTER_CALIBRATION */
+        /* ADAPTER_SETTLE */
+        /* ADAPTER_NOTIFY */
         /* ADAPTER_SCALE */
         /* ADAPTER_DECONFIGURE */
         /* ADAPTER_UPDATE */
@@ -398,10 +400,12 @@ namespace KingmakerMountedCombat.Integration
         }
     }
 
+    // Records what the runtime logs, so the seat lines are read from the actual logging path.
     internal sealed class Logger : IModLogger
     {
-        public void Info(string message) { }
-        public void Warning(string message) { }
+        internal static readonly List<string> Lines = new List<string>();
+        public void Info(string message) { Lines.Add(message); }
+        public void Warning(string message) { Lines.Add(message); }
     }
 
     internal sealed class KingmakerMountedPairRuntime
@@ -574,16 +578,29 @@ internal static class Program
         view.GetComponents<KingmakerMountedCombat.Integration.MountedRiderPoseAdapter>().Count(adapter => adapter.IsConfigured);
 
     // Engine frames while mounted: the animator writes its own pelvis pose (cast, walk, idle) before LateUpdate.
-    private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, params float[] animatedHeights)
+    private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, IEnumerable<float> animatedHeights)
     {
         foreach (var height in animatedHeights)
             runtime.PoseAdapter.HarnessFrame(() => pelvis.localPosition = new Vector3(0f, height, 0f));
         return pelvis.position;
     }
 
-    private static Vector3 ExpectedHorseSeat(Mount mount) =>
-        mount.Root.position + ChestLocal + U(AnimatedSaddleCalibration.MediumHumanoidHorseSeatFromSource) +
-        U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+    private static IEnumerable<float> Hold(float height, int frames) => Enumerable.Repeat(height, frames);
+
+    // A Mount Companion cast clip: animated (never still) for the given frames, then a blend into the idle height.
+    private static IEnumerable<float> CastThenIdle(float cast, float idle, int castFrames, int idleFrames)
+    {
+        for (var frame = 0; frame < castFrames; frame++) yield return cast + 0.04f * (float)Math.Sin(frame * 0.7);
+        for (var frame = 1; frame <= 10; frame++) yield return cast + (idle - cast) * frame / 10f;
+        for (var frame = 0; frame < idleFrames; frame++) yield return idle;
+    }
+
+    private const float IdleHeight = 0.95f;
+
+    // The settled seat is the rider's own idle pelvis (its world position in the anchored rider frame) plus the accepted
+    // Horse correction: derived from the rider pose fed to the animator, not from any literal basis.
+    private static Vector3 ExpectedSettledSeat(Transform pelvis, float idleHeight) =>
+        pelvis.parent.position + new Vector3(0f, idleHeight, 0f) + U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
 
     private static KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime NewRuntime() =>
         new KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime(new KingmakerMountedCombat.Integration.Logger(),
@@ -592,36 +609,38 @@ internal static class Program
     private static KingmakerMountedCombat.Integration.MountedPair PairOf(Rider rider, Mount mount) =>
         new KingmakerMountedCombat.Integration.MountedPair(rider.Unit.UniqueId, mount.Unit.UniqueId);
 
+    private static List<string> SeatLines(string riderId) =>
+        KingmakerMountedCombat.Integration.Logger.Lines.Where(line => line.StartsWith("Horse seatCalibration:", StringComparison.Ordinal) &&
+            line.Contains("rider=" + riderId + ";")).ToList();
+
     private static int Main()
     {
         Engine.Reset();
         var mountRoot = new Vector3(10f, 0f, 5f);
+        var settleBudget = SettledSeatSampler.MinimumFrames + 80;
 
-        Check("first mount from a cast pose and from an idle pose: the adapter receives the declared Horse basis and both seat identically", () =>
+        Check("first mount from an animated cast pose settles on the rider's own idle pose: provisional then settled seat, both logged", () =>
         {
             var mount = NewMount("horse-a", "Chest", mountRoot);
             var cast = NewRider("rider-cast", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.20f);
-            var idle = NewRider("rider-idle", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(11f, 0f, 6f), 0.95f);
-            var castRuntime = NewRuntime();
-            castRuntime.Seed(cast.Unit, mount.Unit, Horse());
-            castRuntime.AttachPresentation(PairOf(cast, mount));
-            var castSeat = Frames(castRuntime, cast.Pelvis, 1.20f, 1.31f, 1.05f);
-            var castObserved = castRuntime.PoseAdapter.CalibrationObservedSeatFromSource;
-            var castDeclared = castRuntime.PoseAdapter.CalibrationUsedDeclaredSeat;
-            castRuntime.RestorePresentation(PairOf(cast, mount));
+            var runtime = NewRuntime();
+            runtime.Seed(cast.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(cast, mount));
+            var provisional = Frames(runtime, cast.Pelvis, Hold(1.20f, 1));
+            var settling = runtime.PoseAdapter.SeatCalibrationSettles && !runtime.PoseAdapter.SeatCalibrationSettled;
+            var settled = Frames(runtime, cast.Pelvis, CastThenIdle(1.20f, IdleHeight, SettledSeatSampler.MinimumFrames + 10, 40));
+            var expected = ExpectedSettledSeat(cast.Pelvis, IdleHeight);
+            var lines = SeatLines("rider-cast");
+            Console.WriteLine("  provisional=" + provisional + " settled=" + settled + " expected=" + expected +
+                " frames=" + runtime.PoseAdapter.SeatSettleFrames + " lines=" + string.Join(" | ", lines));
+            var ok = settling && runtime.PoseAdapter.SeatCalibrationSettled && Near(settled, expected) && provisional.y - settled.y > 0.2f &&
+                runtime.PoseAdapter.SeatSettleFrames > SettledSeatSampler.MinimumFrames + 10 &&
+                lines.Count == 2 && lines[0].Contains("phase=attach") && lines[0].Contains("observedSeatFromSource=") &&
+                lines[0].Contains("appliedSeatFromSource=") && lines[1].Contains("phase=settled") && lines[1].Contains("frames=" + runtime.PoseAdapter.SeatSettleFrames) &&
+                Math.Abs(runtime.PoseAdapter.CalibrationAppliedSeatFromSource.Y - runtime.PoseAdapter.CalibrationObservedSeatFromSource.Y + 0.25f) < 0.0005f;
+            runtime.RestorePresentation(PairOf(cast, mount));
             Engine.EndOfFrame();
-            var idleRuntime = NewRuntime();
-            idleRuntime.Seed(idle.Unit, mount.Unit, Horse());
-            idleRuntime.AttachPresentation(PairOf(idle, mount));
-            var idleSeat = Frames(idleRuntime, idle.Pelvis, 0.95f, 0.97f, 0.93f);
-            var idleObserved = idleRuntime.PoseAdapter.CalibrationObservedSeatFromSource;
-            var idleDeclared = idleRuntime.PoseAdapter.CalibrationUsedDeclaredSeat;
-            Console.WriteLine("  castSeat=" + castSeat + " idleSeat=" + idleSeat + " expected=" + ExpectedHorseSeat(mount) +
-                " observedSeatFromSource.Y cast=" + castObserved.Y + " idle=" + idleObserved.Y);
-            idleRuntime.RestorePresentation(PairOf(idle, mount));
-            Engine.EndOfFrame();
-            return castDeclared && idleDeclared && Near(castSeat, idleSeat) && Near(castSeat, ExpectedHorseSeat(mount)) &&
-                Math.Abs(castObserved.Y - idleObserved.Y) > 0.2f;
+            return ok;
         });
 
         Check("dismount through the runtime restores the exact pelvis baseline and rider placement and destroys the adapter", () =>
@@ -634,38 +653,52 @@ internal static class Program
             runtime.AttachPresentation(PairOf(rider, mount));
             var mounted = Adapters(rider.Unit.View.gameObject) == 1 && runtime.PoseAdapter.IsHealthy &&
                 rider.Unit.View.transform.parent != parent;
-            Frames(runtime, rider.Pelvis, 1.1f, 0.9f);
+            Frames(runtime, rider.Pelvis, Hold(0.95f, settleBudget));
+            var settled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            return mounted && Near(rider.Pelvis.localPosition, new Vector3(0f, 0.95f, 0f)) &&
+            return mounted && settled && Near(rider.Pelvis.localPosition, new Vector3(0f, 0.95f, 0f)) &&
                 Near(rider.Unit.View.transform.position, new Vector3(8f, 0f, 3f)) && rider.Unit.View.transform.parent == parent &&
                 Adapters(rider.Unit.View.gameObject) == 0 && !runtime.HasPresentationAttachmentResidue && runtime.NoPreparedPairResidue;
         });
 
-        Check("remount at the same place from a different baseline seats exactly as the first mount, with one adapter", () =>
+        Check("first mount (cast), remount from idle at a different baseline and a mounted load's bind-pose first frame settle on one seat, one adapter", () =>
         {
             var mount = NewMount("horse-c", "Chest", mountRoot);
             var rider = NewRider("rider-c", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.25f);
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var first = Frames(runtime, rider.Pelvis, 1.25f, 1.25f);
+            var first = Frames(runtime, rider.Pelvis, CastThenIdle(1.25f, IdleHeight, SettledSeatSampler.MinimumFrames, 40));
+            var firstSettled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
             var restoredFirst = Near(rider.Pelvis.localPosition, new Vector3(0f, 1.25f, 0f));
+            // Remount from an idle stance with a different pelvis baseline. The facade does not model RiderMovementAgent snapping
+            // the rider root to the saddle anchor, so the rider stands where it stood for the first mount (the snap's result).
             rider.Pelvis.localPosition = new Vector3(0f, 0.80f, 0f);
-            rider.Unit.View.transform.position = new Vector3(12f, 0f, 7f);
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var second = Frames(runtime, rider.Pelvis, 0.80f, 0.86f);
-            var oneAdapter = Adapters(rider.Unit.View.gameObject) == 1 && ConfiguredAdapters(rider.Unit.View.gameObject) == 1;
+            var remount = Frames(runtime, rider.Pelvis, Hold(IdleHeight, settleBudget));
+            var oneAdapter = Adapters(rider.Unit.View.gameObject) == 1 && ConfiguredAdapters(rider.Unit.View.gameObject) == 1 &&
+                runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            return restoredFirst && oneAdapter && Near(first, second) && Near(second, ExpectedHorseSeat(mount)) &&
-                Near(rider.Pelvis.localPosition, new Vector3(0f, 0.80f, 0f)) && Adapters(rider.Unit.View.gameObject) == 0;
+            // A mounted load: the view's first evaluated frame is the bind pose (pelvis high), then the animator's idle.
+            rider.Pelvis.localPosition = new Vector3(0f, 1.30f, 0f);
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            var load = Frames(runtime, rider.Pelvis, new[] { 1.30f }.Concat(Hold(IdleHeight, settleBudget)));
+            var loadSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            var expected = ExpectedSettledSeat(rider.Pelvis, IdleHeight);
+            Console.WriteLine("  first=" + first + " remount=" + remount + " load=" + load + " expected=" + expected + " restoredFirst=" + restoredFirst + " firstSettled=" + firstSettled + " oneAdapter=" + oneAdapter + " loadSettled=" + loadSettled);
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            return restoredFirst && firstSettled && oneAdapter && loadSettled && Near(first, remount) && Near(remount, load) && Near(load, expected) &&
+                Near(rider.Pelvis.localPosition, new Vector3(0f, 1.30f, 0f)) && Adapters(rider.Unit.View.gameObject) == 0;
         });
 
-        Check("view replacement restores the old view exactly; remounting the new view leaves one configured adapter and the same seat", () =>
+        Check("view replacement restores the old view exactly; the new view settles on its own rider-frame idle seat with one configured adapter", () =>
         {
             var mount = NewMount("horse-d", "Chest", mountRoot);
             var rider = NewRider("rider-d", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(7f, 0f, 2f), 0.95f);
@@ -674,7 +707,8 @@ internal static class Program
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var before = Frames(runtime, rider.Pelvis, 1.0f, 1.1f);
+            var before = Frames(runtime, rider.Pelvis, Hold(IdleHeight, settleBudget));
+            var beforeExpected = ExpectedSettledSeat(rider.Pelvis, IdleHeight);
             // Native Polymorph.TryReplaceView parents the replacement under the old view's parent: the owned anchor.
             var replacement = NewRider("rider-d-replacement", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(0f, 0f, 0f), 1.05f);
             replacement.Unit.View.transform.SetParent(oldView.transform.parent, false);
@@ -687,13 +721,36 @@ internal static class Program
                 replacement.Unit.View.transform.parent == oldParent && Near(replacement.Unit.View.transform.position, replacementWorld);
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var after = Frames(runtime, replacement.Pelvis, 1.05f, 0.9f);
+            var after = Frames(runtime, replacement.Pelvis, new[] { 1.05f }.Concat(Hold(IdleHeight, settleBudget)));
+            var afterExpected = ExpectedSettledSeat(replacement.Pelvis, IdleHeight);
+            Console.WriteLine("  before=" + before + " beforeExpected=" + beforeExpected + " after=" + after + " afterExpected=" + afterExpected);
             var single = ConfiguredAdapters(replacement.Unit.View.gameObject) == 1 && Adapters(replacement.Unit.View.gameObject) == 1 &&
-                Adapters(oldView) == 0 && runtime.PoseAdapter.CalibrationUsedDeclaredSeat;
+                Adapters(oldView) == 0 && runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            return oldRestored && single && Near(before, after) && Near(after, ExpectedHorseSeat(mount)) &&
-                Near(replacement.Pelvis.localPosition, new Vector3(0f, 1.05f, 0f)) && !runtime.HasPresentationAttachmentResidue;
+            // Each view settles on its own rider-frame idle seat (the facade places the replacement at the anchor, the old view
+            // where it stood), so each is compared with its own expected settled seat.
+            return oldRestored && single && Near(before, beforeExpected) && Near(after, afterExpected) &&
+                Near(replacement.Pelvis.localPosition, new Vector3(0f, 1.05f, 0f)) &&
+                !runtime.HasPresentationAttachmentResidue;
+        });
+
+        Check("a pose that never holds still keeps the provisional attachment seat and logs that it did not settle", () =>
+        {
+            var mount = NewMount("horse-g", "Chest", mountRoot);
+            var rider = NewRider("rider-g", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.10f);
+            var runtime = NewRuntime();
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            var restless = Enumerable.Range(0, SettledSeatSampler.MaximumFrames + 5).Select(frame => (frame % 2) == 0 ? 1.10f : 1.11f);
+            var seat = Frames(runtime, rider.Pelvis, restless);
+            var expectedProvisional = rider.Pelvis.parent.position + new Vector3(0f, 1.10f, 0f) + U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
+            var lines = SeatLines("rider-g");
+            var ok = !runtime.PoseAdapter.SeatCalibrationSettled && Near(seat, expectedProvisional) &&
+                lines.Count == 2 && lines[1].Contains("phase=unsettled");
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            return ok;
         });
 
         Check("the actual adapter refuses a second configuration of the same rider view while mounted", () =>
@@ -719,9 +776,9 @@ internal static class Program
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mammoth.Unit, Mammoth());
             runtime.AttachPresentation(PairOf(rider, mammoth));
-            var animated = Frames(runtime, rider.Pelvis, 1.17f);
+            var animated = Frames(runtime, rider.Pelvis, Hold(1.17f, 1));
             var mammothFollows = Near(rider.Pelvis.localPosition, new Vector3(0f, 1.17f, 0f)) && Near(animated, rider.Pelvis.parent.position + new Vector3(0f, 1.17f, 0f)) &&
-                !runtime.PoseAdapter.CalibrationUsedDeclaredSeat && runtime.PoseAdapter.AnimatedSaddleSampleCount == 0;
+                !runtime.PoseAdapter.SeatCalibrationSettles && runtime.PoseAdapter.AnimatedSaddleSampleCount == 0 && SeatLines("rider-f").Count == 0;
             runtime.RestorePresentation(PairOf(rider, mammoth));
             Engine.EndOfFrame();
             var small = NewMount("small-f", "Chest", mountRoot);
@@ -729,10 +786,10 @@ internal static class Program
             var smallRuntime = NewRuntime();
             smallRuntime.Seed(smallRider.Unit, small.Unit, Small());
             smallRuntime.AttachPresentation(PairOf(smallRider, small));
-            var smallSeat = Frames(smallRuntime, smallRider.Pelvis, 0.70f, 0.9f);
-            var smallFixed = !smallRuntime.PoseAdapter.CalibrationUsedDeclaredSeat &&
+            var smallSeat = Frames(smallRuntime, smallRider.Pelvis, new[] { 0.70f, 0.9f });
+            var smallFixed = !smallRuntime.PoseAdapter.SeatCalibrationSettles &&
                 KingmakerMountedCombat.Integration.SmallRiderRigCompletion.Live == 1 &&
-                Near(smallSeat, small.Root.position + ChestLocal + U(SmallCorrection));
+                Near(smallSeat, small.Root.position + ChestLocal + U(SmallCorrection)) && SeatLines("rider-small").Count == 0;
             smallRuntime.RestorePresentation(PairOf(smallRider, small));
             Engine.EndOfFrame();
             return mammothFollows && smallFixed && KingmakerMountedCombat.Integration.SmallRiderRigCompletion.Live == 0 &&

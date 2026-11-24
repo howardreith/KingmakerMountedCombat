@@ -275,14 +275,14 @@ Check ($fillTokens.ContainsKey($manual.MetadataToken) -and $fillTokens.ContainsK
 # ---- 4. MMR-01 seat wiring (review R1-F12): the compiled profile-to-adapter path, not a copy of it -------------------
 $profiles = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfiles'
 $profileType = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfile'
-$declared = $profileType.GetProperty('DeclaredSeatFromSource')
-$basis = (KmcType 'KingmakerMountedCombat.Domain.AnimatedSaddleCalibration').GetField('MediumHumanoidHorseSeatFromSource').GetValue($null)
+$settles = $profileType.GetProperty('SettlesSeatFromIdlePose')
+$calibrationType = KmcType 'KingmakerMountedCombat.Domain.AnimatedSaddleCalibration'
 $horseProfile = $profiles.GetField('Horse', $any).GetValue($null); $mammothProfile = $profiles.GetField('Mammoth', $any).GetValue($null)
-$horseSeat = $declared.GetValue($horseProfile)
-Check ($null -ne $horseSeat -and $horseSeat.Equals($basis) -and [Math]::Abs($basis.Y - 0.8601) -lt 0.00001) 'MMR-01: the Horse profile declares the measured seat basis (pelvis-Chest 0.8601 up)'
-Check ($null -eq $declared.GetValue($mammothProfile)) 'MMR-01: the Mammoth keeps its observed calibration'
+Check ($null -eq $profileType.GetProperty('DeclaredSeatFromSource') -and @($calibrationType.GetFields($any) | Where-Object { $_.FieldType.Name -eq 'PoseVector3' }).Count -eq 0) 'MMR-01: no literal seat basis remains in the product (the Horse basis is the rider''s own settled pose, measured live)'
+Check ([bool]$settles.GetValue($horseProfile)) 'MMR-01: the Horse profile settles its seat on the rider''s own still pose'
+Check (-not [bool]$settles.GetValue($mammothProfile)) 'MMR-01: the Mammoth keeps its own calibration (no animated saddle)'
 $small = @($profiles.GetField('small', $any).GetValue($null))
-Check ($small.Count -gt 0 -and @($small | Where-Object { $null -ne $declared.GetValue($_) }).Count -eq 0) ('MMR-01: all ' + $small.Count + ' Small profiles keep their own fixed-from-source seat')
+Check ($small.Count -gt 0 -and @($small | Where-Object { [bool]$settles.GetValue($_) }).Count -eq 0) ('MMR-01: all ' + $small.Count + ' Small profiles keep their own fixed-from-source seat')
 function CallsMethod([Type]$Type, [Reflection.MethodBase]$Target) {
     foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
         foreach ($m in $t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) {
@@ -299,7 +299,9 @@ function CallsMethod([Type]$Type, [Reflection.MethodBase]$Target) {
 }
 $runtimeType = KmcType 'KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime'
 $adapterType = KmcType 'KingmakerMountedCombat.Integration.MountedRiderPoseAdapter'
-$calibration = (KmcType 'KingmakerMountedCombat.Domain.AnimatedSaddleCalibration').GetMethod('CalibrationPelvis')
-Check (CallsMethod $runtimeType $declared.GetGetMethod()) 'MMR-01: pair attachment passes the profile''s declared seat to the pose adapter'
-Check (CallsMethod $adapterType $calibration) 'MMR-01: the adapter''s saddle acquisition calibrates through AnimatedSaddleCalibration.CalibrationPelvis'
+$observe = (KmcType 'KingmakerMountedCombat.Domain.SettledSeatSampler').GetMethod('Observe')
+$notice = $calibrationType.GetMethod('FormatNotice')
+Check (CallsMethod $runtimeType $settles.GetGetMethod()) 'MMR-01: pair attachment passes the profile''s settled-seat flag to the pose adapter'
+Check (CallsMethod $adapterType $observe) 'MMR-01: the adapter''s seat frames decide the settled sample through SettledSeatSampler.Observe'
+Check (CallsMethod $runtimeType $notice) 'MMR-01: pair attachment logs the attachment and settled seat samples (seatCalibration lines) on the normal path'
 Write-Host ('Mounted alpha 2 native contract PASS=' + $script:passed + ' FAIL=0')

@@ -305,7 +305,7 @@ namespace KingmakerMountedCombat.Integration
         public PoseVector3 SourceAnchorOffset, RiderEulerOffset, MountRootPositionOffset, AnimatedSeatCorrection;
         public MountedRiderPoseProfile RiderPoseProfile = new MountedRiderPoseProfile();
         public object SmallRiderBody;
-        public PoseVector3? DeclaredSeatFromSource => null;
+        public bool SettlesSeatFromIdlePose => false;
     }
 
     internal sealed class SmallRiderRigCompletion : IDisposable
@@ -333,8 +333,9 @@ namespace KingmakerMountedCombat.Integration
         public string ProfileId { get; private set; }
         public int BoneCount => 7;
         public void Configure(UnitEntityView view, MountedRiderPoseProfile profile) { configured = true; restored = false; ProfileId = profile.Id; }
+        internal Action<string, PoseVector3, PoseVector3, int> SeatCalibrationNotice;
         public void ConfigureAnimatedSaddle(Transform root, Transform source, Vector3 correction, bool seatIsFixedFromSource = false,
-            PoseVector3? declaredSeatFromSource = null) { }
+            bool settleSeatFromIdlePose = false) { }
         internal void CompensateMountScale(Transform anchor) { }
         public void Deconfigure() { Deconfigures++; configured = false; restored = true; }
     }
@@ -415,6 +416,12 @@ namespace KingmakerMountedCombat.Integration
 namespace KingmakerMountedCombat.Domain
 {
     public struct PoseVector3 { public float X, Y, Z; }
+    // Stub: the slot harness does not exercise the seat calibration line (Test-MountedAlpha2SeatAttachment.ps1 does).
+    internal static class AnimatedSaddleCalibration
+    {
+        internal static string FormatNotice(string phase, string riderId, PoseVector3 observed, PoseVector3 applied, PoseVector3 correction, int frames) => phase;
+        internal static string Format(PoseVector3 value) => string.Empty;
+    }
 }
 
 internal static class Program
