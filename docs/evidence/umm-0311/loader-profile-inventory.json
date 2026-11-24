@@ -1,0 +1,201 @@
+{
+  "schema": "kingmaker.loader-profile-inventory.v1",
+  "measured_utc": "2026-11-24T03:41:11Z",
+  "candidate": {
+    "file": "KingmakerMountedCombat.dll",
+    "assembly": "KingmakerMountedCombat",
+    "version": "0.1.0.0",
+    "sha256": "d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d",
+    "mvid": "9db1be50-bceb-4bb3-a167-14e4ce288e8c",
+    "references": [
+      "UnityModManager 0.31.1.0",
+      "0Harmony12 1.2.0.1"
+    ]
+  },
+  "profiles": [
+    {
+      "profile": "0.31.1",
+      "files": [
+        {
+          "file": "0Harmony.dll",
+          "assembly": "0Harmony",
+          "version": "2.3.1.1",
+          "sha256": "5f7ad0df1eb08e81f66d4006d3a9e5cb40fc05e381f36d7bd0513f334f6a251f",
+          "mvid": "6c906b4f-1de4-40f3-a86c-b0ebb3f48ea6",
+          "references": [],
+          "referenced_by": [
+            "0Harmony12",
+            "UnityModManager"
+          ]
+        },
+        {
+          "file": "0Harmony12.dll",
+          "assembly": "0Harmony12",
+          "version": "1.2.0.1",
+          "sha256": "aa1cd48317254985d8b700cc74953477d1b40c3022ce9aa4c95ed2b8327e1292",
+          "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+          "references": [
+            "0Harmony 2.0.1.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        },
+        {
+          "file": "UnityModManager.dll",
+          "assembly": "UnityModManager",
+          "version": "0.31.1.0",
+          "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4",
+          "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+          "references": [
+            "0Harmony 2.3.1.1"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "0.32.4",
+      "files": [
+        {
+          "file": "0Harmony.dll",
+          "assembly": "0Harmony",
+          "version": "2.3.6.0",
+          "sha256": "df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80",
+          "mvid": "4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc",
+          "references": [],
+          "referenced_by": [
+            "0Harmony12",
+            "UnityModManager"
+          ]
+        },
+        {
+          "file": "0Harmony12.dll",
+          "assembly": "0Harmony12",
+          "version": "1.2.0.1",
+          "sha256": "aa1cd48317254985d8b700cc74953477d1b40c3022ce9aa4c95ed2b8327e1292",
+          "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+          "references": [
+            "0Harmony 2.0.1.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        },
+        {
+          "file": "UnityModManager.dll",
+          "assembly": "UnityModManager",
+          "version": "0.32.4.0",
+          "sha256": "1387468bc3af41c50fe51859a3bb7af4922891aa8f13a6187e7a348ceaabfd88",
+          "mvid": "97735e89-6c7c-4f6c-a737-187e1328fba3",
+          "references": [
+            "0Harmony 2.3.6.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "0.33.4",
+      "files": [
+        {
+          "file": "0Harmony.dll",
+          "assembly": "0Harmony",
+          "version": "2.4.3.0",
+          "sha256": "ddc070b57f695ece6f92c43cf82cf4d863c69685de96a99ebd9d2fa1d8fa7a19",
+          "mvid": "d1169573-e7a6-4e79-b0bd-5ac5e113d774",
+          "references": [],
+          "referenced_by": [
+            "0Harmony12",
+            "UnityModManager"
+          ]
+        },
+        {
+          "file": "0Harmony12.dll",
+          "assembly": "0Harmony12",
+          "version": "1.2.0.1",
+          "sha256": "aa1cd48317254985d8b700cc74953477d1b40c3022ce9aa4c95ed2b8327e1292",
+          "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+          "references": [
+            "0Harmony 2.0.1.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        },
+        {
+          "file": "UnityModManager.dll",
+          "assembly": "UnityModManager",
+          "version": "0.33.4.0",
+          "sha256": "c5ed5617457f597d7befb272f9fe311d7128c647fd427a114c197bea13475239",
+          "mvid": "f6416b65-ffb6-49b3-bf33-cecaf20651e7",
+          "references": [
+            "0Harmony 2.4.3.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        }
+      ]
+    },
+    {
+      "profile": "owner-0.33.0",
+      "files": [
+        {
+          "file": "0Harmony-1.2.dll",
+          "assembly": "0Harmony-1.2",
+          "version": "1.2.0.1",
+          "sha256": "e6bf807993cace95c4c45d126fe2f85a10346bec4f3ee589cb7e63138072312d",
+          "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+          "references": [
+            "0Harmony 2.0.1.0"
+          ],
+          "referenced_by": []
+        },
+        {
+          "file": "0Harmony.dll",
+          "assembly": "0Harmony",
+          "version": "2.3.6.0",
+          "sha256": "df043f05c6e43602fa8e8f38f52a3a2cf962aab7a65a9d85573ea25f01a63e80",
+          "mvid": "4dbb7cd6-acb5-43ef-8d7e-6fc104af5bdc",
+          "references": [],
+          "referenced_by": [
+            "0Harmony-1.2",
+            "0Harmony12",
+            "UnityModManager"
+          ]
+        },
+        {
+          "file": "0Harmony12.dll",
+          "assembly": "0Harmony12",
+          "version": "1.2.0.1",
+          "sha256": "aa1cd48317254985d8b700cc74953477d1b40c3022ce9aa4c95ed2b8327e1292",
+          "mvid": "918c071f-383e-46dc-a374-6879300cbe15",
+          "references": [
+            "0Harmony 2.0.1.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        },
+        {
+          "file": "UnityModManager.dll",
+          "assembly": "UnityModManager",
+          "version": "0.33.0.0",
+          "sha256": "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691",
+          "mvid": "54059519-2754-445a-b5ee-fdb9326336e2",
+          "references": [
+            "0Harmony 2.3.6.0"
+          ],
+          "referenced_by": [
+            "candidate"
+          ]
+        }
+      ]
+    }
+  ]
+}
