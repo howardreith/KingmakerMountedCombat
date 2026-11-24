@@ -254,7 +254,11 @@ try {
     $budgetRoot = Join-Path $temp 'fixture budgets'; New-Item -ItemType Directory -Path $budgetRoot -Force | Out-Null
     [ordered]@{ schemaVersion = 1; budgetId = 'fixture-denied'; allowanceMinutes = 1; blockCeilingMinutes = 30; createdUtc = (Get-Date).ToUniversalTime().ToString('o'); entries = @()
         stepHistory = [ordered]@{ 'reuse check' = [ordered]@{ seconds = 600; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $budgetRoot 'fixture-denied.json') -Encoding UTF8
+    # Both runs are top-level invocations of the disposable budgets: any enclosing workflow entry (for example the
+    # controller gate running this suite) is set aside for them and restored afterwards.
     $previousRoot = $env:KMC_WORKFLOW_BUDGET_ROOT; $env:KMC_WORKFLOW_BUDGET_ROOT = $budgetRoot
+    $previousEntry = $env:KMC_WORKFLOW_BUDGET_ENTRY; $env:KMC_WORKFLOW_BUDGET_ENTRY = $null
+    $previousBudgetId = $env:KMC_WORKFLOW_BUDGET_ID; $env:KMC_WORKFLOW_BUDGET_ID = $null
     try {
         [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
         $denied = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-denied')
@@ -264,7 +268,7 @@ try {
         $admittedScans = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }
     }
     finally {
-        $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot
+        $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot; $env:KMC_WORKFLOW_BUDGET_ENTRY = $previousEntry; $env:KMC_WORKFLOW_BUDGET_ID = $previousBudgetId
         [IO.File]::WriteAllText($projectFile, $projectOriginal)
         & git -C $clone checkout -q -- scripts/LoaderInputStamp.ps1
     }
