@@ -972,7 +972,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     !Sprint6ShieldAcMissResults.Contains((string)row["resultAtEvent"])) continue;
                 var ac = row.Value<int>("ac"); var effective = context.Value<int>("effective");
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
-                if (effective >= 1 && context.Value<int>("acResult") == ac && row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
+                // An ordinary roll whose outcome can depend on AC (controller review R3-F1): not automatic, a d20 from 2 to 19.
+                var d20 = row.Value<int>("d20");
+                if (effective >= 1 && context.Value<int>("acResult") == ac && d20 >= 2 && d20 <= 19 && !row.Value<bool>("autoHit") && total < ac && total >= ac - effective) return row;
             }
             return null;
         }

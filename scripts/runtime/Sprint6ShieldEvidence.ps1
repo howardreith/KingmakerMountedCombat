@@ -442,6 +442,8 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  $acMiss=@('Miss','DodgeAC','ArmorAC','ShieldAC')
  if($row.Count -eq 1 -and ([string]$row[0].resultAtEvent -cnotin $acMiss -or [string](Get-KmcShieldProperty $row[0] 'resultAfterRule') -cnotin $acMiss -or $row[0].isHitAfterRule -ne $false -or [int]$row[0].damageRules -ne 0 -or
    (Get-KmcShieldProperty $context 'shieldBypass') -ne $false -or (Get-KmcShieldProperty $context 'touch') -ne $false)){ throw 'Mounted Shield the band miss is not a native AC miss against a shield-counting AC' }
+ # An ordinary roll whose outcome can depend on AC (controller review R3-F1): not automatic, a d20 from 2 to 19.
+ if($row.Count -eq 1 -and ($row[0].autoHit -eq $true -or [int]$row[0].d20 -lt 2 -or [int]$row[0].d20 -gt 19)){ throw 'Mounted Shield the band miss is not an ordinary roll whose outcome depends on AC' }
  if($row.Count -ne 1 -or $hostile.Count -ne 1 -or [string]$row[0].attacker -cne $hostile[0] -or [string]$row[0].target -cne [string]$Measure.mount -or $row[0].isHitAtEvent -eq $true -or [int]$row[0].d20 -le 1 -or
    ($row[0].acContext | ConvertTo-Json -Compress) -cne ($context | ConvertTo-Json -Compress) -or
    ([int]$row[0].d20+[int]$row[0].bonus) -ge [int]$row[0].ac -or ([int]$row[0].d20+[int]$row[0].bonus) -lt [int]$row[0].ac-$effective){ throw 'Mounted Shield the identified band miss is not a miss that reached the AC without Mounted Shield' }

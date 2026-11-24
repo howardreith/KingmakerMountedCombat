@@ -310,6 +310,10 @@ $r=Copy-MS $real; $row=RowOf $r 'MS-check-rt'; $row.bandMiss.acContext.shieldByp
 $r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $nr=$m.attackRules[-1]; $nr.resultAtEvent='CriticalHit'; $nr.criticalAtEvent=$true; $nr.isHitAtEvent=$true; Reject $r $rs 'a natural negation exposing a confirmed critical hit at the event refuses (R1-F6)'
 $r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; ($r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }).criticalAtEvent=$true; Reject $r $rs 'a planned negation with only its event critical set refuses (R1-F6)'
 $r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $m.records[-1].resultAfter='Miss'; $nr=$m.attackRules[-1]; $nr.resultAtEvent='Miss'; $nr.resultAfterRule='Miss'; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a natural negation ending as an ordinary Miss is accepted (R1-F6 control)'
+# Controller review round 3.
+$r=Copy-MS $real; [void](Set-BandResult $r 'ShieldAC'); $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a ShieldAC band miss from an ordinary roll 10 + 12 against AC 24 (+3 effective) is accepted (R3-F1 control)'
+$r=Copy-MS $real; $b=Set-BandResult $r 'ShieldAC'; $b.d20=20; $b.bonus=2; $m2=(RowOf $r 'MS-check-rt').bandMiss; $m2.d20=20; $m2.bonus=2; Reject $r $rs 'the same total from a natural 20 + 2 refuses (R3-F1)'
+$r=Copy-MS $real; $b=Set-BandResult $r 'ShieldAC'; $b.autoHit=$true; Reject $r $rs 'an ordinary-roll band miss marked automatic refuses (R3-F1)'
 # Supplemental review round 9.
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'
