@@ -282,3 +282,23 @@ Budget `mounted-shield` 10.92 of 90 min. To be reviewed in round 12.
 Fast gate (controller, focused) on `ed717538`: PASS, 64.9 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
 68/0, shield readers 184/0, native contract 94/0). DLL `069f9fb906382216b3b41343dc53da43a9521808316f54d8e8b7dfa338c283d4`, MVID `65a1a09b-ce5a-46c1-aac2-5e86344d7018`.
 Budget `mounted-shield` 11.98 of 90 min. To be reviewed in round 13.
+
+## Round 13 — candidate `f02f4ad10d87c22a925ffc25bf20672c10cf554a` (production `ed717538`)
+
+- **Transport:** as round 4, fresh snapshot `worktrees/mounted-shield-review-f02f4ad1`. Started 2026-11-23, 17.15 minutes,
+  exit 0, empty stderr; identity and cleanliness recheck PASS. Evidence: `analysis-cache/mounted-shield-pre-native-f02f4ad1/`.
+- **Verdict: CHANGES REQUIRED.** No defect in the shipped feature; five findings in the diagnostic driver lifecycle, the shared
+  roll injection's reach into the historical Sprint 6 rows, and the qualification reader.
+
+| ID | Finding | Disposition |
+| --- | --- | --- |
+| PN13-F1 | An interrupted scenario (parent continuity failure or external disposal) reached only `BestEffortCleanup`, leaving the roll hook, rule observer and shield fixture equipment active. | **Fixed** in `64410a28`: `BestEffortCleanup` now calls `TerminateSprint6Fixture`, which first detaches the hooks (`DetachSprint6Hooks`: roll hook and legal-die request cleared, observer unsubscribed and disposed, armed plan cleared), then drains the shield fixture best-effort; residue stays in custody (the equipment record keeps the originals) and is reported as a cleanup error. The ordinary drain now detaches the hooks first too. Native contract reads the compiled call order: the interruption cleanup terminates the fixture, the hooks are detached before the drain, and detaching clears the hook, observer and plan. **Limitation:** an actual interruption after equip and while a roll is armed is a native scenario; offline the order is proven from the compiled IL. |
+| PN13-F2 | A refused defense could lose a critical hit in the native observer and pass. | **Fixed** in `64410a28`: the bound native result at the hit event and after the rule must equal the refusal's prestate result, and the native critical flag its prestate critical, besides the standing hit and damage. A preserved-critical control is accepted; an observer-only downgrade refuses. |
+| PN13-F3 | The reader accepted a penalty present only in the service record, and the unrelated-Mobility control rejected ordinary native modifiers. | **Fixed** in `64410a28`: each attempt's native roll must carry the record's stat and aggregate bonus and its own arithmetic; the unrelated check requires no Mounted Shield contribution and allows ordinary modifiers. A genuine native -2 (in both observations) is accepted; the one-sided edit refuses; an unrelated check with an ordinary +2 is accepted. |
+| PN13-F4 | A known rider could pay Swift to defend an unrelated target. | **Fixed** in `64410a28`: the established rider-to-mount relationship is enforced both ways on RT and TB: a known mount only by its rider, a known rider only for its mount. Negatives on RT (second rider defending the first rider) and TB (measured rider defending another target); the +2 second-pair control is accepted. |
+| PN13-F5 | The PN12-F1 legal-die guard also applied to the historical `sprint6-feat-*` rows, whose uncalibrated hostile (attack totals of 35 and 39 were recorded) needs dice above 20, so those rows would now fail. | **Fixed** in `64410a28` by narrowing the change: the guard is requested only by the Mounted Shield rows (`ScenarioLegalDieOnly`, set with the roll hook and cleared with it); the historical Sprint 6 rows keep their recorded injection unchanged (native contract: die 26 for 36 against Mobility 10 without the request). **Owner note:** those historical rows inject dice above 20 by design of their accepted run; calibrating them is outside this mission and is not done. |
+| Optional | Sprite name comparison. | Not done. |
+
+Fast gate (controller, focused) on `64410a28`: PASS, 61.4 s (components 1524/0, Validate-Source 153/0, focused 18/18; rollback
+68/0, shield readers 190/0, native contract 98/0). DLL `44ce0e786e8b495738168665d9260d86916c909a68f87280cb0f9ef460dcad65`, MVID `f817ee92-4ea3-4dcb-b1c9-81d8a7355175`.
+Budget `mounted-shield` 13 of 90 min. To be reviewed in round 14.

@@ -318,6 +318,11 @@
         "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
         "change": "A planned total is injected only through a legal d20; an unattainable plan fails the measurement; every record's attack total is the native attack's; forced rolls are authorized across the whole measurement (reviews PN12-F1, PN12-F3, PN12-F4).",
         "status": "BLOCKED"
+      },
+      "continuation_10": {
+        "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
+        "change": "The legal-die guard is requested only by the shield rows; native roll stat and bonus are bound (reviews PN13-F3, PN13-F5).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -464,6 +469,11 @@
         "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
         "change": "Every refusal's native hit stands with its critical state and damage (review PN12-F2).",
         "status": "BLOCKED"
+      },
+      "continuation_10": {
+        "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
+        "change": "Refused hits keep their native result and critical state from the prestate (review PN13-F2).",
+        "status": "BLOCKED"
       }
     },
     {
@@ -504,6 +514,11 @@
       "continuation_9": {
         "candidate_source": "ed717538fd4e0b7d32299d932751014a06e4cb4e",
         "change": "Each known mount is defended only by its established rider (review PN12-F5).",
+        "status": "BLOCKED"
+      },
+      "continuation_10": {
+        "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
+        "change": "Known riders are bound to their own mounts in both directions (review PN13-F4).",
         "status": "BLOCKED"
       }
     },
@@ -795,6 +810,11 @@
         "candidate_source": "9bf754889f949950fb8fc360614abdfcc91fc1a3",
         "change": "Setup removal faults are kept for the row; the guarded runner declares 900 s for the shield gameplay rows (reviews PN7-F3, PN7-F7).",
         "status": "BLOCKED"
+      },
+      "continuation_10": {
+        "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
+        "change": "Every interruption path detaches the diagnostic hooks and drains the shield fixture, reporting residue (review PN13-F1).",
+        "status": "BLOCKED"
       }
     }
   ],
@@ -872,6 +892,14 @@
     "candidate_dll_sha256": "069f9fb906382216b3b41343dc53da43a9521808316f54d8e8b7dfa338c283d4",
     "candidate_dll_mvid": "65a1a09b-ce5a-46c1-aac2-5e86344d7018",
     "reason": "Supplemental review round 12 corrections (PN12-F1..F6 in ed717538), diagnostic injection and reader only; row statuses are unchanged (native parts still BLOCKED on the fixture).",
+    "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
+  },
+  "continuation_10": {
+    "recorded": "2026-11-23",
+    "candidate_source": "64410a2846c4b648b6555f0249eceed05f11007c",
+    "candidate_dll_sha256": "44ce0e786e8b495738168665d9260d86916c909a68f87280cb0f9ef460dcad65",
+    "candidate_dll_mvid": "f817ee92-4ea3-4dcb-b1c9-81d8a7355175",
+    "reason": "Supplemental review round 13 corrections (PN13-F1..F5 in 64410a28), diagnostic lifecycle, roll-injection scope and reader only; row statuses are unchanged (native parts still BLOCKED on the fixture).",
     "blocker": "The canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair (with runtime-state/fixture-qualification.json and the stock Mammoth pair the intake requires) is absent; see docs/mounted-shield/HANDOFF.md section 0."
   }
 }
