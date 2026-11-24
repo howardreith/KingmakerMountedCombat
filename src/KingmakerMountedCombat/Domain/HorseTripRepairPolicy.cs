@@ -114,7 +114,17 @@ namespace KingmakerMountedCombat.Domain
                     host.WriteResult(applied);
                     host.Close(true, AppliedSuffix);
                     session.Complete(claimedId);
+                    session.ReleaseClaim();
                     return HorseTripRepairDecision.FinishedApplied;
+                }
+                // Review R6-F4: a claim this process took and never brought to a removal (a transient read or lookup failure
+                // after the rename) is this process's own: it is re-processed from its exact claimed bytes. The write gate still
+                // applies (a closed gate keeps the claim untouched). Only a claim this process did not take (the game restarted
+                // mid-request) is closed as interrupted.
+                if (session.HoldsClaim)
+                {
+                    if (!gateAdmitted) return HorseTripRepairDecision.Pending;
+                    return DecideClaimed(host, session, claimText);
                 }
                 host.WriteResult("Interrupted: a claimed request for horse " + (claimedId ?? "<unreadable>") + " did not finish in this game " +
                     "session, so KMC made no further change. Check that horse in game (a bite hit followed by a Trip means the fact is still " +
@@ -122,12 +132,24 @@ namespace KingmakerMountedCombat.Domain
                 host.Close(true, InterruptedSuffix);
                 return HorseTripRepairDecision.Interrupted;
             }
+            // No claim file: any record of an earlier claim of this process is stale.
+            session.ReleaseClaim();
             string observed;
             if (!host.TryReadRequest(out observed)) return HorseTripRepairDecision.NoRequest;
             if (!gateAdmitted) return HorseTripRepairDecision.Pending;
             host.Claim();
+            // Recorded the moment the rename succeeded: whatever fails before the removal, the next poll re-processes this claim.
+            session.TakeClaim();
             string text;
             if (!host.TryReadClaim(out text)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
+            return DecideClaimed(host, session, text);
+        }
+
+        // Every selection and disposition from the claimed file's bytes (review R5-F1), for a fresh claim or this process's own
+        // retained claim (review R6-F4). A failure before the removal leaves the claim in place and recorded as this process's.
+        private static HorseTripRepairDecision DecideClaimed<TFact>(IHorseTripRepairHost<TFact> host, HorseTripRepairSession session, string text)
+            where TFact : class
+        {
             var horseId = ParseRequest(text);
             var loaded = false;
             IList<TFact> candidates = null;
@@ -136,10 +158,11 @@ namespace KingmakerMountedCombat.Domain
             switch (decision)
             {
                 case HorseTripRepairDecision.HorseNotLoaded:
-                    if (host.ReleaseClaim()) break;
+                    if (host.ReleaseClaim()) { session.ReleaseClaim(); break; }
                     host.WriteResult("Superseded: the request for horse " + horseId + " was waiting for that horse to be loaded when a newer " +
                         "request was written, so it was set aside unchanged; the newer request is processed on its own.");
                     host.Close(true, SupersededSuffix);
+                    session.ReleaseClaim();
                     return HorseTripRepairDecision.Superseded;
                 case HorseTripRepairDecision.Apply:
                     var fact = candidates[0];
@@ -148,11 +171,13 @@ namespace KingmakerMountedCombat.Domain
                     {
                         if (host.StillPresent(fact))
                         {
-                            if (!host.ReleaseClaim())
+                            if (host.ReleaseClaim()) session.ReleaseClaim();
+                            else
                             {
                                 host.WriteResult("Superseded: removing the TrippingBite from horse " + horseId + " failed with nothing changed, " +
                                     "and a newer request was written meanwhile, so this one was set aside; the newer request is processed on its own.");
                                 host.Close(true, SupersededSuffix);
+                                session.ReleaseClaim();
                             }
                             throw;
                         }
@@ -162,20 +187,24 @@ namespace KingmakerMountedCombat.Domain
                     host.WriteResult(result);
                     host.Close(true, AppliedSuffix);
                     session.Complete(horseId);
+                    session.ReleaseClaim();
                     break;
                 case HorseTripRepairDecision.Malformed:
                     host.WriteResult("Refused: the request must contain exactly one line of the form horse=<UniqueId> (copy it from the " +
                         "KMC log line 'KMC Horse Trip repair candidate'); blank lines and lines starting with # are ignored. Nothing was changed.");
                     host.Close(true, RefusedSuffix);
+                    session.ReleaseClaim();
                     break;
                 case HorseTripRepairDecision.NoCandidate:
                     host.WriteResult("Refused: horse " + horseId + " has no sourceless stock TrippingBite to remove. Nothing was changed.");
                     host.Close(true, RefusedSuffix);
+                    session.ReleaseClaim();
                     break;
                 case HorseTripRepairDecision.Ambiguous:
                     host.WriteResult("Refused: horse " + horseId + " has " + candidates.Count +
                         " sourceless stock TrippingBite facts, so the inherited one cannot be singled out. Nothing was changed.");
                     host.Close(true, RefusedSuffix);
+                    session.ReleaseClaim();
                     break;
             }
             return decision;
@@ -194,6 +223,11 @@ namespace KingmakerMountedCombat.Domain
     public sealed class HorseTripRepairSession
     {
         private readonly Dictionary<string, string> applied = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        // Review R6-F4: this process renamed the request to the claim and has not yet closed, returned or applied it.
+        public bool HoldsClaim { get; private set; }
+        public void TakeClaim() => HoldsClaim = true;
+        public void ReleaseClaim() => HoldsClaim = false;
 
         public void MarkApplied(string horseId, string result) => applied[horseId] = result;
 

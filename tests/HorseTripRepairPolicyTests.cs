@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R4-F5: a stranded claim finishes as applied without a second removal, also after a reload; a restart closes it unchanged", StrandedClaims);
             runner.Run("R5-F1: a request replaced between observation and claim is judged by the claimed bytes (apply and refusal)", ReplacedBeforeClaim);
             runner.Run("R5-F1: a request written after the claim is a separate later request; a waiting claim yields to it unchanged", WrittenAfterClaim);
+            runner.Run("R6-F4: a one-time read or lookup failure after the claim keeps this process's exact claim; the next poll applies it once", TransientFailureAfterClaim);
         }
 
         private sealed class Fact
@@ -94,16 +95,24 @@ namespace KingmakerMountedCombat.Tests
             // Which horse each removal touched, in order (the integration logs the same horse ID at its removal).
             public readonly List<string> RemovedFrom = new List<string>();
             public bool FailRemovalBefore, FailRemovalAfter, FailClaim, FailResultWrite, FailClose;
+            // One-time failures armed to fire only after a successful claim rename (review R6-F4).
+            public bool FailClaimReadAfterClaim, FailLookupAfterClaim;
+            private bool failNextClaimRead, failNextLookup;
             public readonly List<Horse> Loaded = new List<Horse>();
             private Horse current;
 
             public Host(Folders folders) { files = new HorseTripRepairFiles(folders.UserData); }
 
             public bool TryReadRequest(out string text) => files.TryReadRequest(out text);
-            public bool TryReadClaim(out string text) => files.TryReadClaim(out text);
+            public bool TryReadClaim(out string text)
+            {
+                if (failNextClaimRead) { failNextClaimRead = false; throw new IOException("simulated read failure of the claimed request"); }
+                return files.TryReadClaim(out text);
+            }
 
             public IList<Fact> CandidatesOf(string horseId, out bool loaded)
             {
+                if (failNextLookup) { failNextLookup = false; throw new InvalidOperationException("simulated horse lookup failure"); }
                 current = Loaded.FirstOrDefault(horse => horse.Id == horseId);
                 loaded = current != null;
                 return current == null ? new List<Fact>() : Candidates(current);
@@ -124,6 +133,8 @@ namespace KingmakerMountedCombat.Tests
             {
                 if (FailClaim) { FailClaim = false; throw new IOException("simulated claim rename failure"); }
                 files.Claim();
+                if (FailClaimReadAfterClaim) { FailClaimReadAfterClaim = false; failNextClaimRead = true; }
+                if (FailLookupAfterClaim) { FailLookupAfterClaim = false; failNextLookup = true; }
             }
 
             public bool ReleaseClaim() => files.ReleaseClaim();
@@ -508,6 +519,62 @@ namespace KingmakerMountedCombat.Tests
                 folders.Request(forA);
                 TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.HorseNotLoaded && host.Removals == 0 &&
                     folders.UserFiles().SequenceEqual(Files(Request)) && Archive(folders, Request) == forA, "A waiting claim was not returned unchanged.");
+            }
+        }
+
+        // Review R6-F4: a transient failure after the claim rename and before the removal (reading the claimed bytes, or the
+        // horse lookup) keeps this process's exact claim; the next poll in the same session re-processes those bytes and applies
+        // them once. Controls: a restarted session closes a claim it did not take as interrupted; a closed gate keeps the claim;
+        // a newer request is still respected; post-removal recovery is unchanged (ReportingFailures, StrandedClaims).
+        private static void TransientFailureAfterClaim()
+        {
+            var forA = "# from the log\r\n" + HorseTripRepairPolicy.FormatRequestLine("horse-A") + "\r\n";
+            foreach (var failRead in new[] { true, false })
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession();
+                    var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                    folders.Request(forA);
+                    if (failRead) host.FailClaimReadAfterClaim = true; else host.FailLookupAfterClaim = true;
+                    var label = failRead ? "read" : "lookup";
+                    TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 0 && session.HoldsClaim &&
+                        folders.UserFiles().SequenceEqual(Files(Claimed)) && Archive(folders, Claimed) == forA,
+                        "A " + label + " failure after the claim lost or changed the exact claim.");
+                    // A closed gate on the next poll keeps the claim untouched.
+                    TestRunner.True(Run(host, session, false) == HorseTripRepairDecision.Pending && host.Removals == 0 &&
+                        folders.UserFiles().SequenceEqual(Files(Claimed)), "A closed gate disposed of the retained claim (" + label + ").");
+                    TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A" }) &&
+                        Candidates(a).Count == 0 && Candidates(b).Count == 1 && folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)) &&
+                        Archive(folders, Applied) == forA && folders.Result().Contains("horse-A") && !folders.Result().Contains("Interrupted") &&
+                        !session.HoldsClaim, "The retained claim was not applied once to its horse after a " + label + " failure.");
+                    TestRunner.True(Run(host, session) == HorseTripRepairDecision.NoRequest && host.Removals == 1, "The applied claim was processed again (" + label + ").");
+                }
+            // Restarted-session control: the same stranded claim in a new process (no record of taking it) is interrupted, unchanged.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailLookupAfterClaim = true;
+                TestRunner.True(Throws(() => Run(host, new HorseTripRepairSession())) && host.Removals == 0, "The lookup failure was not injected.");
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Interrupted && host.Removals == 0 && Candidates(a).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Interrupted, ResultFile)) && Archive(folders, Interrupted) == forA,
+                    "A claim not taken by this process was re-processed.");
+            }
+            // A newer request is respected: the retained claim's horse is not loaded on the next poll and the owner wrote a newer
+            // request meanwhile, so the retained claim is set aside unchanged and the newer one is processed on its own.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var b = LegacyHorse("horse-B"); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                host.FailClaimReadAfterClaim = true;
+                TestRunner.True(Throws(() => Run(host, session)) && session.HoldsClaim, "The read failure was not injected.");
+                var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+                folders.Request(forB);
+                host.Loaded.Clear(); host.Loaded.Add(b);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Superseded && host.Removals == 0 && Archive(folders, Superseded) == forA &&
+                    Archive(folders, Request) == forB && !session.HoldsClaim, "The retained claim overrode a newer request.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
+                    Archive(folders, Applied) == forB, "The newer request was not processed on its own.");
             }
         }
     }
