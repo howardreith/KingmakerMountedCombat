@@ -50,7 +50,7 @@ function Get-ZipEntryBytes([string]$Zip, [string]$Name) {
     try { $entry = @($archive.Entries | Where-Object { $_.FullName.Replace('\', '/') -ceq $Name })[0]; $reader = $entry.Open(); $buffer = [IO.MemoryStream]::new(); try { $reader.CopyTo($buffer); return , $buffer.ToArray() } finally { $reader.Dispose(); $buffer.Dispose() } }
     finally { $archive.Dispose() }
 }
-function Get-InfoEntryName([string]$Zip) { $a = [IO.Compression.ZipFile]::OpenRead($Zip); try { return @($a.Entries | Where-Object { $_.FullName -like '*/Info.json' })[0].FullName } finally { $a.Dispose() } }
+function Get-InfoEntryName([string]$Zip) { $a = [IO.Compression.ZipFile]::OpenRead($Zip); try { return @($a.Entries | Where-Object { $_.FullName.Replace('', '/') -like '*/Info.json' })[0].FullName } finally { $a.Dispose() } }
 
 $temp = Join-Path ([IO.Path]::GetTempPath()) ('kmc-package-boundary-' + [Guid]::NewGuid().ToString('N'))
 $lab = Join-Path $temp 'lab'
