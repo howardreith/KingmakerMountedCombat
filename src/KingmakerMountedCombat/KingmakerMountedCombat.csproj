@@ -635,6 +635,7 @@
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedShieldFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.InheritedFacts.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />

@@ -334,6 +334,7 @@ namespace KingmakerMountedCombat.Integration
                     {
                         observedOwnersThisUpdate.Add(owner.UniqueId);
                         var pet = owner.Descriptor.Pet;
+                        RepairInheritedHorseFacts(pet);
                         var rank = fact.GetRank();
                         // Int32 default formatting only varies by the negative sign.
                         // Retain that value, not a culture or native object.
@@ -633,7 +634,8 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.Skills = CopySkills(nativeHorse.Skills);
             horseUnit.MaxHP = nativeHorse.MaxHP;
             horseUnit.AdditionalTemplates = CloneArray(mammothUnit.AdditionalTemplates);
-            horseUnit.AddFacts = CloneArray(mammothUnit.AddFacts);
+            // The Mammoth's facts without its inert TrippingBite (MMR-06): HorseCompanionBlueprintService.InheritedFacts.cs.
+            horseUnit.AddFacts = HorseInheritedFacts(mammothUnit.AddFacts);
             horseUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(classLevels, "KMC_Horse_AddClassLevels"),
@@ -651,6 +653,9 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeLevel = 4;
             upgradeLevel = addPet.UpgradeLevel;
             horseFeature.ComponentsArray = new BlueprintComponent[] { addPet, CreateNoCompanionPrerequisite("KMC_Horse_NoCompanion") };
+
+            logger.Info("Horse registered from the stock Mammoth: stockFacts=" + string.Join(",", CloneArray(mammothUnit.AddFacts).Select(fact => fact?.name)) +
+                "; droppedAttackManeuverFacts=" + string.Join(",", CloneArray(mammothUnit.AddFacts).Where(GrantsIntrinsicAttackManeuver).Select(fact => fact.name)) + ".");
 
             AddExactBlueprintRegistration(library, horsePortrait);
             AddExactBlueprintRegistration(library, horseUnit);
