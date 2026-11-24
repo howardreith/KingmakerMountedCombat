@@ -388,21 +388,24 @@ namespace KingmakerMountedCombat.Tests
             var far = new object(); var near = new object(); var outside = new object();
             NativeRankedCandidate C(object unit, float weight, float distance, bool eligible = true) =>
                 new NativeRankedCandidate { Unit = unit, Weight = weight, Distance = distance, Eligible = eligible };
+            // Review R5-F7: the same farther-first equal-rank proposal through the ranged (mounted archery) entry keeps the brain's choice.
+            var rangedList = new List<NativeRankedCandidate> { C(far, 0f, 2.4f), C(near, 0f, 1.6f) };
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(rangedList, far, null, false)), "A ranged proposal was retargeted.");
             // Two equally eligible in-reach hostiles in farther-first order: native would take the farther; the pair takes the nearer.
             var ranked = new List<NativeRankedCandidate> { C(far, 0f, 2.4f), C(near, 0f, 1.6f), C(outside, -0.009f, 9f) };
-            TestRunner.True(ReferenceEquals(near, NativeAttackTieBreak.Choose(ranked, far, null)), "The nearer equally ranked hostile was not chosen.");
+            TestRunner.True(ReferenceEquals(near, NativeAttackTieBreak.Choose(ranked, far, null, true)), "The nearer equally ranked hostile was not chosen.");
             // The nearer one ineligible (unconscious, disliked, unattackable or invalid under Hold): native's proposal stands.
             ranked[1] = C(near, 0f, 1.6f, false);
-            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, null)), "An ineligible nearer hostile was chosen.");
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, null, true)), "An ineligible nearer hostile was chosen.");
             // Different weights (manual target, out-of-reach distance) are never reordered.
             var manual = new object();
             var withManual = new List<NativeRankedCandidate> { C(manual, 1000000f, 8f), C(near, 0f, 1.6f) };
-            TestRunner.True(ReferenceEquals(manual, NativeAttackTieBreak.Choose(withManual, manual, null)), "A manual target was replaced.");
+            TestRunner.True(ReferenceEquals(manual, NativeAttackTieBreak.Choose(withManual, manual, null, true)), "A manual target was replaced.");
             // A live automatic order already on one of the tied candidates keeps it (no oscillation).
             ranked[1] = C(near, 0f, 1.6f);
-            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, far)) &&
-                ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, near, far)), "A live order on a tied target oscillated.");
-            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, outside)) == false, "The tie-break ignored distance.");
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, far, true)) &&
+                ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, near, far, true)), "A live order on a tied target oscillated.");
+            TestRunner.True(ReferenceEquals(far, NativeAttackTieBreak.Choose(ranked, far, outside, true)) == false, "The tie-break ignored distance.");
         }
 
         private static void NativeTargetChoice()

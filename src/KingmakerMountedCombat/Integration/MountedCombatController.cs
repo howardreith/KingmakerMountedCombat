@@ -1425,7 +1425,7 @@ namespace KingmakerMountedCombat.Integration
             // equally (conscious, not disliked, attackable, valid under Hold/unreachable), the pair takes the nearest; a live
             // automatic order already on one of them keeps it (no oscillation).
             // Review R5-F7: only the supported rider MELEE proposal; a mounted archer keeps the brain's choice.
-            if (!turnBased && rider != null && target != null && ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderMelee)
+            if (!turnBased && rider != null && target != null)
             {
                 var tieBroken = ResolveEqualRankTie(rider, target);
                 if (tieBroken != null && !ReferenceEquals(tieBroken, target))
@@ -1519,7 +1519,8 @@ namespace KingmakerMountedCombat.Integration
                 ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible });
             }
             return NativeAttackTieBreak.Choose(ranked, proposed,
-                HasStockAttackIntent && stockIntent.Automatic ? stockIntentTarget : null) as UnitEntityData;
+                HasStockAttackIntent && stockIntent.Automatic ? stockIntentTarget : null,
+                ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderMelee) as UnitEntityData;
         }
 
         // The mount, not the rider, approached and failed, so the native UnitMovementAgent marked the target on the wrong

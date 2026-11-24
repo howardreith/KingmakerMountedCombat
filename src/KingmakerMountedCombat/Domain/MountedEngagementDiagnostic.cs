@@ -118,9 +118,11 @@ namespace KingmakerMountedCombat.Domain
     // target, out-of-reach distance) are never reordered.
     public static class NativeAttackTieBreak
     {
-        public static object Choose(System.Collections.Generic.IList<NativeRankedCandidate> ranked, object proposed, object currentOrderTarget)
+        // Review R5-F7: applies only to the supported rider MELEE proposal; a ranged (mounted archery) proposal keeps native's choice.
+        public static object Choose(System.Collections.Generic.IList<NativeRankedCandidate> ranked, object proposed, object currentOrderTarget,
+            bool riderMeleeProposal)
         {
-            if (ranked == null || proposed == null) return proposed;
+            if (!riderMeleeProposal || ranked == null || proposed == null) return proposed;
             var found = false; var weight = 0f; var bestDistance = 0f;
             foreach (var candidate in ranked)
                 if (ReferenceEquals(candidate.Unit, proposed)) { found = true; weight = candidate.Weight; bestDistance = candidate.Distance; break; }
