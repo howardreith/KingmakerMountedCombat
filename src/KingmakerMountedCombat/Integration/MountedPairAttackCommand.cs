@@ -994,7 +994,32 @@ namespace KingmakerMountedCombat.Integration
 
         protected override ResultType OnAction()
         {
+            ObserveHorseStrike();
             return base.OnAction();
+        }
+
+        // MMR-07 owner-log evidence (review R1-F13), one line per native horse strike, read at its own act event before
+        // native triggers the attack rule: which limb this strike is, its special animation type, and whether a native
+        // handle existed and played. handle=none means native had no handle and played nothing for this strike; a present,
+        // started, acted and uninterrupted Bite handle with a high speedScale means the bite played, but fast. Read only.
+        private void ObserveHorseStrike()
+        {
+            try
+            {
+                if (action != MountedCombatActionKind.MountPrimaryNatural || actionActor != mount || mount == null) return;
+                var planned = PlannedAttack;
+                var weapon = planned?.Weapon?.Blueprint;
+                var handle = planned?.AnimationHandle;
+                TryLogInfo(HorseStrikeDiagnostic.Format(GetAttackIndex() + 1, AllAttacks.Count, weapon?.name,
+                    weapon?.VisualParameters == null ? null : weapon.VisualParameters.SpecialAnimation.ToString(), handle != null,
+                    handle?.Action?.name, handle != null && handle.IsStarted, handle != null && handle.IsActed,
+                    handle != null && handle.IsInterrupted, handle?.SpeedScale ?? 0f, handle?.Variant ?? 0, handle?.VariantsCount ?? 0,
+                    Target?.UniqueId));
+            }
+            catch (Exception)
+            {
+                // Diagnostics never affect the native strike.
+            }
         }
 
         protected override void OnEnded(bool raiseEvent = true)

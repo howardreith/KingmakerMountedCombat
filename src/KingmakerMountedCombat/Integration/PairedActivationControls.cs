@@ -4,6 +4,7 @@ using Kingmaker.EntitySystem.Entities;
 using KingmakerMountedCombat.Domain;
 using Kingmaker.TurnBasedMode;
 using Kingmaker.TurnBasedMode.Controllers;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.TurnBasedMode;
@@ -212,6 +213,9 @@ namespace KingmakerMountedCombat.Integration
 
         private static readonly System.Reflection.FieldInfo NativeNeedNewPredictions =
             ResolveField(typeof(TurnController), "m_NeedNewPredictions", 0x04000691);
+        // The commands native IgnoreClick's simulated click ran (swapped back into this field when its Temporary disposed).
+        private static readonly System.Reflection.FieldInfo NativePredictionCommands =
+            ResolveField(typeof(TurnController), "m_PredictionCommands", 0x0400066E);
 
         // MMR-02: after native IgnoreClick on the rider's own context, admit an ordinary rider attack on a hostile that
         // native dropped only for its rider-path check (Domain/PairedAttackClickAdmissionPolicy.cs). The click then reaches
@@ -220,17 +224,31 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
             var rider = activation.Principal;
+            var mount = activation.Partner;
             var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
+            var predicted = (NativePredictionCommands.GetValue(context) as UnitCommands)?.GetCommand(UnitCommand.CommandType.Standard) as UnitAttack;
+            var weapon = rider.GetFirstWeapon();
+            var meleeOnTarget = predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&
+                predicted.TargetUnit == target && !target.Descriptor.State.IsDead && rider.IsEnemy(target) &&
+                weapon?.Blueprint != null && !weapon.Blueprint.IsRanged;
+            var path = Kingmaker.TurnBasedMode.PathVisualizer.Instance;
+            var pathRefused = meleeOnTarget && path != null &&
+                !path.IsCurrentPathForPoint(rider.Position, predicted.ApproachPoint, predicted.ApproachRadius);
+            var canMove = meleeOnTarget && mount?.View != null && target.View != null && CanMovePairedMount(context);
+            var input = canMove ? PairedMovementContext(context) : null;
+            var remaining = input == null ? 0f : movementState.RemainingGrantedMetres(mount, input.EnabledFiveFootStep, input.EnabledSingleActionMove);
+            var distance = canMove ? Kingmaker.Utility.GeometryUtils.MechanicsDistance(mount.Position, target.Position) : float.NaN;
+            var reach = canMove ? mount.View.Corpulence + target.View.Corpulence + weapon.AttackRange.Meters : float.NaN;
             var admit = PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(true, true,
                 SelectionManager.Instance?.SingleSelectedUnit == rider, context.Unit == rider && rider.Commands.Empty,
                 !(bool)NativeNeedNewPredictions.GetValue(context), context.IsOverTerrain,
                 Game.Instance?.SelectedAbilityHandler?.Ability != null,
-                target != null && !target.Descriptor.State.IsDead && rider.IsEnemy(target),
-                CanMovePairedMount(context));
+                meleeOnTarget, pathRefused, canMove, remaining, distance, reach);
             if (!admit) return;
             result = false;
-            logger.Info("Admitted a turn-based rider attack click native dropped for its rider-path check (MMR-02): rider=" +
-                rider.UniqueId + "; target=" + target.UniqueId + "; the pair approaches with the mount's lawful movement.");
+            logger.Info("Admitted a turn-based rider melee attack click native dropped for its rider-path check (MMR-02): rider=" +
+                rider.UniqueId + "; target=" + target.UniqueId + "; mountRemainingMetres=" + remaining.ToString("R") +
+                "; pairDistance=" + distance.ToString("R") + "; pairReach=" + reach.ToString("R") + ".");
         }
 
         internal bool PrepareNativeInputPrediction(TurnController context)

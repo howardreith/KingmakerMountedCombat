@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R1-F4/F5/F6: follow-through is melee-only, yields to newer work, and skips an individually unable actor", FollowThroughEligibility);
             runner.Run("R1-F9/F10: native start waits travel instead of striking; movement restrictions stay put", RealTimeStartWaitsTravel);
             runner.Run("R1-F7: the early approach is released through the exact own-move release", EarlyApproachRelease);
+            runner.Run("R1-F13: a horse strike line separates no handle, unplayed, interrupted and fast playback", HorseStrikeLines);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -516,6 +517,20 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(MountedStockAttackDecision.Wait, Next(false, false, travelOk, outOfReach: false), "An in-reach pair kept moving.");
         }
 
+        private static void HorseStrikeLines()
+        {
+            var bite = HorseStrikeDiagnostic.Format(1, 3, "Bite1d4", "Bite", true, "HorseAnimationSet_Bite", true, true, false, 2.4f, 0, 1, "kobold");
+            TestRunner.True(bite.Contains("playback=played") && bite.Contains("action=HorseAnimationSet_Bite") && bite.Contains("speedScale=2.4") &&
+                bite.Contains("special=Bite") && bite.Contains("index=1/3"), "A played, fast stock Bite was not identifiable: " + bite);
+            var missing = HorseStrikeDiagnostic.Format(1, 3, "Bite1d4", "Bite", false, null, false, false, false, 0f, 0, 0, "kobold");
+            TestRunner.True(missing.Contains("playback=no-handle") && !missing.Contains("action="), "A missing Bite handle was not identifiable: " + missing);
+            TestRunner.Equal("not-acted", HorseStrikeDiagnostic.Playback(true, true, false, false), "An unplayed handle was reported as played.");
+            TestRunner.Equal("interrupted", HorseStrikeDiagnostic.Playback(true, true, true, true), "An interrupted handle was reported as played.");
+            var hoof = HorseStrikeDiagnostic.Format(2, 3, "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2, "kobold");
+            TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("action=HorseAnimationSet_Hoof") && hoof.Contains("index=2/3"),
+                "The hoof control was not distinguishable: " + hoof);
+        }
+
         private sealed class FakeMoveHost : IMountedOwnMoveHost
         {
             public object Slot; public object Successor; public bool OwnFinished; public bool OwnHeld = true; public bool Stopped; public int Interrupts;
@@ -603,17 +618,26 @@ namespace KingmakerMountedCombat.Tests
 
         private static void PairedAttackClickAdmission()
         {
+            // Defaults: a dropped rider melee click on a hostile 3 m beyond reach with 4.5 m of lawful mount movement left.
             bool Admit(bool ignored = true, bool riderContext = true, bool riderSelected = true, bool commandsEmpty = true,
-                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool hostile = true, bool movement = true) =>
+                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool meleeOnTarget = true,
+                bool pathRefused = true, bool canMove = true, float remaining = 4.5f, float distance = 6f, float reach = 3f) =>
                 PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(ignored, riderContext, riderSelected, commandsEmpty,
-                    predictionsCurrent, overTerrain, ability, hostile, movement);
-            TestRunner.True(Admit(), "The dropped rider attack on a hostile was not admitted.");
+                    predictionsCurrent, overTerrain, ability, meleeOnTarget, pathRefused, canMove, remaining, distance, reach);
+            TestRunner.True(Admit(), "A reachable dropped rider melee click was not admitted.");
+            // An eligible five-foot step (1.5 m of step allowance) covers a 1.5 m gap; spent movement covers nothing.
+            TestRunner.True(Admit(remaining: 1.5f, distance: 4.5f), "An eligible step that reaches was refused.");
+            TestRunner.True(!Admit(remaining: 0f, distance: 4.5f) && !Admit(canMove: false), "Spent movement or an immobile mount was admitted.");
+            TestRunner.True(!Admit(remaining: 2f, distance: 6f), "A click beyond the remaining movement was admitted (no free approach).");
+            TestRunner.True(Admit(remaining: 0f, distance: 3f), "A target already within the pair's reach was refused.");
+            // Only native's path refusal of its own predicted melee attack on the highlighted hostile is overridden.
+            TestRunner.True(!Admit(pathRefused: false), "A click refused for another reason was overridden.");
+            TestRunner.True(!Admit(meleeOnTarget: false), "A hostile click producing a non-attack, ranged or other-target command was admitted.");
             TestRunner.True(!Admit(ignored: false), "An accepted click was changed.");
             TestRunner.True(!Admit(riderContext: false) && !Admit(riderSelected: false), "A mount or other context click was admitted.");
             TestRunner.True(!Admit(commandsEmpty: false) && !Admit(predictionsCurrent: false), "Native busy or stale-prediction refusals were overridden.");
             TestRunner.True(!Admit(overTerrain: true) && !Admit(ability: true), "A ground or ability click was admitted.");
-            TestRunner.True(!Admit(hostile: false), "A non-hostile or absent target was admitted.");
-            TestRunner.True(!Admit(movement: false), "A pair without lawful mount movement was admitted (no free approach).");
+            TestRunner.True(!Admit(remaining: float.NaN) && !Admit(distance: float.NaN), "An unavailable measurement was admitted.");
         }
 
         private static void PairOrderHorseFollowThrough()

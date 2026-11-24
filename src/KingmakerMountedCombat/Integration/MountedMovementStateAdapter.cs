@@ -272,6 +272,16 @@ namespace KingmakerMountedCombat.Integration
             AutoStopField.SetValue(turn, state.AutoStopPending);
         }
 
+        // The same allocation's remaining granted movement as distance (Remaining is time; native distance = time x speed).
+        internal float RemainingGrantedMetres(UnitEntityData actor, bool step, bool singleMove)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return 0f;
+            return allocation.Movement.Remaining(actor.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+                Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
+                allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) * actor.CurrentSpeedMps;
+        }
+
         internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)
         {
             Allocation allocation;
