@@ -1,4 +1,55 @@
-# UMM 0.31.1 BASELINE (2026-11-23, UNRELEASED)
+# UMM 0.31.1 BASELINE (2026-11-24, UNRELEASED, DRAFT PR #62)
+
+Start here. Owner direction: UMM 0.31.x consistently across the Kingmaker mods, newer loaders checked separately. Both
+shipping products (the mod and the separately shipped removal observer) declare **0.31.1** and compile against the
+pinned UnityModManager 0.31.1.0 and 0Harmony12 1.2.0.1 (`scripts/loader-reference-pins.json`, acquired by
+`scripts/Get-PinnedLoaderReferences.ps1` into ignored `obj/loader-references`; never the installed loader, never packaged).
+PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#reconciliation-with-pr-63-and-windows-validation-2026-11-24)).
+
+**Entry points.** `scripts/Build-Local.ps1` (acquire, build, record the loader-input identity);
+`scripts/Package.ps1 [-IncludeRemovalObserver] -ArtifactQualifier <q>` and `scripts/Package-Observer.ps1` (qualification
+packages and standalone validation); `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1` (any ZIP);
+`scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>` (the controller gate; `-SkipBuild` reuses outputs only
+while the loader inputs are unchanged). Runtime checks select a loader profile (`planning/UMM-LOADER-PROFILES.json`,
+`runtime`), default the measured owner installation.
+
+**Candidate (source `f5a9f386`; later commits are documentation and evidence).**
+
+| Product | DLL SHA-256 / MVID | Loader references | Package (qualifier `umm-0311-f5a9f386`) | Validator |
+| --- | --- | --- | --- | --- |
+| Mounted Combat | `d20474bf…756d` / `9db1be50-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `1d2c9240…aaa1` | 12/12 |
+| Removal observer | `f9697f91…1958` / `a5e1bb2f-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `5944cc74…11d9` | 8/8 |
+
+Records: [`docs/evidence/umm-0311/`](docs/evidence/umm-0311/INDEX.md) (package and observer validation and manifests,
+both API audits, MSBuild and package-boundary tests, loader profiles).
+
+**Static API audit (both packaged DLLs).** Every UnityModManager and 0Harmony12 member each DLL binds resolves, by name and
+decoded signature, on UMM 0.31.1, 0.32.4, the owner's installed 0.33.0 and 0.33.4 (mod: 14 types/42 members; observer: 8
+types/20 members). Tool: the LoaderApiAudit sources committed as `loader-api-audit-Program.cs.txt` and
+`loader-api-audit-csproj.txt` (.NET 8; `dotnet build -c Release`, then
+`LoaderApiAudit.exe --mod <dll> --json <out> --assemblies UnityModManager,0Harmony12,0Harmony --profile "<id>=<UnityModManager.dll>;<0Harmony.dll>;<0Harmony12.dll>"`
+per profile). Profiles 0.31.1/0.32.4/0.33.4 are component-assembled from the author's NuGet packages; 0.33.0 is the
+owner's installed loader (`loader-profiles.md`). Static evidence only.
+
+**Offline checks.** Component tests 153/153 (source count); Validate-Source 153/153; `Test-PinnedLoaderMsBuild` 9/9;
+`Test-PackageAdmissionAndReuse` 24/24; `Test-FrozenProductSource` 28/28; `Test-Chunk7NativeLoaderContracts` 107/107;
+`Test-UmmLoaderContractChecks` 22 passed with 4 unassessed inputs; `Test-Harness` 280 passed, 3 failed — the same three
+fail on the pre-reconciliation commit `a61c1a5c` (two need deleted Phase 3E artifacts, one composition-boundary check),
+so they are pre-existing and unrelated to this change.
+
+**Native (not run on any row).**
+
+| Loader | Prerequisite for a native row |
+| --- | --- |
+| 0.33.0 (installed, the default runtime profile) | A guarded native run of this candidate: the existing harness admits this profile; none was run for this change. |
+| 0.31.1 (baseline) | A guarded environment with the 0.31.1 loader and its Harmony 2.3.1.1 (the `runtime` profile record exists; the installed loader is 0.33.0). |
+| 0.32.4, 0.33.4 | A reviewed runtime profile with exact UMM and Harmony identities, then a guarded environment. |
+
+Combined mod stacks: not run for this candidate. Historical native records keep their original 0.28.2/0.33.2 identities.
+No release, merge, installation, loader replacement or save mutation is part of this checkpoint.
+
+## 2026-11-23 source checkpoint (history)
+
 
 Owner direction: use UMM 0.31.x consistently across the Kingmaker mods, checking newer loaders separately.
 The existing Tabletop Rules Expansion/Cutscene Skip baseline is exactly 0.31.1. Main and removal observer

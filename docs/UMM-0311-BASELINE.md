@@ -103,6 +103,29 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 2 (2026-11-24)
+
+- **Compiler list.** The resolved-input check now runs immediately before `CoreCompile` (after every reference-selection
+  step, including a later rewrite) on `@(ReferencePathWithRefAssemblies)`, the exact list Csc receives, and also checks the
+  two loader files' SHA-256 against the pins. A target that rewrites that list after reference selection is refused
+  before any DLL is emitted, for both the mod and the removal observer (`Test-PinnedLoaderMsBuild`).
+- **Runtime loader profile.** `scripts/runtime/RuntimeLoaderProfile.ps1` selects a profile from
+  `planning/UMM-LOADER-PROFILES.json` (`runtime` records: exact UnityModManager and Harmony 2 shared-state creator).
+  The default is the measured owner installation (0.33.0.0 with Harmony 2.3.6); the 0.31.1 baseline record carries
+  Harmony 2.3.1.1. `Test-RuntimeGameResult.ps1 -RuntimeLoaderProfileId` and the native inventory
+  (`Assert-KmcBaseGameNativeInventory -LoaderProfileId`) judge observations against the selected profile; a profile that
+  is not the measured installed loader, a profile without a runtime record (0.28.2, 0.33.2) and mixed identities are
+  refused. Historical records stay bound to their original profiles.
+- **Removal observer.** Reuse of an archived observer requires its own `tools/KmcRemovalObserver` inputs to be unchanged
+  (main-only reuse is unaffected); the observer is packaged, validated and audited like the mod (CURRENT.md).
+- **Package boundary.** Runtime admission (`Assert-KmcPackageManifest`) measures the ZIP with the product's standalone
+  validator and requires the DLL SHA-256, MVID and entries to equal the manifest, so an outer ZIP with a correct digest
+  but another build's DLL is refused before staging. Both validators require a scalar-string minimum. The pin verifier
+  requires exactly the two canonical records. `-SkipBuild` reuse is bound to a loader-input identity recorded by each
+  build (pins, verifier, MSBuild guard, project files, cached loader bytes).
+- Results are in CURRENT.md; `Test-PackageAdmissionAndReuse` exercises the standalone validators on real packages built in
+  a disposable lab (including the released 0.2.15 DLL compiled against UMM 0.33.0.0), runtime admission and reuse.
+
 No version bump, merge, release, permanent installation, loader replacement or human-save operation occurred.
 The independent Mounted Shield draft PR 61 remains separate; it should consume the agreed baseline when this
 change is integrated rather than quietly restoring installed-loader build references.
