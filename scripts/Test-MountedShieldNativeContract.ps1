@@ -346,6 +346,19 @@ $forcedWith = Be-AC $forced 'Melee'; $forcedTouchWith = Be-AC $forced 'Touch'
 Check ($forceStack.Stacks -and $forced.ModifiedValue -eq 22 -and $forcedWith.Applied -eq 0 -and $forcedWith.TargetAC -eq $forcedWithout.TargetAC) ('Brilliant Energy with a force-stacking +4: KMC''s +3 raised the AC (22 = 10 + 5 + 4 + 3), nothing is given back, and the same melee attack sees AC ' + $forcedWith.TargetAC + ' with and ' + $forcedWithout.TargetAC + ' without Mounted Shield')
 Check ($forcedTouchWith.Applied -eq 3 -and $forcedTouchWith.TargetAC -eq $forcedTouchWithout.TargetAC) 'Brilliant Energy touch attack with a force-stacking +4: the same AC with and without Mounted Shield'
 [void]$removeExact.Invoke($null, @($forced, $forcedMine, $null))
+# Controller review round 2: the one production rule for the AC Mounted Shield adds (EffectiveShieldDelta), used by the
+# Brilliant Energy correction and by the diagnostic band setup and per-attack observation, on genuine modifiers: with KMC +3, a
+# force-stacking +4 leaves 3, an ordinary competing +4 leaves 0, and a shield-ignoring (Brilliant Energy) or touch calculation 0.
+$delta = $shieldService.GetMethod('EffectiveShieldDelta', $any)
+$deltaAc = New-Ac; $deltaMine = $addMount.Invoke($null, @($deltaAc, 3, $null))
+$deltaForce = [Activator]::CreateInstance($modifierType); $deltaForce.ModValue = 4; $deltaForce.ModDescriptor = (Descriptor 'Shield'); $deltaForce.StackMode = [Enum]::Parse($stackModeType, 'ForceStack'); $deltaForce.SourceComponent = 'force-stacking shield'
+[void]$addRaw.Invoke($deltaAc, @($deltaForce))
+function Delta($Ac, [bool]$Touch, [bool]$Bypass) { $ownedNow = $identity.Invoke($null, @($Ac, [string](Const $service 'MountedShieldFeatureGuid'))); $args4 = New-Object object[] 4; $args4[0] = $Ac.Modifiers; $args4[1] = $ownedNow; $args4[2] = $Touch; $args4[3] = $Bypass; [int]$delta.Invoke($null, $args4) }
+Check ((Delta $deltaAc $false $false) -eq 3 -and $deltaAc.ModifiedValue -eq 17) 'KMC +3 beside a force-stacking +4 adds 3 (AC 17 = 10 + 4 + 3): the band is measurable'
+Check ((Delta $deltaAc $false $true) -eq 0 -and (Delta $deltaAc $true $false) -eq 0) 'a shield-ignoring (Brilliant Energy) or touch calculation counts no Mounted Shield AC'
+[void]$removeExact.Invoke($null, @($deltaAc, $deltaForce, $null)); $deltaOrdinary = $addOther.Invoke($deltaAc, @(4, $null, 'ordinary competing shield', (Descriptor 'Shield')))
+Check ((Delta $deltaAc $false $false) -eq 0 -and $deltaAc.ModifiedValue -eq 14) 'KMC +3 beside an ordinary competing +4 adds 0 (AC 14): no band'
+[void]$removeExact.Invoke($null, @($deltaAc, $deltaOrdinary, $null)); [void]$removeExact.Invoke($null, @($deltaAc, $deltaMine, $null))
 
 # Controller review R1-F7: the production physical-shield predicate (MountedShieldService.EffectiveShield, which ordinary play
 # calls through ReadFacts) on genuine engine objects: a rider whose UnitDescriptor holds a genuine UnitBody with a genuine

@@ -300,9 +300,18 @@ function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
      [string]$rule.resultAtEvent -cmatch '^(Parried|Miss)$' -or [bool]$rule.criticalAtEvent -ne [bool]$x.criticalBefore -or [bool]$x.criticalAfter -ne [bool]$x.criticalBefore -or
      [int]$rule.damageRules -lt 1){ throw ('Mounted Shield '+$Case+': a refused defense''s native hit did not stand') }
   }
+  # The defense acts inside RuleAttackRoll.OnTrigger before the IAttackHandler event, so the observer sees the defense's final
+  # state at the hit event and after the rule: both native results and critical flags equal the record's final ones
+  # (controller review R1-F6, round 2).
+  $er=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
+  $hitResults=@('Hit','CriticalHit')
+  if([string]$er.resultAtEvent -cne [string]$x.resultAfter -or [string](Get-KmcShieldProperty $er 'resultAfterRule') -cne [string]$x.resultAfter -or
+    [bool]$er.criticalAtEvent -ne [bool]$x.criticalAfter -or $null -eq (Get-KmcShieldProperty $er 'criticalAfterRule') -or [bool]$er.criticalAfterRule -ne [bool]$x.criticalAfter -or
+    [bool]$er.isHitAtEvent -ne ([string]$x.resultAfter -cin $hitResults) -or [bool]$er.isHitAfterRule -ne ([string]$x.resultAfter -cin $hitResults)){ throw ('Mounted Shield '+$Case+': a defense''s native observations differ from its final outcome') }
   # Every negated attempt (planned or natural, any pair): the bound native attack ends Parried (melee) or Miss, not a hit, deals
   # no damage, and its critical confirmation is cleared (controller review R1-F6).
   if($x.negated -eq $true){
+   if($x.criticalAfter -ne $false -or [bool]$er.criticalAtEvent -ne $false -or [string]$er.resultAtEvent -cnotin @('Parried','Miss')){ throw ('Mounted Shield '+$Case+': a negated defense exposed a hit or critical at the hit event') }
    $nr=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
    $ca=Get-KmcShieldProperty $nr 'criticalAfterRule'
    if([string]$nr.resultAfterRule -cnotin @('Parried','Miss') -or $nr.isHitAfterRule -ne $false -or [int]$nr.damageRules -ne 0 -or $null -eq $ca -or [bool]$ca -ne $false -or
@@ -428,8 +437,11 @@ function Assert-KmcShieldCheckRealTime($Measure,$E,$Pairs){
  # The row's designated hostile, recorded when the row starts (review PN11-F7); other hostiles' attacks do not matter here.
  $hostile=@([string]$E.hostile)
  $row=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$miss.identity })
- # An ordinary native AC miss, at the event and in the final outcome (controller review R1-F5): not Mirror Image, not a hit.
- if($row.Count -eq 1 -and ([string]$row[0].resultAtEvent -cne 'Miss' -or [string](Get-KmcShieldProperty $row[0] 'resultAfterRule') -cne 'Miss' -or $row[0].isHitAfterRule -ne $false)){ throw 'Mounted Shield the band miss is not an ordinary native AC miss' }
+ # A native AC miss (Miss, DodgeAC, ArmorAC or ShieldAC), at the event and in the final outcome, with no damage, against an AC
+ # calculation that neither ignored shields nor was a touch AC (controller reviews R1-F5, R2-F1, R2).
+ $acMiss=@('Miss','DodgeAC','ArmorAC','ShieldAC')
+ if($row.Count -eq 1 -and ([string]$row[0].resultAtEvent -cnotin $acMiss -or [string](Get-KmcShieldProperty $row[0] 'resultAfterRule') -cnotin $acMiss -or $row[0].isHitAfterRule -ne $false -or [int]$row[0].damageRules -ne 0 -or
+   (Get-KmcShieldProperty $context 'shieldBypass') -ne $false -or (Get-KmcShieldProperty $context 'touch') -ne $false)){ throw 'Mounted Shield the band miss is not a native AC miss against a shield-counting AC' }
  if($row.Count -ne 1 -or $hostile.Count -ne 1 -or [string]$row[0].attacker -cne $hostile[0] -or [string]$row[0].target -cne [string]$Measure.mount -or $row[0].isHitAtEvent -eq $true -or [int]$row[0].d20 -le 1 -or
    ($row[0].acContext | ConvertTo-Json -Compress) -cne ($context | ConvertTo-Json -Compress) -or
    ([int]$row[0].d20+[int]$row[0].bonus) -ge [int]$row[0].ac -or ([int]$row[0].d20+[int]$row[0].bonus) -lt [int]$row[0].ac-$effective){ throw 'Mounted Shield the identified band miss is not a miss that reached the AC without Mounted Shield' }

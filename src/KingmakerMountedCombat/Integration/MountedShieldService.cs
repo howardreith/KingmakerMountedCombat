@@ -275,14 +275,22 @@ namespace KingmakerMountedCombat.Integration
         // its amount above the strongest other Shield modifier (Shield bonuses do not stack).
         internal static int BrilliantEnergyCorrection(IEnumerable<ModifiableValue.Modifier> modifiers, ICollection<ModifiableValue.Modifier> owned, bool touch)
         {
-            var mine = owned.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield).ToArray();
-            var raw = mine.Sum(modifier => modifier.ModValue);
+            var raw = owned.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield).Sum(modifier => modifier.ModValue);
             if (raw <= 0) return 0;
-            // Only another non-stacking Shield modifier competes with KMC's non-stacking one; a stacking (for example ForceStack)
-            // Shield modifier adds on top and suppresses nothing (controller review R1-F2).
+            return Math.Max(0, raw - EffectiveShieldDelta(modifiers, owned, touch, false));
+        }
+
+        // The AC KMC's Shield modifier actually adds to an AC value (controller reviews R1-F2, R2): nothing on a touch AC or when
+        // the calculation ignores shields (Brilliant Energy); otherwise its amount above the strongest other NON-stacking Shield
+        // modifier (a stacking, for example ForceStack, Shield modifier adds on top and suppresses nothing). One rule for the
+        // Brilliant Energy correction and the diagnostics.
+        internal static int EffectiveShieldDelta(IEnumerable<ModifiableValue.Modifier> modifiers, ICollection<ModifiableValue.Modifier> owned, bool touch, bool shieldBypass)
+        {
+            if (touch || shieldBypass) return 0;
+            var mine = owned.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield).ToArray();
+            if (mine.Length == 0) return 0;
             var other = modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !modifier.Stacks && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
-            var effective = touch ? 0 : Math.Max(0, mine.Max(modifier => modifier.ModValue) - Math.Max(0, other));
-            return Math.Max(0, raw - effective);
+            return Math.Max(0, mine.Max(modifier => modifier.ModValue) - Math.Max(0, other));
         }
 
         // The rule's own non-public setters, bound once on first use (no Harmony patch of the rule).

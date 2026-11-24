@@ -55,7 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // RuleCalculateAC before RuleCalculateAttackBonus and the hit-roll event, so a modifier that changes in between cannot be
         // credited: only an AC calculation inside this attack, by its attacker against its target, whose result is the attack's
         // TargetAC, is bound to it.
-        internal Func<UnitEntityData, JObject> TargetAcContext { get; set; }
+        internal Func<UnitEntityData, RuleCalculateAC, JObject> TargetAcContext { get; set; }
         // One sample per nested RuleCalculateAC (review PN8-F2): a critical-confirmation calculation never replaces the primary
         // one; the hit takes the sample of the calculation the attack references (RuleAttackRoll.ACRule, the TargetAC source).
         private readonly AttackCalculationSamples<RuleAttackRoll, RuleCalculateAC, JObject> acSamples = new AttackCalculationSamples<RuleAttackRoll, RuleCalculateAC, JObject>();
@@ -83,7 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // sample, and the hit selects the one it references.
             var attack = acSamples.Owner(open => open.Initiator == evt.Initiator && open.Target == evt.Target);
             if (attack == null) return;
-            var context = TargetAcContext(evt.Target);
+            var context = TargetAcContext(evt.Target, evt);
             if (context == null) return;
             context["acResult"] = evt.TargetAC; context["acAttackType"] = evt.AttackType.ToString(); context["acFlatFooted"] = evt.IsTargetFlatFooted;
             context["acFrame"] = Time.frameCount;

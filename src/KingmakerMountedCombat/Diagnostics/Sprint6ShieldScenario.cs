@@ -927,9 +927,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     var probe = Rulebook.Trigger(new RuleCalculateAC(target, horse, AttackType.Melee)).TargetAC;
                     // The AC change Mounted Shield makes now (supplemental review PN5-F7): Shield bonuses do not stack, so it is
                     // the amount above the strongest other Shield modifier on the mount, read from the native modifiers.
+                    // The same production rule as each observed attack (controller review R2): non-stacking competitors only.
                     var owned = MountedShieldService.IdentityModifiers(horse.Stats.AC, HorseCompanionBlueprintService.MountedShieldFeatureGuid);
-                    var otherShield = horse.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
-                    var effective = Math.Max(0, amount - Math.Max(0, otherShield));
+                    var otherShield = horse.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !modifier.Stacks && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
+                    var effective = MountedShieldService.EffectiveShieldDelta(horse.Stats.AC.Modifiers, owned, false, false);
                     var current = ShieldHostileBonus();
                     var adjustment = probe - 12 - current;
                     s9Setup.Add(target.Stats.AdditionalAttackBonus, adjustment, "band", ModifierDescriptor.UntypedStackable);
@@ -956,6 +957,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The first miss on the mount, since the band step began, whose total reached the AC without Mounted Shield's own
         // contribution.
+        // Kingmaker 2.1.7b's AC-miss results (AttackResult): Miss, DodgeAC, ArmorAC, ShieldAC (controller review R2-F1); not
+        // MirrorImage, Concealment or Parried.
+        private static readonly string[] Sprint6ShieldAcMissResults = { "Miss", "DodgeAC", "ArmorAC", "ShieldAC" };
+
         private JObject ShieldBandMiss()
         {
             for (var index = s9BandRulesBefore; index < s6Rules.Attacks.Count; index++)
@@ -964,7 +969,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var context = row["acContext"] as JObject;
                 // An ordinary native AC miss only (controller review R1-F5): not Mirror Image, concealment or another outcome.
                 if (context == null || (string)row["target"] != horse.UniqueId || (string)row["attacker"] != target.UniqueId || row.Value<bool>("isHitAtEvent") ||
-                    (string)row["resultAtEvent"] != "Miss") continue;
+                    !Sprint6ShieldAcMissResults.Contains((string)row["resultAtEvent"])) continue;
                 var ac = row.Value<int>("ac"); var effective = context.Value<int>("effective");
                 var total = row.Value<int>("d20") + row.Value<int>("bonus");
                 if (effective >= 1 && context.Value<int>("acResult") == ac && row.Value<int>("d20") > 1 && total < ac && total >= ac - effective) return row;
@@ -982,14 +987,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Mounted Shield's effect on the mount's AC at the moment of one attack (supplemental review PN6-F6): its own modifier,
         // the strongest other Shield modifier, and the AC change that leaves (Shield bonuses do not stack).
-        private JObject ShieldAcContext(UnitEntityData unit)
+        private JObject ShieldAcContext(UnitEntityData unit, RuleCalculateAC rule)
         {
             if (unit != horse) return null;
             var owned = MountedShieldService.IdentityModifiers(unit.Stats.AC, HorseCompanionBlueprintService.MountedShieldFeatureGuid);
             var own = owned.Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
             // Competing means non-stacking (controller review R1-F2): a stacking Shield modifier adds on top.
             var other = unit.Stats.AC.Modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !modifier.Stacks && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
-            return new JObject { ["owned"] = own, ["ownedCount"] = owned.Length, ["otherShield"] = other, ["effective"] = Math.Max(0, own - Math.Max(0, other)) };
+            // The production rule for the AC Mounted Shield adds to this calculation (controller review R2): its touch and
+            // shield-bypass (Brilliant Energy) state come from the attack's own RuleCalculateAC.
+            var touch = rule != null && Kingmaker.RuleSystem.AttackTypeExtension.IsTouch(rule.AttackType);
+            var bypass = rule?.BrilliantEnergy != null;
+            return new JObject { ["owned"] = own, ["ownedCount"] = owned.Length, ["otherShield"] = other, ["touch"] = touch, ["shieldBypass"] = bypass,
+                ["effective"] = MountedShieldService.EffectiveShieldDelta(unit.Stats.AC.Modifiers, owned, touch, bypass) };
         }
 
         // The hostile's native attack bonus against the mount now (every setup modifier included).
