@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R1-F13: a hoof strike adopts the hoof action, never the bite", HoofControl);
             runner.Run("R1-F13: a non-Horse or other-actor strike is not bound", NotExactContext);
             runner.Run("R1-F13: the strike reader reports the handle bound to the planned attack (adopted, refreshed, supplied, missing, hoof)", ReaderReflectsBoundHandles);
+            runner.Run("R4-F7: a strike without a handle after an earlier binding gets no fallback, no second record and no assignment", MissingAfterRecordedLeavesStrikeIntact);
         }
 
         internal sealed class FakeAction
@@ -102,6 +103,40 @@ namespace KingmakerMountedCombat.Tests
             strike.Actions.Add(HoofAction);
             if (handle != null) { handle.Manager = strike.Manager; strike.Handle = handle; }
             return strike;
+        }
+
+        // Review R4-F7: the command already recorded a handle (adopted or supplied); native then plans a strike of the same
+        // command with no handle. The fake record throws on a second Record, as MountedPairAttackCommand does, so any fallback
+        // attempt would surface here as a fault.
+        private static void MissingAfterRecordedLeavesStrikeIntact()
+        {
+            // Adopt, then the planned handle is cleared.
+            var adopted = HorseStrike(new FakeHandle { Action = BiteAction });
+            TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, adopted.Bind().Outcome, "The first stock handle was not adopted.");
+            var recorded = adopted.Recorded;
+            adopted.Handle = null;
+            var missing = adopted.Bind();
+            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, missing.Outcome, "A missing handle after adoption was not reported distinctly.");
+            TestRunner.True(adopted.Handle == null && adopted.Records == 1 && adopted.Creates == 0 && adopted.Assigns == 0 &&
+                ReferenceEquals(adopted.Recorded, recorded) && ReferenceEquals(missing.Action, BiteAction),
+                "A fallback was created, assigned or recorded after adoption.");
+            // Supplied, then the planned handle is cleared.
+            var supplied = HorseStrike();
+            TestRunner.Equal(HorseStrikeHandleOutcome.Supplied, supplied.Bind().Outcome, "The first fallback was not supplied.");
+            supplied.Handle = null;
+            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, supplied.Bind().Outcome, "A missing handle after a supplied one was not reported.");
+            TestRunner.True(supplied.Records == 1 && supplied.Creates == 1 && supplied.Assigns == 1 && supplied.Handle == null,
+                "A second fallback was created or assigned after a supplied handle.");
+            // A later hoof strike of the same command, planned without a handle, after a recorded bite: untouched.
+            var hoof = HorseStrike(new FakeHandle { Action = BiteAction });
+            hoof.Bind();
+            hoof.Expected = "Hoof"; hoof.Weapon = "Hoof1d4"; hoof.Handle = null;
+            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, hoof.Bind().Outcome, "A later hoof strike without a handle was given a fallback.");
+            TestRunner.True(hoof.Records == 1 && hoof.Creates == 0 && hoof.Assigns == 0 && hoof.Handle == null && ReferenceEquals(hoof.RecordedAction, BiteAction),
+                "The later hoof strike changed the record or the planned attack.");
+            // Repeated native calls stay inert.
+            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, hoof.Bind().Outcome, "A repeated call changed the outcome.");
+            TestRunner.True(hoof.Records == 1 && hoof.Creates == 0 && hoof.Assigns == 0, "A repeated call registered or assigned a handle.");
         }
 
         private static void StockAdoptionOnce()

@@ -13,7 +13,10 @@ namespace KingmakerMountedCombat.Domain
         RejectedStockMismatch,
         RejectedRefreshAction,
         RejectedCandidateCount,
-        RejectedCreateFailed
+        RejectedCreateFailed,
+        // Native planned this strike without a handle after the command already recorded one (review R4-F7): a fallback
+        // would be a second registration, so the native strike is left exactly as native planned it.
+        MissingAfterRecorded
     }
 
     // The Unity/Kingmaker operations the exact Horse Bite handle binding needs (MMR-07, review R1-F13). The production
@@ -66,7 +69,9 @@ namespace KingmakerMountedCombat.Domain
 
     // Adopt the stock-created native SpecialAttack handle of the exact KMC Horse primary strike, refresh the record to a later
     // stock handle of the same action, or (only when native created none) supply exactly one handle of the single matching
-    // SpecialAttack action. A handle is recorded at most once; anything inexact is rejected and nothing is assigned. This
+    // SpecialAttack action. A handle is recorded at most once; anything inexact is rejected and nothing is assigned. Once a
+    // handle is recorded for the command, a later strike without a handle is never given a fallback (no creation, assignment
+    // or second record): the binding cannot attribute a new handle to that record, so native's strike stays intact. This
     // decides presentation telemetry only: the native UnitAttack keeps execution, rules, timing and damage.
     public static class HorseStrikeHandleBinding
     {
@@ -113,6 +118,13 @@ namespace KingmakerMountedCombat.Domain
                 return result;
             }
 
+            // Review R4-F7: checked before any creation or assignment.
+            if (boundary.HasAnyRecorded)
+            {
+                result.Outcome = HorseStrikeHandleOutcome.MissingAfterRecorded;
+                result.Action = boundary.RecordedAction;
+                return result;
+            }
             TAction only = null;
             var count = 0;
             var actions = boundary.SpecialAttackActions;

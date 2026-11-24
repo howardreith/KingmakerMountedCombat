@@ -122,6 +122,16 @@ Check ((Bind-Strike $biteForHoof) -ceq 'RejectedStockMismatch' -and $biteForHoof
 $missing = New-Strike $null $manager $true 'Bite' $horseActions
 Check ((Bind-Strike $missing) -ceq 'Supplied' -and $missing.Creates -eq 1 -and $missing.Assigns -eq 1 -and $missing.Records -eq 1 -and $missing.Source -ceq 'kmc-supplied' -and [object]::ReferenceEquals($missing.Current.Action, $bite)) 'a missing stock handle gets exactly one handle of the single Bite action'
 Check ((Bind-Strike $missing) -ceq 'AlreadyRecorded' -and $missing.Creates -eq 1 -and $missing.Assigns -eq 1) 'the supplied handle is not supplied again'
+# Review R4-F7: after a recorded handle (adopted or supplied), a strike planned without a handle gets no fallback: no
+# creation, no assignment, no second record (the record delegate throws on a duplicate, as MountedPairAttackCommand does).
+$adoptedThenMissing = New-Strike (New-Handle $bite $manager) $manager $true 'Bite' $horseActions
+[void](Bind-Strike $adoptedThenMissing); $adoptedThenMissing.Current = $null
+Check ((Bind-Strike $adoptedThenMissing) -ceq 'MissingAfterRecorded' -and $adoptedThenMissing.Records -eq 1 -and $adoptedThenMissing.Creates -eq 0 -and $adoptedThenMissing.Assigns -eq 0 -and $null -eq $adoptedThenMissing.Current) 'R4-F7: adopted, then a strike without a handle: no fallback, one record, nothing assigned'
+$missing.Current = $null
+Check ((Bind-Strike $missing) -ceq 'MissingAfterRecorded' -and $missing.Records -eq 1 -and $missing.Creates -eq 1 -and $missing.Assigns -eq 1 -and $null -eq $missing.Current) 'R4-F7: supplied, then a strike without a handle: no second fallback or record'
+$laterHoof = New-Strike (New-Handle $bite $manager) $manager $true 'Bite' $horseActions
+[void](Bind-Strike $laterHoof); $laterHoof.Expected = 'Hoof'; $laterHoof.Current = $null
+Check ((Bind-Strike $laterHoof) -ceq 'MissingAfterRecorded' -and $laterHoof.Records -eq 1 -and $laterHoof.Creates -eq 0 -and $laterHoof.Assigns -eq 0 -and [object]::ReferenceEquals($laterHoof.RecordedAction, $bite)) 'R4-F7: a later hoof strike without a handle after a recorded bite is left untouched'
 $ambiguous = New-Strike $null $manager $true 'Bite' @($bite, (New-Action 'Bite'), $hoof)
 Check ((Bind-Strike $ambiguous) -ceq 'RejectedCandidateCount' -and $ambiguous.LastResult.CandidateCount -eq 2 -and $ambiguous.Assigns -eq 0 -and $ambiguous.Creates -eq 0) 'two matching actions: the fallback assigns nothing'
 
@@ -167,6 +177,8 @@ $supplyExact = $adapter.GetMethod('SupplyExact', $any)
 Check (Calls $patches 'AttackAnimationPostfix' $supplyHorse) 'the CreateAnimationHandleForAttack postfix reaches MountedAnimationAdapter.SupplyExactHorsePrimaryAnimation'
 Check (Calls $animation 'SupplyExactHorsePrimaryAnimation' $supplyExact) 'SupplyExactHorsePrimaryAnimation calls the Horse adapter''s SupplyExact'
 Check (Calls $adapter 'SupplyExact' $bindingType.GetMethod('Bind')) 'SupplyExact decides through HorseStrikeHandleBinding.Bind'
+$supplyClauses = @($supplyExact.GetMethodBody().ExceptionHandlingClauses | Where-Object { $_.Flags -eq [Reflection.ExceptionHandlingClauseOptions]::Clause -and $_.CatchType -eq [Exception] })
+Check ($supplyClauses.Count -ge 1) 'R4-F7: SupplyExact contains the binding in a catch-all, so no binding exception reaches the native handle-creation postfix'
 $controller = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController'
 $registered = $false
 $controllerTypes = New-Object 'System.Collections.Generic.List[Type]'; $controllerTypes.Add($controller)

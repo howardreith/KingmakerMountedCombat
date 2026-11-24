@@ -41,6 +41,14 @@ namespace KingmakerMountedCombat.Integration
 
         internal int HandleRejectCount { get; private set; }
 
+        // Review R4-F7: strikes left without a fallback because a handle was already recorded, and binding faults contained.
+        internal int HandleMissingAfterRecordedCount { get; private set; }
+
+        internal int HandleFaultCount { get; private set; }
+
+        private object lastMissingCommand;
+        private bool faultReported;
+
         internal string LastHandleSource { get; private set; } = "<none>";
 
         internal string LastActionName { get; private set; } = "<none>";
@@ -71,9 +79,27 @@ namespace KingmakerMountedCombat.Integration
                 (handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action),
                 action => CreateNativeHandle(manager, action),
                 handle => attack.AnimationHandle = handle);
-            var result = HorseStrikeHandleBinding.Bind(boundary);
+            HorseStrikeHandleBindingResult<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> result;
+            try { result = HorseStrikeHandleBinding.Bind(boundary); }
+            catch (Exception exception)
+            {
+                // Presentation telemetry never faults the native strike (this runs inside native handle creation).
+                HandleFaultCount++;
+                if (!faultReported) logger.Exception("Exact KMC Horse primary animation binding failed; the native strike is left as planned", exception);
+                faultReported = true;
+                return;
+            }
             switch (result.Outcome)
             {
+                case HorseStrikeHandleOutcome.MissingAfterRecorded:
+                    HandleMissingAfterRecordedCount++;
+                    if (!ReferenceEquals(lastMissingCommand, command))
+                    {
+                        lastMissingCommand = command;
+                        logger.Info("Horse strike planned without a native handle after an earlier recorded Bite handle: no fallback " +
+                            "supplied and nothing recorded (native strike unchanged); recorded action=" + (result.Action?.name ?? "<none>") + ".");
+                    }
+                    return;
                 case HorseStrikeHandleOutcome.Adopted:
                     HandleAdoptCount++;
                     Remember(HorseStrikeHandleBinding.StockCreated, result.Action);
