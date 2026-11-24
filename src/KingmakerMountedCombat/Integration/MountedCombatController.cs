@@ -1462,7 +1462,9 @@ namespace KingmakerMountedCombat.Integration
                 ranged || stationary,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
-                !turnBased || stockIntent.MountActor || settings.UseLegacyUnifiedTurn,
+                UnifiedMountedStockAttackPolicy.MountJoinsIntent(turnBased, stockIntent.MountActor, settings.UseLegacyUnifiedTurn,
+                    settings.EnablePairedActivation, stockIntent.Automatic,
+                    turnBased && mount != null && unifiedTurn.CanAddressActor(mount, Game.Instance?.TurnBasedCombatController?.CurrentTurn)),
                 settings.EnablePairedActivation && stockIntent.PreferMount);
 
             if (decision == MountedStockAttackDecision.Wait)

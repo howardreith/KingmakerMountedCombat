@@ -210,6 +210,29 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
+        private static readonly System.Reflection.FieldInfo NativeNeedNewPredictions =
+            ResolveField(typeof(TurnController), "m_NeedNewPredictions", 0x04000691);
+
+        // MMR-02: after native IgnoreClick on the rider's own context, admit an ordinary rider attack on a hostile that
+        // native dropped only for its rider-path check (Domain/PairedAttackClickAdmissionPolicy.cs). The click then reaches
+        // the pair controller, whose attack command approaches with the mount's lawful remaining movement.
+        internal void AdmitPairedAttackClick(TurnController context, ref bool result)
+        {
+            if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
+            var rider = activation.Principal;
+            var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
+            var admit = PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(true, true,
+                SelectionManager.Instance?.SingleSelectedUnit == rider, context.Unit == rider && rider.Commands.Empty,
+                !(bool)NativeNeedNewPredictions.GetValue(context), context.IsOverTerrain,
+                Game.Instance?.SelectedAbilityHandler?.Ability != null,
+                target != null && !target.Descriptor.State.IsDead && rider.IsEnemy(target),
+                CanMovePairedMount(context));
+            if (!admit) return;
+            result = false;
+            logger.Info("Admitted a turn-based rider attack click native dropped for its rider-path check (MMR-02): rider=" +
+                rider.UniqueId + "; target=" + target.UniqueId + "; the pair approaches with the mount's lawful movement.");
+        }
+
         internal bool PrepareNativeInputPrediction(TurnController context)
         {
             if (!PairedLifecycleEnabled || activation == null ||

@@ -137,6 +137,17 @@ namespace KingmakerMountedCombat.Domain
                 currentFrame - observedFrame <= MaximumInputFrameDelta;
         }
 
+        // MMR-03 (docs/missions/mounted-alpha2-melee-pose/MISSION.md). Whether the mount may take a turn-based stock intent.
+        // Under paired activation one ordinary pair order (the player's rider click) retains its target for both actors: once
+        // the rider's own attack is spent, the horse follows through with its own lawful attack in the same activation, with
+        // no redundant mount click. It joins only while it is addressable on that activation (prepared, not ended, not split
+        // or suspended: PairedActivation.CanAddress); DecideNext still requires its own Standard action and the dispatcher
+        // rechecks capability, range and native turn state. An automatic intent never spends the partner; a separate-turn
+        // (paired off) rider order stays the rider's; an explicit mount order stays the mount's.
+        public static bool MountJoinsIntent(bool turnBased, bool explicitMountOrder, bool legacyUnifiedTurn, bool pairedActivation,
+            bool automaticIntent, bool mountAddressable) =>
+            !turnBased || explicitMountOrder || legacyUnifiedTurn || pairedActivation && !automaticIntent && mountAddressable;
+
         public static MountedStockAttackDecision DecideNext(
             bool exactMountedPair,
             bool targetValid,

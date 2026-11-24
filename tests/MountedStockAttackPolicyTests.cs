@@ -27,6 +27,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
             runner.Run("MMR-01: the Horse seat does not depend on the rider's pose at attachment", AnimatedSaddleDeclaredHorseBasis);
+            runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
+            runner.Run("MMR-02: only a rider attack click dropped by native's rider-path check is admitted", PairedAttackClickAdmission);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -456,6 +458,71 @@ namespace KingmakerMountedCombat.Tests
             reused.Release();
             reused.Acquire(chest, AnimatedSaddleCalibration.CalibrationPelvis(chest, castPelvis, declared), MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             TestRunner.True((reused.Project(chest) - accepted).Magnitude < 0.0005f, "A remount inherited the earlier pose-dependent calibration.");
+        }
+
+        private static void PairedAttackClickAdmission()
+        {
+            bool Admit(bool ignored = true, bool riderContext = true, bool riderSelected = true, bool commandsEmpty = true,
+                bool predictionsCurrent = true, bool overTerrain = false, bool ability = false, bool hostile = true, bool movement = true) =>
+                PairedAttackClickAdmissionPolicy.AdmitsDroppedRiderAttackClick(ignored, riderContext, riderSelected, commandsEmpty,
+                    predictionsCurrent, overTerrain, ability, hostile, movement);
+            TestRunner.True(Admit(), "The dropped rider attack on a hostile was not admitted.");
+            TestRunner.True(!Admit(ignored: false), "An accepted click was changed.");
+            TestRunner.True(!Admit(riderContext: false) && !Admit(riderSelected: false), "A mount or other context click was admitted.");
+            TestRunner.True(!Admit(commandsEmpty: false) && !Admit(predictionsCurrent: false), "Native busy or stale-prediction refusals were overridden.");
+            TestRunner.True(!Admit(overTerrain: true) && !Admit(ability: true), "A ground or ability click was admitted.");
+            TestRunner.True(!Admit(hostile: false), "A non-hostile or absent target was admitted.");
+            TestRunner.True(!Admit(movement: false), "A pair without lawful mount movement was admitted (no free approach).");
+        }
+
+        private static void PairOrderHorseFollowThrough()
+        {
+            // The legality input comes from a genuine paired activation's CanAddress, as the controller passes it.
+            MountedStockAttackDecision Next(PairedActivation<object, object> pair, object boundary, bool explicitMount, bool automatic,
+                bool pairedActivation, bool riderStandard, bool mountStandard) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderStandard, mountStandard, false, true,
+                    riderIsLegalActor: !explicitMount,
+                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, pairedActivation, automatic,
+                        pair.CanAddress(pair.Partner, boundary)));
+            PairedActivation<object, object> Prepared(out object boundary)
+            {
+                var pair = new PairedActivation<object, object>(new object(), new object());
+                boundary = new object();
+                pair.Begin(boundary);
+                pair.BeginActorPreparation(pair.Principal, boundary); pair.FinishActorPreparation(pair.Principal);
+                pair.BeginActorPreparation(pair.Partner, boundary); pair.FinishActorPreparation(pair.Partner);
+                return pair;
+            }
+            object turn;
+            var active = Prepared(out turn);
+            // One rider click: the rider strikes first, then (rider spent) the horse follows through, then the intent completes.
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(active, turn, false, false, true, true, true), "The rider did not strike first.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(active, turn, false, false, true, false, true), "The ready horse did not follow the pair order.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(active, turn, false, false, true, false, false), "A spent horse was asked to attack again.");
+            // An ended horse (used, End, or adopted mid-encounter with its participation spent) is never reactivated.
+            active.EndActor(active.Partner);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(active, turn, false, false, true, false, true), "An ended horse attacked.");
+            var adopted = new PairedActivation<object, object>(new object(), new object()); var adoptedTurn = new object();
+            adopted.AdoptRunningBoundary(adoptedTurn, MidEncounterAdoption.RetainPartnerParticipation);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(adopted, adoptedTurn, false, false, true, false, true), "An already-used adopted partner attacked.");
+            // Not the activation's boundary (another round), unprepared, suspended (delay), ending (End Turn) or split: no follow-through.
+            var other = Prepared(out turn);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(other, new object(), false, false, true, false, true), "A horse attacked across the activation boundary.");
+            other.Suspend(turn);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(other, turn, false, false, true, false, true), "A suspended horse attacked.");
+            var ending = Prepared(out turn); ending.BeginEnding();
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(ending, turn, false, false, true, false, true), "A horse attacked after End Turn.");
+            var split = Prepared(out turn); split.Detach();
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(split, turn, false, false, true, false, true), "A split horse attacked.");
+            var unprepared = new PairedActivation<object, object>(new object(), new object()); var early = new object(); unprepared.Begin(early);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(unprepared, early, false, false, true, false, true), "An unprepared horse attacked.");
+            // Explicit per-actor orders keep their meaning; an automatic intent and separate turns never spend the partner.
+            var fresh = Prepared(out turn);
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(fresh, turn, true, false, true, true, true), "An explicit mount order did not reach the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, true, false, true, true, false), "An explicit mount order spent the rider.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, false, true, true, false, true), "An automatic intent spent the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, false, false, false, false, true), "A separate-turn rider order spent the horse.");
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(false, false, false, false, true, false), "Real time lost its pair dispatch.");
         }
 
         private static void AnimatedSaddleCleanup()
