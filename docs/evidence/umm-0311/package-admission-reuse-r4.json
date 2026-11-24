@@ -1,9 +1,9 @@
 {
     "schema":  "kmc.package-admission-reuse-tests.v1",
-    "commit":  "d63d4cc051508d918428f5db6ade6fb6d7d2436e",
+    "commit":  "dbe51d82567bcd2a26876139b7360036b1c773d1",
     "released_fixture_sha256":  "0b650bb3dea5003e36606a217d1f2269f1b42b69050d35b5f1785bc18d228af8",
-    "main_package_sha256":  "035b0bed680c858ca547031aed417b26df7ef973e392396a65b1f42d79f99a19",
-    "observer_package_sha256":  "49627e6c9f23387b46447154ef7e1ab84a6fcd7b25d266c64e888a509b2a4300",
+    "main_package_sha256":  "bb287c92da271d9f9ed4899aa89bbb297e0dca2793767c2d6eefe81eb1040ff5",
+    "observer_package_sha256":  "3f58152a112278cb0da762b53ea287c9267262cc28a549348bf274c97ec68f9b",
     "passed":  51,
     "total":  51,
     "cases":  [
@@ -30,7 +30,7 @@
                   {
                       "name":  "packages-built-by-combined-qualification-route",
                       "passed":  true,
-                      "detail":  "main 035b0bed680c858ca547031aed417b26df7ef973e392396a65b1f42d79f99a19; observer 49627e6c9f23387b46447154ef7e1ab84a6fcd7b25d266c64e888a509b2a4300"
+                      "detail":  "main bb287c92da271d9f9ed4899aa89bbb297e0dca2793767c2d6eefe81eb1040ff5; observer 3f58152a112278cb0da762b53ea287c9267262cc28a549348bf274c97ec68f9b"
                   },
                   {
                       "name":  "main-validator-genuine-package-accepted",
@@ -255,12 +255,12 @@
                   {
                       "name":  "test-tiers-skipbuild-with-old-outputs-refused",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                      "detail":  "not a live parent; this invocation is accounted on its own"
                   },
                   {
                       "name":  "full-admission-with-old-outputs-refused-before-umbrella",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                      "detail":  "not a live parent; this invocation is accounted on its own"
                   }
               ]
 }

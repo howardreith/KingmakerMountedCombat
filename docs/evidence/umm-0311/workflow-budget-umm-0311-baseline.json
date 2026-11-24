@@ -6,20 +6,20 @@
     "createdUtc":  "2026-11-24T15:00:00.5051262Z",
     "stepHistory":  {
                         "build":  {
-                                      "seconds":  4.7,
-                                      "observedUtc":  "2026-11-24T15:06:08.8073343Z"
+                                      "seconds":  10.1,
+                                      "observedUtc":  "2026-11-24T21:44:33.0053240Z"
                                   },
                         "FAST components":  {
-                                                "seconds":  2.9,
-                                                "observedUtc":  "2026-11-24T15:06:11.7962333Z"
+                                                "seconds":  3.3,
+                                                "observedUtc":  "2026-11-24T21:44:36.4096841Z"
                                             },
                         "FAST Validate-Source.ps1":  {
-                                                         "seconds":  9.8,
-                                                         "observedUtc":  "2026-11-24T15:06:21.6518052Z"
+                                                         "seconds":  10.4,
+                                                         "observedUtc":  "2026-11-24T21:44:46.8607747Z"
                                                      },
                         "FOCUSED Test-PackageAdmissionAndReuse.ps1":  {
-                                                                          "seconds":  187,
-                                                                          "observedUtc":  "2026-11-24T15:09:28.7303514Z"
+                                                                          "seconds":  178.8,
+                                                                          "observedUtc":  "2026-11-24T21:47:45.6754761Z"
                                                                       }
                     },
     "allowanceAdjustments":  [
@@ -72,6 +72,25 @@
                         "endedUtc":  "2026-11-24T15:09:28.7403205Z",
                         "seconds":  205,
                         "heartbeatUtc":  "2026-11-24T15:09:28.7403205Z"
+                    },
+                    {
+                        "entryId":  "umm-0311-baseline:20261124T214422728Z:24800:9f633c29",
+                        "kind":  "tier",
+                        "selection":  "Fast: build, FAST components, FAST Validate-Source.ps1, FOCUSED Test-PackageAdmissionAndReuse.ps1",
+                        "startedUtc":  "2026-11-24T21:44:22.7281865Z",
+                        "processId":  24800,
+                        "estimatedSeconds":  205,
+                        "launch":  false,
+                        "batchId":  null,
+                        "batchKey":  null,
+                        "parentEntryId":  null,
+                        "suspendedUtc":  null,
+                        "excludedSeconds":  0,
+                        "stepStartedUtc":  "2026-11-24T21:44:46.8727730Z",
+                        "status":  "failed",
+                        "endedUtc":  "2026-11-24T21:47:45.6844774Z",
+                        "seconds":  203,
+                        "heartbeatUtc":  "2026-11-24T21:47:45.6844774Z"
                     }
                 ]
 }

@@ -1,6 +1,6 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs exported 2026-11-24 21:43 UTC for candidate commit `d63d4cc051508d918428f5db6ade6fb6d7d2436e`. Each row names what produced that output (its
+Machine-generated outputs exported 2026-11-24 21:52 UTC for candidate commit `dbe51d82567bcd2a26876139b7360036b1c773d1`. Each row names what produced that output (its
 source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
@@ -17,10 +17,10 @@ python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_
 
 | File | Produced by | Raw SHA-256 | Exported SHA-256 (Git blob) |
 | --- | --- | --- | --- |
-| `package-admission-reuse-r4.json` | d63d4cc0 (disposable lab clone; 51/51) | `d449437221f1d47b92b95434be2b85a08cab3450938851056dcbd56fb722c51b` | `19696569db9525f974d4920c231ffa6315ecce8677795ffae8fa2d9ab587544e` |
+| `package-admission-reuse-r4.json` | dbe51d82 (disposable lab clone; 51/51; run with a simulated enclosing workflow entry, as under the controller gate) | `ac61b3cf9e263cf7f0a8fef5b2d7ef2117e1189b67f63d597ef9d8b74c4ccf8f` | `1fdfb85b127d4364761651b1f72eab59f29ecb990c6c2acbfbe0b01d9fb7d4c2` |
 | `frozen-product-source-r4.log` | d63d4cc0 (32/32) | `9f2fa2ba4d1169772fc63bd2d8b7ac5bd9d8433900dd9a3d2b3133a61d06b30e` | `aa37bae4591bf4a790257a71355639605220f7e4745b860e423290e45fc3e57c` |
 | `chunk7-native-loader-contracts-r4.log` | d63d4cc0 (117/117) | `e3b16a2f107e11f9787cfbdf4559d6f017725f53ac4c284357b6597565246e1b` | `e3b16a2f107e11f9787cfbdf4559d6f017725f53ac4c284357b6597565246e1b` |
-| `workflow-budget-umm-0311-baseline.json` | read-only copy of the lab budget record umm-0311-baseline before the round-4 gate (two gate entries, 7.12 of 15 min; owner allowance adjustment) | `5b31f37547d226d479524859071c69f58bdf9b09f1b910ecf6ac98d5ebb1f86b` | `da65ba09b3479aa7d3b41b677bad6b3ed9ccd463c45a8394390b83867fc24d8a` |
+| `workflow-budget-umm-0311-baseline.json` | read-only copy of the lab budget record umm-0311-baseline before the final round-4 gate (three entries: the round-3 gates 222 s and 205 s and the failed round-4 gate 203 s, 10.5 of 15 min; owner allowance adjustment) | `2f18d425a072a73bfbd722b68675545582ce64239077c123d02137b893128cbf` | `f299796a0a28e07b3cd5a84c5d0f7cc47907e311fc5538f9626365580a9becb8` |
 | `pinned-loader-msbuild.json` | 11df053b (round 3) | `fc8dc859da4a6ee0ea32d3f513b532783fa6cf736264d4e9e2eed6fdc014e773` (original output, from its first export) | `443c7ff2c57abf39475edf811eee0e354c078b83a7fb7b30560b9f1f58bca842` |
 | `package-admission-reuse.json` | 11df053b (round 3); 45/45 | `1853012e2a098e021c1ce5ba6b43559f11fde240d263004d382f2fbeb9aaa841` (original output, from its first export) | `edb7b52d194fb777756e9b145529bcd3f17b3da18379712771b3a93fbc9acf4c` |
 | `package-validation.json` | 11df053b (round 3) | `6e71a771527a66412241dc57f472b60c5cac44ab71653337f421aeabbccb9ea1` (original output, from its first export) | `37e23a78aa0a27586b221574a419ded43dcf29ccaa2594addf4b753e0854be83` |
