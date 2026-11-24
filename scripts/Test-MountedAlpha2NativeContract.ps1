@@ -204,7 +204,7 @@ $canAct = $combatState.GetProperty('CanActInCombat').GetGetMethod()
 $waiting = $combatState.GetProperty('IsWaitingInitiative', [Reflection.BindingFlags]'Instance,Public,NonPublic').GetGetMethod($true)
 $inCombat = $combatState.GetField('m_InCombat', [Reflection.BindingFlags]'Instance,NonPublic')
 $canActTokens = IlTokens $canAct
-Check ($canActTokens.ContainsKey($waiting.MetadataToken) -and $canActTokens.ContainsKey($inCombat.MetadataToken)) 'MMR-04/05: CanActInCombat reads m_InCombat and IsWaitingInitiative (false outside combat; the product gates only in combat)'
+Check ($canActTokens.ContainsKey($waiting.MetadataToken) -and $canActTokens.ContainsKey($inCombat.MetadataToken)) 'MMR-04/05: native CanActInCombat reads m_InCombat and IsWaitingInitiative (the initiative wait before a real-time strike can start)'
 $patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
 Check ($null -ne $patches.GetMethod('PairedIgnoreClickPostfix', $any) -and $null -ne $patches.GetMethod('PairedIgnoreClickPrefix', $any)) 'MMR-02: the product carries the IgnoreClick prefix and the read-only drop-diagnostic postfix'
 $handle = GameType 'Kingmaker.Visual.Animation.Actions.AnimationActionHandle'
@@ -214,6 +214,24 @@ Check ($null -ne $handle.GetProperty('SpeedScale')) 'MMR-07: native handle Speed
 $bundle = Join-Path $data 'StreamingAssets\Bundles\resource_2f17956095cd04b49a8f4c0bc88bb9ca'
 Check ((Get-FileHash -LiteralPath $bundle).Hash.ToLowerInvariant() -ceq '3edb2116adf8857e11e466613c3bde6376d6201910d6a21a3d8774ee8bf2b476') 'MMR-07: pinned native horse animation bundle identity'
 
+# MMR-04 native target choice (review R1-F11): the rider brain's automatic attack (Character_Brain -> AttackAiAction ->
+# AttackTargetsPriority: StandStill, UnconsciousPenalty, NotImpatient) scores candidates from DecisionContext.Enemies, which
+# reads the group's memory (perceived enemies), filters dead/untargetable/aggro, and sorts with TargetInfo.Sort; FillWeight
+# ranks a player's manual target first and, in real time, subtracts 0.001 x distance, so the nearest eligible perceived enemy
+# wins. KMC passes that proposal through unchanged (no target selection of its own).
+$decision = GameType 'Kingmaker.Controllers.Brain.DecisionContext'; $targetInfo = GameType 'Kingmaker.Controllers.Brain.TargetInfo'
+$enemiesTokens = IlTokens ($decision.GetProperty('Enemies', [Reflection.BindingFlags]'Instance,Public,NonPublic').GetGetMethod($true))
+$memoryEnemies = (GameType 'Kingmaker.UnitLogic.UnitGroupMemory').GetProperty('Enemies').GetGetMethod()
+$sortMethod = $targetInfo.GetMethod('Sort', [Reflection.BindingFlags]'Static,Public,NonPublic')
+Check ($enemiesTokens.ContainsKey($memoryEnemies.MetadataToken) -and $enemiesTokens.ContainsKey($sortMethod.MetadataToken)) 'MMR-04: native brain candidates come from the group memory and are sorted by TargetInfo.Sort'
+$fill = $targetInfo.GetMethod('FillWeight', [Reflection.BindingFlags]'Instance,Public,NonPublic')
+$fillIl = $fill.GetMethodBody().GetILAsByteArray()
+$fillTokens = IlTokens $fill
+$manual = (GameType 'Kingmaker.Controllers.Combat.UnitCombatState').GetProperty('ManualTarget').GetGetMethod()
+$distanceField = $targetInfo.GetField('Distance')
+$minusMilli = [BitConverter]::GetBytes([single]-0.001); $hasMinusMilli = $false
+for ($i = 0; $i -le $fillIl.Length - 5; $i++) { if ($fillIl[$i] -eq 0x22 -and $fillIl[$i + 1] -eq $minusMilli[0] -and $fillIl[$i + 2] -eq $minusMilli[1] -and $fillIl[$i + 3] -eq $minusMilli[2] -and $fillIl[$i + 4] -eq $minusMilli[3]) { $hasMinusMilli = $true } }
+Check ($fillTokens.ContainsKey($manual.MetadataToken) -and $fillTokens.ContainsKey($distanceField.MetadataToken) -and $hasMinusMilli) 'MMR-04: native FillWeight keeps a manual target first and prefers the nearer enemy (-0.001 x distance)'
 # ---- 4. MMR-01 seat wiring (review R1-F12): the compiled profile-to-adapter path, not a copy of it -------------------
 $profiles = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfiles'
 $profileType = KmcType 'KingmakerMountedCombat.Integration.SupportedMountedProfile'
