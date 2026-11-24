@@ -114,9 +114,16 @@ $fingerprint=Get-Content -LiteralPath (Join-Path $RepositoryRoot 'planning/ENVIR
 Check 'launcher resolves the default owner profile for the measured environment' {$r=Resolve-KmcRuntimeLoaderProfileForEnvironment '' $fingerprint;if($r.Id-cne'umm-0.33.0'){throw 'Default profile was not the owner installation.'}}
 Check 'launcher resolves the explicit owner profile' {$r=Resolve-KmcRuntimeLoaderProfileForEnvironment 'umm-0.33.0' $fingerprint;if($r.Harmony2Sha256-cne$harmonyHash){throw 'Owner Harmony 2 identity differs.'}}
 Reject 'launcher refuses the baseline profile in the measured owner environment' {Resolve-KmcRuntimeLoaderProfileForEnvironment 'umm-0.31.1' $fingerprint}
-Check 'launcher carries the resolved profile to the inventory, the result reader and the admission receipt' {
+Check 'launcher parameter contract keeps Scenario as the first positional parameter and offers no profile selection' {
+ $launcherPath=Join-Path $RepositoryRoot 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'
+ $parameters=(Get-Command -Name $launcherPath -CommandType ExternalScript).Parameters
+ if($parameters.ContainsKey('RuntimeLoaderProfileId')){throw 'The launcher still offers a runtime loader profile selection.'}
+ $positional=@($parameters.Values|ForEach-Object{$p=$_;$p.ParameterSets.Values|Where-Object{$_.Position-ge0}|ForEach-Object{[pscustomobject]@{Name=$p.Name;Position=$_.Position}}}|Sort-Object Position)
+ if($positional.Count-eq0-or$positional[0].Name-cne'Scenario'-or$positional[0].Position-ne0){throw ('First positional parameter is '+$(if($positional.Count){$positional[0].Name+' at '+$positional[0].Position}else{'none'}))}
+}
+Check 'launcher carries the owner profile to the inventory, the result reader and the admission receipt' {
  $launcher=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'))
- foreach($needle in @('[string]$RuntimeLoaderProfileId','$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment $RuntimeLoaderProfileId $fingerprint','-LoaderProfileId $runtimeLoaderProfile.Id','-RuntimeLoaderProfileId $runtimeLoaderProfile.Id','runtimeLoaderProfile=[ordered]@{id=$runtimeLoaderProfile.Id')){
+ foreach($needle in @("`$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment '' `$fingerprint",'-LoaderProfileId $runtimeLoaderProfile.Id','-RuntimeLoaderProfileId $runtimeLoaderProfile.Id','runtimeLoaderProfile=[ordered]@{id=$runtimeLoaderProfile.Id')){
   if($launcher.IndexOf($needle)-lt0){throw ('Launcher does not carry the profile: '+$needle)}
  }
  if($launcher.IndexOf('$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment')-gt$launcher.IndexOf('Get-KmcMeasuredPackage -PackagePath $PackagePath')){throw 'The profile is not resolved before package admission.'}

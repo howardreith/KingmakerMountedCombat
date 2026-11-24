@@ -48,10 +48,12 @@ $buildInputs=@(
     @{path='scripts/loader-reference-pins.json'; original='{"minimumManagerVersion":"0.31.1","sha256":"original"}'; changed='{"minimumManagerVersion":"0.33.0","sha256":"different"}'; name='loader build pins'},
     @{path='scripts/Get-PinnedLoaderReferences.ps1'; original='Write-Output "verify pinned loader"'; changed='Write-Output "different loader verifier"'; name='loader reference verifier'},
     @{path='LoaderReferences.targets'; original='<Project />'; changed='<Project><!-- different guard --></Project>'; name='MSBuild loader guard'},
-    @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'}
+    @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'},
+    @{path='LoaderReferences.Final.targets'; original='<Project />'; changed='<Project><!-- different final compiler-input check --></Project>'; name='final compiler-input guard'},
+    @{path='scripts/LoaderPins.ps1'; original='function Read-KmcLoaderPinDefinition { "parse" }'; changed='function Read-KmcLoaderPinDefinition { "different parser" }'; name='loader pin parser'}
 )
 foreach($buildInput in $buildInputs) { WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.original }
-Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets','tools') | Out-Null
+Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets','LoaderReferences.Final.targets','tools') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Frozen production') | Out-Null
 $commit=[string](Invoke-TestGit @('rev-parse','HEAD'))
 $tree=[string](Invoke-TestGit @('rev-parse','HEAD^{tree}'))

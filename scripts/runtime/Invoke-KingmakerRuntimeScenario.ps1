@@ -1,7 +1,5 @@
 [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
 param(
-    # Runtime loader profile (planning/UMM-LOADER-PROFILES.json runtime records); default: the measured owner installation.
-    [string]$RuntimeLoaderProfileId,
     [ValidateSet(
         'chunk7-normal-player-control','chunk7-stock-mammoth-fixture-preparation','chunk7-small-fixture-preparation','chunk7-assisted-cold-inventory','chunk7-assisted-fixture-preparation','chunk7-owned-two-pair-campaign','chunk7-cumulative-acquisition','chunk7-acquired-manual-derivative','chunk7-manual-derived-acquisition','chunk7-bootstrap-manual-seed','chunk7-bootstrap-cold-inventory','chunk7-native-main-bootstrap','chunk7-native-progression','chunk7-small-profile-calibration','chunk7-ordinary-field-admission','chunk7-ordinary-acquisition','chunk7-two-pair-exploration','chunk7-persistence-save','chunk7-persistence-load','chunk7-two-pair-combat-rider-first','chunk7-two-pair-combat-mount-first','chunk7-two-pair-realtime-core','chunk7-two-pair-realtime-casting','chunk7-two-pair-realtime-charge','chunk7-two-pair-native-life-cleanup',
         'mod-load-smoke','finalize-f1-creation-ui','finalize-f1-finish','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
@@ -404,11 +402,11 @@ $labRoot=Get-KmcLabRoot
 $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.json')|ConvertFrom-Json
 $fingerprintPath=Join-Path $repoRoot 'planning\ENVIRONMENT-FINGERPRINT.json'
 $fingerprint=Read-KmcJson $fingerprintPath
-# The runtime loader profile is resolved here, before anything else is admitted: the selected profile (default: the
-# measured owner installation) must be the installed loader, and it is carried to dependency admission, the native
-# inventory, the result reader and the admission receipt.
+# The runtime loader profile is the measured owner installation (no other profile is selectable here: native runs on
+# another loader need their own reviewed disposable environment). It must be the installed loader and is carried to the
+# native inventory, the result reader and the admission receipt.
 . (Join-Path $repoRoot 'scripts\runtime\RuntimeLoaderProfile.ps1')
-$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment $RuntimeLoaderProfileId $fingerprint
+$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment '' $fingerprint
 $runtimeState=Join-Path $labRoot 'runtime-state'
 $runtimeBackups=Join-Path $labRoot 'runtime-backups'
 $runtimeStaging=Join-Path $labRoot 'runtime-staging'

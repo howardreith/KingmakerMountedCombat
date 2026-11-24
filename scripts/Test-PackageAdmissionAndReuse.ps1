@@ -196,7 +196,10 @@ try {
     foreach ($change in @(
         @{ Name = 'pin'; Apply = { [IO.File]::WriteAllText($pinsFile, $pinsOriginal.Replace('"schemaVersion"', '"schemaVersion" ')) }; Undo = { [IO.File]::WriteAllText($pinsFile, $pinsOriginal) } },
         @{ Name = 'verifier'; Apply = { [IO.File]::AppendAllText($verifier, "`r`n# changed helper`r`n") }; Undo = { & git -C $clone checkout -q -- scripts/Get-PinnedLoaderReferences.ps1 } },
-        @{ Name = 'project-reference'; Apply = { [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>')) }; Undo = { [IO.File]::WriteAllText($projectFile, $projectOriginal) } })) {
+        @{ Name = 'project-reference'; Apply = { [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>')) }; Undo = { [IO.File]::WriteAllText($projectFile, $projectOriginal) } },
+        @{ Name = 'build-bootstrap'; Apply = { [IO.File]::AppendAllText((Join-Path $clone 'scripts\Build-Local.ps1'), "`r`n# changed bootstrap option`r`n") }; Undo = { & git -C $clone checkout -q -- scripts/Build-Local.ps1 } },
+        @{ Name = 'local-build-settings'; Apply = { $script:localPropsOriginal = [IO.File]::ReadAllText((Join-Path $clone 'LocalGamePaths.props')); [IO.File]::WriteAllText((Join-Path $clone 'LocalGamePaths.props'), $script:localPropsOriginal.Replace('</Project>', '<PropertyGroup><CheckForOverflowUnderflow>true</CheckForOverflowUnderflow></PropertyGroup></Project>')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'LocalGamePaths.props'), $script:localPropsOriginal) } },
+        @{ Name = 'main-manifest-only'; Apply = { $script:infoOriginal = [IO.File]::ReadAllText((Join-Path $clone 'Info.json')); [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal.Replace('"Id"', ' "Id"')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal) } })) {
         & $change.Apply
         $r = & $stampCheck
         Add-Case "reuse-after-$($change.Name)-change-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'cannot reuse these outputs') (Get-Reason $r.Output)
@@ -219,7 +222,13 @@ try {
     }
     $r = & $stampCheck
     Add-Case 'reuse-accepted-again-after-restoring-outputs-and-sources' ($r.ExitCode -eq 0 -and $r.Output -match 'REUSABLE') "exit $($r.ExitCode)"
-    # Plan mode reports the same first check, read-only, for a current and a missing receipt.
+    # Direct Test.ps1 -SkipBuild refuses stale outputs before any runner starts (the bootstrap edited after the build).
+    [IO.File]::AppendAllText((Join-Path $clone 'scripts\Build-Local.ps1'), "`r`n# changed bootstrap option`r`n")
+    $direct = Invoke-PS @('-File', (Join-Path $clone 'scripts\Test.ps1'), '-SkipBuild')
+    & git -C $clone checkout -q -- scripts/Build-Local.ps1
+    Add-Case 'direct-test-skipbuild-with-stale-outputs-refused-before-the-runner' ($direct.ExitCode -ne 0 -and $direct.Output -match 'cannot reuse these outputs' -and $direct.Output -notmatch 'Test runner missing') (Get-Reason $direct.Output)
+    # Plan mode reports one verdict on both the reuse-check and the artifact line, for a current, a missing and a stale
+    # receipt, and leaves the receipt unchanged.
     $tiersScript = Join-Path $clone 'scripts\Test-Tiers.ps1'
     $stampFile = Join-Path $clone 'bin\Release\.loader-input-stamp'
     $stampBefore = Get-Sha $stampFile
@@ -227,7 +236,40 @@ try {
     Move-Item -LiteralPath $stampFile -Destination ($stampFile + '.aside')
     $planMissing = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-Plan')
     Move-Item -LiteralPath ($stampFile + '.aside') -Destination $stampFile
-    Add-Case 'plan-mode-reports-reuse-check-read-only' ($planCurrent.Output -match 'reuse check.*receipt current' -and $planMissing.Output -match 'reuse check.*MISSING build receipt' -and (Get-Sha $stampFile) -ceq $stampBefore) 'plan lists the reuse check first; the receipt is unchanged'
+    [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
+    $planStale = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-Plan')
+    [IO.File]::WriteAllText($projectFile, $projectOriginal)
+    $planOk = $planCurrent.Output -match 'reuse check \[receipt current' -and $planCurrent.Output -match 'artifact: .* \(reused: build receipt current\)' -and
+        $planMissing.Output -match 'reuse check \[MISSING build receipt' -and $planMissing.Output -match 'artifact: .* \(not reusable: build receipt missing' -and
+        $planStale.Output -match 'reuse check \[STALE build receipt' -and $planStale.Output -match 'artifact: .* \(not reusable: build receipt stale' -and (Get-Sha $stampFile) -ceq $stampBefore
+    Add-Case 'plan-mode-reports-one-reuse-verdict-for-each-receipt-state' $planOk ('current / missing / stale: ' + (@($planCurrent, $planMissing, $planStale) | ForEach-Object { [regex]::Match($_.Output, '\((reused|not reusable)[^)]*\)').Value }) -join ' / ')
+    # Budget admission precedes any hashing of reused outputs: with a disposable budget whose recorded step cost exceeds
+    # its allowance the run is refused with no receipt scan; an admitted run scans once, inside its reuse-check step.
+    $scanLog = Join-Path $temp 'stamp-scans.log'
+    $stampScript = Join-Path $clone 'scripts\LoaderInputStamp.ps1'
+    $stampText = [IO.File]::ReadAllText($stampScript)
+    $anchor = 'function Get-KmcLoaderInputStamp([string]$RepositoryRoot, [string]$Configuration = ''Release'') {'
+    if ($stampText.IndexOf($anchor) -lt 0) { throw 'LoaderInputStamp anchor not found.' }
+    [IO.File]::WriteAllText($stampScript, $stampText.Replace($anchor, $anchor + "`r`n    [IO.File]::AppendAllText('$($scanLog.Replace("'", "''"))', ""scan`r`n"")"))
+    $budgetRoot = Join-Path $temp 'fixture budgets'; New-Item -ItemType Directory -Path $budgetRoot -Force | Out-Null
+    [ordered]@{ schemaVersion = 1; budgetId = 'fixture-denied'; allowanceMinutes = 1; blockCeilingMinutes = 30; createdUtc = (Get-Date).ToUniversalTime().ToString('o'); entries = @()
+        stepHistory = [ordered]@{ 'reuse check' = [ordered]@{ seconds = 600; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $budgetRoot 'fixture-denied.json') -Encoding UTF8
+    $previousRoot = $env:KMC_WORKFLOW_BUDGET_ROOT; $env:KMC_WORKFLOW_BUDGET_ROOT = $budgetRoot
+    try {
+        [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
+        $denied = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-denied')
+        $deniedScans = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }
+        Remove-Item -LiteralPath $scanLog -ErrorAction SilentlyContinue
+        $admitted = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-admitted')
+        $admittedScans = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }
+    }
+    finally {
+        $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot
+        [IO.File]::WriteAllText($projectFile, $projectOriginal)
+        & git -C $clone checkout -q -- scripts/LoaderInputStamp.ps1
+    }
+    Add-Case 'denied-execution-refused-by-budget-before-any-receipt-scan' ($denied.ExitCode -ne 0 -and $denied.Output -match 'Workflow budget refuses' -and $deniedScans -eq 0) ("exit $($denied.ExitCode); receipt scans $deniedScans; " + (Get-Reason $denied.Output))
+    Add-Case 'admitted-execution-scans-the-receipt-once-inside-its-step' ($admitted.ExitCode -ne 0 -and $admitted.Output -match 'cannot reuse these outputs' -and $admittedScans -eq 1) ("exit $($admitted.ExitCode); receipt scans $admittedScans; " + (Get-Reason $admitted.Output))
     # Fast and Full reuse boundaries refuse stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
     $tiers = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild')

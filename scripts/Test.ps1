@@ -13,6 +13,11 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (-not $SkipBuild) {
     & (Join-Path $PSScriptRoot 'Build-Local.ps1') -Configuration $Configuration
 }
+else {
+    # Reused outputs are admitted only against the receipt their build wrote, before any runner starts.
+    . (Join-Path $PSScriptRoot 'LoaderInputStamp.ps1')
+    Assert-KmcLoaderInputStamp $repoRoot $Configuration
+}
 
 $runner = Join-Path $repoRoot "bin\Tests\$Configuration\KingmakerMountedCombat.Tests.exe"
 if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) {

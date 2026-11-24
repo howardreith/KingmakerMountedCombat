@@ -109,11 +109,12 @@ $components = Join-Path $repoRoot ('bin/Tests/' + $Configuration + '/KingmakerMo
 $productDll = Join-Path $repoRoot ('bin/' + $Configuration + '/KingmakerMountedCombat.dll')
 $steps = New-Object 'System.Collections.Generic.List[object]'
 . (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
-# Reused outputs (-SkipBuild) are admitted only against the build receipt written next to them; plan mode reports the
-# same first check, read-only.
-$reuseState = if ($SkipBuild) { Test-KmcLoaderInputStamp $repoRoot $Configuration } else { $null }
+# Reused outputs (-SkipBuild) are admitted only against the build receipt written next to them. Plan mode reports the
+# receipt state, read-only; an execution hashes nothing before budget admission and checks the receipt inside its
+# admitted 'reuse check' step.
+$reuseState = if ($SkipBuild -and $Plan) { Test-KmcLoaderInputStamp $repoRoot $Configuration } else { $null }
 function Add-Step([string]$Name, [string]$Detail, [string]$Prerequisite) { $steps.Add([pscustomobject]@{ Name = $Name; Detail = $Detail; Prerequisite = $Prerequisite }) }
-if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } }) }
+if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(if (-not $Plan) { 'checked inside the admitted step' } else { switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } } }) }
 if ($Tier -eq 'Full') {
     Add-Step 'FULL umbrella (scripts/Test.ps1)' ('Test.ps1 -AssemblyTarget ' + $AssemblyTarget + $(if ($SkipBuild) { ' -SkipBuild' } else { '' }) + '; task: ' + $QualificationTask) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test.ps1')) { 'present' } else { 'MISSING Test.ps1' })
 } else {
@@ -158,7 +159,7 @@ if ($Plan) {
     if (Test-Path -LiteralPath $productDll -PathType Leaf) {
         $mvid = 'unknown'
         try { $mvid = [Reflection.Assembly]::ReflectionOnlyLoadFrom($productDll).ManifestModule.ModuleVersionId.ToString() } catch { }
-        Write-Host ('  artifact: ' + $productDll + ' sha256=' + (Get-FileHash -LiteralPath $productDll -Algorithm SHA256).Hash.ToLowerInvariant() + ' mvid=' + $mvid + $(if ($SkipBuild) { ' (reused)' } else { ' (replaced by the build step)' }))
+        Write-Host ('  artifact: ' + $productDll + ' sha256=' + (Get-FileHash -LiteralPath $productDll -Algorithm SHA256).Hash.ToLowerInvariant() + ' mvid=' + $mvid + $(if (-not $SkipBuild) { ' (replaced by the build step)' } else { switch ($reuseState) { 'current' { ' (reused: build receipt current)' } 'missing' { ' (not reusable: build receipt missing; build first)' } default { ' (not reusable: build receipt stale; build first)' } } }))
     } else { Write-Host ('  artifact: ' + $productDll + ' not built') }
     # Impact map: which reviewed families the working tree touches and what they depend on.
     $mapPath = Join-Path $scriptsRoot 'workflow-impact-map.json'
