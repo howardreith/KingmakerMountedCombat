@@ -427,7 +427,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // Mounted Combat and Shield Focus at one level with two feat choices (fighter bonus and ordinary), then
                     // Mounted Shield at a later level. Levels without both choices still advance with their own choices.
                     var levels = (JArray)s6Facts["levels"];
-                    if (levels.Count >= 8) { FailSprint6Row("Mounted Shield was not reached within eight native levels."); return; }
+                    if (levels.Count >= 12) { FailSprint6Row("Mounted Shield was not reached within twelve native levels."); return; }
                     Sprint6EnsureLevels(rider, 1);
                     var level = ShieldCommitLevel(rider, true);
                     levels.Add(level);
@@ -497,7 +497,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["iconWidth"] = sprite?.texture?.width, ["iconHeight"] = sprite?.texture?.height,
                 ["name"] = feat?.Name, ["description"] = feat?.Description,
                 ["shieldFocus"] = ShieldFocus?.AssetGuid, ["greaterShieldFocus"] = horseService.GreaterShieldFocusFeature?.AssetGuid };
-            s6Facts["threeFeatSelections"] = new JArray(horseService.MountedCombatSelections.Select(selection => new JObject { ["guid"] = selection.AssetGuid,
+            s6Facts["threeFeatSelections"] = new JArray(horseService.MountedCombatSelections.Select(selection => new JObject { ["guid"] = selection.AssetGuid, ["name"] = selection.name,
                 ["combat"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedCombatFeature)),
                 ["archery"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, horseService.MountedArcheryFeature)),
                 ["shield"] = selection.AllFeatures.Count(feature => ReferenceEquals(feature, MountedShieldFeat)),
@@ -631,7 +631,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private BlueprintFeature NextShieldWanted(UnitDescriptor preview, UnitDescriptor unit, int offeredCount)
         {
             var prerequisitesOwned = Has(unit, horseService.MountedCombatFeature) && Has(unit, ShieldFocus);
-            if (!prerequisitesOwned && offeredCount < 2) return null;
+            // Both prerequisites, and later Mounted Shield itself, are taken at a level that offers both the ordinary and the
+            // fighter choice, so the run observes Mounted Shield's native eligibility in each list (supplemental review PN9-F5).
+            if (offeredCount < 2) return null;
             if (!Has(preview, horseService.MountedCombatFeature)) return horseService.MountedCombatFeature;
             if (!Has(preview, ShieldFocus)) return ShieldFocus;
             if (prerequisitesOwned && !Has(preview, MountedShieldFeat)) return MountedShieldFeat;
@@ -768,16 +770,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 case 2:
                     if (relationship.World.Registry.FindActive(s6Owner)?.Boundary?.State != RelationshipState.Mounted || ++s6Frames < Sprint6SettleFrames) return;
+                    // The UI selection switch is observed, not assumed (supplemental review PN9-F6): the first rider is the single
+                    // native selection before it, the second rider after it, and the first rider again afterwards.
+                    if (SelectionManager.Instance.SingleSelectedUnit != rider) { SelectionManager.Instance.SelectUnit(rider.View, true, true, false); return; }
                     ShieldStep("bothFirst"); ShieldStep("bothSecond", s6Owner, s6OwnerPet);
                     s6Facts["crossFirstToSecondMount"] = ShieldSnapshot(rider, s6OwnerPet); s6Facts["crossSecondToFirstMount"] = ShieldSnapshot(s6Owner, horse);
+                    s6Facts["selectedBeforeSwitch"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId;
                     SelectionManager.Instance.SelectUnit(s6Owner.View, true, true, false);
                     s6Frames = 0; s6Step = 3; return;
                 case 3:
                     if (++s6Frames < Sprint6ShieldSettleFrames) return;
+                    s6Facts["selectedAtSecondSnapshots"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId;
                     ShieldStep("uiSelectedSecondFirst"); ShieldStep("uiSelectedSecondSecond", s6Owner, s6OwnerPet);
                     SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                     s6Step = 4; return;
                 case 4:
+                    if (s6Facts["selectedAfterReturn"] == null) s6Facts["selectedAfterReturn"] = SelectionManager.Instance.SingleSelectedUnit?.UniqueId;
                     if (!rider.Commands.Empty) return;
                     if (Sprint5Fixture.Click(nativeControls, rider, nativeControls.DismountAbility, rider)) { s6Frames = 0; s6Step = 5; ResetLeafClock(); }
                     return;

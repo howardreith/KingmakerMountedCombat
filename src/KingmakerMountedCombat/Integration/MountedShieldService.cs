@@ -247,7 +247,51 @@ namespace KingmakerMountedCombat.Integration
             if (pair != null) ReconcileRider(pair.Relationship.Rider, "attack AC");
         }
 
-        public void OnEventDidTrigger(RuleCalculateAC evt) { }
+        // Brilliant Energy (supplemental review PN9-F1). Installed 2.1.7b RuleCalculateAC.OnTrigger subtracts the raw sum of every
+        // armor and shield modifier (CalculateArmorAndShieldBonuses), including a Mounted Shield +3 that a stronger Shield bonus
+        // kept from raising the AC, and a touch AC that never held it. The part of KMC's raw value that did not raise the AC this
+        // calculation used is given back, so the attack sees exactly the AC it would see without the feat. The sheet, the
+        // ordinary AC and the rider's check are untouched.
+        public void OnEventDidTrigger(RuleCalculateAC evt)
+        {
+            if (disposed || evt?.Target == null || evt.BrilliantEnergy == null) return;
+            try { CorrectBrilliantEnergy(evt); }
+            catch (Exception exception) { ReportOnce("Mounted Shield Brilliant Energy correction", exception); }
+        }
+
+        internal static int CorrectBrilliantEnergy(RuleCalculateAC evt)
+        {
+            if (evt?.Target == null || evt.BrilliantEnergy == null) return 0;
+            var ac = evt.Target.Stats.AC;
+            var owned = IdentityModifiers(ac, HorseCompanionBlueprintService.MountedShieldFeatureGuid);
+            var correction = BrilliantEnergyCorrection(ac.Modifiers, owned, Kingmaker.RuleSystem.AttackTypeExtension.IsTouch(evt.AttackType));
+            if (correction <= 0) return 0;
+            RuleSetters.TargetAC(evt, evt.TargetAC + correction);
+            RuleSetters.BrilliantEnergyBonus(evt, evt.BrilliantEnergyBonus + correction);
+            return correction;
+        }
+
+        // KMC's raw Shield value minus the AC it actually added to the value the calculation used: on a touch AC nothing; otherwise
+        // its amount above the strongest other Shield modifier (Shield bonuses do not stack).
+        internal static int BrilliantEnergyCorrection(IEnumerable<ModifiableValue.Modifier> modifiers, ICollection<ModifiableValue.Modifier> owned, bool touch)
+        {
+            var mine = owned.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield).ToArray();
+            var raw = mine.Sum(modifier => modifier.ModValue);
+            if (raw <= 0) return 0;
+            var other = modifiers.Where(modifier => modifier.ModDescriptor == ModifierDescriptor.Shield && !owned.Contains(modifier)).Select(modifier => modifier.ModValue).DefaultIfEmpty(0).Max();
+            var effective = touch ? 0 : Math.Max(0, mine.Max(modifier => modifier.ModValue) - Math.Max(0, other));
+            return Math.Max(0, raw - effective);
+        }
+
+        // The rule's own non-public setters, bound once on first use (no Harmony patch of the rule).
+        private static class RuleSetters
+        {
+            internal static readonly Action<RuleCalculateAC, int> TargetAC = Setter("TargetAC");
+            internal static readonly Action<RuleCalculateAC, int> BrilliantEnergyBonus = Setter("BrilliantEnergyBonus");
+            private static Action<RuleCalculateAC, int> Setter(string name) =>
+                (Action<RuleCalculateAC, int>)Delegate.CreateDelegate(typeof(Action<RuleCalculateAC, int>),
+                    typeof(RuleCalculateAC).GetProperty(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public).GetSetMethod(true));
+        }
 
         // The rider fact turned off (or the rider left): its contribution goes now, outside every update gate.
         internal void ReleaseRider(UnitEntityData rider, string reason)

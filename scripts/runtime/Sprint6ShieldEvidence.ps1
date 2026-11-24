@@ -83,7 +83,12 @@ function Assert-KmcShieldSelection($E,[bool]$RealTime){
   if([int]$s.combat -ne 1 -or [int]$s.shield -ne 1 -or [int]$s.archery -ne 1 -or $s.kmcTailExact -ne $true -or
     ((@($s.kmcTail) | ForEach-Object { [string]$_ }) -join ',') -cne (@($script:KmcMountedCombatGuid,$script:KmcMountedArcheryGuid,$script:KmcShieldFeatGuid) -join ',')){ throw 'Mounted Shield three-feat publication differs (each KMC feat once in the exact tail)' }
  }
- if(@($E.threeFeatSelections).Count -lt 2){ throw 'Mounted Shield is not published in the ordinary and fighter lists' }
+ # Each three-feat row is one distinct list of the producer's own selection inventory, the ordinary and fighter lists among
+ # them (review PN9-F5).
+ $inventory=@{}; foreach($i in @($E.selections)){ $inventory[[string]$i.guid]=[string]$i.name }
+ $tailGuids=@($E.threeFeatSelections | ForEach-Object { [string]$_.guid })
+ if(@($E.threeFeatSelections).Count -lt 2 -or @($tailGuids | Select-Object -Unique).Count -ne $tailGuids.Count -or @($E.threeFeatSelections | Where-Object { -not $inventory.ContainsKey([string]$_.guid) -or $inventory[[string]$_.guid] -cne [string]$_.name }).Count -ne 0 -or
+   @($E.threeFeatSelections | Where-Object { [string]$_.name -ceq 'BasicFeatSelection' }).Count -ne 1 -or @($E.threeFeatSelections | Where-Object { [string]$_.name -ceq 'FighterFeatSelection' }).Count -ne 1){ throw 'Mounted Shield is not published in the ordinary and fighter lists' }
  $levels=@($E.levels)
  if($levels.Count -lt 2){ throw 'Mounted Shield acquisition took fewer native levels than its two-step plan' }
  $rows=@(); $offeredIn=@{}
@@ -98,6 +103,11 @@ function Assert-KmcShieldSelection($E,[bool]$RealTime){
  }
  if(-not $offeredIn.ContainsKey('BasicFeatSelection') -or -not $offeredIn.ContainsKey('FighterFeatSelection')){ throw 'Mounted Shield was not offered in both the ordinary and fighter lists' }
  Assert-KmcShieldEligibility $rows $true 'rider'
+ # A positive native eligibility observation on an available (unselected) ordinary choice and an available fighter choice,
+ # with both prerequisites in the preview (review PN9-F5).
+ foreach($list in 'BasicFeatSelection','FighterFeatSelection'){
+  if(@($rows | Where-Object { [string]$_.selection -ceq $list -and $_.offered -eq $true -and $_.selected -ne $true -and $_.mountedCombat -eq $true -and $_.shieldFocus -eq $true -and $_.eligible -eq $true }).Count -lt 1){ throw ('Mounted Shield was never natively eligible on an available '+$list+' choice with both prerequisites') }
+ }
  # Mounted Combat and Shield Focus at one level, then a Back that the preview follows.
  $pair=@($levels | Where-Object { $ch=@($_.pass.choices); ($ch -match '=MountedCombat').Count -ge 1 -and ($ch -match '=ShieldFocus$').Count -ge 1 })
  if($pair.Count -ne 1){ throw 'Mounted Combat and Shield Focus were not chosen at one native level' }
@@ -185,6 +195,8 @@ function Assert-KmcShieldPairs($E){
   $s=Get-KmcShieldProperty $d $n; Assert-KmcShieldSnapshot $s 2 $n
   if([string]$s.rider -ceq [string]$d.bothFirst.rider -or [string]$s.mount -ceq [string]$d.bothFirst.mount){ throw ('Mounted Shield '+$n+' is not the second pair') }
  }
+ # The selection switch itself, observed through the native single selection (review PN9-F6).
+ if([string]$E.selectedBeforeSwitch -cne [string]$d.bothFirst.rider -or [string]$E.selectedAtSecondSnapshots -cne [string]$d.bothSecond.rider -or [string]$E.selectedAfterReturn -cne [string]$d.bothFirst.rider){ throw 'Mounted Shield the UI selection switch between the riders was not observed' }
  foreach($cross in $E.crossFirstToSecondMount,$E.crossSecondToFirstMount){
   if([int]$cross.amount -ne 0 -or @($cross.owned).Count -ne 1 -or $cross.owned[0].sourceIsRiderFact -ne $false){ throw 'Mounted Shield a rider''s contribution reached another pair''s mount' }
  }
@@ -207,10 +219,23 @@ function Get-KmcShieldAttackContext($Measure,[string]$Identity,[string]$What){
  if($null -eq $context -or [int]$context.acResult -ne [int]$row[0].ac -or [string]$context.acAttackType -cnotmatch '^(Melee|Ranged)$' -or [string]$context.attackType -cne [string]$context.acAttackType){ throw ('Mounted Shield '+$What+' carries no shield terms from its own AC calculation') }
  [pscustomobject]@{row=$row[0];context=$context}
 }
+# The measured pair's record at a step (review PN9-F3): exactly one, of the measured rider and mount; a record of any other
+# pair on these rows is never a planned roll.
+function Get-KmcShieldRecord($Measure,[string]$Case,[int]$Step){
+ $found=@($Measure.records | Where-Object { [string]$_.case -ceq $Case -and [int]$_.step -eq $Step -and [string]$_.rider -ceq [string]$Measure.rider -and [string]$_.mountId -ceq [string]$Measure.mount })
+ if($found.Count -ne 1){ throw ('Mounted Shield '+$Case+' step '+$Step+': not exactly one record of the measured pair') }
+ $found[0]
+}
+function Assert-KmcShieldOtherPairsNatural($Measure,[string]$Case){
+ foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $Case -and ([string]$_.rider -cne [string]$Measure.rider -or [string]$_.mountId -cne [string]$Measure.mount) })){
+  if($x.forced -eq $true){ throw ('Mounted Shield '+$Case+': another pair''s defense received a planned roll') }
+ }
+}
 function Get-KmcShieldCheckRow($Measure,$R){
- $checks=@($Measure.skillChecks)
+ # The measured rider's attempts paired in order with the measured rider's own native rolls (another pair's are set aside).
+ $checks=@($Measure.skillChecks | Where-Object { [string]$_.actor -ceq [string]$Measure.rider })
  if($script:KmcShieldUnrelated){ $checks=@(Remove-KmcSprint6ShieldUnrelatedCheck $checks $script:KmcShieldUnrelated $Measure.rider) }
- $attempted=@($Measure.records | Where-Object attempted -EQ $true)
+ $attempted=@($Measure.records | Where-Object { $_.attempted -eq $true -and [string]$_.rider -ceq [string]$Measure.rider })
  $index=-1; for($i=0;$i -lt $attempted.Count;$i++){ if([string]$attempted[$i].ruleIdentity -ceq [string]$R.ruleIdentity){ $index=$i } }
  if($index -lt 0 -or $index -ge $checks.Count){ throw 'Mounted Shield a recorded check has no observed native roll' }
  $row=$checks[$index]
@@ -243,22 +268,22 @@ function Assert-KmcShieldRecord($R,[string]$What,$Measure){
 
 function Assert-KmcShieldCheckRealTime($Measure,$E){
  $c='MS-check-rt'
- $r=Get-KmcSprint6Record $Measure $c 2
+ $r=Get-KmcShieldRecord $Measure $c 2
  if([int]$r.checkResult -ne [int]$r.attackResult -or $r.attempted -ne $true -or [string]$r.commitment -cne 'RealTimeWindow'){ throw 'Mounted Shield equality was not the exact shield-modified total' }
  Assert-KmcShieldRecord $r 'equality' $Measure; Assert-KmcSprint6Stands $Measure $r 'Mounted Shield equality'
- $r=Get-KmcSprint6Record $Measure $c 4
+ $r=Get-KmcShieldRecord $Measure $c 4
  if([int]$r.checkResult -ne [int]$r.attackResult+1){ throw 'Mounted Shield success was not one above the attack result' }
  Assert-KmcShieldRecord $r 'success' $Measure; Assert-KmcSprint6Negated $Measure $r 'Mounted Shield success'
  $u=$E.equipmentDuringUse
  foreach($k in 'spent','owed','window','windowIdentity'){ if([string]$u.before.$k -cne [string]$u.unequipped.$k -or [string]$u.before.$k -cne [string]$u.reequipped.$k){ throw 'Mounted Shield an equipment change refunded or restarted the running use' } }
- Assert-KmcSprint6Refused $Measure (Get-KmcSprint6Record $Measure $c 5) 'UsageSpent' 'Mounted Shield spent use'
+ Assert-KmcSprint6Refused $Measure (Get-KmcShieldRecord $Measure $c 5) 'UsageSpent' 'Mounted Shield spent use'
  Assert-KmcShieldSnapshot $E.steps.spentRefused 3 'spent use'
- Assert-KmcSprint6Refused $Measure (Get-KmcSprint6Record $Measure $c 7) 'PreferenceOff' 'Mounted Shield preference off'
+ Assert-KmcSprint6Refused $Measure (Get-KmcShieldRecord $Measure $c 7) 'PreferenceOff' 'Mounted Shield preference off'
  Assert-KmcShieldSnapshot $E.steps.preferenceOffRefused 3 'preference off'
  # A stronger shield source on the mount covers its AC, and the production check made under it still carries +3.
  $s=$E.steps.competingBeforeCheck; Assert-KmcShieldSnapshot $s 3 'competing +4 before the check'
  if(@($s.shieldModifiers | Where-Object { $_.kmc -ne $true -and [int]$_.value -eq 4 }).Count -ne 1){ throw 'Mounted Shield the competing +4 was not on the mount at the check' }
- $r=Get-KmcSprint6Record $Measure $c 9
+ $r=Get-KmcShieldRecord $Measure $c 9
  if([int]$r.checkResult -ne [int]$r.attackResult+1){ throw 'Mounted Shield the check under the stronger shield was not the planned success' }
  # The +4 covered the AC of that very attack (review PN7-F4): at its own AC calculation the mount held Mounted Shield's +3 and
  # the competing +4, so Mounted Shield changed no AC there.
@@ -270,10 +295,14 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
  if($unrelatedRow.Count -ne 1 -or [int]$unrelatedRow[0].kmcShieldModifiers -ne 0){ throw 'Mounted Shield an unrelated Mobility roll held a Mounted Shield modifier' }
  # Every attempted real-time use on this row, planned or natural, is a real-time window with exactly one Swift charge from an
  # eligible state (review PN8-F4); the forced-total assertions stay with the planned attacks.
- foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
+ Assert-KmcShieldOtherPairsNatural $Measure $c
+ foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true -and [string]$_.rider -ceq [string]$Measure.rider -and [string]$_.mountId -ceq [string]$Measure.mount })){
   if([int]$x.shieldBonus -ne 3){ throw 'Mounted Shield a check on this pair missed the full amount' }
   if([string]$x.mode -cne 'RT' -or [string]$x.commitment -cne 'RealTimeWindow'){ throw 'Mounted Shield a real-time row attempt was not a real-time window' }
   Assert-KmcShieldCommitted $x ('real-time attempt '+$x.step)
+  # The observed native +3 on every eligible roll of the measured pair, forced or natural (review PN9-F4).
+  $row=Get-KmcShieldCheckRow $Measure $x
+  if([int]$row.kmcShieldModifiers -ne 1 -or [int]$row.kmcShieldTotal -ne 3){ throw 'Mounted Shield a real-time attempt''s native roll did not hold exactly one +3' }
  }
  $b=$E.band; $miss=Get-KmcShieldProperty $E 'bandMiss'
  if([int]$b.amount -ne 3 -or $null -eq $miss -or [int]$E.bandAttempts -lt 1 -or [int]$E.bandAttempts -gt 120){ throw 'Mounted Shield no miss caused only by its AC was identified within the strike bound' }
@@ -284,7 +313,7 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
  [void](Get-KmcShieldAttackContext $Measure ([string]$miss.identity) 'the band miss')
  $effective=[int]$context.effective
  if($effective -lt 1 -or [int]$context.ownedCount -ne 1 -or [int]$context.owned -ne [int]$b.amount -or $effective -ne [Math]::Max(0,[int]$context.owned-[Math]::Max(0,[int]$context.otherShield))){ throw 'Mounted Shield the band miss''s AC change is not derived from the modifiers at that attack' }
- $hostile=@($Measure.records | Where-Object { [string]$_.case -ceq $c } | ForEach-Object { [string]$_.attacker } | Select-Object -Unique)
+ $hostile=@($Measure.records | Where-Object { [string]$_.case -ceq $c -and [string]$_.rider -ceq [string]$Measure.rider -and [string]$_.mountId -ceq [string]$Measure.mount } | ForEach-Object { [string]$_.attacker } | Select-Object -Unique)
  $row=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$miss.identity })
  if($row.Count -ne 1 -or $hostile.Count -ne 1 -or [string]$row[0].attacker -cne $hostile[0] -or [string]$row[0].target -cne [string]$Measure.mount -or $row[0].isHitAtEvent -eq $true -or [int]$row[0].d20 -le 1 -or
    ($row[0].acContext | ConvertTo-Json -Compress) -cne ($context | ConvertTo-Json -Compress) -or
@@ -295,16 +324,21 @@ function Assert-KmcShieldCheckRealTime($Measure,$E){
 function Assert-KmcShieldCheckTurnBased($Measure,$E){
  $c='MS-check-tb'
  # Every attempted turn-based use on this row is a turn-based Swift spend or borrow with its exact transition (review PN8-F4).
- foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true })){
+ Assert-KmcShieldOtherPairsNatural $Measure $c
+ foreach($x in @($Measure.records | Where-Object { [string]$_.case -ceq $c -and $_.attempted -eq $true -and [string]$_.rider -ceq [string]$Measure.rider -and [string]$_.mountId -ceq [string]$Measure.mount })){
   if([string]$x.mode -cne 'TB' -or [string]$x.commitment -cnotin @('SpendCurrentSwift','BorrowNextSwift')){ throw 'Mounted Shield a turn-based row attempt was not a turn-based commitment' }
+  # The rider's own turn spends this turn's Swift; any other moment borrows the next (review PN9-F4).
+  if(($x.riderTurn -eq $true -and [string]$x.commitment -cne 'SpendCurrentSwift') -or ($x.riderTurn -ne $true -and [string]$x.commitment -cne 'BorrowNextSwift')){ throw 'Mounted Shield a turn-based commitment does not match the rider''s turn' }
   Assert-KmcShieldCommitted $x ('turn-based attempt '+$x.step)
+  $row=Get-KmcShieldCheckRow $Measure $x
+  if([int]$row.kmcShieldModifiers -ne 1 -or [int]$row.kmcShieldTotal -ne 3){ throw 'Mounted Shield a turn-based attempt''s native roll did not hold exactly one +3' }
  }
- $r=Get-KmcSprint6Record $Measure $c 2
+ $r=Get-KmcShieldRecord $Measure $c 2
  if([string]$r.mode -cne 'TB' -or $r.riderTurn -ne $true -or [string]$r.commitment -cne 'SpendCurrentSwift' -or [int]$r.checkResult -ne [int]$r.attackResult+1){ throw 'Mounted Shield own-turn success differs' }
  Assert-KmcShieldRecord $r 'own-turn success' $Measure; Assert-KmcSprint6Negated $Measure $r 'Mounted Shield own-turn success'
- Assert-KmcSprint6Refused $Measure (Get-KmcSprint6Record $Measure $c 3) 'UsageSpent' 'Mounted Shield second own-turn attack'
+ Assert-KmcSprint6Refused $Measure (Get-KmcShieldRecord $Measure $c 3) 'UsageSpent' 'Mounted Shield second own-turn attack'
  Assert-KmcShieldSnapshot $E.steps.ownTurnSecondRefused 3 'turn-based spent use'
- $r=Get-KmcSprint6Record $Measure $c 6
+ $r=Get-KmcShieldRecord $Measure $c 6
  if($r.riderTurn -ne $false -or [string]$r.commitment -cne 'BorrowNextSwift' -or [int]$r.checkResult -ne [int]$r.attackResult){ throw 'Mounted Shield off-turn equality differs' }
  Assert-KmcShieldRecord $r 'off-turn equality' $Measure; Assert-KmcSprint6Stands $Measure $r 'Mounted Shield off-turn equality'
 }

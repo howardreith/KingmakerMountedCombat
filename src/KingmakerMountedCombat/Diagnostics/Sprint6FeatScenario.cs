@@ -198,6 +198,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int? Sprint6PlannedTotal(MountedCombatDefenseRecord record)
         {
             if (s6NextPlan == null || s6NextPlan == "natural") return null;
+            // Mounted Shield rows (supplemental review PN9-F3): only the measured rider's hit on the measured mount by the row's
+            // hostile is planned; a hit on any other pair (the second rider stays mounted after MS-pairs) rolls naturally.
+            if (Sprint6Shield && !Sprint6MeasuredPair(record.Rider, record.Mount, record.Attacker)) return null;
             var delta = s6NextPlan == "success" ? 1 : s6NextPlan == "equal" ? 0 : -1;
             return record.AttackResult + delta;
         }
@@ -460,7 +463,21 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // The latest defense record since this step began, once a hit produced one.
-        private JObject Sprint6RecordSinceStep() => s6Records.Count > s6AttemptsAtStep ? (JObject)s6Records.Last : null;
+        private JObject Sprint6RecordSinceStep()
+        {
+            if (s6Records.Count <= s6AttemptsAtStep) return null;
+            if (!Sprint6Shield) return (JObject)s6Records.Last;
+            // Mounted Shield rows complete a step only on the measured pair's record (review PN9-F3).
+            for (var index = s6Records.Count - 1; index >= s6AttemptsAtStep; index--)
+            {
+                var record = (JObject)s6Records[index];
+                if (Sprint6MeasuredPair((string)record["rider"], (string)record["mountId"], (string)record["attacker"])) return record;
+            }
+            return null;
+        }
+
+        private bool Sprint6MeasuredPair(string riderId, string mountId, string attackerId) =>
+            rider != null && horse != null && target != null && riderId == rider.UniqueId && mountId == horse.UniqueId && attackerId == target.UniqueId;
 
         private void Sprint6SpawnTarget(string suffix)
         {

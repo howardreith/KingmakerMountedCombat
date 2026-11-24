@@ -57,7 +57,7 @@ function New-Selection([bool]$RealTime){
   cancelled=[pscustomobject]@{eligibility=$pairElig;previewFacts=[pscustomobject]@{mountedCombat=$true;shieldFocus=$true;mountedShield=$false}}
   pass=[pscustomobject]@{choices=@('skill:SkillMobility','selection:FighterFeatSelection=MountedCombatFeature','selection:BasicFeatSelection=ShieldFocus','reselection:FighterFeatSelection=MountedCombatFeature');eligibility=$pairElig
    backOut=[pscustomobject]@{withdrawn='MountedCombatFeature';stillSelected=$true;previewHasWithdrawn=$false;previewHasOther=$true};afterBack=[pscustomobject]@{mountedCombat=$true;shieldFocus=$true;bothChosen=$true};previewFacts=[pscustomobject]@{mountedCombat=$true;shieldFocus=$true;mountedShield=$false}}}
- $shieldElig=@((New-Eligibility 'start' 'BasicFeatSelection' $true $true))
+ $shieldElig=@((New-Eligibility 'start' 'FighterFeatSelection' $true $true),(New-Eligibility 'start' 'BasicFeatSelection' $true $true))
  $shieldLevel=[pscustomobject]@{committed=$true;characterLevelBefore=6;characterLevelAfter=7;characterLevelAfterCancel=6;factsBefore=(New-Facts 1 1 0);factsAfterCancel=(New-Facts 1 1 0);factsAfter=(New-Facts 1 1 1)
   cancelled=[pscustomobject]@{eligibility=$shieldElig;previewFacts=[pscustomobject]@{mountedCombat=$true;shieldFocus=$true;mountedShield=$true}}
   pass=[pscustomobject]@{choices=@('selection:BasicFeatSelection=MountedShieldFeature');eligibility=$shieldElig;previewFacts=[pscustomobject]@{mountedCombat=$true;shieldFocus=$true;mountedShield=$true}}}
@@ -65,7 +65,8 @@ function New-Selection([bool]$RealTime){
   shieldRegistration=[pscustomobject]@{failure=$null;withdrawn=$false;guid=$feat;groups=@('Feat','CombatFeat');ranks=1;isClassFeature=$true;hideInUi=$false
    prerequisites=@([pscustomobject]@{type='PrerequisiteFeature';group='All';hidden=$false;feature=$combat},[pscustomobject]@{type='PrerequisiteFeature';group='All';hidden=$false;feature=$focus},[pscustomobject]@{type='MountedShieldAvailabilityPrerequisite';group='All';hidden=$true;feature=$null})
    iconIsShieldIcon=$true;iconSprite='KMC_MountedShield_Feat_Icon';iconWidth=64;iconHeight=64;name='Mounted Shield';description='A shield bonus to the mount and to the Mounted Combat check; enhancement does not count.'}
-  threeFeatSelections=@([pscustomobject]@{guid='a';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')},[pscustomobject]@{guid='b';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')})
+  selections=@([pscustomobject]@{name='BasicFeatSelection';guid='247a4068296e8be42890143f451b4b45'},[pscustomobject]@{name='FighterFeatSelection';guid='41c8486641f7d6d4283ca9dae4147a9f'})
+  threeFeatSelections=@([pscustomobject]@{guid='247a4068296e8be42890143f451b4b45';name='BasicFeatSelection';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')},[pscustomobject]@{guid='41c8486641f7d6d4283ca9dae4147a9f';name='FighterFeatSelection';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')})
   levels=@($pairLevel,$shieldLevel); riderFacts=(New-Facts 1 1 1)}
  if($RealTime){
   $e | Add-Member ownerLevels @([pscustomobject]@{committed=$true;pass=[pscustomobject]@{eligibility=@((New-Eligibility 'after-ShieldFocus' 'FighterFeatSelection' $false $true))}})
@@ -95,7 +96,7 @@ function New-Pairs {
  $off1=New-Snap 0; $off1.serviceEnabled=$false; $off2=New-Snap 0 -Who $owner -On $pet; $off2.serviceEnabled=$false
  [pscustomobject]@{steps=[pscustomobject]@{bothFirst=(New-Snap 3);bothSecond=(& $second);uiSelectedSecondFirst=(New-Snap 3);uiSelectedSecondSecond=(& $second);dismountedFirst=$dis;dismountedSecond=(& $second)
    remounted=(New-Snap 3);featRemoved=$removed;featRemovedSecond=(& $second);featReacquired=(New-Snap 3);serviceDisabledFirst=$off1;serviceDisabledSecond=$off2;serviceEnabledFirst=(New-Snap 3);serviceEnabledSecond=(& $second)}
-  crossFirstToSecondMount=$cross1;crossSecondToFirstMount=$cross2;serviceDisableAccepted=$true}
+  crossFirstToSecondMount=$cross1;crossSecondToFirstMount=$cross2;serviceDisableAccepted=$true;selectedBeforeSwitch=$rider;selectedAtSecondSnapshots=$owner;selectedAfterReturn=$rider}
 }
 function New-Real {
  $m=New-Measure 'sprint6-shield-rt'; $free=New-State; $win=New-State $false $false $true; $c='MS-check-rt'
@@ -227,6 +228,17 @@ $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 4).swiftAfter=12; Reject $r $rs 'a 
 $r=Copy-MS $real; (RecordOf $r 'MS-check-rt' 2).stateBefore=(New-State $false $false $true); Reject $r $rs 'a real-time use with a window already open refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 2).swiftAfter=12; Reject $r $ts 'an own-turn use charged twice refuses (PN6-F7)'
 $r=Copy-MS $turn; (RecordOf $r 'MS-check-tb' 6).stateBefore=(New-State $false $true); Reject $r $ts 'an off-turn use with a debt already owed refuses (PN6-F7)'
+# Supplemental review round 9.
+$r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
+$r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'
+$r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[1].guid='247a4068296e8be42890143f451b4b45'; (RowOf $r 'MS-selection').threeFeatSelections[1].name='BasicFeatSelection'; Reject $r $rs 'a duplicate list standing for the fighter list refuses (PN9-F5)'
+$r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[0].guid='a'; Reject $r $rs 'a three-feat row outside the producer''s selection inventory refuses (PN9-F5)'
+$r=Copy-MS $real; foreach($l in (RowOf $r 'MS-selection').levels){ foreach($e in @($l.pass.eligibility)+@($l.cancelled.eligibility)){ if([string]$e.selection -ceq 'FighterFeatSelection' -and $e.mountedCombat -eq $true -and $e.shieldFocus -eq $true){ $e.eligible=$false } } }; Reject $r $rs 'a fighter list that always refuses an eligible rider refuses (PN9-F5)'
+$r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'SpendCurrentSwift' (New-State) (New-State $true) 0 6 $false 'TB'; Reject $r $ts 'an off-turn Swift spend refuses (PN9-F4)'
+$r=Copy-MS $turn; Add-Attack $r.observations.sprint6Feat 'MS-check-tb' 8 'natural' 'None' 'BorrowNextSwift' (New-State) (New-State $true $true) 0 0 $true 'TB'; Reject $r $ts 'an own-turn borrow refuses (PN9-F4)'
+$r=Copy-MS $real; Add-Attack $r.observations.sprint6Feat 'MS-check-rt' 11 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $r.observations.sprint6Feat.skillChecks[-1].kmcShieldModifiers=0; $r.observations.sprint6Feat.skillChecks[-1].kmcShieldTotal=0; Reject $r $rs 'a natural roll of the measured pair without the native +3 refuses (PN9-F4)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$true; Reject $r $rs 'a planned roll on another pair''s defense refuses (PN9-F3)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $m.records[-1].rider=$owner; $m.records[-1].mountId=$pet; $m.records[-1].shieldBonus=2; $m.skillChecks[-1].actor=$owner; $m.skillChecks[-1].kmcShieldTotal=2; $m.records[-1].forced=$false; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'another pair''s natural defense during a planned step is accepted and does not replace the measured record (PN9-F3)'
 # Supplemental review round 8.
 $r=Copy-MS $real; $x=(RowOf $r 'MS-selection').threeFeatSelections[0]; $x.archery=0; $x.kmcTail=@('a1','a7d2e94c6f1b4830b5c9e28d17f3a604','671a301bd1774677a8bfa2873d33b191'); Reject $r $rs 'a three-feat observation with Mounted Archery absent refuses (PN8-F5)'
 $r=Copy-MS $real; (RowOf $r 'MS-selection').threeFeatSelections[0].archery=0; Reject $r $rs 'archery 0 with an exact tail claimed refuses (PN8-F5)'

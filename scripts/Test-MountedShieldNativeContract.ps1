@@ -283,6 +283,55 @@ Check (-not [bool]$holds.Invoke($null, @($ac, $mine)) -and $null -eq $mine.Appli
 $view = Read-Ac $ac
 Check ($view.Normal -eq 18 -and $view.FlatFooted -eq 17 -and $view.Touch -eq 12) 'after removal only the other sources remain (normal 18, flat-footed 17, touch 12)'
 
+# 2c''. Brilliant Energy (supplemental review PN9-F1): the installed RuleCalculateAC subtracts the raw sum of armor and
+# shield modifiers (CalculateArmorAndShieldBonuses, called here on a genuine rule whose target reaches this genuine AC stat).
+# With a competing +4 Shield on the mount, the same attack must see the same AC with and without Mounted Shield; the sheet
+# still shows the +4 alone. The production correction runs on the genuine rule and writes through its own setters.
+$ruleType = GameType 'Kingmaker.RuleSystem.Rules.RuleCalculateAC'; $unitType = GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData'
+$descriptorUnitType = GameType 'Kingmaker.UnitLogic.UnitDescriptor'; $statsType = GameType 'Kingmaker.EntitySystem.Stats.CharacterStats'
+$attackTypeType = GameType 'Kingmaker.RuleSystem.AttackType'
+$correct = $shieldService.GetMethod('CorrectBrilliantEnergy', $any)
+function New-BeRule($Ac, [string]$AttackType) {
+    $stats = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($statsType); $statsType.GetField('AC').SetValue($stats, (New-ArmorClassView $Ac))
+    $descriptor = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($descriptorUnitType); $descriptorUnitType.GetField('Stats').SetValue($descriptor, $stats)
+    $unit = New-Native $unitType; $unitType.GetField('<Descriptor>k__BackingField', $any).SetValue($unit, $descriptor)
+    $rule = [Runtime.Serialization.FormatterServices]::GetUninitializedObject($ruleType)
+    (GameType 'Kingmaker.RuleSystem.RulebookTargetEvent').GetField('Target').SetValue($rule, $unit)
+    $ruleType.GetField('AttackType').SetValue($rule, [Enum]::Parse($attackTypeType, $AttackType))
+    $ruleType.GetProperty('BrilliantEnergy').SetValue($rule, (New-Native $factType))
+    $rule
+}
+# The value OnTrigger computes for a non-flat-footed target: the stat (ordinary or touch) minus the raw armor/shield sum.
+function Be-AC($Ac, [string]$AttackType) {
+    $rule = New-BeRule $Ac $AttackType
+    $raw = [int]$ruleType.GetMethod('CalculateArmorAndShieldBonuses').Invoke($rule, @())
+    $base = if ($AttackType -ceq 'Touch') { (Read-Ac $Ac).Touch } else { $Ac.ModifiedValue }
+    [void]$ruleType.GetProperty('TargetAC').GetSetMethod($true).Invoke($rule, @($base - $raw)); [void]$ruleType.GetProperty('BrilliantEnergyBonus').GetSetMethod($true).Invoke($rule, @(-$raw))
+    $applied = [int]$correct.Invoke($null, @($rule))
+    [pscustomobject]@{ TargetAC = [int]$ruleType.GetProperty('TargetAC').GetValue($rule); Bonus = [int]$ruleType.GetProperty('BrilliantEnergyBonus').GetValue($rule); Applied = $applied; Raw = $raw }
+}
+# The rule reads Target.Stats.AC, a ModifiableValueArmorClass. Offline its own update cannot run (its dexterity modifier calls
+# a Unity ECall), so the genuine stat that does the stacking (New-Ac) lends its live modifier store to an armor-class view:
+# the rule's CalculateArmorAndShieldBonuses iterates exactly that stat's modifiers. The ordinary and touch values the rule
+# starts from are the genuine stat's own (ModifiedValue, and the installed AllowedForTouch filter).
+$modifierStore = $mvType.GetField('m_ModifierList', $any)
+function New-ArmorClassView($Ac) { $view = New-Native $acType; $modifierStore.SetValue($view, $modifierStore.GetValue($Ac)); $view }
+function New-ArmorClass { New-Ac }
+$be = New-ArmorClass
+[void]$addOther.Invoke($be, @(4, $null, 'stand-in Shield spell', (Descriptor 'Shield'))); [void]$addOther.Invoke($be, @(5, $null, 'armor', (Descriptor 'Armor')))
+$withoutMelee = Be-AC $be 'Melee'; $withoutTouch = Be-AC $be 'Touch'
+$beMine = $addMount.Invoke($null, @($be, 3, $null))
+$withMelee = Be-AC $be 'Melee'; $withTouch = Be-AC $be 'Touch'
+Check ($withoutMelee.TargetAC -eq 10 -and $withMelee.Raw -eq $withoutMelee.Raw + 3 -and $withMelee.Applied -eq 3 -and $withMelee.TargetAC -eq $withoutMelee.TargetAC -and $withMelee.Bonus -eq $withoutMelee.Bonus) `
+    ('Brilliant Energy with a competing +4: the same melee attack sees AC ' + $withMelee.TargetAC + ' with Mounted Shield and ' + $withoutMelee.TargetAC + ' without (the losing +3 is given back)')
+Check ($withTouch.Applied -eq 3 -and $withTouch.TargetAC -eq $withoutTouch.TargetAC) 'Brilliant Energy touch attack: Mounted Shield never in touch AC, so the same AC with and without it'
+Check ($be.ModifiedValue -eq 19 -and (Shown $be) -match 'Shield:4:stand-in Shield spell' -and (Shown $be) -notmatch 'KMC_MountedShield') 'the sheet still shows the +4 alone and ordinary AC 19 (10 + armor 5 + shield 4)'
+[void]$removeExact.Invoke($null, @($be, $beMine, $null)); $alone = New-ArmorClass; [void]$addOther.Invoke($alone, @(5, $null, 'armor', (Descriptor 'Armor')))
+$aloneWithout = Be-AC $alone 'Melee'; $aloneMine = $addMount.Invoke($null, @($alone, 3, $null)); $aloneWith = Be-AC $alone 'Melee'
+Check ($aloneWith.Applied -eq 0 -and $aloneWith.TargetAC -eq $aloneWithout.TargetAC) 'Brilliant Energy without a competing shield: the +3 raised the AC and is ignored like any shield (no correction)'
+[void]$removeExact.Invoke($null, @($alone, $aloneMine, $null))
+$plain = New-BeRule $alone 'Melee'; $ruleType.GetProperty('BrilliantEnergy').SetValue($plain, $null); Check ([int]$correct.Invoke($null, @($plain)) -eq 0) 'no Brilliant Energy: no correction'
+
 # 2c'. A half-done write (pre-native review finding 1): the installed ModifiableValue.AddModifier puts the modifier into the
 # stat and runs UpdateValue (and its OnChanged callbacks) before it sets AppliedTo. A throwing callback therefore leaves an
 # untracked modifier that Modifier.Remove() cannot remove. The production identity sweep and RemoveExact must still find

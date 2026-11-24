@@ -292,6 +292,11 @@ namespace KingmakerMountedCombat.Domain
         // Publish (desired) or restore (not desired) every array; returns the drift refusals, or null.
         public string Apply(bool desired, Func<TKey, string> name)
         {
+            // A publication that is already live (an explicit enable after a terminal stop, which leaves the lists published)
+            // writes nothing (supplemental review PN9-F2): every list is as KMC left it or as another mod has since edited it,
+            // and an edit (a feat another mod removed) is kept. Suspended feats come back only through Resume, and only where
+            // KMC's own suspension or publication made them absent.
+            if (desired && published) { lastSeen.Clear(); Refresh(true); return null; }
             published = desired;
             // A restore supersedes what a suspension recorded: the arrays return to KMC's originals (or are stripped and rebased).
             // A publication while suspended keeps the records: it leaves the suspended entry out and writes no foreign array.
@@ -326,8 +331,9 @@ namespace KingmakerMountedCombat.Domain
                 }
                 if (value == null) continue;
                 write(pair.Key, value);
-                // KMC itself just wrote this array without each suspended feat (review PN8-F1): an array that already matched
-                // needed no write and is not recorded, so another mod's own removal of the feat is never undone by Resume.
+                // KMC itself just wrote this array without each suspended feat, in a transition from unpublished (reviews PN8-F1,
+                // PN9-F2): an array that already matched needed no write and is not recorded, so another mod's own removal of
+                // the feat is never undone by Resume.
                 if (desired)
                     for (var index = 0; index < suspended.Length; index++)
                         if (suspended[index] && registered[index] && !withdrawn[index]) withheldKeys[index].Add(pair.Key);
