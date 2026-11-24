@@ -29,5 +29,19 @@ namespace KingmakerMountedCombat.Domain
         }
 
         public void Clear() { delta = null; rider = mount = attacker = null; Plan = null; }
+
+        // The record that completes a step, as an index into the records observed since the step's boundary (supplemental review
+        // PN11-F3): a planned step completes only on exactly the attempt that consumed its plan (nothing before it is consumed,
+        // whatever refusals or follow-ups arrive around it); any other step on the first record of the measured pair. -1: none.
+        public static int CompletingIndex(System.Collections.Generic.IList<int> identities, System.Collections.Generic.IList<bool> measured, bool plannedStep, int? consumedBy)
+        {
+            for (var index = 0; index < identities.Count; index++)
+            {
+                if (!measured[index]) continue;
+                if (!plannedStep) return index;
+                if (consumedBy.HasValue && identities[index] == consumedBy.Value) return index;
+            }
+            return -1;
+        }
     }
 }

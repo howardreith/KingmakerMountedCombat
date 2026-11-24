@@ -106,7 +106,7 @@ function Add-Completion($Check,$M,[string]$Case){
   $steps | Add-Member -MemberType NoteProperty -Name $k -Value $x.ruleIdentity
   if([string]$x.plan -cin @('success','equal')){ $planned | Add-Member -MemberType NoteProperty -Name $k -Value ([pscustomobject]@{identity=$x.ruleIdentity;attacker=$x.attacker;rider=$x.rider;mount=$x.mountId;plan=$x.plan}) }
  }
- $Check | Add-Member stepRecords $steps; $Check | Add-Member plannedAttempts $planned
+ $Check | Add-Member stepRecords $steps; $Check | Add-Member plannedAttempts $planned; $Check | Add-Member hostile $hostile
 }
 function New-Real {
  $m=New-Measure 'sprint6-shield-rt'; $free=New-State; $win=New-State $false $false $true; $c='MS-check-rt'
@@ -206,7 +206,7 @@ $r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 9; $x.shieldBonus=0; $x.checkBonu
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').steps.competingBeforeCheck=(New-Snap 3); Reject $r $rs 'a "stronger shield" check with no competing +4 on the mount refuses (PN4-F9)'
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandMiss=$null; Reject $r $rs 'no identified band miss refuses (PN4-F10)'
 $r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandMiss.identity=(RecordOf $r 'MS-check-rt' 2).ruleIdentity; Reject $r $rs 'a band miss identity that is a recorded hit refuses (PN4-F10)'
-$r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandAttempts=0; Reject $r $rs 'a band miss without a counted strike refuses (PN4-F10)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandAttempts=121; Reject $r $rs 'a band miss beyond the 120-strike bound refuses (PN4-F10; zero strikes is accepted since PN11-F7)'
 $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.PSObject.Properties.Remove('drain'); Reject $r $rs 'missing drain evidence refuses (PN4-F4)'
 $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain | Add-Member calibrationError 'stuck'; Reject $r $rs 'a setup modifier left at the drain refuses (PN4-F4)'
 $r=Copy-MS $real; $r.observations.sprint6Feat.mountedShield.drain.PSObject.Properties.Remove('owner'); Reject $r $rs 'a second rider without restoration evidence refuses (PN4-F4)'
@@ -251,6 +251,18 @@ $r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; (RowOf $r 'MS-check-rt').plann
 $r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 2; ($r.observations.sprint6Feat.attackRules | Where-Object { $_.identity -eq $x.ruleIdentity }).target=$pet; Reject $r $rs 'a measured record whose attack rule targets another mount refuses (PN10-F3)'
 $r=Copy-MS $real; $sel=RowOf $r 'MS-selection'; $sel.selections=@($sel.selections)+@([pscustomobject]@{name='ExtraFeatSelection';guid='0123456789abcdef0123456789abcdef'}); $sel.threeFeatSelections=@($sel.threeFeatSelections)+@([pscustomobject]@{guid='0123456789abcdef0123456789abcdef';name='ExtraFeatSelection';combat=1;archery=1;shield=1;kmcTailExact=$true;kmcTail=@('a7d2e94c6f1b4830b5c9e28d17f3a604','b81926bca1d24a3997cdc8471a84014b','671a301bd1774677a8bfa2873d33b191')}); $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a third supported selection with its own valid tail is accepted (PN10-F5 control)'
 $sel.threeFeatSelections=@($sel.threeFeatSelections | Select-Object -First 2); Reject $r $rs 'a third supported selection without its observation refuses (PN10-F5)'
+# Supplemental review round 11.
+function Add-FollowUp($R,[double]$SwiftAfter){ $m=$R.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 4 'natural' 'UsageSpent' 'None' (New-State $false $false $true) (New-State $false $false $true) 6 $SwiftAfter $false 'RT'; $m }
+$r=Copy-MS $real; $m=Add-FollowUp $r 12; Reject $r $rs 'a refused follow-up that charged the rider another Swift refuses (PN11-F4)'
+$r=Copy-MS $real; $m=Add-FollowUp $r 6; $m.attackRules[-1].target=$pet; Reject $r $rs 'a refused follow-up whose attack rule targets another mount refuses (PN11-F4)'
+$r=Copy-MS $real; $m=Add-FollowUp $r 6; $m.records[-1].resultAfter='Parried'; Reject $r $rs 'a refused follow-up whose hit did not stand refuses (PN11-F4)'
+$r=Copy-MS $real; $x=RecordOf $r 'MS-check-rt' 4; $x.plan='natural'; (RowOf $r 'MS-check-rt').plannedAttempts.PSObject.Properties.Remove('4'); Reject $r $rs 'a forced boundary record labeled natural without its planned attempt refuses (PN11-F5)'
+$r=Copy-MS $real; Add-Attack $r.observations.sprint6Feat 'MS-check-rt' 11 'natural' 'None' 'RealTimeWindow' (New-State) (New-State $false $false $true) 0 6 $false 'RT'; $r.observations.sprint6Feat.records[-1].forced=$true; Reject $r $rs 'a forced extra hit of the measured pair outside the plan refuses (PN11-F5)'
+$r=Copy-MS $real; $m=Add-OtherPair $r 4 6; $m.records[-1].shieldBonus=3; $m.skillChecks[-1].kmcShieldTotal=3; Reject $r $rs 'the second rider''s check carrying the first rider''s +3 refuses (PN11-F6)'
+$r=Copy-MS $real; $m=$r.observations.sprint6Feat; Add-Attack $m 'MS-check-rt' 11 'natural' 'UsageSpent' 'None' (New-State $false $false $true) (New-State $false $false $true) 6 6 $false 'RT'; $m.records[-1].attacker='second-hostile'; $m.attackRules[-1].attacker='second-hostile'; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a second hostile''s legitimate attack on the measured pair is accepted (PN11-F7)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').bandAttempts=0; $ra=@(Accept $r $rs); Check ($ra[-1] -eq $true) 'a qualifying miss before the driver''s first strike (0 strikes) is accepted (PN11-F7)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').hostile='second-hostile'; Reject $r $rs 'a miss by another hostile than the designated one refuses (PN11-F7)'
+$r=Copy-MS $real; (RowOf $r 'MS-check-rt').PSObject.Properties.Remove('hostile'); Reject $r $rs 'a row without its designated hostile refuses (PN11-F7)'
 # Supplemental review round 9.
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').selectedAtSecondSnapshots=$rider; Reject $r $rs 'a selection switch that left the first rider selected refuses (PN9-F6)'
 $r=Copy-MS $real; (RowOf $r 'MS-pairs').PSObject.Properties.Remove('selectedBeforeSwitch'); Reject $r $rs 'an unobserved selection before the switch refuses (PN9-F6)'

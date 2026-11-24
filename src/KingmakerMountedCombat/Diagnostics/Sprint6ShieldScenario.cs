@@ -272,7 +272,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool DrainSprint6ShieldFixture()
         {
             if (!Sprint6Shield || s9Measure == null) return true;
-            s9Plan.Clear();
+            s9Plan.Clear(); s9PlanStep = -1;
             s9DrainAttempts++;
             var restore = new JObject { ["attempts"] = s9DrainAttempts }; s9Measure["drain"] = restore;
             restore["setup"] = s9Setup.Release();
@@ -298,17 +298,22 @@ namespace KingmakerMountedCombat.Diagnostics
         // One planned attempt at a time (supplemental review PN10-F2): armed together with its step's record boundary, for the
         // measured rider, mount and the row's hostile, consumed by the first qualifying attempt, cleared on step exit and drain.
         private readonly PlannedAttempt s9Plan = new PlannedAttempt();
+        private int s9PlanStep = -1;
+        private bool Sprint6ShieldPlannedStep => s9PlanStep >= 0 && s9PlanStep == s6Step;
+        private int? Sprint6ShieldPlanConsumedBy => s9Plan.ConsumedBy;
 
         private void ShieldArm(string plan, int step)
         {
             s6NextPlan = plan;
             s9Plan.Arm(plan, plan == "success" ? 1 : plan == "equal" ? 0 : -1, rider.UniqueId, horse.UniqueId, target.UniqueId);
+            s9PlanStep = step;
             s6Step = step; s6BoundStep = step; s6BoundAt = Time.time; s6StrikesThisStep = 0; s6AttemptsAtStep = s6Records.Count;
         }
 
         private void ShieldDisarm()
         {
-            s9Plan.Clear();
+            s9Plan.Clear(); s9PlanStep = -1;
+            s9PlanStep = -1;
             s6NextPlan = "natural";
         }
 
@@ -866,7 +871,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 0:
                     if (s9Equipment == null) { FailSprint6Row("The rider's shield set was not prepared."); return; }
                     s9Equipment.Equip(s9Mundane["heavy"]);
-                    Sprint6SpawnTarget("ms-rt"); s6Step = 1; return;
+                    Sprint6SpawnTarget("ms-rt"); s6Facts["hostile"] = target.UniqueId; s6Step = 1; return;
                 case 1:
                     if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return;
                     ShieldStep("combatStart"); ShieldCalibrate("equal"); ShieldArm("equal", 2); return;
@@ -1015,7 +1020,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     s9Equipment = new Sprint6ShieldEquipment(rider);
                     s9Equipment.Prepare(s9Mundane["heavy"]); s9Equipment.Equip(s9Mundane["heavy"]);
                     s6Facts["equipment"] = s9Equipment.Evidence;
-                    Sprint6SpawnTarget("ms-tb"); s6Step = 1; return;
+                    Sprint6SpawnTarget("ms-tb"); s6Facts["hostile"] = target.UniqueId; s6Step = 1; return;
                 // Own turn: success with the shield's addition, paid by this turn's Swift action.
                 case 1:
                     if (!rider.IsInCombat || !horse.IsInCombat) return;

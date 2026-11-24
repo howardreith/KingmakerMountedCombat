@@ -37,6 +37,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("kmc publication: the explicit enable (publish, then resume) leaves a foreign removal in place (review finding PN8-F1)", EnableKeepsForeignRemoval);
             runner.Run("kmc publication: the explicit enable leaves another mod's removal of both Archery and Shield in place (review finding PN9-F2)", EnableKeepsDoubleForeignRemoval);
             runner.Run("kmc publication: an Archery removal by another mod during the suspension survives the resume (review finding PN10-F1)", ResumeKeepsArcheryRemovedDuringSuspension);
+            runner.Run("kmc publication: Shield returns to a required list with no KMC entry left and nothing is withdrawn (review finding PN11-F1)", ResumeAppendsWithoutKmcAnchor);
+            runner.Run("kmc publication: a Shield offer another mod reintroduced during the suspension returns after the resume (review finding PN11-F2)", ResumeRestoresReintroducedOffer);
         }
 
         private static MountedShieldFacts Eligible(int baseBonus, bool focus = true, bool greater = false) => new MountedShieldFacts
@@ -458,6 +460,41 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(lists.Count("ordinary", lists.MountedShield) == 1 && lists.Count("fighter", lists.MountedShield) == 1 && lists.Count("ordinary", lists.MountedArchery) == 1 &&
                 lists.Set.MountedShieldAvailable() && lists.Set.MountedArcheryAvailable() && !lists.Set.MountedShieldWithdrawn && !lists.Set.MountedArcheryWithdrawn,
                 "The required lists offer each feat once and nothing is withdrawn.");
+        }
+
+        // Archery unavailable; another mod removed Mounted Combat from the fighter list and left Mounted Shield there. The stop
+        // removes Shield (KMC's own absence); the explicit enable puts it back, appended after the foreign entries, and nothing is
+        // withdrawn, so both benefits stay available for existing owners.
+        private static void ResumeAppendsWithoutKmcAnchor()
+        {
+            var lists = new Lists(false, true);
+            lists.Set.Apply(true, key => key);
+            lists.Arrays["fighter"] = lists.Arrays["fighter"].Where(item => item != lists.MountedCombat).ToArray();
+            var foreignOrder = lists.Arrays["fighter"].Where(item => item != lists.MountedShield).ToArray();
+            TestRunner.True(lists.Set.MountedShieldAvailable(), "Shield is still offered on both required lists before the stop.");
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            lists.Set.Apply(true, key => key);
+            lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(lists.Count("fighter", lists.MountedShield) == 1 && lists.Arrays["fighter"].Last() == lists.MountedShield &&
+                lists.Arrays["fighter"].Take(lists.Arrays["fighter"].Length - 1).SequenceEqual(foreignOrder), "Shield is appended once and the foreign order is kept.");
+            TestRunner.True(lists.Set.MountedShieldAvailable() && !lists.Set.MountedShieldWithdrawn && lists.Count("ordinary", lists.MountedShield) == 1,
+                "Mounted Shield stays available and is never withdrawn for KMC's own removal.");
+        }
+
+        // A supported extra list lacks Shield when the suspension starts (another mod removed it); during the suspension that mod
+        // puts it back and KMC strips it again to enforce the suspension. That strip is KMC's own absence: the resume restores it.
+        private static void ResumeRestoresReintroducedOffer()
+        {
+            var lists = new Lists();
+            lists.Set.Apply(true, key => key);
+            lists.Arrays["extra"] = lists.Arrays["extra"].Where(item => item != lists.MountedShield).ToArray();
+            lists.Set.Suspend(KmcOptionalCombatFeat.MountedShield);
+            lists.Arrays["extra"] = lists.Arrays["extra"].Concat(new[] { lists.MountedShield }).ToArray();
+            lists.Set.Apply(true, key => key);
+            TestRunner.True(!lists.Has("extra", lists.MountedShield), "The reintroduced offer is stripped while suspended.");
+            lists.Set.Resume(KmcOptionalCombatFeat.MountedShield, key => key);
+            TestRunner.True(lists.Count("extra", lists.MountedShield) == 1 && lists.Count("ordinary", lists.MountedShield) == 1 && lists.Set.MountedShieldAvailable(),
+                "The offer KMC stripped returns once after the resume.");
         }
 
         private static void PartialRegistration()

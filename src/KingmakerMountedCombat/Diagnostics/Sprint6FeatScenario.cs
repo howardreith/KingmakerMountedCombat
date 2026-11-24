@@ -468,17 +468,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (s6Records.Count <= s6AttemptsAtStep) return null;
             if (!Sprint6Shield) return (JObject)s6Records.Last;
-            // Mounted Shield rows complete a step only on the measured pair's record (review PN9-F3).
-            for (var index = s6Records.Count - 1; index >= s6AttemptsAtStep; index--)
-            {
-                var record = (JObject)s6Records[index];
-                if (!Sprint6MeasuredPair((string)record["rider"], (string)record["mountId"], (string)record["attacker"])) continue;
-                // The record that completes the step, for the reader (supplemental review PN10-F3).
-                var completed = s6Facts["stepRecords"] as JObject ?? (JObject)(s6Facts["stepRecords"] = new JObject());
-                completed[s6Step.ToString(System.Globalization.CultureInfo.InvariantCulture)] = record["ruleIdentity"];
-                return record;
-            }
-            return null;
+            // Mounted Shield rows complete a step only on the measured pair's record (review PN9-F3), and a planned step only on
+            // the attempt that consumed its plan (review PN11-F3).
+            var since = s6Records.Skip(s6AttemptsAtStep).Cast<JObject>().ToArray();
+            var at = PlannedAttempt.CompletingIndex(since.Select(record => (int)record["ruleIdentity"]).ToArray(),
+                since.Select(record => Sprint6MeasuredPair((string)record["rider"], (string)record["mountId"], (string)record["attacker"])).ToArray(),
+                Sprint6ShieldPlannedStep, Sprint6ShieldPlanConsumedBy);
+            if (at < 0) return null;
+            // The record that completes the step, for the reader (supplemental review PN10-F3).
+            var completed = s6Facts["stepRecords"] as JObject ?? (JObject)(s6Facts["stepRecords"] = new JObject());
+            completed[s6Step.ToString(System.Globalization.CultureInfo.InvariantCulture)] = since[at]["ruleIdentity"];
+            return since[at];
         }
 
         private bool Sprint6MeasuredPair(string riderId, string mountId, string attackerId) =>
