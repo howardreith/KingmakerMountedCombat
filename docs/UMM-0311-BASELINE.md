@@ -63,16 +63,45 @@ The package reference guard also passed two detached checks using genuine releas
 (which emits UMM 0.33.0.0). That exercises the shared emitted-version check; the full Windows package validators
 were not executed here.
 
-The current Windows development machine is unavailable. No production compilation, full bound-member sweep,
-package or native game test was possible here. The runtime's 0.33.0/0.33.2 fingerprint mismatch remains an
-explicit harness issue: a later reviewed runtime-profile selection must validate the actual full runtime
-identity, without weakening guards or relabelling the historical environment. The outstanding operational
-blockers are specific: `BaseGameIsolation.ps1` admits loader bytes against the selected fingerprint;
-`Test-RuntimeGameResult.ps1` also hardcodes UMM 0.33.2.0; and `Chunk7WorldEvidence.ps1` admits native cache files
-only under the exact 0.33.2 loader and in-memory shared state only under the exact Harmony 2.3.6 creator.
-A coherent runtime-profile change must propagate genuine identities through admission, result reading and
-cache/shared-state checks, with positive and negative safety regressions. The compile baseline change is ready
-for review; full baseline support and the native harness migration are not complete.
+## Reconciliation with PR 63 and Windows validation (2026-11-24)
+
+PR 63 (`5be0f737`, merged into `codex/mounted-shield`) solved the same baseline independently. Its fixes are carried
+into this branch, adapted to this branch's pins (UnityModManager and Harmony12 both pinned in
+`scripts/loader-reference-pins.json`; PR 63 pinned only UnityModManager and kept the installed Harmony12):
+
+- **Resolved compiler inputs.** `LoaderReferences.targets` now also checks, after reference resolution and immediately
+  before compilation, that the UnityModManager and 0Harmony12 inputs Csc receives are exactly the verified files in
+  `obj/loader-references` (PR 63 checked UnityModManager only).
+- **Frozen product source.** The loader pins, `Get-PinnedLoaderReferences.ps1`, `LoaderReferences.targets` and
+  `Build-Local.ps1` are production inputs for `FrozenProductSource.ps1`; a change invalidates reuse of an older frozen
+  product (`Test-FrozenProductSource.ps1`).
+- **Native Windows target.** The environment fingerprint, the runtime result's UMM version assertion and the native
+  cache-creator identity now agree on the installed UMM 0.33.0.0 (`63e5baf7…`, MVID `54059519-…`), replacing the stale
+  0.33.2.0 expectations that the section above listed as blockers. Historical 0.33.2 records keep their identity.
+- Not carried over: PR 63's separate UMM-only build reference (`planning/UMM-BUILD-REFERENCE.json`,
+  `Restore-UmmBuildReference.ps1`, `Test-UmmBuildReference.ps1`) and its own validation records, which duplicate this
+  branch's pins.
+
+The pin verifier now matches every pin string through its absolute end (a trailing line feed is refused) and requires
+the archive entry and archive hash together.
+
+Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Studio Build Tools):
+
+- `Build-Local.ps1`: both production projects compile against the pins; the product DLL
+  (`d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d`, MVID `9db1be50-bceb-4bb3-a167-14e4ce288e8c`) and
+  the removal observer reference exactly UnityModManager 0.31.1.0 and 0Harmony12 1.2.0.1; component tests 153/153.
+- `Package.ps1 -ArtifactQualifier umm-0311-272238ce`: package validation 12/12 (packaged DLL references checked).
+- `Test-PinnedLoaderMsBuild.ps1` 6/6 on a temporary clone: the commit before this baseline compiles against the installed
+  UnityModManager 0.33.0.0; without the pinned cache a direct MSBuild is refused; after acquisition it compiles against
+  0.31.1.0/1.2.0.1; an altered cached file and a stray HintPath to a copy outside the verified folder are refused before
+  compilation; the installed loader directory is not a compile input.
+- `Test-FrozenProductSource.ps1` 25/25, `Test-Chunk7NativeLoaderContracts.ps1` 101/101,
+  `Test-UmmLoaderContractChecks.ps1` 22 passed (4 unassessed inputs), `Test-Tiers.ps1 -Tier Fast` passed.
+- Static loader API audit of the candidate DLL: every UMM and Harmony12 member it binds resolves on 0.31.1, 0.32.4, the
+  owner's 0.33.0 and 0.33.4 (14 types, 42 members). Static evidence only.
+
+Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
+0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
 No version bump, merge, release, permanent installation, loader replacement or human-save operation occurred.
 The independent Mounted Shield draft PR 61 remains separate; it should consume the agreed baseline when this
