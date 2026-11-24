@@ -1,11 +1,11 @@
 {
     "schema":  "kmc.package-admission-reuse-tests.v1",
-    "commit":  "f5a9f3865a4e79432c85d67a17b3aaaf0c7e1b3f",
+    "commit":  "11df053b77fbb437cf8e564ce3e9abda770f0dd5",
     "released_fixture_sha256":  "0b650bb3dea5003e36606a217d1f2269f1b42b69050d35b5f1785bc18d228af8",
-    "main_package_sha256":  "c1126cfed36414b10228a74c495c305c6fe4dbba5b2accd8fb47d5d7f7ff288b",
-    "observer_package_sha256":  "526c8ae81222a7017f995d62afe95d4ee1adebf4923381788403225e37037f89",
-    "passed":  24,
-    "total":  24,
+    "main_package_sha256":  "f7f2c66474c839a5ce7f3b0ada126fef924a4e05bbd7950a076d9af67af8062c",
+    "observer_package_sha256":  "66dc1e11019c82a2e55ec4855c4f40f734049b4817bc7f5229bf1fa0772d1847",
+    "passed":  45,
+    "total":  45,
     "cases":  [
                   {
                       "name":  "pins-genuine-definition-accepted",
@@ -28,9 +28,9 @@
                       "detail":  "reference pin"
                   },
                   {
-                      "name":  "packages-built-by-qualification-routes",
+                      "name":  "packages-built-by-combined-qualification-route",
                       "passed":  true,
-                      "detail":  "main c1126cfed36414b10228a74c495c305c6fe4dbba5b2accd8fb47d5d7f7ff288b; observer 526c8ae81222a7017f995d62afe95d4ee1adebf4923381788403225e37037f89"
+                      "detail":  "main f7f2c66474c839a5ce7f3b0ada126fef924a4e05bbd7950a076d9af67af8062c; observer 66dc1e11019c82a2e55ec4855c4f40f734049b4817bc7f5229bf1fa0772d1847"
                   },
                   {
                       "name":  "main-validator-genuine-package-accepted",
@@ -88,6 +88,56 @@
                       "detail":  "released 0.2.15 DLL (UnityModManager 0.33.0.0): must reference the pinned UnityModManager 0"
                   },
                   {
+                      "name":  "main-validator-missing-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-missing-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-duplicated-umm-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-duplicated-umm-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-mismapped-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define 0Harmony12 exactly once as 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-mismapped-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define 0Harmony12 exactly once as 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-minimum-umm-version-disagreement-rejected",
+                      "passed":  true,
+                      "detail":  "reference must equal the declared minimum"
+                  },
+                  {
+                      "name":  "observer-validator-minimum-umm-version-disagreement-rejected",
+                      "passed":  true,
+                      "detail":  "reference must equal the declared minimum"
+                  },
+                  {
+                      "name":  "main-validator-canonical-pins-accepted-again",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "observer-validator-canonical-pins-accepted-again",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
                       "name":  "main-admission-matching-zip-and-manifest-accepted",
                       "passed":  true,
                       "detail":  "exit 0"
@@ -98,9 +148,29 @@
                       "detail":  "exit 0"
                   },
                   {
+                      "name":  "common-admission-receipt-version-only-changed-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "normal-player-observer-matching-receipt-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "normal-player-observer-stale-dll-hash-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "normal-player-observer-stale-mvid-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
                       "name":  "admission-correct-outer-zip-with-another-builds-dll-rejected",
                       "passed":  true,
-                      "detail":  "other build exit 0; not the build its manifest names (DLL SHA-256, MVID or entries differ)"
+                      "detail":  "other build exit 0; not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
                   },
                   {
                       "name":  "reuse-of-unchanged-verified-outputs-accepted",
@@ -110,22 +180,57 @@
                   {
                       "name":  "reuse-after-pin-change-rejected",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guard, project files or cached loader bytes changed since they were built"
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
                   },
                   {
                       "name":  "reuse-after-verifier-change-rejected",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guard, project files or cached loader bytes changed since they were built"
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
                   },
                   {
                       "name":  "reuse-after-project-reference-change-rejected",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guard, project files or cached loader bytes changed since they were built"
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "reuse-after-replaced-shipping-dll-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "reuse-after-removed-shipping-dll-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "reuse-after-replaced-component-runner-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "reuse-after-changed-compiled-source-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "reuse-accepted-again-after-restoring-outputs-and-sources",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "plan-mode-reports-reuse-check-read-only",
+                      "passed":  true,
+                      "detail":  "plan lists the reuse check first; the receipt is unchanged"
                   },
                   {
                       "name":  "test-tiers-skipbuild-with-old-outputs-refused",
                       "passed":  true,
-                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guard, project files or cached loader bytes changed since they were built"
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
+                  },
+                  {
+                      "name":  "full-admission-with-old-outputs-refused-before-umbrella",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, compiled sources, cached loader bytes or the outputs themselves changed since th"
                   }
               ]
 }

@@ -1,9 +1,10 @@
 {
     "schemaVersion":  1,
-    "packagePath":  "<dev>\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.2.15-umm-0311-f5a9f386-diagnostic.zip",
-    "packageSha256":  "1d2c9240e8d7765ed407965a684fea895d257cf8ea50299f846fcf875d44aaa1",
+    "packagePath":  "<dev>\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.2.15-umm-0311-11df053b-diagnostic.zip",
+    "packageSha256":  "89352f074dabfc25ddd4050aaa6ac38026199d60162cf8159186866880faf78c",
     "dllSha256":  "d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d",
     "dllMvid":  "9db1be50-bceb-4bb3-a167-14e4ce288e8c",
+    "version":  "0.2.15",
     "entries":  [
                     {
                         "path":  "KingmakerMountedCombat/Info.json",

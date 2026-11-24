@@ -1,6 +1,7 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs for candidate commit `f5a9f3865a4e79432c85d67a17b3aaaf0c7e1b3f`, exported 2026-11-24 04:21 UTC.
+Machine-generated outputs exported 2026-11-24 05:35 UTC for candidate commit `11df053b77fbb437cf8e564ce3e9abda770f0dd5`. Each row names what produced that output (its
+source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
 outside this repository). Line endings were normalized to LF and a UTF-8 byte-order mark was dropped; nothing else was
@@ -14,18 +15,22 @@ git cat-file blob HEAD:docs/evidence/umm-0311/<file> | sha256sum
 python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_output(['git','cat-file','blob','HEAD:docs/evidence/umm-0311/'+sys.argv[1]])).hexdigest())" <file>
 ```
 
-| File | Raw SHA-256 | Exported SHA-256 (Git blob) |
-| --- | --- | --- |
-| `pinned-loader-msbuild.json` | `dc9086d781e227f56240e7d74cc8a7bb2e752dfd25e05b7194c68792f905756d` | `1828e85b672d2d8cd0eada7005605fe924a981b4132a68fde45cb7eb853d061c` |
-| `package-admission-reuse.json` | `abe6b9299ce344bc9033f1c8d91ed30eece6ff44b135ec78d46e79b1eeb9d46b` | `6d1acb034be902fac6fff093e337db3b7eef1b257702af79fb273b61a892c5d4` |
-| `package-validation.json` | `3c5ad8f0f8d73f5ceb1c88893022b93d8d6c6447bb27145c2d08d142aa0b35f9` | `9fc3fa7312a176e6ed1627f11aadca84b48502849daa09b7812aa7ab3927faea` |
-| `package-manifest.json` | `4ebdfcbdc0a5b2f534b340b8c3cdf79dde012e558423d856b424a53c7782a2ea` | `0ad45926bb95ed00c78931339b66547b8be6f3b2d2ae73cc6f1af6cde5167c2e` |
-| `observer-package-validation.json` | `86d08eed658f845ac50489dd8f26dfb4129a5daba39e7b4b685405a24be248c1` | `ea55733472d4a2d19271ac960d54b247ee8c02c972f3131bab58d8920e9808bf` |
-| `observer-package-manifest.json` | `6dcb07b4b34963b5848cae0794a1c9444f6d0f1721c133e0de106ea01d007c43` | `e7471e8fcc5712cabd5589995751b3745dff8fb05dbbd7c42d2495c72c4cc046` |
-| `api-audit.json` | `1e14f1bebceb5e393708dfea190ffbe976dbdf2984b17e04d28f6d59b64ae051` | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` |
-| `observer-api-audit.json` | `947bef18032f59a5ad94bf75960872a7d7a65929279eeba13b9dc44a9ee08c35` | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` |
-| `test-harness-summary.json` | `301866d496d3bc9b8af36f6cea4c7c239b02969d7e4632bcfe221376821d1f54` | `7a95cb63e5e2f05b32552a14ea0bf58d2597f79012c7aedd58c9ea0dd1ca043a` |
-| `onboarding-check-project.json` | `3f91e4988954c4e8fe5851f52152cbcb82e729e5f91b41cb40027e10d17aabc1` | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` |
-| `loader-profiles.md` | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` |
-| `loader-api-audit-Program.cs.txt` | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` |
-| `loader-api-audit-csproj.txt` | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` |
+| File | Produced by | Raw SHA-256 | Exported SHA-256 (Git blob) |
+| --- | --- | --- | --- |
+| `pinned-loader-msbuild.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `fc8dc859da4a6ee0ea32d3f513b532783fa6cf736264d4e9e2eed6fdc014e773` | `443c7ff2c57abf39475edf811eee0e354c078b83a7fb7b30560b9f1f58bca842` |
+| `package-admission-reuse.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `1853012e2a098e021c1ce5ba6b43559f11fde240d263004d382f2fbeb9aaa841` | `edb7b52d194fb777756e9b145529bcd3f17b3da18379712771b3a93fbc9acf4c` |
+| `package-validation.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `6e71a771527a66412241dc57f472b60c5cac44ab71653337f421aeabbccb9ea1` | `37e23a78aa0a27586b221574a419ded43dcf29ccaa2594addf4b753e0854be83` |
+| `package-manifest.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `44b7c12686e10bc42f777f4785aa8f3542cf3e7e8ef8cb7d9f8a3170380fd8c1` | `35250fb88cf0bf53dcac0ff2b6479a4eb28e4e9dd411a8524087d775ff8124b4` |
+| `observer-package-validation.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `5d0ae0b5a4687d62fef066de4aeccc6977ae6efe08a0f027cf14ee1d92b3d057` | `2ae93fb98a0765012c65f5b70c64f959be220400e6ba91ba4767e677a33940ed` |
+| `observer-package-manifest.json` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `8a597d81401cb961a9428cfb394a83635d7f153de5ba4eb87c4109a6c48e1f94` | `743ef081da5615c6652d20d09a1826203f5dc635b10cbcc153c6536d46a4f64f` |
+| `chunk7-native-loader-contracts.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `c88bbbc74594096b25d5f6735714f0de33f5f019d4136c97aecef1ae5bb23f76` | `c88bbbc74594096b25d5f6735714f0de33f5f019d4136c97aecef1ae5bb23f76` |
+| `frozen-product-source.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `f2efad2ecc1c5484d20b38d6215e2fd35e5a7481023fe742cbe74f17fb073533` | `7d2d05f4bd62edcde9d129fd9a2f15a44b2cc1a3d9c59d9bb8bacb7863f4a07a` |
+| `umm-loader-contract-checks.log` | `11df053b77fbb437cf8e564ce3e9abda770f0dd5` | `b8ef07a7592cdd528baf4fe21ea4b9aef55d1615f411e2e159ee646f0064ba8b` | `cdb3581887f2308c0742862c45f2388c2611364c60a7662f458e731921ffe58f` |
+| `test-harness-summary.json` | 11df053b, not a qualifying run (a Kingmaker process was running); includes the f5a9f386 baseline | `70c7f600fa6811a5591b25e7178045d64142eaf342eee4d2b0cb24f4d9ffe679` | `3fca9d4ae444cd9d239deb398e62d8cd602db6d0b84ec6dcc58c9ee3728a7c24` |
+| `api-audit.json` | reused static audit of the unchanged DLL d20474bf, recorded at f5a9f386 | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` | `4f39becf0603b584cd24e2e89e7b332fdab17bad9302ef8bf90b804a2af5b084` |
+| `observer-api-audit.json` | reused static audit of the unchanged observer DLL f9697f91, recorded at f5a9f386 | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` | `7afb1eccfba7902df439a2bb7d28422c2ceb8db055f5caff568e0573cbe7dbeb` |
+| `loader-profile-inventory.json` | restored unchanged: measured 2026-11-24T03:41:11Z for candidate 272238ce (Git blob a9ef6700 of 215d68fe) | `50e250f7b159cdcbb7391ee87cf6d149146fba80e7c46c50553bd8235e6e90b8` | `50e250f7b159cdcbb7391ee87cf6d149146fba80e7c46c50553bd8235e6e90b8` |
+| `onboarding-check-project.json` | controller check-project record from enrollment (reused) | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` | `7ff17c563adf5656547a4379f7f1a82a52702458508a38a11743d46330c5d98a` |
+| `loader-profiles.md` | fleet loader-profile record (reused) | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` | `3b2883677f537286a0d6f210327fae8ac8734b40ec7cc5850e92819eaeb03d5e` |
+| `loader-api-audit-Program.cs.txt` | audit tool source (reused) | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` | `be870827024fd41f63235ebb522c489e8d49c7991de7091ad0e14a1a0e935ea3` |
+| `loader-api-audit-csproj.txt` | audit tool project (reused) | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` | `93989652d8252ff54a60ec92c13c1fc41bf94bfa3cf6c9f7f13c877bac761909` |
