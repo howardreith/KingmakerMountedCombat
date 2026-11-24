@@ -244,16 +244,16 @@ namespace KingmakerMountedCombat.Integration
                 riderCommandsEmpty && !context.IsOverTerrain;
             var combat = relationship.CombatOwner;
             var riderAttack = inputCandidate && combat != null && combat.RiderMeleeClickAdmitted(target);
+            // Review R5-F2: the grant is read first and bounds the probe's walk.
+            bool stepMode = false, singleMove = false;
+            var grantReason = "<not-read>";
+            var granted = riderAttack ? PairedMountGrantedMetres(context, out stepMode, out singleMove, out grantReason) : 0f;
             PairedAttackClickProbe.Result probe = null;
             if (riderAttack)
             {
-                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target); }
+                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target, granted); }
                 catch (Exception error) { logger.Exception("Turn-based rider attack click probe failed; native decision kept", error); }
             }
-            bool stepMode = false, singleMove = false;
-            var grantReason = "<not-read>";
-            var granted = riderAttack && probe != null && !probe.AdmissibleNow
-                ? PairedMountGrantedMetres(context, out stepMode, out singleMove, out grantReason) : 0f;
             string reason;
             var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
                 predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget, riderAttack,

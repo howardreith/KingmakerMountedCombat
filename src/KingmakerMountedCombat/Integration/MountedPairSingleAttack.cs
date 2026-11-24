@@ -229,18 +229,21 @@ namespace KingmakerMountedCombat.Integration
             return EvaluateExactNativeGate();
         }
 
-        // MMR-02 (review R4-F1): the same admission evaluated for a hypothetical mount position on a route, with the rider
-        // carried at its current offset: the pair distance from the mount origin, the supported executor offset, then the
-        // native distance and command line of sight from the projected rider eye. Pure: it writes no command state.
-        internal MountedPairNativeAdmissionState EvaluateNativeAdmissionAtMountPosition(UnityEngine.Vector3 mountPosition)
+        // MMR-02 (reviews R4-F1, R6-F2): the same admission evaluated for a hypothetical mount position on a route. The rider is
+        // carried at its mount-local offset, so its position and eye offsets (taken now, in the mount's current orientation) are
+        // rotated to the mount's heading at that point: the travel direction of the route segment (a zero travel vector keeps
+        // the current orientation). Then the pair distance from the mount origin, the supported executor offset, and the native
+        // distance and command line of sight from the projected rider eye. Pure: it writes no command state.
+        internal MountedPairNativeAdmissionState EvaluateNativeAdmissionAtMountPosition(UnityEngine.Vector3 mountPosition, UnityEngine.Vector3 travel)
         {
             UnitEntityData target = Target;
             var planned = AllAttacks.Count == 0 ? null : PlannedAttack;
             if (!usesMountedRiderReach || Executor != rider || rider == null || mount?.View == null || target?.View == null || planned == null)
                 return MountedPairNativeAdmissionState.Unavailable;
             var radius = mount.View.Corpulence + target.View.Corpulence + planned.WeaponRange;
-            var executorPosition = mountPosition + (rider.Position - mount.Position);
-            var eye = mountPosition + (rider.EyePosition - mount.Position);
+            var turn = MountedHeading.TurnDegrees(mount.Orientation, travel.x, travel.z);
+            var executorPosition = mountPosition + RotateAboutVertical(rider.Position - mount.Position, turn);
+            var eye = mountPosition + RotateAboutVertical(rider.EyePosition - mount.Position, turn);
             var pairDistance = GeometryUtils.MechanicsDistance(mountPosition, target.Position);
             if (pairDistance > radius + MountedCombatSpatialPolicy.RangeTolerance) return MountedPairNativeAdmissionState.OutsidePairRange;
             var executorDistance = GeometryUtils.MechanicsDistance(executorPosition, target.Position);
@@ -253,6 +256,13 @@ namespace KingmakerMountedCombat.Integration
                 GetTargetLOSObjectId())
                 ? MountedPairNativeAdmissionState.Admitted
                 : MountedPairNativeAdmissionState.BlockedLineOfSight;
+        }
+
+        private static UnityEngine.Vector3 RotateAboutVertical(UnityEngine.Vector3 offset, float degrees)
+        {
+            float x, z;
+            MountedHeading.Rotate(offset.x, offset.z, degrees, out x, out z);
+            return new UnityEngine.Vector3(x, offset.y, z);
         }
 
         internal bool TryPrepareNativeStartAdmission()

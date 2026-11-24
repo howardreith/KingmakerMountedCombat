@@ -458,6 +458,9 @@ namespace KingmakerMountedCombat.Integration
         internal Func<System.Collections.Generic.List<Vector3>> RouteRevalidator;
         internal bool RouteBound => ValidatedApproachRoute != null;
         internal int RouteRevalidationCount { get; private set; }
+        // Review R6-F1: a route-bound carrier is a point command whose destination is the verified strike endpoint and whose
+        // native proximity radius is this small, so native's own proximity rule cannot complete it before that endpoint.
+        internal const float RouteBoundArrivalRadiusMetres = 0.05f;
         internal int RouteProofExpiredCount { get; private set; }
         internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
@@ -1664,6 +1667,14 @@ namespace KingmakerMountedCombat.Integration
                     Interrupt();
                     return false;
                 }
+                var endpoint = route[route.Count - 1];
+                delegatedMoveApproachRadius = RouteBoundArrivalRadiusMetres;
+                delegatedMove = new UnitMoveTo(endpoint, RouteBoundArrivalRadiusMetres)
+                {
+                    CreatedByPlayer = true,
+                    ShowTargetMarker = false,
+                    NeedLoS = false
+                };
                 delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
                 ValidatedRouteFollowed = true;
             }

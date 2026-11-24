@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
             runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
             runner.Run("R6-F3: the click's order allowance equals execution across the Standard conversion; limits hold", OrderAllowanceMatchesExecution);
-            runner.Run("R5-F2/R4-F1: the production route walk finds the first legal reach exactly and recosts a shifted start", RouteWalkerBoundaries);
+            runner.Run("R5-F2/R4-F1/R6-F2: the budgeted route walk finds a legal step inside a narrow sight window, never passes the grant, and recosts a shifted start", RouteWalkerBoundaries);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
             runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
             runner.Run("R3-F1: rider or horse striker moves before readiness, queued orders move after promotion; native keeps the start", PreStartApproach);
@@ -58,26 +58,54 @@ namespace KingmakerMountedCombat.Tests
         {
             float Dist(float[] a, float[] b) => (float)Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]));
             float[] Lerp(float[] a, float[] b, float t) => new[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t };
+            var unbounded = float.PositiveInfinity;
             // Straight route along x; the strike becomes admissible at x >= 1.437 (between 0.05 m samples).
             var straight = new List<float[]> { new[] { 0f, 0f }, new[] { 3f, 0f } };
             List<float[]> route; float cost;
-            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, point => point[0] >= 1.437f, out route, out cost) &&
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.437f, unbounded, out route, out cost) &&
                 Math.Abs(cost - 1.437f) < 0.001f && Math.Abs(route[route.Count - 1][0] - 1.437f) < 0.001f, "The first legal reach was not found at its boundary: " + cost);
             TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
             TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f), "A grant ending short of legal reach passed.");
+            // Review R5-F2: a sight window narrower than the sample spacing (1.412..1.428 m) that contains the grant boundary but
+            // neither neighbouring regular sample (1.40, 1.45). Regular sampling alone misses it; the exact grant point finds it and
+            // the walk refines back to the window's start, never beyond the grant.
+            Func<float[], float[], float[], bool> window = (point, from, to) => point[0] >= 1.412f && point[0] <= 1.428f;
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, unbounded, out route, out cost),
+                "Control: regular samples alone unexpectedly found the narrow sight window.");
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.42f, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f &&
+                cost <= 1.42f && PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f),
+                "The legal step whose grant ends inside the sight window was refused: " + cost);
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.40f, out route, out cost) && route == null,
+                "A grant ending before the sight window produced a route (the prior order must stand).");
+            // Never beyond the grant: a later window is not returned for a shorter grant.
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.43f, 1.42f, out route, out cost) &&
+                route == null && Math.Abs(cost - 1.42f) < 1e-5f, "An endpoint beyond the grant was returned.");
             // Corner: the route goes east then north around a wall; within reach of the target at (2, 2) everywhere past x = 1,
-            // but line of sight is blocked until the route has turned the corner (y >= 0.6).
+            // but line of sight is blocked until the route has turned the corner (y >= 0.6). The predicate receives the segment.
             var corner = new List<float[]> { new[] { 0f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
-            Func<float[], bool> admissible = point => Dist(point, new[] { 2f, 2f }) <= 2.3f && point[1] >= 0.6f;
-            TestRunner.True(MountedRouteWalker.Walk(corner, Dist, Lerp, admissible, out route, out cost) && Math.Abs(cost - 2.6f) < 0.001f &&
-                route.Count == 3 && Math.Abs(route[2][1] - 0.6f) < 0.001f, "The corner route did not stop at the first visible striking point: " + cost);
+            float[] lastFrom = null, lastTo = null;
+            Func<float[], float[], float[], bool> admissible = (point, from, to) =>
+            {
+                lastFrom = from; lastTo = to;
+                return Dist(point, new[] { 2f, 2f }) <= 2.3f && point[1] >= 0.6f;
+            };
+            TestRunner.True(MountedRouteWalker.Walk(corner, Dist, Lerp, admissible, unbounded, out route, out cost) && Math.Abs(cost - 2.6f) < 0.001f &&
+                route.Count == 3 && Math.Abs(route[2][1] - 0.6f) < 0.001f && lastFrom[0] == 2f && lastFrom[1] == 0f && lastTo[1] == 1.5f,
+                "The corner route did not stop at the first visible striking point on its own segment: " + cost);
             // A start shifted by more or less than 0.2 m is walked again from its own origin (no reused segment).
             var shifted = new List<float[]> { new[] { -0.3f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
-            TestRunner.True(MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, out route, out cost) && Math.Abs(cost - 2.9f) < 0.001f &&
+            TestRunner.True(MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, unbounded, out route, out cost) && Math.Abs(cost - 2.9f) < 0.001f &&
                 Math.Abs(route[0][0] + 0.3f) < 1e-6f, "A shifted start was not recosted from its own origin.");
-            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 2.7f), "The recosted shifted route passed a grant it exceeds.");
+            TestRunner.True(!MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, 2.7f, out route, out cost), "The shifted route was found within a grant it exceeds.");
             // Never admissible: no route.
-            TestRunner.True(!MountedRouteWalker.Walk(corner, Dist, Lerp, point => false, out route, out cost) && route == null, "A route without legal reach was accepted.");
+            TestRunner.True(!MountedRouteWalker.Walk(corner, Dist, Lerp, (point, from, to) => false, unbounded, out route, out cost) && route == null,
+                "A route without legal reach was accepted.");
+            // Review R6-F2 heading arithmetic (Unity yaw): a right turn from facing +Z to travelling +X rotates a left-side offset
+            // (-0.4, 0) to (0, +0.4).
+            float rx, rz;
+            MountedHeading.Rotate(-0.4f, 0f, MountedHeading.TurnDegrees(0f, 1f, 0f), out rx, out rz);
+            TestRunner.True(Math.Abs(MountedHeading.TurnDegrees(0f, 1f, 0f) - 90f) < 1e-4f && Math.Abs(rx) < 1e-5f && Math.Abs(rz - 0.4f) < 1e-5f &&
+                MountedHeading.TurnDegrees(30f, 0f, 0f) == 0f, "The mount heading rotation is wrong.");
         }
 
         // Review R6-F3: the order allowance the click and revalidation use (RemainingAcrossOrder) equals what the same production

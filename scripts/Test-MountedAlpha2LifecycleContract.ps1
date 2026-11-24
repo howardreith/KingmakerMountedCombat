@@ -149,11 +149,14 @@ $single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
 $evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
 $evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
 $walkerType = KmcType 'KingmakerMountedCombat.Domain.MountedRouteWalker'
-$walksRoute = @(Refs $probe | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count -eq 1
+$walksRoute = @(Refs $probe | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count -eq 2
 $admitsAlongRoute = @($probe.DeclaringType.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $evaluateAt) -ge 1 }).Count -ge 1
-Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker until the strike''s production admission passes'
+Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker, bounded by the mount grant (and once unbounded for the diagnostic), until the strike''s production admission passes'
 $offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
 Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
+$turnDegrees = (KmcType 'KingmakerMountedCombat.Domain.MountedHeading').GetMethod('TurnDegrees')
+$orientation = (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetProperty('Orientation').GetGetMethod()
+Check ((Calls $evaluateAt $turnDegrees) -eq 1 -and (Calls $evaluateAt $orientation) -eq 1) 'R6-F2: admission along the route turns the rider and eye offsets from the mount''s current orientation to its heading on the segment'
 $setForced = $command.GetProperty('ForcedPath').GetSetMethod()
 $getForced = $command.GetProperty('ForcedPath').GetGetMethod()
 Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F1: the click-admitted order''s carrier follows the validated route (ForcedPath)'
@@ -164,6 +167,9 @@ Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -
 $revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
 Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
 $invoke = [Func[System.Collections.Generic.List[UnityEngine.Vector3]]].GetMethod('Invoke')
+$moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
+$moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
+Check ($moveCtorOffsets.Count -eq 2 -and $moveCtorOffsets[1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'
 Check ((FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -ge 0 -and (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R4-F1: a route-bound carrier revalidates before its route is set; there is no unchecked fallback'
 $visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
 Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'

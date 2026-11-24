@@ -216,6 +216,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedAttackClickAdmissionPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPreStartApproachPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRouteWalker.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedHeading.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedOrderLedger.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedHoldProvenance.cs" />

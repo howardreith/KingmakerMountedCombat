@@ -1197,11 +1197,11 @@ namespace KingmakerMountedCombat.Integration
             var mount = relationship.Mount;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
             if (disposed || rider == null || mount == null || target == null || turn == null) return null;
-            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target);
-            if (probe.AdmissibleNow) return new List<Vector3> { mount.Position, mount.Position };
             bool step, single;
             string reason;
             var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out reason);
+            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target, grant);
+            if (probe.AdmissibleNow) return new List<Vector3> { mount.Position, mount.Position };
             var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteComplete, probe.EndpointAdmitsStrike, probe.RouteMetres, grant);
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
                 ";mountGrant=" + reason + ";probe=" + probe.Detail;
