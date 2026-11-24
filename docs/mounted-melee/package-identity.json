@@ -1,11 +1,11 @@
 {
-  "zip": "KingmakerMountedCombat-0.2.16-alpha.5-mounted-alpha5-a0f741b5-diagnostic.zip",
-  "sha256": "26f73f66211cc7d11f08eaa7bdb1625eb8f4f8031f9183c31e94f881edc5985e",
-  "bytes": 4310723,
-  "sourceCommit": "a0f741b524507b31de4a28af379c33872dd861bb",
-  "version": "0.2.16-alpha.5",
+  "zip": "KingmakerMountedCombat-0.2.16-alpha.6-mounted-alpha6-46444b30-diagnostic.zip",
+  "sha256": "93ef3edac36c3cc47d1bb279e3d82bee3e0814ee39d37331223e2660e35ee115",
+  "bytes": 4311613,
+  "sourceCommit": "46444b302ea9a0c77950dcf28f31d5472b9d3992",
+  "version": "0.2.16-alpha.6",
   "ummMinimum": "0.31.1",
-  "dllSha256": "3bffb0ce1427782413ad1ca7d98f8a72c2f313b9e94e513e3b023047bc6653dd",
-  "dllMvid": "e73663c1-c6a4-451f-a5e5-135c22b82eaa",
+  "dllSha256": "a600244819aee9cd0b44ad54215198447aa2d8dde7ca322f23f4921cc8561ad0",
+  "dllMvid": "31c65ba0-564b-422d-9c29-5a19dd71a485",
   "iconSha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0"
 }
