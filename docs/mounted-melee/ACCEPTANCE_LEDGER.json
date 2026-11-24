@@ -2,8 +2,8 @@
   "schema": "kmc.mission.acceptance.v1",
   "mission_id": "kmc-mounted-alpha2-melee-pose-20261124",
   "template_status": "EXECUTED",
-  "source_commit": "bd63035e5c4082b47111f9cf2621988133500fc2",
-  "package_sha256": "3be62a3d4a95dbef235f5964743e0f4866ddd020d56d9386d85ecb521808850f",
+  "source_commit": "66492352fa95b0c20855524799722f4125130a7f",
+  "package_sha256": "aeb816de72d13397e4800046859d1e4cf33ccc166f34747ec21afede6a400dc5",
   "checkpoint_scope": "private alpha source/offline delivery; unperformed native/visual/save-load observations remain pending",
   "issues": [
     {
@@ -14,22 +14,22 @@
         "E02"
       ],
       "source_disposition": "repaired_source_hypothesis",
-      "root_cause": "The animated saddle froze seatFromSource once at attachment from the rider pelvis in that single frame, so the seat height depended on the rider animation when Mount Companion fired (cast clip, an approach walk blending out) or a view's first frame after load; a remount from an idle stance seats lower. No accumulation or stale anchor (frame lease and release verified in source).",
+      "root_cause": "The animated saddle froze seatFromSource once at attachment from the rider pelvis in that single frame, so the seat height depended on the rider animation when Mount Companion fired (cast clip, an approach walk blending out) or a view's first frame after load; a remount from an idle stance seats lower. No accumulation or stale anchor (frame lease and release verified in source). Alpha 4: no literal basis; the Horse seat settles on the rider's own still pose measured live in the mount root frame and is logged on every attachment.",
       "fix_commits": [
         "1594475b",
-        "ed1d83e2"
+        "ed1d83e2",
+        "89f5482b"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
-        "scripts/Test-MountedAlpha2SeatAttachment.ps1 6/0 (actual runtime attach/restore/replacement and adapter calibration members)",
-        "chunk7 slot harness 8/0"
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "Test-MountedAlpha2SeatAttachment.ps1 (actual runtime and adapter settle/notice members)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Seat basis provenance: only X documented (preview.3); Y/Z are 5b25b96e test constants, not independently verified",
-        "Rendered pose, leg IK and rotation not exercised offline"
+        "Settle thresholds are design choices; a mid-fight mount may settle on the combat stance",
+        "Rendered pose unobserved"
       ]
     },
     {
@@ -41,17 +41,19 @@
       "source_disposition": "repaired_source",
       "root_cause": "Native TurnController.IgnoreClick checks the predicted rider UnitAttack radius (rider corpulence + target + reach) against the mount's visualized path (or the rider position when it is empty), while the strike KMC executes is admitted from the mount origin with the mount's corpulence; KMC can prove such a dropped click legal by its own admission or by a native route of the mount's agent within the mount's granted movement.",
       "fix_commits": [
-        "9e5ad5f3"
+        "9e5ad5f3",
+        "cb253463"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
-        "tests/MountedAlpha2LifecycleTests.cs TurnBasedClickAdmission"
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
+        "MountedAlpha2LifecycleTests TurnBasedClickAdmission",
+        "lifecycle contract: shared grant, route probe, ForcedPath"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Real routes, step accounting and both initiative arrangements unobserved in game; which native branch drops the owner's click is logged, not traced"
+        "Real routes, turn accounting and both initiative arrangements unobserved in game; a validated route is used only for the same click and turn"
       ]
     },
     {
@@ -67,11 +69,12 @@
         "b395fbf1",
         "8a49c5de",
         "58622497",
-        "9e5ad5f3"
+        "9e5ad5f3",
+        "cb253463"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs (retained-order ledger)",
         "tests/MountedStockAttackPolicyTests.cs"
       ],
@@ -86,23 +89,25 @@
       "id": "MMR-04",
       "title": "RT automatic melee engagement",
       "baseline_evidence": [],
-      "source_disposition": "explained_native_selection_attributed_diagnostic",
+      "source_disposition": "explained_native_selection_equal_rank_tie_break",
       "root_cause": "Installed brain traced through the winning proposal (HANDOFF section 6): manual target kept; otherwise in-reach beats out-of-reach; nearest eligible among those needing movement. A mount Hold produced by the pair's own carrier (UnitMoveTo.OnAction) could restrict later movement; it is now undone and only a player Hold restricts automatic movement. The owner's standing-still case is not established offline.",
       "fix_commits": [
         "58622497",
         "c5b147a6",
-        "9e5ad5f3"
+        "9e5ad5f3",
+        "cb253463"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs EngagementAttribution, NativeTargetChoice (model)",
         "installed Character_Brain actions/considerations pinned byte-exact"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "The model documents installed code; the production evidence is the per-proposal native ranking in the owner log"
+        "Equal-rank tie-break among native candidates is a narrow pair behaviour; live comparison is the owner's",
+        "Old-save mount Hold now honored until Stop"
       ]
     },
     {
@@ -112,17 +117,18 @@
       "source_disposition": "repaired_source",
       "root_cause": "Two layers delayed movement until the strike was ready: KMC DecideNext returned Wait without Standard readiness, and the pair command (infinite native approach radius) waited in native ShouldStartCommand (initiative/cooldown) before OnStart created the delegated approach.",
       "fix_commits": [
-        "9e5ad5f3"
+        "9e5ad5f3",
+        "cb253463"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
         "tests/MountedAlpha2LifecycleTests.cs PreStartApproach"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Timing unmeasured in game; RT ordering: a horse ready first attacks after the rider's waiting strike"
+        "Timing unmeasured in game; a horse ready first attacks after the rider's waiting strike"
       ]
     },
     {
@@ -137,17 +143,18 @@
         "bd4cc5e0",
         "59d94c4c",
         "6637b8e7",
-        "80048c77"
+        "80048c77",
+        "e5d02e40"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
         "tests/HorseTripRepairPolicyTests.cs (5)"
       ],
       "native_status": "not_run",
       "owner_status": "pending",
       "limitations": [
-        "Existing horses are repaired only by the owner's request file; file IO, RemoveFact on a live save and persistence unobserved"
+        "Existing horses only by the owner's request in the user-data folder; file IO and RemoveFact on a live save unobserved"
       ]
     },
     {
@@ -160,11 +167,12 @@
         "1fcde471",
         "f2c04e9a",
         "877bf868",
-        "bd63035e"
+        "bd63035e",
+        "07890d08"
       ],
       "checks": [
-        "offline on bd63035e: components 1551/0, Test-MountedAlpha2NativeContract 57/0, Test-MountedAlpha2LifecycleContract 39/0",
-        "controller focused gate on the records head (receipt in the round-4 developer report); bd63035e gate failed only the stale package record",
+        "offline on 66492352: components 1557/0, native/lifecycle/bite contracts, seat attachment harness, chunk7 slot harness, Validate-Source",
+        "controller focused gate on the records head (receipt in the round-5 developer report)",
         "scripts/Test-MountedAlpha2BiteContract.ps1 24/0 (genuine handle/action/manager objects)",
         "tests/HorseStrikeHandleBindingTests.cs (7)"
       ],
@@ -236,14 +244,14 @@
       "id": "S09",
       "status": "met",
       "evidence": [
-        "package receipt 9/0 for the bd63035e ZIP; Validate-Package 11/0"
+        "package receipt for the 66492352 ZIP; Validate-Package 11/0"
       ]
     },
     {
       "id": "S10",
-      "status": "pending_controller_review_round_4",
+      "status": "pending_controller_review_round_5",
       "evidence": [
-        "rounds 1-3 changes_required; owner resume with original scope; dispositions in HANDOFF.md section 3"
+        "rounds 1-4 changes_required; owner resume with original scope; dispositions in HANDOFF.md section 3"
       ]
     }
   ],
@@ -336,14 +344,14 @@
     }
   ],
   "package": {
-    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.3-mounted-alpha3-bd63035e-diagnostic.zip",
-    "bytes": 4304071,
-    "version": "0.2.16-alpha.3",
+    "path": "artifacts/KingmakerMountedCombat-0.2.16-alpha.4-mounted-alpha4-66492352-diagnostic.zip",
+    "bytes": 4308850,
+    "version": "0.2.16-alpha.4",
     "umm_minimum": "0.31.1",
-    "dll_sha256": "31e798c7e8515b065d14cc67f65c4e1d7ef179de6f40b9494a6f2ffc74559a4b",
-    "dll_mvid": "9277a9f6-0fd0-4da0-877f-cacdfe91dc55",
+    "dll_sha256": "99cad9609b2149d11b740fd7777206cadd092f82b35a7bb073b970aba39a883d",
+    "dll_mvid": "fe54643a-b8a6-4cb8-89a9-6a4d48883970",
     "icon_sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0",
-    "superseded_not_for_playtest": "alpha.2 c5b147a6 d82368ce3f9f8b7d9fc4d6fd4f151c40d0947aaed43c76dd3bf54aa1257a9b05"
+    "superseded_not_for_playtest": "alpha.2 c5b147a6 d82368ce3f9f8b7d9fc4d6fd4f151c40d0947aaed43c76dd3bf54aa1257a9b05; alpha.3 bd63035e 3be62a3d4a95dbef235f5964743e0f4866ddd020d56d9386d85ecb521808850f"
   },
   "base": {
     "main": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
