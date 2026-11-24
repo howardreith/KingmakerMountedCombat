@@ -1,0 +1,28 @@
+{
+  "schema_version": "agent-review.developer.v1",
+  "status": "blocked",
+  "checkpoint_id": "final",
+  "candidate_commit": null,
+  "summary": "UNEXECUTED TEMPLATE for the new mounted melee private-alpha mission. No implementation, gate or accepted review is claimed.",
+  "validation": [
+    {
+      "command": "UNEXECUTED: select the real current focused controller gate and package checks.",
+      "required": true,
+      "result": "not_run",
+      "duration": "not run",
+      "scope_and_limits": "Fill with actual current-source evidence; this template is not a receipt."
+    },
+    {
+      "command": "UNEXECUTED: bounded native and owner observations from ACCEPTANCE.md N01-N10.",
+      "required": false,
+      "result": "not_run",
+      "duration": "not run",
+      "scope_and_limits": "MISSION.md sections 1, 5 and 6 assign unperformed native/visual/save-load acceptance to owner alpha testing; no gameplay pass is claimed."
+    }
+  ],
+  "dispositions": [],
+  "evidence_refs": [],
+  "runtime_restoration": "not_applicable",
+  "blocker": "Template only. Execute the new mission and replace this report with actual evidence before submission.",
+  "owner_decision_needed": null
+}

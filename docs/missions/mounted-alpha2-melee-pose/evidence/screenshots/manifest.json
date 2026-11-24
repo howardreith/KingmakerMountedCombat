@@ -1,0 +1,60 @@
+{
+  "schema": "kmc.mission.screenshots.v1",
+  "provenance": "Owner supplied on 2026-11-24; original pixels/PNG bytes preserved; capture times are filenames, not independently verified timestamps.",
+  "files": [
+    {
+      "evidence_id": "E01",
+      "original_filename": "image(20261124-144421).png",
+      "path": "evidence/screenshots/01-initial-mount.png",
+      "bytes": 3666334,
+      "sha256": "720ef14e81dfe0d113262163748e27d8a9634b4e8150a357c208eeaddb0c2562",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "evidence_id": "E02",
+      "original_filename": "image(20261124-144510).png",
+      "path": "evidence/screenshots/02-after-remount.png",
+      "bytes": 3851733,
+      "sha256": "99d2515e398bf4266bfdcbd02c48bc35c5eb3ca33fa03a4a897fd17a9933627d",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "evidence_id": "E03",
+      "original_filename": "image(20261124-144615).png",
+      "path": "evidence/screenshots/03-turn-based-kobold.png",
+      "bytes": 4620734,
+      "sha256": "ae0756ccc93f5e7a0f4cb3879ebe3703fadd3ec711b68962f4550eee4845c0a9",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "evidence_id": "E04",
+      "original_filename": "image(20261124-144748).png",
+      "path": "evidence/screenshots/04-mounted-shield-ac.png",
+      "bytes": 4527642,
+      "sha256": "a0ba91bb3f45b3a80bcce93717ceb496d377af27277161036bbf9896d1cddd55",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "evidence_id": "E05",
+      "original_filename": "image(20261124-144956).png",
+      "path": "evidence/screenshots/05-mounted-shield-mobility.png",
+      "bytes": 3786546,
+      "sha256": "61e0a2de62ec3aaa00e79975484e62a2e570b8516f57df3615a0afe85402c213",
+      "width": 1920,
+      "height": 1200
+    },
+    {
+      "evidence_id": "E06",
+      "original_filename": "image(20261124-145033).png",
+      "path": "evidence/screenshots/06-horse-bite-trip.png",
+      "bytes": 3774048,
+      "sha256": "cec8bda6ff6c5794eee3224596875c58264956e7c4f89a6e240a0bf4dbe69b18",
+      "width": 1920,
+      "height": 1200
+    }
+  ]
+}

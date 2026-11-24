@@ -1,0 +1,244 @@
+{
+  "schema": "kmc.mission.acceptance.v1",
+  "mission_id": "kmc-mounted-alpha2-melee-pose-20261124",
+  "template_status": "UNEXECUTED",
+  "source_commit": null,
+  "package_sha256": null,
+  "checkpoint_scope": "private alpha source/offline delivery; unperformed native/visual/save-load observations remain pending",
+  "issues": [
+    {
+      "id": "MMR-01",
+      "title": "Rider seating and mounting lifecycle",
+      "baseline_evidence": [
+        "E01",
+        "E02"
+      ],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-02",
+      "title": "TB approach into legal melee range",
+      "baseline_evidence": [
+        "E03"
+      ],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-03",
+      "title": "Horse participation during paired activation",
+      "baseline_evidence": [
+        "E03",
+        "E06"
+      ],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-04",
+      "title": "RT automatic melee engagement",
+      "baseline_evidence": [],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-05",
+      "title": "RT explicit attack movement response",
+      "baseline_evidence": [],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-06",
+      "title": "Unintended horse bite Trip",
+      "baseline_evidence": [
+        "E06"
+      ],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    },
+    {
+      "id": "MMR-07",
+      "title": "Visible native horse bite",
+      "baseline_evidence": [],
+      "source_disposition": "not_started",
+      "root_cause": null,
+      "fix_commits": [],
+      "checks": [],
+      "native_status": "not_run",
+      "owner_status": "pending",
+      "limitations": []
+    }
+  ],
+  "source_rows": [
+    {
+      "id": "S01",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S02",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S03",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S04",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S05",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S06",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S07",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S08",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S09",
+      "status": "not_started",
+      "evidence": []
+    },
+    {
+      "id": "S10",
+      "status": "not_started",
+      "evidence": []
+    }
+  ],
+  "native_rows": [
+    {
+      "id": "N01",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N02",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N03",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N04",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N05",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N06",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N07",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N08",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N09",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    },
+    {
+      "id": "N10",
+      "status": "not_run",
+      "required_for_private_alpha_checkpoint": false,
+      "evidence": [],
+      "limitation": "Planned observation; no new mission implementation or native execution has occurred."
+    }
+  ],
+  "owner_baseline_observations": [
+    {
+      "id": "Shield AC +2",
+      "evidence": [
+        "E04"
+      ],
+      "status": "owner_observed_baseline_only"
+    },
+    {
+      "id": "Mobility 23 including Shield +2 against attack 19",
+      "evidence": [
+        "E05"
+      ],
+      "status": "owner_observed_baseline_only"
+    }
+  ]
+}

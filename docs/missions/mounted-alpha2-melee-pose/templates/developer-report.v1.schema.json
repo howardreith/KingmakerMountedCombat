@@ -1,0 +1,47 @@
+{
+  "$comment": "agent-review developer checkpoint report, schema version agent-review.developer.v1. Used as the headless Claude structured output and as the foreground --report file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "checkpoint_id", "candidate_commit", "summary", "validation", "dispositions", "evidence_refs", "runtime_restoration", "blocker", "owner_decision_needed"],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["agent-review.developer.v1"]},
+    "status": {"type": "string", "enum": ["checkpoint_ready", "blocked", "needs_owner_decision", "paused"]},
+    "checkpoint_id": {"type": "string"},
+    "candidate_commit": {"type": ["string", "null"]},
+    "summary": {"type": "string"},
+    "validation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["command", "required", "result", "duration", "scope_and_limits"],
+        "properties": {
+          "command": {"type": "string"},
+          "required": {"type": "boolean"},
+          "result": {"type": "string", "enum": ["pass", "fail", "not_run"]},
+          "duration": {"type": "string"},
+          "scope_and_limits": {"type": "string"}
+        }
+      }
+    },
+    "dispositions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id", "disposition", "commits", "evidence"],
+        "properties": {
+          "finding_id": {"type": "string"},
+          "disposition": {"type": "string", "enum": ["fixed", "rebutted", "deferred_optional", "unresolved_blocker"]},
+          "commits": {"type": "array", "items": {"type": "string"}},
+          "evidence": {"type": "string"}
+        }
+      }
+    },
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "runtime_restoration": {"type": "string", "enum": ["not_applicable", "restored_confirmed", "pending"]},
+    "blocker": {"type": ["string", "null"]},
+    "owner_decision_needed": {"type": ["string", "null"]}
+  }
+}
+
