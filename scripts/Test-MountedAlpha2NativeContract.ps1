@@ -8,6 +8,8 @@ param([string]$Configuration = 'Release')
 #  2. The compiled product on genuine Kingmaker objects created without Unity: the Horse's inherited facts drop exactly the
 #     intrinsic attack-maneuver trigger and keep the rest in order; a horse saved before the repair loses only a
 #     sourceless inherited trigger, never a sourced (class/progression/selection) grant or another fact.
+# MMR-02/04/05/07: the installed members the click admission, the real-time readiness gate and the bite telemetry bind, and
+# the native horse animation bundle identity.
 # Not covered (native game evidence): the live registration, the stock Dog/Wolf/Riding Dog in play, a bite hit's rulebook
 # chain, and a saved horse's actual facts on load.
 $ErrorActionPreference = 'Stop'
@@ -143,4 +145,32 @@ $found = $stale.Invoke($null, [object[]]@(, $saved))
 Check ($found.Count -eq 1 -and [object]::ReferenceEquals($found[0], $inheritedTrip)) 'a saved horse: only the sourceless inherited TrippingBite is stale; a progression-granted copy, natural armor and trip defense stay'
 $clean = [Activator]::CreateInstance($listType); foreach ($f in @($armor, $defense)) { $clean.Add($f) }
 Check ($stale.Invoke($null, [object[]]@(, $clean)).Count -eq 0 -and $stale.Invoke($null, [object[]]@(, $null)).Count -eq 0) 'a repaired or new horse has nothing to remove (idempotent)'
+# ---- 3. MMR-02/04/05/07 installed contracts the production paths bind -------------------------------------------------
+$module = $game.ManifestModule
+function MemberAt([int]$Token) { $module.ResolveMember($Token) }
+$ignore = MemberAt 0x06000C2F
+Check ($ignore.Name -ceq 'IgnoreClick' -and $ignore.DeclaringType.FullName -ceq 'TurnBased.Controllers.TurnController') 'MMR-02: 06000C2F is TurnController.IgnoreClick (the patched method)'
+$need = MemberAt 0x04000691; $highlight = MemberAt 0x0400068B
+Check ($need.Name -ceq 'm_NeedNewPredictions' -and $need.FieldType -eq [bool] -and $need.DeclaringType -eq $ignore.DeclaringType) 'MMR-02: 04000691 is TurnController.m_NeedNewPredictions (bool)'
+Check ($highlight.Name -ceq 'm_HighlightedUnit' -and $highlight.DeclaringType -eq $ignore.DeclaringType) 'MMR-02: 0400068B is TurnController.m_HighlightedUnit'
+function IlTokens([Reflection.MethodBase]$Method) { $il = $Method.GetMethodBody().GetILAsByteArray(); $set = @{}; for ($i = 0; $i -le $il.Length - 4; $i++) { $set[[BitConverter]::ToInt32($il, $i)] = $true }; $set }
+$pathCheck = MemberAt 0x06007018
+Check ($pathCheck.Name -ceq 'IsCurrentPathForPoint' -and $pathCheck.DeclaringType.Name -ceq 'PathVisualizer') 'MMR-02: 06007018 is PathVisualizer.IsCurrentPathForPoint'
+$ignoreTokens = IlTokens $ignore
+Check ($ignoreTokens.ContainsKey(0x06007018)) 'MMR-02: native IgnoreClick drops a click whose visualized path does not end within the predicted approach radius'
+$combatState = GameType 'Kingmaker.Controllers.Combat.UnitCombatState'
+$canAct = $combatState.GetProperty('CanActInCombat').GetGetMethod()
+$waiting = $combatState.GetProperty('IsWaitingInitiative', [Reflection.BindingFlags]'Instance,Public,NonPublic').GetGetMethod($true)
+$inCombat = $combatState.GetField('m_InCombat', [Reflection.BindingFlags]'Instance,NonPublic')
+$canActTokens = IlTokens $canAct
+Check ($canActTokens.ContainsKey($waiting.MetadataToken) -and $canActTokens.ContainsKey($inCombat.MetadataToken)) 'MMR-04/05: CanActInCombat reads m_InCombat and IsWaitingInitiative (false outside combat; the product gates only in combat)'
+$patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
+Check ($null -ne $patches.GetMethod('PairedIgnoreClickPostfix', $any) -and $null -ne $patches.GetMethod('PairedIgnoreClickPrefix', $any)) 'MMR-02: the product carries the IgnoreClick prefix and the admission postfix'
+$handle = GameType 'Kingmaker.Visual.Animation.Actions.AnimationActionHandle'
+Check ($null -ne $handle.GetProperty('SpeedScale')) 'MMR-07: native handle SpeedScale (reported on the terminal line)'
+# The native horse animation bundle the Horse view loads (identity only; its decoded contents are recorded in
+# docs/mounted-melee/HANDOFF.md: HorseAnimationSet_Bite -> clip BiteAttack, HorseAnimationSet_Hoof -> Right/Left_Hoof_Attack).
+$bundle = Join-Path $data 'StreamingAssets\Bundles\resource_2f17956095cd04b49a8f4c0bc88bb9ca'
+Check ((Get-FileHash -LiteralPath $bundle).Hash.ToLowerInvariant() -ceq '3edb2116adf8857e11e466613c3bde6376d6201910d6a21a3d8774ee8bf2b476') 'MMR-07: pinned native horse animation bundle identity'
+
 Write-Host ('Mounted alpha 2 native contract PASS=' + $script:passed + ' FAIL=0')
