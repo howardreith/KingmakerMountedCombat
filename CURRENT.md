@@ -46,12 +46,15 @@ extra `0Harmony-1.2.dll`, is `loader-profile-inventory.json` (measured for `2722
 
 **Controller gate.** `Test-Tiers.ps1 -Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1` under the mission budget
 `umm-0311-baseline` passed on `293668a4` in 205.2 s: 4/4 steps, 1,488 component checks, 153 source checks and 45 focused
-checks (`d8376646` passed the same gate in 222.6 s before that documentation-only correction). The gate on the final
-review commit is recorded by the controller and on the draft PR. The budget record, with the owner's 15-minute
+checks (`d8376646` passed the same gate in 222.6 s before that documentation-only correction). In round 4 the gate on
+`0413ac8d` failed (203.5 s; 1,488 components and 153 source checks passed, 49 of 51 focused checks): the two new
+budget-order cases started a nested tier against a disposable budget while the gate's own entry was active, which the
+budget rules refuse; `dbe51d82` runs those two cases as top-level invocations. The gate on the final review commit is
+recorded by the controller and on the draft PR. The budget record, with the owner's 15-minute
 allowance adjustment and its authorizing assignment, is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline.json`.
 
-**Offline checks.** Round 4 (`d63d4cc0`): `Test-PackageAdmissionAndReuse` 51/51, `Test-FrozenProductSource` 32/32,
-`Test-Chunk7NativeLoaderContracts` 117/117. Round 3 (`11df053b`), unchanged since:
+**Offline checks.** Round 4: `Test-PackageAdmissionAndReuse` 51/51 at `dbe51d82` (run with a simulated enclosing
+workflow entry), `Test-FrozenProductSource` 32/32 and `Test-Chunk7NativeLoaderContracts` 117/117 at `d63d4cc0`. Round 3 (`11df053b`), unchanged since:
 
 | Check | Result |
 | --- | --- |
