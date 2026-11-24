@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("fixture hand custody: a native removal refusal changes nothing and is reported", RefusedRemoval);
             runner.Run("fixture hand custody: a failed first restoration is reported and a retry restores every original", RetriedRestoration);
             runner.Run("fixture hand custody: a two-handed primary the slot dropped returns after the created shield is released", TwoHandedPrimary);
+            runner.Run("fixture hand custody: a persistent reinsertion refusal names the slot and the expected and observed items (closure review PN14-F1)", PersistentRefusalIdentified);
         }
 
         private sealed class Item { public string Name; public bool NonRemovable; public bool TwoHanded; public Slot Holder; public override string ToString() => Name; }
@@ -71,6 +72,24 @@ namespace KingmakerMountedCombat.Tests
             hands[1].RefuseInsert = false;
             var second = custody.Restore(item => item == created, release);
             TestRunner.True(second.Length == 0 && ReferenceEquals(hands[1].Occupant, buckler) && ReferenceEquals(hands[0].Occupant, sword), "The retry restores every original.");
+        }
+
+        private static void PersistentRefusalIdentified()
+        {
+            var sword = new Item { Name = "owner-1 longsword #11" };
+            var hands = Hands(sword, null);
+            var custody = Custody();
+            custody.DescribeSlot = slot => "actor owner-1 set 0 " + slot.Name;
+            custody.DescribeItem = item => item == null ? "none" : item.Name;
+            custody.Capture(hands);
+            TestRunner.True(custody.Vacate(hands[0]), "The original weapon leaves its slot.");
+            hands[0].RefuseInsert = true;
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                var errors = custody.Restore(item => false, item => false);
+                TestRunner.True(errors.Length == 1 && errors[0].Contains("actor owner-1 set 0 primary") && errors[0].Contains("expected owner-1 longsword #11") &&
+                    errors[0].Contains("observed none"), "Every refused restoration names the actor, set, hand and the expected and observed items: " + string.Join(" | ", errors));
+            }
         }
 
         private static void TwoHandedPrimary()

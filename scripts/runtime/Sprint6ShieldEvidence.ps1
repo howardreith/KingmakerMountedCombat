@@ -292,7 +292,9 @@ function Assert-KmcShieldRowRecords($Measure,$E,[string]$Case){
   if($x.negated -ne $true){
    $rule=@($Measure.attackRules | Where-Object { [string]$_.identity -ceq [string]$x.ruleIdentity })[0]
    $after=Get-KmcShieldProperty $rule 'criticalAfterRule'
-   if($null -eq $after -or [bool]$after -ne [bool]$x.criticalBefore -or [bool]$rule.criticalAtEvent -ne [bool]$x.criticalBefore -or [string]$rule.resultAfterRule -cne [string]$x.resultBefore){ throw ('Mounted Shield '+$Case+': a standing hit lost its native result or critical confirmation') }
+   # The native result at the hit event as well as at completion (alpha closure review PN14-F2).
+   if($null -eq $after -or [bool]$after -ne [bool]$x.criticalBefore -or [bool]$rule.criticalAtEvent -ne [bool]$x.criticalBefore -or [string]$rule.resultAfterRule -cne [string]$x.resultBefore -or
+     [string]$rule.resultAtEvent -cne [string]$x.resultBefore){ throw ('Mounted Shield '+$Case+': a standing hit lost its native result or critical confirmation') }
   }
  }
 }

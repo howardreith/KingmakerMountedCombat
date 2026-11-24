@@ -103,6 +103,10 @@ namespace KingmakerMountedCombat.Diagnostics
             this.owner = owner;
             custody = new FixtureHandCustody<HandSlot, ItemEntity>(slot => slot.MaybeItem, slot => slot.CanRemoveItem(), slot => slot.RemoveItem(true),
                 (slot, item) => slot.CanInsertItem(item), (slot, item) => slot.InsertItem(item), item => item.HoldingSlot as HandSlot, slot => slot.IsPrimaryHand);
+            // Restoration failures name the actor, set, hand and the expected and observed items (alpha closure review PN14-F1).
+            custody.DescribeSlot = slot => "actor " + owner.UniqueId + " set " + owner.Body.HandsEquipmentSets.FindIndex(set => set.PrimaryHand == slot || set.SecondaryHand == slot) +
+                (slot != null && slot.IsPrimaryHand ? " primary" : " secondary");
+            custody.DescribeItem = item => item == null ? "none" : item.Blueprint?.AssetGuid + "/" + item.Blueprint?.name + "#" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(item);
         }
 
         // Verified stock shields (supplemental review PN6-F4): the item blueprint GUIDs, names and armor types read from the

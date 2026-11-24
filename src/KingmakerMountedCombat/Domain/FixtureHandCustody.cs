@@ -19,6 +19,10 @@ namespace KingmakerMountedCombat.Domain
         private readonly Func<TItem, TSlot> holder;
         private readonly Func<TSlot, bool> isPrimary;
         private readonly List<KeyValuePair<TSlot, TItem>> original = new List<KeyValuePair<TSlot, TItem>>();
+        // How a slot and an item are named in a restoration failure (alpha closure review, PN14-F1): the actor, set and hand, and
+        // the expected and observed item identities, so the failed record identifies exactly what is outstanding.
+        public Func<TSlot, string> DescribeSlot { get; set; } = slot => slot?.ToString() ?? "none";
+        public Func<TItem, string> DescribeItem { get; set; } = item => item?.ToString() ?? "none";
 
         public FixtureHandCustody(Func<TSlot, TItem> occupant, Func<TSlot, bool> canRemove, Action<TSlot> remove, Func<TSlot, TItem, bool> canInsert,
             Action<TSlot, TItem> insert, Func<TItem, TSlot> holder, Func<TSlot, bool> isPrimary)
@@ -75,7 +79,8 @@ namespace KingmakerMountedCombat.Domain
                 Place(pair.Key, pair.Value);
             }
             return original.Select((pair, index) => new { pair, index }).Where(value => !ReferenceEquals(occupant(value.pair.Key), value.pair.Value))
-                .Select(value => "hand " + value.index + " not restored").ToArray();
+                .Select(value => "hand " + value.index + " not restored: " + DescribeSlot(value.pair.Key) + " expected " + DescribeItem(value.pair.Value) +
+                    ", observed " + DescribeItem(occupant(value.pair.Key))).ToArray();
         }
     }
 }
