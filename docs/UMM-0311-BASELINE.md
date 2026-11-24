@@ -105,13 +105,24 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 4 (2026-11-24, scope freeze)
+
+- **Launcher profile selection removed.** Under the owner's scope freeze, native execution is not part of this change, so
+  the launcher's `-RuntimeLoaderProfileId` selection (added in round 2) is removed rather than completed: the launcher's
+  parameter positions are again those before this mission (`Scenario` first) and it admits only the measured owner
+  profile. The readers keep their exact owner identities; admitting another runtime profile at the launcher is follow-up.
+- **Reuse.** The local reuse receipt also covers the build bootstrap, `LocalGamePaths.props`, `Info.json` and
+  `version.json`; `Test.ps1 -SkipBuild` enforces it; tier executions check it only inside their admitted step and `-Plan`
+  reports one verdict. Archived (frozen-source) reuse also compares `LoaderReferences.Final.targets` and
+  `scripts/LoaderPins.ps1`.
+
 ## Review round 2 (2026-11-24)
 
 - **Compiler list.** The resolved-input check now runs immediately before `CoreCompile` (after every reference-selection
   step, including a later rewrite) on `@(ReferencePathWithRefAssemblies)`, the exact list Csc receives, and also checks the
   two loader files' SHA-256 against the pins. A target that rewrites that list after reference selection is refused
   before any DLL is emitted, for both the mod and the removal observer (`Test-PinnedLoaderMsBuild`).
-- **Runtime loader profile.** `scripts/runtime/RuntimeLoaderProfile.ps1` selects a profile from
+- **Runtime loader profile** (launcher selection removed in round 4). `scripts/runtime/RuntimeLoaderProfile.ps1` selects a profile from
   `planning/UMM-LOADER-PROFILES.json` (`runtime` records: exact UnityModManager and Harmony 2 shared-state creator).
   The default is the measured owner installation (0.33.0.0 with Harmony 2.3.6); the 0.31.1 baseline record carries
   Harmony 2.3.1.1. `Test-RuntimeGameResult.ps1 -RuntimeLoaderProfileId` and the native inventory

@@ -13,16 +13,19 @@ PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#
 - `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1`: validate any ZIP.
 - `scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>`: the controller gate.
   - `-SkipBuild` reuses outputs only while the build receipt (`bin/<cfg>/.loader-input-stamp`) is current. The receipt
-    covers the loader pins and their parser and verifier, both MSBuild loader targets, project files, every compiled
-    source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both DLLs
-    and the component runner.
-  - Fast, Candidate and Full check the receipt first, and `-Plan` lists that check.
-- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1 [-RuntimeLoaderProfileId <id>]`: the guarded native launcher. It
-  resolves the profile against the measured installed loader before any admission (default `umm-0.33.0`, the owner
-  installation; `umm-0.31.1` is refused here) and records it in the admission receipt.
+    covers the loader pins and their parser and verifier, both MSBuild loader targets, project files, the build bootstrap
+    `scripts/Build-Local.ps1`, the local `LocalGamePaths.props`, the manifests `Info.json` and `version.json`, every
+    compiled source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both
+    DLLs and the component runner.
+  - Fast, Candidate and Full check the receipt in their first admitted step (nothing is hashed before budget admission);
+    `scripts/Test.ps1 -SkipBuild` checks it before any runner starts. `-Plan` reports the receipt state, read-only, on
+    both the reuse-check line and the artifact line.
+- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
+  profile (`umm-0.33.0`) is the installed loader before any admission and records it in the admission receipt. It offers
+  no other loader profile: a native row on another loader needs its own reviewed disposable environment (follow-up).
 
-**Candidate (source `11df053b`; later commits are documentation and evidence).** Both DLLs are byte-identical to the
-round-2 candidate (`f5a9f386`): only build, validation and test scripts changed.
+**Candidate (source `11df053b`; later commits are harness, test, documentation and evidence changes).** Both DLLs are
+byte-identical to the round-2 candidate (`f5a9f386`): no production input changed after `11df053b`.
 
 | Product | DLL SHA-256 / MVID | Loader references | Package (qualifier `umm-0311-11df053b`) | Validator |
 | --- | --- | --- | --- | --- |
@@ -41,14 +44,21 @@ per profile). Profiles 0.31.1/0.32.4/0.33.4 are component-assembled from the aut
 owner's installed loader (`loader-profiles.md`). The full measured inventory of the four profiles, with the owner's
 extra `0Harmony-1.2.dll`, is `loader-profile-inventory.json` (measured for `272238ce`). Static evidence only.
 
-**Offline checks on `11df053b`.**
+**Controller gate.** `Test-Tiers.ps1 -Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1` under the mission budget
+`umm-0311-baseline` passed on `293668a4` in 205.2 s: 4/4 steps, 1,488 component checks, 153 source checks and 45 focused
+checks (`d8376646` passed the same gate in 222.6 s before that documentation-only correction). The gate on the final
+review commit is recorded by the controller and on the draft PR. The budget record, with the owner's 15-minute
+allowance adjustment and its authorizing assignment, is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline.json`.
+
+**Offline checks.** Round 4 (`d63d4cc0`): `Test-PackageAdmissionAndReuse` 51/51, `Test-FrozenProductSource` 32/32,
+`Test-Chunk7NativeLoaderContracts` 117/117. Round 3 (`11df053b`), unchanged since:
 
 | Check | Result |
 | --- | --- |
 | `Test-PinnedLoaderMsBuild` | 12/12 |
-| `Test-PackageAdmissionAndReuse` | 45/45 |
-| `Test-FrozenProductSource` | 28/28 |
-| `Test-Chunk7NativeLoaderContracts` | 116/116 |
+| `Test-PackageAdmissionAndReuse` | 45/45 (round 3) |
+| `Test-FrozenProductSource` | 28/28 (round 3) |
+| `Test-Chunk7NativeLoaderContracts` | 116/116 (round 3) |
 | `Test-UmmLoaderContractChecks` | 23 passed, 2 unassessed inputs |
 | `Test-Harness` | 280 passed, 3 failed |
 
@@ -64,7 +74,7 @@ repository has none that copies the game.
 | Loader | Prerequisite for a native row |
 | --- | --- |
 | 0.33.0 (installed, the default runtime profile) | A disposable game-copy harness for this repository, or the owner's explicit authorization for a guarded live-installation run. |
-| 0.31.1 (baseline) | That, plus an environment whose installed loader is 0.31.1 with Harmony 2.3.1.1. The `runtime` profile record exists; the launcher refuses the profile while the installed loader is 0.33.0. |
+| 0.31.1 (baseline) | That, plus an environment whose installed loader is 0.31.1 with Harmony 2.3.1.1, and a reviewed way to admit that profile at the launcher (it admits only the owner profile; follow-up). The `runtime` profile record exists for the readers. |
 | 0.32.4, 0.33.4 | A reviewed runtime profile with exact UMM and Harmony identities, then a guarded disposable environment. |
 
 Combined mod stacks: not run for this candidate. Historical native records keep their original 0.28.2/0.33.2 identities.
