@@ -41,9 +41,16 @@ foreach($ending in @("`n","`r`n")) {
     }
 }
 Invoke-TestGit @('init','--quiet') | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $repo 'src') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $repo 'src'),(Join-Path $repo 'scripts') | Out-Null
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class Product {}'
-Invoke-TestGit @('add','src/Product.cs') | Out-Null
+$buildInputs=@(
+    @{path='scripts/loader-reference-pins.json'; original='{"minimumManagerVersion":"0.31.1","sha256":"original"}'; changed='{"minimumManagerVersion":"0.33.0","sha256":"different"}'; name='loader build pins'},
+    @{path='scripts/Get-PinnedLoaderReferences.ps1'; original='Write-Output "verify pinned loader"'; changed='Write-Output "different loader verifier"'; name='loader reference verifier'},
+    @{path='LoaderReferences.targets'; original='<Project />'; changed='<Project><!-- different guard --></Project>'; name='MSBuild loader guard'},
+    @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'}
+)
+foreach($buildInput in $buildInputs) { WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.original }
+Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Frozen production') | Out-Null
 $commit=[string](Invoke-TestGit @('rev-parse','HEAD'))
 $tree=[string](Invoke-TestGit @('rev-parse','HEAD^{tree}'))
@@ -125,6 +132,19 @@ $suite.repository.root=Join-Path $lab 'other-repository'
 WriteUtf8 $suitePath ($suite|ConvertTo-Json -Depth 5)
 Refuses 'changed suite bytes are refused' {Get-KmcFrozenProductSource @pins} 'bytes changed'
 [IO.File]::WriteAllBytes($suitePath,$originalSuite)
+foreach($buildInput in $buildInputs) {
+    WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.changed
+    Invoke-TestGit @('add',$buildInput.path) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Changed '+$buildInput.name)) | Out-Null
+    Refuses ('committed '+$buildInput.name+' change requires another candidate') {Get-KmcFrozenProductSource @pins} 'new product candidate'
+    WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.original
+    Invoke-TestGit @('add',$buildInput.path) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Restore original '+$buildInput.name)) | Out-Null
+    Check ('unchanged product inputs remain reusable after restoring '+$buildInput.name) {
+        $actual=Get-KmcFrozenProductSource @pins
+        if($actual.source -cne $commit -or $actual.harnessHead -ceq $commit) { throw 'Restored build inputs lost the frozen product identity.' }
+    }
+}
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class ChangedProduct {}'
 Invoke-TestGit @('add','src/Product.cs') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Changed native production') | Out-Null

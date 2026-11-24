@@ -30,6 +30,16 @@
       "lastInspected": null
     },
     {
+      "id": "umm-0.31.1",
+      "version": "0.31.1.0",
+      "sha256": "2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4",
+      "mvid": "230caa64-1cae-4f42-a86c-8f16b5faba9e",
+      "length": 204288,
+      "uiTokens": { "get_Instance": "06000151", "get_Opened": "06000152", "ToggleWindow": "0600016A" },
+      "provenance": "Owner-selected build and primary compatibility baseline (2026-11-23), matching the sibling mods. Independently downloaded the author's UnityModManager 0.31.1 NuGet package (https://api.nuget.org/v3-flatcontainer/unitymodmanager/0.31.1/unitymodmanager.0.31.1.nupkg; archive SHA-256 05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9). Extracted lib/net35/UnityModManager.dll and verified its SHA-256 against both siblings' tracked pins. Version, MVID, length and UI tokens were read from those genuine bytes on 2026-11-23. Offline metadata evidence only; no new KMC native or Linux run.",
+      "lastInspected": "2026-11-23"
+    },
+    {
       "id": "umm-0.33.0",
       "version": "0.33.0.0",
       "sha256": "63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691",
@@ -51,3 +61,4 @@
     }
   ]
 }
+

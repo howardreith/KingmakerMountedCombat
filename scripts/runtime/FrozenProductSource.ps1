@@ -34,9 +34,10 @@ function Get-KmcFrozenProductSource {
     $harnessHead=(& git -C $repo rev-parse HEAD).Trim()
     & git -C $repo merge-base --is-ancestor $sourceHead $harnessHead
     if($LASTEXITCODE -ne 0) { throw 'Execution harness is not a descendant of the product source.' }
-    # All native production and compilation inputs must remain identical. Harness
-    # changes are separately identified and separately prove their live safety.
-    $changed=@(& git -C $repo diff --name-only $sourceHead $harnessHead -- src Info.json version.json KingmakerMountedCombat.sln Directory.Build.props Directory.Build.targets)
+    # All native production and compilation inputs must remain identical, including
+    # the loader build pins, the script that acquires and verifies them, the MSBuild guard and the build bootstrap. Harness changes are
+    # separately identified and separately prove their live safety.
+    $changed=@(& git -C $repo diff --name-only $sourceHead $harnessHead -- src Info.json version.json KingmakerMountedCombat.sln Directory.Build.props Directory.Build.targets scripts/loader-reference-pins.json scripts/Get-PinnedLoaderReferences.ps1 LoaderReferences.targets scripts/Build-Local.ps1)
     if($LASTEXITCODE -ne 0 -or $changed.Count -ne 0) { throw 'Changed production inputs require a new product candidate.' }
     foreach($binding in @($freeze.package,$freeze.manifest,$freeze.suite)) {
         if((Get-FileHash -LiteralPath $binding.path -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$binding.sha256) { throw 'Frozen package, manifest or suite bytes changed.' }

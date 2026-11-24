@@ -1603,13 +1603,13 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
         $directory=[IO.Path]::GetDirectoryName($location).TrimEnd('\')
         if($assembly.name-ceq'KingmakerMountedCombat') {
             if(-not$location.Equals($kmcPath,[StringComparison]::OrdinalIgnoreCase)) {
-                # Installed UMM 0.33.2.0 ModEntry.Load 06000111 (0600009A in 0.28.2.0) uses a canonical UInt16
-                # cache suffix in this same mod directory. Candidate bytes/MVID
-                # are still checked below; another path or cache shape is refused.
+                # The native UMM cache allowance remains a canonical UInt16 suffix in this same mod
+                # directory. The exact selected 0.33.0 loader and candidate bytes/MVID are
+                # checked below; another path, creator identity or cache shape is refused.
                 $leaf=[IO.Path]::GetFileName($location);$cacheMatch=[regex]::Match($leaf,'^KingmakerMountedCombat\.dll\.(0|[1-9][0-9]{0,4})\.cache$')
                 if(-not$directory.Equals([IO.Path]::GetDirectoryName($kmcPath),[StringComparison]::OrdinalIgnoreCase)-or
                     -not$cacheMatch.Success-or[int]$cacheMatch.Groups[1].Value-gt65535){throw 'Loaded KMC assembly is outside its exact staged candidate or native UMM cache path.'}
-                Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager'                     'UnityModManager, Version=0.33.2.0, Culture=neutral, PublicKeyToken=null' '914c93ba-b0bd-409f-9d38-84e575289dc2'                     'f6f7e18aff88910b01d23e3ce0829f3b4188c6784b0fcea56f9b3af8aa14d0a9'
+                Assert-KmcExactObservedLoaderDependency $assemblies $Dependencies 'Kingmaker_Data/Managed/UnityModManager/UnityModManager.dll' 'UnityModManager'                     'UnityModManager, Version=0.33.0.0, Culture=neutral, PublicKeyToken=null' '54059519-2754-445a-b5ee-fdb9326336e2'                     '63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691'
                 $kmcLoadedFromNativeCache=$true
             }
         }
@@ -1641,3 +1641,4 @@ function Assert-KmcBaseGameNativeInventory($Request,$Artifact,$Dependencies,[All
             limitation='File-backed assemblies retain observed hashes/MVIDs and exact allowed directories; staged KMC or its pinned UMM cache retains exact candidate bytes. HarmonySharedState is accepted only with its exact in-memory identity shape and pinned installed creator; its creation and content were not observed. Other Managed/UMM binaries and runtime-generated assemblies remain inventoried, not certified by a stock assembly allowlist.'}
     }
 }
+
