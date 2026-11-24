@@ -5,8 +5,18 @@ Milestone: an installable **private alpha** for the owner's own playtesting (own
 the owner's alpha playtest** and is listed below as outstanding. This is not a release, not full feature acceptance and not
 native qualification.
 
-> **Native testing in this continuation:** see "What was actually run" below. Nothing listed under "Owner playtest
-> checklist" has been observed in the game by the agent.
+> **NO NATIVE TESTING OCCURRED.** The agent did not start the game in this continuation (zero guarded starts); the alpha has
+> not been loaded under UMM, and nothing listed under "Owner playtest checklist" has been observed in the game.
+
+## What was actually run
+
+- Controller focused Fast gate on the exact source: PASS (build on the pinned UMM 0.31.1 reference; 1525 component tests; source
+  validation 153; 18 focused scripts including selection rollback, Mounted Shield readers, native contracts on genuine engine
+  types, and UMM binding checks against 0.31.1 and the installed 0.33.0). Offline only.
+- Package validation 11/0 and embedded-icon identity on this exact DLL.
+- Independent read-only code/safety review: PASS FOR GUARDED NATIVE TESTING on this source (no live use planned).
+- Not run: any game start (the no-save smoke was dropped because that path does not snapshot UMM settings), any save
+  creation, any gameplay.
 
 ## Package
 
@@ -14,9 +24,10 @@ native qualification.
 | --- | --- |
 | Version | `0.2.16-alpha.1` (version.json, Info.json `Version`, `BuildIdentity.ProductVersion`; assembly version stays `0.1.0.0`) |
 | Loader | Info.json `ManagerVersion` `0.31.1` (build reference and declared minimum); installed native target UMM 0.33.0 unchanged |
-| ZIP | recorded in the alpha receipts section of HANDOFF.md section 0 (name, SHA-256, size) |
-| DLL | recorded there (SHA-256, MVID) |
-| Source | recorded there (commit) |
+| ZIP | `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-bb903669-diagnostic.zip`, SHA-256 `fa5fb284e889e414093ee8b939deb330084eb029f3d02f622f094ac6444fd34a`, 4282758 bytes |
+| DLL | `KingmakerMountedCombat.dll`, SHA-256 `91e87536f7a37270ddac7db2dfd6942926cb385a844e3452a4b2f471626e2918`, MVID `62f8f8fa-7b05-4d10-91bb-0181635dfa9c` |
+| Icon | one embedded `KingmakerMountedCombat.Assets.MountedShieldFeat.png`, SHA-256 `fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0` |
+| Source | commit `bb903669c038c9b35802e467c5ba3394b586997b` on `codex/mounted-shield` (draft PR #61) |
 
 The packaging path names every package `…-diagnostic.zip` (repository convention for agent-built packages); the alpha
 identity is the version and this record.

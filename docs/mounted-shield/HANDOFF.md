@@ -126,6 +126,36 @@ historical `KMC_AUTOMATION_BASELINE`/`WORKING` pair with its qualification recor
 (2) PN14-F5, whether the historical `sprint6-feat-*` rows should be recalibrated to legal dice (outside this mission);
 (3) whether further supplemental review rounds on the diagnostic driver and reader are wanted before a native run.
 
+**Private alpha (owner amendment 2; prepared under owner amendments revision 2 sha256 d735f07ddc3131f5d90ae6094232e474b958614c6f432696956166a25d7d5c73).** The milestone is now an installable private alpha
+for the owner's own playtesting; the full native gameplay, persistence, compatibility and UI matrix is deferred to that
+playtest. See [PRIVATE-ALPHA.md](PRIVATE-ALPHA.md) for install, rollback, the playtest checklist and limitations.
+- **Source:** production `bb903669c038c9b35802e467c5ba3394b586997b` (alpha version `0.2.16-alpha.1` from `c2ec676e`; replay-subscriber contract
+  test reads `0.2.N-alpha.M` as release N in `8189d4da`; closure batch in `bb903669`). Later commits are records only.
+- **Package (supported `Package.ps1`):** `artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-bb903669-diagnostic.zip`, SHA-256 `fa5fb284e889e414093ee8b939deb330084eb029f3d02f622f094ac6444fd34a`,
+  4282758 bytes, Validate-Package 11/0; DLL `91e87536f7a37270ddac7db2dfd6942926cb385a844e3452a4b2f471626e2918`, MVID `62f8f8fa-7b05-4d10-91bb-0181635dfa9c`; one
+  embedded icon resource `fd519874…` (4,408 bytes, 64x64 RGBA). The `8189d4da` packages (`9f78094d…` and the alias-branch
+  `fbf2af59…`) are superseded and are not the candidate.
+- **Checks executed:** controller focused Fast gate PASS on `bb903669` in 65.9 s (components 1525/0, Validate-Source 153/0,
+  focused 18/18 incl. rollback 68/0, shield readers 199/0, native contract 100/0, UMM bindings 25/0 against 0.31.1 and 0.33.0),
+  charged to budget `mounted-shield` (16.53 of 90 min after it); earlier gate PASS on `8189d4da` (58.5 s). Full WhatIf for the
+  planned smoke PASS (purity PASS, `launch=false`). The broad Candidate tier was not re-run; its earlier failures keep their
+  environmental classification (historical package and run directory absent; identical on base `5be0f737`).
+- **Native work: NONE.** Zero guarded game starts (of three permitted). The optional `mod-load-smoke` was left unrun on the
+  closure review's safety finding (no settings/profile snapshot on the no-save path). No save was created.
+- **Agent-generated test save: not created (bounded attempt, infrastructure obstacle).** This session has no desktop-control
+  tool (only a browser extension). Every save-backed guarded scenario — every scenario except `mod-load-smoke`, including the
+  native new-game producers `chunk7-native-main-bootstrap` and `chunk7-assisted-fixture-preparation` (and `campaign-b`, which
+  first loads the historical Working save) — requires the historical qualification suite (`runtime-state/fixture-qualification.json`,
+  its snapshot and the canonical pair) before launch, and those are absent. The smaller missing capability: a guarded
+  fresh-campaign admission mode independent of that suite (isolated save root/profile, zero foreign loads, a bounded native
+  write allowance, profile snapshot and byte-exact restoration), which would need its own narrow runner change and review; it
+  was not built within the 30-minute bound. The owner does not need to supply historical files for this milestone.
+- **Review:** one closure/safety review (CHANGES REQUIRED on `8189d4da`, after one transport-failed attempt), one correction
+  batch, targeted recheck **PASS FOR GUARDED NATIVE TESTING** on `bb903669` (PRE_NATIVE_REVIEW.md, private-alpha section).
+- **Outstanding for the owner's alpha playtest:** every native observation in the acceptance ledger (feat selection and icon,
+  +3/+4 amounts, enhancement exclusion, competing shield bonuses, Mounted Combat check contribution, equipment changes,
+  dismount, save/reload, RT/TB combat, multiple pairs, respec, death, area transitions, compatibility, UI).
+
 ## 1. Outcome
 
 - **Source and offline work: complete.** Both benefits, registration, three-feat publication, lifecycle and the icon are

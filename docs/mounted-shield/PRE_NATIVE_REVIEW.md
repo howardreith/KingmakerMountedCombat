@@ -331,3 +331,28 @@ Native acceptance is blocked regardless of the review: the exact historical qual
 (HANDOFF section 0). The developer report is submitted to the controller as **blocked** on that fixture, with the review state,
 the open owner decision (PN14-F5) and the remaining risk stated. No native run, readiness claim or controller final review
 followed.
+
+## Private-alpha continuation (owner amendment 2, revision 2 sha256 `d735f07d…`)
+
+Milestone changed to a reviewable private alpha; the full gameplay/persistence/compatibility/UI matrix is deferred to the
+owner's alpha playtest. One focused closure/safety review and one correction batch with a targeted recheck were allowed.
+
+**Closure/safety review — candidate `8189d4dae9cb87189b94cb2a6aa71f3ec6271011`.** First attempt (evidence
+`analysis-cache/mounted-shield-pre-native-8189d4da/`): transport failure — the wrapper treated a codex stderr line as
+terminating after about four minutes; partial event stream, no result, no run record; kept as a failed attempt, not a verdict.
+The wrapper was corrected (stderr captured, not terminating) and the same review ran once more into fresh directories
+(`…-8189d4da-r2/`, 13.83 minutes, exit 0, empty stderr, identity recheck PASS): **CHANGES REQUIRED**, no defect in the shipped
+feature.
+
+| Finding | Disposition |
+| --- | --- |
+| Smoke protection: the planned no-save `mod-load-smoke` takes no profile snapshot (live UMM `Params.xml`, PlayerPrefs, profile caches) and its save digest covers metadata only; UMM 0.33.0 rewrites `Params.xml` on exit. | **Avoided, still open for live use.** As the reviewer directed when that protection is unavailable, the optional smoke was left unrun: zero of the three permitted guarded starts. Qualifying the protection is runner work outside this continuation. Earlier release smokes (0.2.13, 0.2.14) ran this same path; whether the owner's UMM settings retain a stale entry is not checked. |
+| PN14-F1 residual: restoration failures said only `hand N not restored`. | **Fixed** in `bb903669`: each failure names the actor, set index, primary/secondary hand and the expected and observed items (blueprint GUID, name, run-local instance marker); component case with a persistent reinsertion refusal across three restorations. |
+| PN14-F2 residual: a failed equality's native event result was not compared. | **Fixed** in `bb903669`: standing hits require the native result at the hit event and at completion to equal the pre-defense result; failed-equality control accepted, event-result-only change refused. |
+| PN14-F3, PN14-F4 | Resolved (reviewer). |
+| PN14-F5 | **Rebutted for this milestone, reviewer-supported:** at the feature base `fb743911` the historical Sprint 6 helper computed `AttackResult + delta - Mobility` and `ControlledSkillCheck.RollD20` returned it unconditionally, so dice above 20 predate Mounted Shield; the current code keeps that for the historical rows (compiled control: die 26) while the Shield rows enforce 1–20; no current regression or dependency; recalibration is outside the private-alpha milestone (amendment 2 section 3). |
+
+**Targeted recheck — candidate `bb903669c038c9b35802e467c5ba3394b586997b`** (`…-bb903669/`, 8.35 minutes, exit 0, empty stderr,
+identity recheck PASS): **PASS FOR GUARDED NATIVE TESTING** under the no-live-use plan; PN14-F1 and F2 resolved; the smoke
+protection gap remains open for any later live run. Nonblocking: an optional regression asserting the full parent artifact
+text; the handoff identities (updated in this commit).

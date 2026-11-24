@@ -1,3 +1,17 @@
+# Mounted Shield private alpha (2026-11-24, owner amendment 2)
+
+Read CURRENT.md's first section, docs/mounted-shield/HANDOFF.md section 0 (private-alpha paragraph) and
+docs/mounted-shield/PRIVATE-ALPHA.md.
+
+- Done: amendment 2 recorded (revision 2, `d735f07d`); alpha version 0.2.16-alpha.1; closure review and targeted recheck PASS
+  on `bb903669`; focused gate PASS; package `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-bb903669-diagnostic.zip`
+  (`fa5fb284…`). No native work (zero guarded starts); no agent-generated save (save-backed routes need the historical
+  qualification suite; no desktop-control tool).
+- Next: the controller's final review on the records head; the owner's private-alpha playtest. A later live smoke first needs
+  qualified settings/profile protection on the no-save path.
+- Keep: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, budget `mounted-shield`, draft PR #61; no merge, release,
+  tag or installation.
+
 # Mounted Shield continuation (2026-11-23, owner amendment 1)
 
 Read CURRENT.md's first section and docs/mounted-shield/HANDOFF.md section 0.
