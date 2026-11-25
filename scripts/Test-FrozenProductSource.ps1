@@ -177,6 +177,27 @@ Check 'observer-only change keeps main-only reuse' {
 WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
 Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Restore observer') | Out-Null
+# The MSBuild files the observer inherits from tools/ are observer inputs: committing either one rejects the archived
+# observer and keeps main-only reuse; removing it again restores the observer.
+foreach($inherited in @('tools/Directory.Build.targets','tools/Directory.Build.props')) {
+    WriteUtf8 (Join-Path $repo $inherited) '<Project><Target Name="KmcTestObserverHook" BeforeTargets="CoreCompile" /></Project>'
+    Invoke-TestGit @('add',$inherited) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Observer inherited '+$inherited)) | Out-Null
+    $observerArguments.Context=Get-KmcFrozenProductSource @pins
+    Refuses ('committed '+$inherited+' rejects the archived observer') {Assert-KmcFrozenProductManifest @observerArguments} 'Changed removal observer inputs'
+    $mainArguments.Context=$observerArguments.Context
+    Check ('committed '+$inherited+' keeps main-only reuse') {
+        $actual=Assert-KmcFrozenProductManifest @mainArguments
+        if($actual.source -cne $commit) { throw 'Main admission lost the frozen source.' }
+    }
+    Invoke-TestGit @('rm','--quiet',$inherited) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Remove '+$inherited)) | Out-Null
+}
+$observerArguments.Context=Get-KmcFrozenProductSource @pins
+Check 'archived observer accepted again after the inherited files are removed' {
+    $actual=Assert-KmcFrozenProductManifest @observerArguments
+    if($actual.source -cne $commit) { throw 'Observer admission lost the frozen source.' }
+}
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class ChangedProduct {}'
 Invoke-TestGit @('add','src/Product.cs') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Changed native production') | Out-Null

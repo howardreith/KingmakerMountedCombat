@@ -202,6 +202,8 @@ try {
         @{ Name = 'main-manifest-only'; Apply = { $script:infoOriginal = [IO.File]::ReadAllText((Join-Path $clone 'Info.json')); [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal.Replace('"Id"', ' "Id"')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal) } },
         # The repository-level CoreCompile hook of Test-PinnedLoaderMsBuild.ps1 (it rewrites the compiler's UnityModManager
         # reference), added after the build and never staged in Git.
+        @{ Name = 'untracked-tools-directory-build-targets'; Apply = { [IO.File]::WriteAllText((Join-Path $clone 'tools\Directory.Build.targets'), "<Project><Target Name=`"KmcTestLateRewrite`" BeforeTargets=`"CoreCompile`"><ItemGroup><_KmcTestUmm Include=`"@(ReferencePathWithRefAssemblies)`" Condition=`"'%(Filename)' == 'UnityModManager'`" /><ReferencePathWithRefAssemblies Remove=`"@(_KmcTestUmm)`" /><ReferencePathWithRefAssemblies Include=`"$([Security.SecurityElement]::Escape((Join-Path $temp 'stray copy\UnityModManager.dll')))`" /></ItemGroup></Target></Project>"); if (@(& git -C $clone ls-files -- tools/Directory.Build.targets).Count -ne 0) { throw 'The tools hook fixture must stay untracked.' } }; Undo = { Remove-Item -LiteralPath (Join-Path $clone 'tools\Directory.Build.targets') } },
+        @{ Name = 'untracked-tools-directory-build-props'; Apply = { [IO.File]::WriteAllText((Join-Path $clone 'tools\Directory.Build.props'), '<Project><PropertyGroup><CheckForOverflowUnderflow>true</CheckForOverflowUnderflow></PropertyGroup></Project>') }; Undo = { Remove-Item -LiteralPath (Join-Path $clone 'tools\Directory.Build.props') } },
         @{ Name = 'untracked-root-directory-build-targets'; Apply = { [IO.File]::WriteAllText((Join-Path $clone 'Directory.Build.targets'), "<Project><Target Name=`"KmcTestLateRewrite`" BeforeTargets=`"CoreCompile`"><ItemGroup><_KmcTestUmm Include=`"@(ReferencePathWithRefAssemblies)`" Condition=`"'%(Filename)' == 'UnityModManager'`" /><ReferencePathWithRefAssemblies Remove=`"@(_KmcTestUmm)`" /><ReferencePathWithRefAssemblies Include=`"$([Security.SecurityElement]::Escape((Join-Path $temp 'stray copy\UnityModManager.dll')))`" /></ItemGroup></Target></Project>"); if (@(& git -C $clone ls-files -- Directory.Build.targets).Count -ne 0) { throw 'The root hook fixture must stay untracked.' } }; Undo = { Remove-Item -LiteralPath (Join-Path $clone 'Directory.Build.targets') } })) {
         & $change.Apply
         $r = & $stampCheck
@@ -279,9 +281,23 @@ try {
         [IO.File]::WriteAllText($projectFile, $projectOriginal)
         $fullCurrent = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full')
         $fullCurrentScans = & $scanCount
+        $historyBudget = Join-Path $budgetRoot 'fixture-full-history.json'
+        [ordered]@{ schemaVersion = 1; budgetId = 'fixture-full-history'; allowanceMinutes = 15; blockCeilingMinutes = 30; createdUtc = (Get-Date).ToUniversalTime().ToString('o'); entries = @()
+            stepHistory = [ordered]@{ 'FULL umbrella (scripts/Test.ps1)' = [ordered]@{ seconds = 600; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $historyBudget -Encoding UTF8
         [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
-        $full = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full')
+        $full = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-history')
         $fullStaleScans = & $scanCount
+        $afterStale = Get-Content -LiteralPath $historyBudget -Raw | ConvertFrom-Json
+        $staleEntries = @($afterStale.entries)
+        $staleCharged = if ($staleEntries.Count -eq 1 -and $null -ne $staleEntries[0].seconds) { [double]$staleEntries[0].seconds } else { -1 }
+        $keptDuration = [double]$afterStale.stepHistory.'FULL umbrella (scripts/Test.ps1)'.seconds
+        # A later Full admission with less remaining time than the established duration: the allowance of the disposable
+        # record is set to what was spent plus 5 minutes; the run is refused before any receipt scan or runner.
+        [IO.File]::WriteAllText($projectFile, $projectOriginal)
+        $afterStale.allowanceMinutes = [Math]::Round($staleCharged / 60 + 5, 2)
+        $afterStale | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $historyBudget -Encoding UTF8
+        $fullShort = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-history')
+        $fullShortScans = & $scanCount
     }
     finally {
         $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot; $env:KMC_WORKFLOW_BUDGET_ENTRY = $previousEntry; $env:KMC_WORKFLOW_BUDGET_ID = $previousBudgetId
@@ -292,6 +308,8 @@ try {
     Add-Case 'admitted-execution-scans-the-receipt-once-inside-its-step' ($admitted.ExitCode -ne 0 -and $admitted.Output -match 'cannot reuse these outputs' -and $admittedScans -eq 1) ("exit $($admitted.ExitCode); receipt scans $admittedScans; " + (Get-Reason $admitted.Output))
     Add-Case 'full-reuse-with-current-receipt-scans-once-and-reaches-the-runner-boundary' ($fullCurrent.ExitCode -eq 0 -and $fullCurrent.Output -match 'RUNNER BOUNDARY' -and $fullCurrentScans -eq 1) ("exit $($fullCurrent.ExitCode); receipt scans $fullCurrentScans; runner boundary reached: $($fullCurrent.Output -match 'RUNNER BOUNDARY')" + $(if ($fullCurrent.ExitCode) { '; ' + (Get-Reason $fullCurrent.Output) } else { '' }))
     Add-Case 'full-reuse-with-old-outputs-refused-before-the-runner' ($full.ExitCode -ne 0 -and $full.Output -match 'cannot reuse these outputs' -and $full.Output -notmatch 'RUNNER BOUNDARY' -and $fullStaleScans -eq 1) ("exit $($full.ExitCode); receipt scans $fullStaleScans; " + (Get-Reason $full.Output))
+    Add-Case 'full-receipt-refusal-charged-and-established-duration-kept' ($staleEntries.Count -eq 1 -and [string]$staleEntries[0].status -ceq 'failed' -and $staleCharged -gt 0 -and $keptDuration -eq 600) ("seeded Full duration 600 s; refused attempt entry $(if ($staleEntries.Count) { [string]$staleEntries[0].status + ' ' + $staleCharged + ' s' } else { 'missing' }); recorded Full duration after it $keptDuration s")
+    Add-Case 'later-full-admission-with-less-time-than-the-established-duration-refused' ($fullShort.ExitCode -ne 0 -and $fullShort.Output -match 'refuses oversized work' -and $fullShort.Output -notmatch 'RUNNER BOUNDARY' -and $fullShortScans -eq 0) ("exit $($fullShort.ExitCode); receipt scans $fullShortScans; " + (Get-Reason $fullShort.Output))
     # The Fast reuse boundary refuses stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
     $tiers = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild')

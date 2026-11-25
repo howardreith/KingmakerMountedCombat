@@ -60,9 +60,10 @@ function Assert-KmcFrozenProductManifest {
     if($verified.harnessHead -cne $Context.harnessHead) { throw 'Execution harness changed after frozen-source admission.' }
     $f=$verified.freeze
     if($Generator -ceq 'scripts/Package-Observer.ps1') {
-        # The removal observer is a separately shipped product: its own project, sources and manifest must also be
-        # unchanged for the archived observer to be reused (main-only reuse does not depend on them).
-        $observerChanged=@(& git -C $RepositoryRoot diff --name-only $verified.source $verified.harnessHead -- tools/KmcRemovalObserver)
+        # The removal observer is a separately shipped product: its own project, sources and manifest, and the MSBuild
+        # files it inherits from tools/ (Directory.Build.props/.targets), must also be unchanged for the archived observer
+        # to be reused (main-only reuse does not depend on them).
+        $observerChanged=@(& git -C $RepositoryRoot diff --name-only $verified.source $verified.harnessHead -- tools/KmcRemovalObserver tools/Directory.Build.props tools/Directory.Build.targets)
         if($LASTEXITCODE -ne 0 -or $observerChanged.Count -ne 0) { throw 'Changed removal observer inputs require a new observer candidate.' }
         $packageBinding=$f.observer; $manifestBinding=$f.observerManifest
     }

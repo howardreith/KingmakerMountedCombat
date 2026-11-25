@@ -450,15 +450,18 @@ function Assert-KmcWorkflowStepAdmission {
 
 function Update-KmcWorkflowEntry {
     # Heartbeat, plus the measured duration of one step for later planning. Nested
-    # invocations heartbeat their parent's entry; they never complete it.
-    param([Parameter(Mandatory = $true)][string]$RepoRoot, $Admission, [string]$StepName, [Nullable[double]]$StepSeconds = $null)
+    # invocations heartbeat their parent's entry; they never complete it. A failed step (-Failed) is still charged
+    # through its entry but replaces the step's recorded duration only when it ran longer, so an early refusal (for
+    # example a stale receipt refused before the Full runner) never shortens an established estimate.
+    param([Parameter(Mandatory = $true)][string]$RepoRoot, $Admission, [string]$StepName, [Nullable[double]]$StepSeconds = $null, [switch]$Failed)
     if ($null -eq $Admission) { return }
     $now = Get-KmcWorkflowClock
     [void](Update-KmcWorkflowBudgetRecord $RepoRoot $Admission.BudgetId {
         param($budget)
         $entry = Find-KmcWorkflowEntry $budget $Admission.EntryId
         if ($null -ne $entry) { $entry | Add-Member -NotePropertyName heartbeatUtc -NotePropertyValue $now.ToString('o') -Force }
-        if (-not [string]::IsNullOrWhiteSpace($StepName) -and $null -ne $StepSeconds) {
+        $established = if (-not [string]::IsNullOrWhiteSpace($StepName)) { Get-KmcWorkflowStepHistorySeconds $budget $StepName } else { $null }
+        if (-not [string]::IsNullOrWhiteSpace($StepName) -and $null -ne $StepSeconds -and -not ($Failed -and $null -ne $established -and $established -ge $StepSeconds)) {
             $budget.Record.stepHistory | Add-Member -NotePropertyName $StepName -NotePropertyValue ([pscustomobject]@{ seconds = [Math]::Round($StepSeconds, 1); observedUtc = $now.ToString('o') }) -Force
         }
     })

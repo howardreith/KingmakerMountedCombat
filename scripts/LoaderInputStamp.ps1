@@ -1,6 +1,7 @@
 # The receipt a build writes next to its outputs and a run that reuses them (-SkipBuild) must find unchanged: the inputs
 # that decide what was compiled (the loader pins, their verifier, the MSBuild guards, the repository-root
-# Directory.Build.props and Directory.Build.targets whether or not Git tracks them, every project file, the build
+# Directory.Build.props and Directory.Build.targets and the removal observer's inherited tools/Directory.Build.props and
+# tools/Directory.Build.targets, whether or not Git tracks them, every project file, the build
 # bootstrap Build-Local.ps1, the local LocalGamePaths.props the projects import, the shipping manifests Info.json and
 # version.json, every compiled source under src/, tools/KmcRemovalObserver/ and tests/, the cached loader bytes) and the bytes of the outputs it
 # produced (both shipping DLLs and the component runner). Reuse is refused when the receipt is missing or any of them
@@ -17,7 +18,7 @@ function Get-KmcLoaderInputStamp([string]$RepositoryRoot, [string]$Configuration
     $sources = @(& git -C $root ls-files --cached --others --exclude-standard -- src tools/KmcRemovalObserver tests)
     $inputs = @('scripts/loader-reference-pins.json', 'scripts/LoaderPins.ps1', 'scripts/Get-PinnedLoaderReferences.ps1', 'LoaderReferences.targets',
         'LoaderReferences.Final.targets', 'KingmakerMountedCombat.sln', 'scripts/Build-Local.ps1', 'LocalGamePaths.props', 'Info.json', 'version.json',
-        'Directory.Build.props', 'Directory.Build.targets') + @(& git -C $root ls-files -- '*.csproj' '*.props' '*.targets' | Where-Object { $_ -notlike 'docs/*' }) + $sources
+        'Directory.Build.props', 'Directory.Build.targets', 'tools/Directory.Build.props', 'tools/Directory.Build.targets') + @(& git -C $root ls-files -- '*.csproj' '*.props' '*.targets' | Where-Object { $_ -notlike 'docs/*' }) + $sources
     $lines = foreach ($relative in @($inputs | Sort-Object -Unique)) {
         $full = Join-Path $root $relative
         if (Test-Path -LiteralPath $full -PathType Leaf) { $relative + "`t" + (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() } else { $relative + "`tabsent" }
