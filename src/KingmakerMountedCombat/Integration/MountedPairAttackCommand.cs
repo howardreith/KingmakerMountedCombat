@@ -612,6 +612,15 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // PR-1 review R1-F7: the point carrier's distance-only arrival is already satisfied while the planned strike is not admitted
+        // (blocked sight): such a carrier would complete without moving, again and again. It then also requires sight of the
+        // target, so native moves the mount until the obstruction clears; the native strike sight check at release is unchanged.
+        private bool PointArrivalWithoutStrike(float radius)
+        {
+            if (GeometryUtils.SqrMechanicsDistance(targetSnapshot, mount.Position) > radius * radius) return false;
+            return !(IsStarted ? childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted : PreStartStrikeAdmissible());
+        }
+
         private bool MountSlotsFreeForPreStartMove()
         {
             var commands = mount.Commands;
@@ -634,7 +643,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 CreatedByPlayer = true,
                 ShowTargetMarker = false,
-                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight || PointArrivalWithoutStrike(radius)
             };
             delegatedMove = move;
             AnnounceOwnMove(move);
@@ -933,8 +942,13 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeMeleeTailRangeRejected => nativeMeleeTailRangeRejected;
 
         // F4: the routine has not struck yet and still approaches its target (native IsMoveUnit for an approaching attack).
-        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && transaction.State == MountedCombatTransactionState.Approaching &&
-            transaction.ChildAttackStartCount == 0;
+        // PR-1 review R1-F8: also before native start, while this command's own pre-start movement is live (the rider's carrier or
+        // the horse's native approach); a stationary windup has no movement and is not included.
+        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && (transaction.State == MountedCombatTransactionState.Approaching &&
+            transaction.ChildAttackStartCount == 0 || !IsStarted && (delegatedMove != null && !delegatedMove.IsFinished || nativePreStartApproaching));
+
+        // PR-1 reviews R1-F2, R1-F9: the strike has been released to native (it then keeps native's own handling).
+        internal bool StrikeReleased => IsActed || transaction.ChildAttackStartCount > 0;
 
         internal bool ValidateNativeSequenceTarget()
         {
@@ -1141,6 +1155,15 @@ namespace KingmakerMountedCombat.Integration
                         Interrupt();
                         return;
                     }
+                    // PR-1 review R1-F4: native start rechecks the current movement permission, and an older compatible action still
+                    // holding a mount slot or the queue delays the carrier: the order stays pending instead of failing the click.
+                    if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
+                    if (!chargeMode && !DelegatedCarrierAdmissible())
+                    {
+                        carrierDeferred = true;
+                        CarrierDeferralCount++;
+                        return;
+                    }
                     // Every call of the approach helpers consumes their outcome: a charge terminated
                     // inside the helper must not be followed by anything in the same tick.
                     if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null)
@@ -1314,8 +1337,52 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // PR-1 review R1-F4: a carrier waiting behind older work.
+        private bool carrierDeferred;
+        internal int CarrierDeferralCount { get; private set; }
+        internal bool CarrierDeferred => carrierDeferred;
+
+        private bool DelegatedCarrierAdmissible() => MountedCombatSpatialPolicy.CanAdmitDelegatedMove(mount.Commands?.Raw,
+            (int)CommandType.Standard, (int)CommandType.Move, this, actionActor == mount,
+            IsStarted && !IsFinished && transaction.State == MountedCombatTransactionState.Approaching,
+            mount.Commands != null && mount.Commands.Queue.Count == 0,
+            mount.Commands?.GroupCommand == null, mount.Commands?.PreviousCommand == null);
+
+        private bool EndIfMovementForbiddenAtApproach()
+        {
+            if (PreStartMovementForbidden == null || !PreStartMovementForbidden()) return false;
+            if (!transaction.IsTerminal) transaction.Cancel("Mount movement is forbidden for this approach.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, "mount movement forbidden at the approach");
+            Interrupt();
+            return true;
+        }
+
+        private void TickDeferredCarrier()
+        {
+            var admission = childAttack.EvaluateCurrentNativeAdmission();
+            ObserveNativeAdmission(admission);
+            if (EndIfAutomaticTargetUnperceived()) return;
+            if (admission == MountedPairNativeAdmissionState.Admitted)
+            {
+                carrierDeferred = false;
+                if (!transaction.Arrive(attackTarget.UniqueId))
+                    throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
+                StartChildAttack();
+                return;
+            }
+            if (EndIfMovementForbiddenAtApproach()) return;
+            if (!DelegatedCarrierAdmissible()) return;
+            carrierDeferred = false;
+            if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null) return;
+        }
+
         private void TickApproach()
         {
+            if (carrierDeferred && delegatedMove == null)
+            {
+                TickDeferredCarrier();
+                return;
+            }
             ObserveApproachInvariants();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
@@ -1565,7 +1632,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 CreatedByPlayer = true,
                 ShowTargetMarker = false,
-                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight || PointArrivalWithoutStrike(delegatedMoveApproachRadius)
             };
             if (chargeMode)
             {
@@ -1691,6 +1758,21 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
+        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)
+        {
+            if (commands == null) return false;
+            foreach (var command in commands.Raw)
+            {
+                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, this) ||
+                    command is UnitMoveTo) continue;
+                bool close;
+                try { close = command.IsUnitEnoughClose; }
+                catch (Exception) { close = false; }
+                if (!command.IsStarted && !close) return true;
+            }
+            return false;
+        }
+
         private void StopDelegatedMove(bool requireSuccess)
         {
             if (delegatedMove == null)
@@ -1737,8 +1819,12 @@ namespace KingmakerMountedCombat.Integration
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
             // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced
             // carrier's motion is stopped.
+            // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard
+            // approaching its target), including one the sweep just promoted; such a successor keeps its movement.
             var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
-            if (successor == null || successor.IsFinished || ReferenceEquals(successor, exactMove)) mount.View?.StopMoving();
+            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
+                SuccessorSteersMount(commands, exactMove);
+            if (!successorSteers) mount.View?.StopMoving();
             delegatedMove = null;
         }
 

@@ -21,6 +21,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
             runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
+            runner.Run("PR-1 R1-F1: turn-based follow-through is offered only while the horse's strike is in its current reach; explicit mount orders keep their approach", FollowThroughNeedsReach);
+            runner.Run("PR-1 R1-F3: an actor-specific rider end is remembered for its generation only; the rider is not redispatched", RiderEndedLedger);
+            runner.Run("PR-1 R1-F10: native's last-target +1 does not outrank a nearer in-reach enemy on fresh acquisition; manual target, live order and ranged controls", FreshAcquisitionTieBreak);
             runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
             runner.Run("R3-F1: rider or horse striker moves before readiness, queued orders move after promotion; native keeps the start", PreStartApproach);
             runner.Run("R1-F11: engagement attribution credits only the same exact carrier across an interval", EngagementAttribution);
@@ -183,6 +186,60 @@ namespace KingmakerMountedCombat.Tests
             // Automatic proposals keep the occupied-slot protection.
             var auto = new MountedRetainedOrderLedger(); auto.Begin(32, true, true);
             TestRunner.True(MountedRetainedOrderLedger.NewerPlayerWork(true, live, auto.Superseded(32)), "An automatic order ignored an occupied slot.");
+        }
+
+        // PR-1 review R1-F1: a reach-weapon rider has struck; the horse has its Standard but stands outside its natural reach and
+        // cannot move. The production selection (MountJoinsIntent feeding DecideNext) offers no horse dispatch; in reach it does.
+        private static void FollowThroughNeedsReach()
+        {
+            Func<bool, bool> joins = inReach => UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, false, false, true, false, true, true, false, inReach);
+            TestRunner.True(!joins(false) && joins(true), "Follow-through ignored the horse's reach.");
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, true, false, false),
+                "An explicit mount order lost its own approach.");
+            var outside = UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, false, true, false, false, true, joins(false), false);
+            var inside = UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, false, true, false, true, true, joins(true), false);
+            TestRunner.True(outside != MountedStockAttackDecision.DispatchMount && inside == MountedStockAttackDecision.DispatchMount,
+                "Horse dispatch outside reach: " + outside + "; in reach: " + inside);
+        }
+
+        // PR-1 review R1-F3: the rider-ended mark belongs to one generation.
+        private static void RiderEndedLedger()
+        {
+            var ledger = new MountedRetainedOrderLedger();
+            ledger.Begin(4, false, true);
+            TestRunner.True(!ledger.RiderEnded(4), "A fresh order started with its rider ended.");
+            ledger.MarkRiderEnded(3);
+            TestRunner.True(!ledger.RiderEnded(4) && !ledger.RiderEnded(3), "A stale generation marked the order.");
+            ledger.MarkRiderEnded(4);
+            TestRunner.True(ledger.RiderEnded(4) && ledger.FollowThroughAllowed(4), "The rider end was not kept, or it ended the horse's follow-through.");
+            ledger.Begin(5, false, true);
+            TestRunner.True(!ledger.RiderEnded(5), "A new order inherited the rider end.");
+        }
+
+        // PR-1 review R1-F10: the production selection seam (NativeAttackTieBreak.Choose) with native's weights.
+        private static void FreshAcquisitionTieBreak()
+        {
+            object farther = "farther-last-target", nearer = "nearer";
+            var ranked = new List<NativeRankedCandidate>
+            {
+                new NativeRankedCandidate { Unit = farther, Weight = 1f, Distance = 3f, Eligible = true },
+                new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = true }
+            };
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(ranked, farther, null, true), nearer), "Fresh acquisition kept the farther last target.");
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(ranked, farther, farther, true), farther), "A live order lost its target.");
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(ranked, farther, null, false), farther), "A ranged proposal was retargeted.");
+            var manual = new List<NativeRankedCandidate>
+            {
+                new NativeRankedCandidate { Unit = farther, Weight = 1000001f, Distance = 3f, Eligible = true },
+                new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = true }
+            };
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(manual, farther, null, true), farther), "A manual target was outranked.");
+            var ineligible = new List<NativeRankedCandidate>
+            {
+                new NativeRankedCandidate { Unit = farther, Weight = 1f, Distance = 3f, Eligible = true },
+                new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = false }
+            };
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(ineligible, farther, null, true), farther), "An ineligible nearer enemy was chosen.");
         }
 
         // Review R4-F8: a sustained order releases finished identities and keeps the live repath replacement.

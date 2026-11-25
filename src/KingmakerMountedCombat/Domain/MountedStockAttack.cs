@@ -145,10 +145,13 @@ namespace KingmakerMountedCombat.Domain
         // has accepted newer competing work (review R1-F5); DecideNext still requires its own readiness and the dispatcher
         // rechecks capability and range. A rider ranged click (review R1-F4), an automatic intent and a separate-turn (paired
         // off) rider order never spend the horse; an explicit mount order stays the mount's.
+        // PR-1 review R1-F1: follow-through on a rider's order is offered only while the horse's planned natural strike is in its
+        // current legal reach (mountInReach); a follow-through never starts a horse approach whose movement entitlement was not
+        // established. An explicit mount order keeps its own approach.
         public static bool MountJoinsIntent(bool turnBased, bool explicitMountOrder, bool legacyUnifiedTurn, bool pairedActivation,
-            bool automaticIntent, bool mountAddressable, bool meleeOrder = true, bool competingWork = false) =>
+            bool automaticIntent, bool mountAddressable, bool meleeOrder = true, bool competingWork = false, bool mountInReach = true) =>
             !turnBased || explicitMountOrder || legacyUnifiedTurn ||
-            pairedActivation && !automaticIntent && mountAddressable && meleeOrder && !competingWork;
+            pairedActivation && !automaticIntent && mountAddressable && meleeOrder && !competingWork && mountInReach;
 
         public static MountedStockAttackDecision DecideNext(
             bool exactMountedPair,

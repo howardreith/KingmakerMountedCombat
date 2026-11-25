@@ -130,12 +130,21 @@ namespace KingmakerMountedCombat.Domain
             var best = proposed;
             foreach (var candidate in ranked)
             {
-                if (candidate.Unit == null || candidate.Weight != weight || ReferenceEquals(candidate.Unit, proposed) || !candidate.Eligible) continue;
+                if (candidate.Unit == null || !SameRank(candidate.Weight, weight, currentOrderTarget) || ReferenceEquals(candidate.Unit, proposed) ||
+                    !candidate.Eligible) continue;
                 if (currentOrderTarget != null && ReferenceEquals(candidate.Unit, currentOrderTarget)) return currentOrderTarget;
                 if (candidate.Distance < bestDistance) { best = candidate.Unit; bestDistance = candidate.Distance; }
             }
             return best;
         }
+
+        // PR-1 review R1-F10: native weights an in-reach candidate 0, or 1 when it is the rider's LastTarget. That bonus is not a
+        // current player target (a manual target weighs +1000000) nor a live order (currentOrderTarget); on fresh acquisition the
+        // in-reach weights 0 and 1 therefore rank equal and the nearest eligible enemy is taken.
+        private static bool SameRank(float candidate, float proposal, object currentOrderTarget) =>
+            candidate == proposal || currentOrderTarget == null && InReach(candidate) && InReach(proposal);
+
+        private static bool InReach(float weight) => weight == 0f || weight == 1f;
     }
 
     // MMR-04 (review R1-F11): the installed native comparison that produces the rider brain's automatic attack proposal,

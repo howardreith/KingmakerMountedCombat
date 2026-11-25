@@ -39,6 +39,9 @@ $members=[ordered]@{
  'REPATH'=(Extract $command 'private bool Repath(string cause, bool targetDrift = false)')
  'BEGIN_DELEGATED'=(Extract $command 'private bool BeginDelegatedMove()')
  'STOP_DELEGATED'=(Extract $command 'private void StopDelegatedMove(bool requireSuccess)')
+ 'SUCCESSOR_STEERS'=(Extract $command 'private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)')
+ 'DEFERRED_CARRIER'=(ExtractRegion $command '        // PR-1 review R1-F4: a carrier waiting behind older work.' '        private void TickApproach()')
+ 'APPROACHING_BEFORE_ATTACK'=(ExtractRegion $command '        // PR-1 review R1-F8: also before native start' '        internal bool ValidateNativeSequenceTarget()')
  'START_CHILD'=(Extract $command 'private void StartChildAttack()')
  'OBSERVE_ADMISSION'=(Extract $command 'private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)')
 }

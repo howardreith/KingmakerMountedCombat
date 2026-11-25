@@ -881,7 +881,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (!ChargeAdmissionPrefix(__instance, cmd, fromQueue ? MountedChargeRequestRoute.QueuePromotion : MountedChargeRequestRoute.Run)) return false;
                 var automatic = fromQueue ? cmd as MountedPairSingleAttack : null;
-                if (automatic == null || !automatic.IsAutomaticOrigin) return true;
+                if (automatic == null) return true;
+                if (!automatic.IsAutomaticOrigin)
+                {
+                    // PR-1 review R1-F2: a superseded explicit pair order never promotes from the queue.
+                    var owner = PatchBridge.CombatFor(__instance);
+                    return owner == null || owner.AdmitQueuedExplicitRun(automatic);
+                }
                 var combat = PatchBridge.CombatFor(__instance);
                 if (combat != null) return combat.AdmitQueuedAutomaticRun(automatic);
                 (automatic as MountedPairAttackCommand)?.RecordEndCause(MountedAttackEndCause.Cancelled, "queued automatic command without its pair");

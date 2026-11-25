@@ -48,6 +48,12 @@ namespace KingmakerMountedCombat.Domain
     // acceptance. Competing work latches for the order's lifetime, whether it stays queued, runs or has already finished.
     public sealed class MountedRetainedOrderLedger
     {
+        // PR-1 review R1-F3: the rider's attempt for this generation ended for the rider's own (evidenced) capability block: the
+        // rider is not redispatched; an independently eligible horse may still follow through on the valid target.
+        private long riderEndedGeneration = -1;
+        public void MarkRiderEnded(long generation) { if (IsCurrent(generation)) riderEndedGeneration = generation; }
+        public bool RiderEnded(long generation) => IsCurrent(generation) && riderEndedGeneration == generation;
+
         private readonly List<object> own = new List<object>();
         private int competingCount;
 
