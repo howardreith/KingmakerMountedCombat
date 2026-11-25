@@ -567,6 +567,11 @@
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
+    <Compile Include="Domain\MountedPreStartApproachPolicy.cs" />
+    <Compile Include="Domain\MountedRetainedOrderLedger.cs" />
+    <Compile Include="Domain\MountedHoldProvenance.cs" />
+    <Compile Include="Integration\NativeBrainRankingReader.cs" />
+    <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />

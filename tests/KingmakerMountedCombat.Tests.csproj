@@ -164,6 +164,7 @@
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
+    <Compile Include="MountedAlpha2LifecycleTests.cs" />
     <Compile Include="Finalize3MovementEconomyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPresentationPolicy.cs"><Link>Shared\Domain\MountedPresentationPolicy.cs</Link></Compile>
     <Compile Include="MountedPresentationPolicyTests.cs" />
@@ -211,6 +212,10 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargePolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRequestPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddlePosition.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPreStartApproachPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedOrderLedger.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedHoldProvenance.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />
