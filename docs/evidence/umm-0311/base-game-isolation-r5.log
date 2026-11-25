@@ -1,0 +1,123 @@
+PASS owner-profile admission records the measured UMM and Harmony 2 identities
+PASS changed Harmony 2 alone refused by owner-profile admission
+PASS dependency receipt records exact loader set without moving it
+PASS dependency identity is stable across receipt serialization
+PASS changed pinned UMM rejected
+PASS missing required Harmony rejected
+PASS foreign loader DLL rejected
+PASS redirected Mods layout rejected
+PASS owner-disabled KMC never enabled by isolation
+PASS DTD loader XML rejected
+PASS case-ambiguous mod parameters rejected
+PASS tampered dependency receipt rejected
+PASS dependency digest is identical from CRLF and LF checkouts and equals the LF-joined rows
+PASS dependency changed between intake and staging rejected
+PASS base-only UMM admits exact absent-mod removal
+PASS base-only UMM admits unchanged parameters
+PASS historical UMM mode still refuses foreign-entry removal
+PASS base-only and removal-observer authorities cannot combine
+PASS base-only UMM refuses disabled KMC
+PASS base-only UMM refuses other setting changed
+PASS base-only UMM refuses new foreign entry
+PASS base-only UMM refuses partial foreign removal
+PASS base-only UMM refuses KMC hotkey changed
+PASS absent KMC entry admitted (UMM 0.33.2.0 enables an unlisted mod by default)
+PASS duplicate exact KMC entries refused
+PASS lone case-variant KMC entry refused
+PASS present KMC entry without Enabled refused
+PASS exact default KMC append accepted when the original had none
+PASS exact KMC append accepted in compact whitespace
+PASS exact KMC append with a forward LastUpdateCheck accepted
+PASS LastUpdateCheck-only forward change accepted
+PASS KMC absent after a run without OnDestroy accepted (unchanged)
+PASS KMC absent after a ModParams rewrite without KMC accepted
+PASS retained dependencies: KMC kept, defaults appended
+PASS retained dependencies: loader load order (dependencies before the kept KMC entry)
+PASS retained dependencies: all three appended when the original had none
+PASS retained dependencies: unchanged parameters still accepted
+PASS retained dependencies: an undeclared third entry refused
+PASS retained dependencies: a disabled dependency entry refused
+PASS retained dependencies: appends without the staged declaration refused
+PASS runtime write classification admits writes confined to a retained dependency folder
+PASS runtime write classification still refuses dependency assembly, Info.json and foreign writes
+PASS dependency DLL cache: a byte-exact copy is accepted by the byte-copy rule alone
+PASS dependency DLL cache: a copy whose bytes differ is refused
+PASS dependency DLL cache: a copy whose length differs is refused
+PASS dependency DLL cache: an orphaned cache, a bare .cache and a DLL-named stray are refused
+PASS dependency DLL cache: a changed staged cache and a new executable are refused, data writes still admitted
+PASS base-only UMM refuses disabled KMC append
+PASS base-only UMM refuses foreign append beside KMC
+PASS base-only UMM refuses foreign-only append
+PASS base-only UMM refuses KMC appended while foreign entries remain
+PASS base-only UMM refuses KMC append with an extra attribute
+PASS base-only UMM refuses KMC append with a changed hotkey
+PASS base-only UMM refuses KMC append with an extra element
+PASS base-only UMM refuses KMC append without its hotkey
+PASS base-only UMM refuses LastUpdateCheck moved backwards
+PASS base-only UMM refuses LastUpdateCheck not an xs:dateTime
+PASS base-only UMM refuses LastUpdateCheck removed
+PASS base-only UMM refuses LastUpdateCheck with an attribute
+PASS base-only UMM refuses other element change
+PASS base-only UMM refuses other element added
+PASS base-only UMM refuses root attribute changed
+PASS base-only UMM refuses a default KMC append replacing an existing KMC entry hotkey
+What if: Performing the operation "create the private ready tree of exactly the selected packages; preserve the exact complete live clone" on target "<repo>\obj\base-game-isolation-tests\541390c9cacf458e80fc1d75a6449ff0\main\staging\preview\Mods-ready".
+PASS ready-tree WhatIf validates without mutating staging or actual fixture
+PASS ready tree outside its owned staging run rejected before creation
+PASS foreign package payload rejected before ready-tree creation
+PASS retained dependency manifest excludes the loader cache and pins every other file
+PASS ready tree stages the retained dependency beside KMC without its loader cache
+PASS ready tree refuses a retained dependency with a reserved id
+PASS ready tree refuses a retained dependency with a changed assembly pin
+PASS ready tree refuses a retained dependency with a changed folder digest
+PASS ready tree refuses a retained dependency with a source outside the lab
+PASS explicit base-only mode uses schema 4 and preserves the complete live clone
+PASS staged Mods contains only KMC and transaction sentinel
+PASS altered dependency receipt cannot authorize restoration
+PASS historical schema cannot claim new mode
+PASS runtime output quarantined and actual original tree restored exactly
+PASS restoration retry is idempotent
+PASS dependency receipt does not silently select base-only mode
+PASS ordinary default retains foreign mods and historical schema 3
+PASS original-moved crash window restores missing Mods from exact original snapshot
+PASS settings authority comes from the settled exact owned base-only receipt
+PASS settings restoration refuses mismatched runId
+PASS settings restoration refuses mismatched token
+PASS settings restoration refuses mismatched phase
+PASS settings restoration refuses mismatched schemaVersion
+PASS settings restoration refuses mismatched stagingMode
+PASS settings restoration refuses mismatched liveModsRoot
+PASS settings restoration refuses another installation
+PASS co-staged UMM admits KMC then observer default appends
+PASS co-staged UMM admits observer then KMC default appends
+PASS co-staged UMM admits an observer append beside an existing KMC entry
+PASS co-staged UMM admits the native load-order rewrite of a kept observer and appended KMC
+PASS co-staged UMM admits the same pair in kept-then-appended order
+PASS co-staged UMM refuses the reordered pair with a changed observer entry
+PASS KMC-only base mode still refuses the reordered pair
+PASS KMC-only base mode refuses an observer append
+PASS co-staged UMM refuses a third appended entry
+PASS co-staged UMM refuses a disabled observer append
+PASS co-staged authority cannot be used outside base-only mode
+PASS base-only KMC mode refuses a second observer package
+PASS co-staging mode refuses a missing observer package
+PASS removal-observer mode refuses co-staging
+PASS contract refusals left the original tree exact and no transaction state
+PASS foreign observer payload refuses co-staging before activation
+PASS partial co-staging failure leaves the live tree exactly original
+PASS co-staged mode records schema 4, its frozen observer package and the complete live clone
+PASS co-staged Mods contains exactly KMC, the observer and the sentinel
+PASS co-staged state without its observer identity cannot restore
+PASS co-staged state naming a foreign frozen observer cannot restore
+PASS co-staged runtime output quarantined and the original restored exactly
+PASS settings authority accepts the settled co-staged receipt
+PASS carry: Enter declares exactly the carried cache in the state and stages it beside the package
+PASS carry: Restore refuses a declared file outside the cache shape
+PASS carry: Restore refuses an unbounded declaration
+PASS carry: Restore refuses an empty declaration
+PASS carry: Restore refuses a declaration with an extra member
+PASS carry: Restore names the removal of the declared cache and admits the new candidate cache, then restores exactly
+PASS co-staged original-moved crash window restores the exact original
+PASS changed runtime scripts parse without executing a launcher
+PASS all offline fixture original bytes remain exact
+Base-game isolation: 121 PASS / 0 FAIL; evidence <repo>\obj\base-game-isolation-tests\541390c9cacf458e80fc1d75a6449ff0
