@@ -177,7 +177,7 @@ Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeA
 Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $tryExecute ($pair.GetField('RouteRevalidator', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
 $revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
 Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
-$invoke = [Func[System.Collections.Generic.List[UnityEngine.Vector3]]].GetMethod('Invoke')
+$invoke = [Func`1].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
 $moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
 $moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
 Check ($moveCtorOffsets.Count -eq 2 -and $moveCtorOffsets[1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'

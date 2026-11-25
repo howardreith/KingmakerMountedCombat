@@ -880,7 +880,9 @@ namespace KingmakerMountedCombat.Integration
                     if (action == MountedCombatActionKind.RiderMelee && stockIntentValidatedRoute != null)
                     {
                         command.ValidatedApproachRoute = stockIntentValidatedRoute;
-                        command.RouteRevalidator = () => RevalidateAdmittedClickRoute(target);
+                        // Review R7-F1: the destination established at planning is re-examined by every revalidation.
+                        var established = stockIntentValidatedRoute.Count >= 2 ? stockIntentValidatedRoute[stockIntentValidatedRoute.Count - 1] : (Vector3?)null;
+                        command.RouteRevalidator = () => RevalidateAdmittedClickRoute(target, established);
                         stockIntentValidatedRoute = null;
                     }
                 }
@@ -1251,8 +1253,10 @@ namespace KingmakerMountedCombat.Integration
         private List<Vector3> stockIntentValidatedRoute;
 
         // Review R4-F1: the proof for a carrier of a click-admitted turn-based order, recomputed from the CURRENT origin with the
-        // CURRENT grant by the same production walk the click used; null when the proof cannot be established.
-        private List<Vector3> RevalidateAdmittedClickRoute(UnitEntityData target)
+        // CURRENT grant by the same production walk the click used; null when the proof cannot be established. Reviews R6-F1,
+        // R7-F1: the proof carries the verified destination and its proven native arrival radius; the destination established
+        // at planning is re-examined on the current route.
+        private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1261,13 +1265,15 @@ namespace KingmakerMountedCombat.Integration
             bool step, single;
             string reason;
             var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out reason);
-            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target, grant);
-            if (probe.AdmissibleNow) return new List<Vector3> { mount.Position, mount.Position };
+            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target, grant, established);
+            if (probe.AdmissibleNow)
+                return new PairedAttackClickProbe.Approach { Route = new List<Vector3> { mount.Position, mount.Position }, ArrivalRadius = PairedAttackClickProbe.ArrivalRadii[0] };
             var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteComplete, probe.EndpointAdmitsStrike, probe.RouteMetres, grant);
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
                 ";mountGrant=" + reason + ";probe=" + probe.Detail;
             TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
-            return proven ? probe.Route : null;
+            return proven && probe.Route != null && probe.Route.Count >= 2
+                ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius } : null;
         }
 
         internal string LastRouteRevalidation { get; private set; }

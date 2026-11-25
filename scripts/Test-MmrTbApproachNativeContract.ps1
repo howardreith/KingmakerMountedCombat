@@ -57,4 +57,17 @@ $ignoreTokens = IlTokens $ignore
 Check ($ignoreTokens.ContainsKey(0x06007018)) 'MMR-02: native IgnoreClick drops a click whose visualized path does not end within the predicted approach radius'
 $patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
 Check ($null -ne $patches.GetMethod('PairedIgnoreClickPostfix', $any) -and $null -ne $patches.GetMethod('PairedIgnoreClickPrefix', $any)) 'MMR-02: the product carries the IgnoreClick prefix and the read-only drop-diagnostic postfix'
+# ---- PR-2 (review R7-F4): the installed movement-limit contract -----------------------------------------------------------
+$turnType = GameType 'TurnBased.Controllers.TurnController'
+$select = $turnType.GetMethod('TrySelectMovementLimit', $any)
+$selectIl = $select.GetMethodBody().GetILAsByteArray(); $clearsSingle = $false
+for ($i = 0; $i -le $selectIl.Length - 6; $i++) { if ($selectIl[$i] -eq 0x16 -and $selectIl[$i + 1] -eq 0x28) { try { if ($select.Module.ResolveMethod([BitConverter]::ToInt32($selectIl, $i + 2)).Name -ceq 'SetMovementLimit') { $clearsSingle = $true } } catch { } } }
+$usedStandard = (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetMethod('UsedStandardAction', [Type[]]@())
+$selectRefs = IlTokens $select
+Check ($clearsSingle -and $selectRefs.ContainsKey($usedStandard.MetadataToken) -or ($clearsSingle -and @(0..($selectIl.Length - 5) | Where-Object { $selectIl[$_] -eq 0x6F -and $(try { $select.Module.ResolveMethod([BitConverter]::ToInt32($selectIl, $_ + 1)) -eq $usedStandard } catch { $false }) }).Count -ge 1)) 'MMR-02 (R7-F4): installed TurnController.TrySelectMovementLimit reads UsedStandardAction and sets the movement limit back to None (single-action limit cleared once the Standard is used)'
+$remainingMove = $turnType.GetMethod('GetRemainingMovementTime', $any)
+$cooldownMove = (GameType 'Kingmaker.Controllers.Combat.UnitCombatState').GetField('Cooldown').FieldType.GetProperty('MoveAction').GetGetMethod()
+$remainingIl = $remainingMove.GetMethodBody().GetILAsByteArray(); $readsCooldown = $false
+for ($i = 0; $i -le $remainingIl.Length - 5; $i++) { if ($remainingIl[$i] -eq 0x6F) { try { if ($remainingMove.Module.ResolveMethod([BitConverter]::ToInt32($remainingIl, $i + 1)) -eq $cooldownMove) { $readsCooldown = $true } } catch { } } }
+Check $readsCooldown 'MMR-02 (R7-F4): installed GetRemainingMovementTime ends single-action movement once the unit''s Move cooldown is positive (the rule KMC mirrors only while the limit exists)'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')

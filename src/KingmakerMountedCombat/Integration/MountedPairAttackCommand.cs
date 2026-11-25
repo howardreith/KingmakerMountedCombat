@@ -452,13 +452,14 @@ namespace KingmakerMountedCombat.Integration
         // production walk); when that proof cannot be established the approach ends cleanly instead of falling back to
         // native routing.
         internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
-        internal Func<System.Collections.Generic.List<Vector3>> RouteRevalidator;
+        internal Func<PairedAttackClickProbe.Approach> RouteRevalidator;
         internal bool RouteBound => ValidatedApproachRoute != null;
         internal int RouteRevalidationCount { get; private set; }
-        // Review R6-F1: a route-bound carrier is a point command whose destination is the verified strike endpoint and whose
-        // native proximity radius is this small, so native's own proximity rule cannot complete it before that endpoint.
-        internal const float RouteBoundArrivalRadiusMetres = 0.05f;
+        // Review R6-F1: a route-bound carrier is a point command to the proof's destination (inside the admissible opening) with
+        // the proof's arrival radius: every position native's proximity rule accepts as arrival admits the strike.
         internal int RouteProofExpiredCount { get; private set; }
+        // Native proximity would complete the carrier at once although the strike is not admitted: never re-issued.
+        internal int RouteArrivalContradictionCount { get; private set; }
         internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
         // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
@@ -1851,14 +1852,19 @@ namespace KingmakerMountedCombat.Integration
                 chargeCarrierAgent = mount.View?.AgentASP;
                 chargeCarrierMotionOwned = true;
             }
-            // Review R4-F1: the first carrier of a click-admitted turn-based order follows exactly the route the click probe
-            // validated (native TickApproaching follows a ForcedPath before any visualizer path). It is used once, only from
-            // the route's own start; a repath or a moved pair falls back to native routing.
+            // Review R4-F1: every carrier of a click-admitted turn-based order follows a route revalidated from the current origin
+            // and grant (native TickApproaching follows a ForcedPath before any visualizer path); when no proof exists, or native
+            // would complete the carrier at once without admitting the strike (review R6-F1), the approach ends cleanly instead
+            // of falling back to native routing.
             if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
                 RouteRevalidationCount++;
-                var route = RouteRevalidator?.Invoke();
-                if (route == null || route.Count < 2)
+                var approach = RouteRevalidator?.Invoke();
+                var route = approach?.Route;
+                var arrived = route != null && route.Count >= 2 && approach.ArrivalRadius > 0f && !route[0].Equals(route[route.Count - 1]) &&
+                    Kingmaker.Utility.GeometryUtils.SqrMechanicsDistance(route[route.Count - 1], mount.Position) <= approach.ArrivalRadius * approach.ArrivalRadius;
+                if (arrived) RouteArrivalContradictionCount++;
+                if (route == null || route.Count < 2 || !(approach.ArrivalRadius > 0f) || arrived)
                 {
                     RouteProofExpiredCount++;
                     delegatedMove = null;
@@ -1868,8 +1874,8 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 var endpoint = route[route.Count - 1];
-                delegatedMoveApproachRadius = RouteBoundArrivalRadiusMetres;
-                delegatedMove = new UnitMoveTo(endpoint, RouteBoundArrivalRadiusMetres)
+                delegatedMoveApproachRadius = approach.ArrivalRadius;
+                delegatedMove = new UnitMoveTo(endpoint, approach.ArrivalRadius)
                 {
                     CreatedByPlayer = true,
                     ShowTargetMarker = false,

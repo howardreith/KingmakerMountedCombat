@@ -20,8 +20,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R2-F5: newer player work in a mount slot retires a waiting real-time order; own carrier moves do not", RealTimeMountSlotSuccessor);
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
             runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
-            runner.Run("R6-F3: the click's order allowance equals execution across the Standard conversion; limits hold", OrderAllowanceMatchesExecution);
-            runner.Run("R5-F2/R4-F1/R6-F2: the budgeted route walk finds a legal step inside a narrow sight window, never passes the grant, and recosts a shifted start", RouteWalkerBoundaries);
+            runner.Run("R6-F3/R7-F4: the click's order allowance (a dry run of the executor) equals execution across the conversion, with single-move and a spent Standard; limits hold", OrderAllowanceMatchesExecution);
+            runner.Run("R5-F2/R4-F1/R6-F2/R7-F1: the budgeted route walk's 1 cm grid, grant point and established position find the stated openings, never pass the grant, and recost a shifted start", RouteWalkerBoundaries);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
             runner.Run("PR-1 R1-F1: turn-based follow-through is offered only while the horse's strike is in its current reach; explicit mount orders keep their approach", FollowThroughNeedsReach);
             runner.Run("PR-1 R1-F3: an actor-specific rider end is remembered for its generation only; the rider is not redispatched", RiderEndedLedger);
@@ -69,12 +69,24 @@ namespace KingmakerMountedCombat.Tests
                 Math.Abs(cost - 1.437f) < 0.001f && Math.Abs(route[route.Count - 1][0] - 1.437f) < 0.001f, "The first legal reach was not found at its boundary: " + cost);
             TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
             TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f), "A grant ending short of legal reach passed.");
-            // Review R5-F2: a sight window narrower than the sample spacing (1.412..1.428 m) that contains the grant boundary but
-            // neither neighbouring regular sample (1.40, 1.45). Regular sampling alone misses it; the exact grant point finds it and
-            // the walk refines back to the window's start, never beyond the grant.
+            // Reviews R5-F2, R7-F1: a 1.6 cm sight window (1.412..1.428 m). The fixed 1 cm grid from the route start contains 1.42, so
+            // the window is found unbounded, at a grant ending inside it (1.42) and at a larger grant (1.50): raising the grant does
+            // not lose it. The walk refines back to the window's start, never beyond the grant.
             Func<float[], float[], float[], bool> window = (point, from, to) => point[0] >= 1.412f && point[0] <= 1.428f;
-            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, unbounded, out route, out cost),
-                "Control: regular samples alone unexpectedly found the narrow sight window.");
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, unbounded, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f,
+                "The 1 cm grid missed a 1.6 cm window: " + cost);
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.50f, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f,
+                "A larger grant lost a window found at a smaller one: " + cost);
+            // R7-F1: a 1 cm window (1.445..1.455) on a 3 m segment clipped by a 1.524 m grant: the grid point 1.45 lies inside it.
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.445f && point[0] <= 1.455f, 1.524f,
+                out route, out cost) && Math.Abs(cost - 1.445f) < 0.001f, "The 1 cm window inside the grant was missed: " + cost);
+            // Stated limit: a 4 mm window around 1.415 holds no grid point; the grant point finds it at grant 1.415, a larger grant
+            // misses it, and supplying the established position (as every revalidation does) finds it again.
+            Func<float[], float[], float[], bool> narrow = (point, from, to) => point[0] >= 1.413f && point[0] <= 1.417f;
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, narrow, 1.415f, out route, out cost), "The grant point missed the narrow window.");
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, narrow, 1.42f, out route, out cost), "Control: the grid alone found a 4 mm window.");
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, narrow, 1.42f, (from, to) => new[] { 1.4155f / 3f }, out route, out cost) &&
+                Math.Abs(cost - 1.413f) < 0.001f, "The established position did not preserve the narrow window: " + cost);
             TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.42f, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f &&
                 cost <= 1.42f && PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f),
                 "The legal step whose grant ends inside the sight window was refused: " + cost);
@@ -150,6 +162,23 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(Math.Abs(admitted - 1.5f) < 1e-4f && Math.Abs(done - 1.5f) < 1e-3f && cooldown <= 3.0001f,
                     "A limited order exceeded its first action: admission " + admitted + ", executed " + done + ", cooldown " + cooldown);
             }
+            // Review R7-F4: an untouched Move, the mount's Standard spent and single-move selected (the rider's mirrored choice).
+            // Native clears the single-action limit once the Standard is used (TrySelectMovementLimit), so the mount keeps its one
+            // ordinary Move action: admission (the dry run) equals what successive ticks execute, 3 s, all of it debited to the
+            // mount's Move (its cooldown reaches 3); nothing is taken from anyone else's actions.
+            var combined = Admission(0f, true, true, false);
+            var combinedDone = Execute(0f, true, true, false, out cooldown);
+            TestRunner.True(Math.Abs(combined - 3f) < 1e-4f && Math.Abs(combinedDone - 3f) < 1e-3f && Math.Abs(cooldown - 3f) < 1e-3f,
+                "Single-move with a spent Standard: admission " + combined + ", executed " + combinedDone + ", mount Move cooldown " + cooldown);
+            TestRunner.True(Math.Abs(combinedDone - Execute(0f, true, false, false, out cooldown)) < 1e-4f,
+                "Single-move with a spent Standard differs from the ordinary single Move action.");
+            // The single-move limit still applies while the Standard is unused: one Move action, then stop.
+            TestRunner.True(Math.Abs(Admission(0f, false, true, false) - 3f) < 1e-4f && Math.Abs(Execute(0f, false, true, false, out cooldown) - 3f) < 1e-3f,
+                "Single-move with the Standard unused did not stop after one Move action.");
+            // The dry run never touches the live state.
+            var live = new MountedMovementState();
+            live.RemainingAcrossOrder(speed, step, 0f, true, false, false, true, false);
+            TestRunner.True(live.TimeMoved == 0f && !live.AutoStopPending, "Admission changed the live movement state.");
             // A five-foot step keeps the step allowance.
             TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) - step / speed) < 1e-4f,
                 "The step allowance changed.");

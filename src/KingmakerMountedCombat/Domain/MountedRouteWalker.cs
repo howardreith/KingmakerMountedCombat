@@ -3,22 +3,36 @@ using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
 {
-    // MMR-02 (reviews R4-F1, R5-F2, R6-F2). Walks an executable route (the mount agent's native path) from its start and returns
-    // the route truncated at the FIRST point within the movement budget where the strike's production admission passes, with
-    // the cost measured along it. The budget (the mount's remaining grant) bounds the walk: on the segment where it ends, the
-    // point at exactly the budget distance is itself a sample, so a sight window that contains the grant boundary but neither
-    // neighbouring regular sample is still found; from the first admissible sample the walk refines backwards (bisection) to the
-    // window's first admissible point, so the endpoint never lies beyond the budget. The predicate receives the segment the
-    // point lies on (from, to) so the caller can evaluate the mount's heading there (the travel direction; the start point is
-    // passed with from == to, meaning the current orientation). The same walk serves the click decision and every carrier
-    // revalidation, so admission and execution use one computation from the current origin.
+    // MMR-02 (reviews R4-F1, R5-F2, R6-F2, R7-F1). Walks an executable route (the mount agent's native path) from its start and
+    // returns the route truncated at the FIRST point within the movement budget where the strike's production admission passes,
+    // with the cost measured along it.
+    //
+    // Discovery, stated exactly (review R7-F1): admission is evaluated at
+    //  - every point of a fixed 1 cm arc-length grid measured from the route's start (s = k x SampleStepMetres), independent
+    //    of the budget, up to the budget;
+    //  - the point at exactly the budget distance;
+    //  - any extra point the caller supplies on a segment (the position established when the click was planned, so a
+    //    revalidation re-examines exactly that position even when the budget, and with it the budget point, has changed);
+    // and from the first admissible sample the walk refines backwards (bisection) to that opening's first admissible point. An
+    // opening is therefore found when it contains a grid point, the budget point or a supplied point. Every opening at least
+    // 1 cm long contains a grid point; a narrower one can be missed. Because the grid does not depend on the budget, raising
+    // the budget never loses an opening found through a grid point; an opening found only through the budget point can be
+    // missed at another budget, which is why the established position is supplied to every revalidation. The predicate
+    // receives the segment the point lies on (from, to) so the caller can evaluate the mount's heading there (the start point
+    // is passed with from == to, meaning the current orientation). Nothing beyond the budget is returned.
     public static class MountedRouteWalker
     {
-        public const float SampleStepMetres = 0.05f;
+        public const float SampleStepMetres = 0.01f;
         public const int RefineIterations = 14;
 
         public static bool Walk<TPoint>(IList<TPoint> points, Func<TPoint, TPoint, float> distance, Func<TPoint, TPoint, float, TPoint> lerp,
-            Func<TPoint, TPoint, TPoint, bool> admissible, float budget, out List<TPoint> route, out float cost)
+            Func<TPoint, TPoint, TPoint, bool> admissible, float budget, out List<TPoint> route, out float cost) =>
+            Walk(points, distance, lerp, admissible, budget, null, out route, out cost);
+
+        // extraSamples: for a segment (from, to), additional parameters t in [0, 1] to evaluate on it (may be null).
+        public static bool Walk<TPoint>(IList<TPoint> points, Func<TPoint, TPoint, float> distance, Func<TPoint, TPoint, float, TPoint> lerp,
+            Func<TPoint, TPoint, TPoint, bool> admissible, float budget, Func<TPoint, TPoint, IEnumerable<float>> extraSamples,
+            out List<TPoint> route, out float cost)
         {
             route = null;
             cost = float.NaN;
@@ -43,11 +57,22 @@ namespace KingmakerMountedCombat.Domain
                 if (remaining <= 0f) break;
                 // The part of this segment the budget reaches: all of it, or up to the exact budget point.
                 var limit = remaining >= segment ? 1f : remaining / segment;
-                var steps = Math.Max(1, (int)Math.Ceiling(segment * limit / SampleStepMetres));
-                var previous = 0f;
-                for (var step = 1; step <= steps; step++)
+                var samples = new List<float>();
+                var first = (int)Math.Ceiling(travelled / SampleStepMetres - 1e-4);
+                for (var k = Math.Max(first, 0); k * SampleStepMetres <= travelled + segment * limit + 1e-6f; k++)
                 {
-                    var t = step == steps ? limit : limit * step / steps;
+                    var t = (k * SampleStepMetres - travelled) / segment;
+                    if (t > 0f && t <= limit) samples.Add(t);
+                }
+                samples.Add(limit);
+                if (extraSamples != null)
+                    foreach (var t in extraSamples(from, to))
+                        if (t > 0f && t <= limit) samples.Add(t);
+                samples.Sort();
+                var previous = 0f;
+                foreach (var t in samples)
+                {
+                    if (t <= previous) continue;
                     if (!admissible(lerp(from, to, t), from, to)) { previous = t; continue; }
                     float low = previous, high = t;
                     for (var iteration = 0; iteration < RefineIterations; iteration++)
