@@ -14,13 +14,15 @@ PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#
 - `scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>`: the controller gate.
   - `-SkipBuild` reuses outputs only while the build receipt (`bin/<cfg>/.loader-input-stamp`) is current. The receipt
     covers the loader pins and their parser and verifier, both MSBuild loader targets, the repository-root
-    `Directory.Build.props` and `Directory.Build.targets` whether or not Git tracks them, project files, the build bootstrap
+    `Directory.Build.props` and `Directory.Build.targets` and the observer's inherited `tools/Directory.Build.props` and
+    `tools/Directory.Build.targets` whether or not Git tracks them, project files, the build bootstrap
     `scripts/Build-Local.ps1`, the local `LocalGamePaths.props`, the manifests `Info.json` and `version.json`, every
     compiled source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both
     DLLs and the component runner.
   - Fast and Candidate check the receipt in their first admitted step (nothing is hashed before budget admission); Full
     checks it once, through `scripts/Test.ps1 -SkipBuild` inside its admitted umbrella step, and a direct
-    `scripts/Test.ps1 -SkipBuild` checks it the same way before any runner starts. `-Plan` reports the receipt state, read-only, on
+    `scripts/Test.ps1 -SkipBuild` checks it the same way before any runner starts. A Full run refused there is charged
+    to its budget entry, but a failed step never shortens the recorded Full-suite duration used for later admission. `-Plan` reports the receipt state, read-only, on
     both the reuse-check line and the artifact line.
 - `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
   profile (`umm-0.33.0`) is the installed loader before any admission, compares the installed UnityModManager and
@@ -68,7 +70,10 @@ included a commit). The four gate entries, including the failed round-4 gate, ar
 the round-5 evidence is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r5.json`; the round-4 copy keeps its
 original identity.
 
-**Offline checks.** Round 5 (`d5268152`, counted in the budget): `Test-BaseGameIsolation` 121/0 (owner-profile
+**Offline checks.** Round 6 (counted in the budget): `Test-FrozenProductSource` 37/0 (committing
+`tools/Directory.Build.targets` or `.props` rejects the archived observer and keeps main-only reuse; removing it restores
+the observer) and a step-history probe; `Test-PackageAdmissionAndReuse` runs in the controller gate. Round 5
+(`d5268152`, counted in the budget): `Test-BaseGameIsolation` 121/0 (owner-profile
 admission: matching fixture recorded, Harmony 2 alone changed refused), `Test-Chunk7NativeLoaderContracts` 118/0 (the
 launcher admits dependencies against the owner profile before staging), `Validate-Source` 153/0;
 `Test-PackageAdmissionAndReuse` runs in the controller gate. Round 4: `Test-PackageAdmissionAndReuse` 51/51 at `dbe51d82` (run with a simulated enclosing
