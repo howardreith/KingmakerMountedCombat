@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R5-F1: a request replaced between observation and claim is judged by the claimed bytes (apply and refusal)", ReplacedBeforeClaim);
             runner.Run("R5-F1: a request written after the claim is a separate later request; a waiting claim yields to it unchanged", WrittenAfterClaim);
             runner.Run("R6-F4: a one-time read or lookup failure after the claim keeps this process's exact claim; the next poll applies it once", TransientFailureAfterClaim);
+            runner.Run("R7-F5: a refusal, supersession or application frozen before reporting stays terminal through result-write and archive failures and candidate changes", TerminalDecisionsStayTerminal);
         }
 
         private sealed class Fact
@@ -519,6 +520,125 @@ namespace KingmakerMountedCombat.Tests
                 folders.Request(forA);
                 TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.HorseNotLoaded && host.Removals == 0 &&
                     folders.UserFiles().SequenceEqual(Files(Request)) && Archive(folders, Request) == forA, "A waiting claim was not returned unchanged.");
+            }
+        }
+
+        // Review R7-F5: once a decision is made it is frozen in the session (Undecided -> Decided -> Reported -> Archived) before
+        // any publication I/O, so a failed result write or archive rename is retried as reporting only: candidates are never
+        // selected again, nothing is removed again and no other request is consumed meanwhile, even when the horse's candidates
+        // change before the retry. Controls: a restarted session closes such a claim as interrupted with no removal; failures
+        // before the removal and after it are covered by PendingAndRetry, ReportingFailures and TransientFailureAfterClaim.
+        private static void TerminalDecisionsStayTerminal()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            // Ambiguous refusal, archive rename fails; the horse is then reloaded with ONE candidate: no removal, refused archive.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); a.Facts.Add(StockGrant("TrippingBite-2"));
+                host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 0 && folders.UserFiles().SequenceEqual(Files(Claimed, ResultFile)) &&
+                    folders.Result().Contains("Refused:") && session.PendingReports == 1,
+                    "R7-F5 ambiguous: the refusal was not frozen before its failed archive.");
+                host.Loaded.Clear(); var reloaded = LegacyHorse("horse-A"); host.Loaded.Add(reloaded);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 0 && Candidates(reloaded).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Refused, ResultFile)) && Archive(folders, Refused) == forA &&
+                    folders.Result().Contains("Refused:") && !session.HoldsClaim,
+                    "R7-F5 ambiguous: the retry reconsidered the reloaded horse or did not archive the refusal.");
+            }
+            // No-candidate refusal, result write fails; a candidate then appears: the retry only reports the refusal.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = new Horse { Id = "horse-A" }; host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailResultWrite = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 0 && folders.UserFiles().SequenceEqual(Files(Claimed)),
+                    "R7-F5 no-candidate: the failed result write changed the claim.");
+                a.Facts.Add(StockGrant());
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 0 && Candidates(a).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Refused, ResultFile)) && folders.Result().Contains("no sourceless stock TrippingBite"),
+                    "R7-F5 no-candidate: the retry selected the new candidate.");
+            }
+            // Supersession, result write fails with the newer request present; the waiting horse is then loaded with one candidate:
+            // the retry only reports the supersession, the newer request is not consumed until the superseded claim is archived,
+            // and it is then processed once on its own.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var b = LegacyHorse("horse-B"); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.AfterClaim = () => { folders.Request(forB); host.files.AfterClaim = null; };
+                host.FailResultWrite = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 0 && folders.UserFiles().SequenceEqual(Files(Claimed, Request)) &&
+                    Archive(folders, Request) == forB, "R7-F5 supersession: the failed result write changed the claim or the newer request.");
+                var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 0 && Candidates(a).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Request, Superseded, ResultFile)) && Archive(folders, Superseded) == forA &&
+                    Archive(folders, Request) == forB && folders.Result().Contains("Superseded:"),
+                    "R7-F5 supersession: the retry reconsidered horse A or consumed the newer request.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
+                    Archive(folders, Applied) == forB && Candidates(a).Count == 1, "R7-F5 supersession: the newer request was not processed once on its own.");
+            }
+            // Supersession, archive rename fails after the result was written: the retry only archives.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var b = LegacyHorse("horse-B"); host.Loaded.Add(b);
+                folders.Request(forA);
+                host.files.AfterClaim = () => { folders.Request(forB); host.files.AfterClaim = null; };
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, session)) && folders.UserFiles().SequenceEqual(Files(Claimed, Request, ResultFile)) &&
+                    folders.Result().Contains("Superseded:"), "R7-F5 supersession archive: the result was not published first.");
+                host.Loaded.Add(LegacyHorse("horse-A"));
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Request, Superseded, ResultFile)) && Archive(folders, Superseded) == forA,
+                    "R7-F5 supersession archive: the retry did more than archive the superseded claim.");
+            }
+            // Application, result write fails; a reload then restores the fact: finished as applied, never removed again.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailResultWrite = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && Candidates(a).Count == 0, "R7-F5 applied: the removal did not happen once.");
+                a.Facts.Insert(0, StockGrant());
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedApplied && host.Removals == 1 && Candidates(a).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)) && folders.Result().Contains("Applied:"),
+                    "R7-F5 applied: the retry removed again or did not finish as applied.");
+            }
+            // Application, archive rename fails; the horse is then unloaded: the retry only archives, as applied.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && folders.UserFiles().SequenceEqual(Files(Claimed, ResultFile)),
+                    "R7-F5 applied archive: the result was not published first.");
+                host.Loaded.Clear();
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedApplied && host.Removals == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)), "R7-F5 applied archive: the retry did not finish as applied.");
+            }
+            // Removal completes although Remove throws: verified gone, so frozen as applied; a failing result write then retries reporting only.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailRemovalAfter = true; host.FailResultWrite = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && session.PendingReports == 1 && folders.UserFiles().SequenceEqual(Files(Claimed)),
+                    "R7-F5 removal exception: a completed removal was not frozen as applied.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedApplied && host.Removals == 1 && Archive(folders, Applied) == forA,
+                    "R7-F5 removal exception: the retry did not finish as applied once.");
+            }
+            // Control: a restarted session finds a decided-but-unarchived claim it does not hold: interrupted, nothing removed.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); a.Facts.Add(StockGrant("TrippingBite-2")); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, new HorseTripRepairSession())), "R7-F5 restart control: the archive failure was not injected.");
+                a.Facts.RemoveAt(a.Facts.Count - 1);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Interrupted && host.Removals == 0 && Candidates(a).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Interrupted, ResultFile)), "R7-F5 restart control: a claim this process did not hold was decided.");
             }
         }
 

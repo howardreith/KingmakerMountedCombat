@@ -12,7 +12,7 @@ namespace KingmakerMountedCombat.Domain
     // its log (exact KMC Horse, exact stock grant by identity and Bite/Trip shape, no source fact, item or cutscene) with the
     // exact request line, and removes that one fact from that one horse only when the owner has written that request in the
     // KMC user-data folder (never the Mods tree). A request is single use: it is claimed before anything changes, and once
-    // the removal happened it can only finish as applied.
+    // a decision is made (applied, refused or superseded) it can only finish with that decision (review R7-F5).
     public enum HorseTripRepairDecision
     {
         NoRequest,
@@ -24,8 +24,11 @@ namespace KingmakerMountedCombat.Domain
         Apply,
         // A claim stranded by a reporting failure after the removal in this session: reporting finished, nothing removed again.
         FinishedApplied,
-        // A claim stranded without a recorded removal in this session (for example the game closed mid-request): nothing is
-        // removed; the owner checks the horse and writes a new request.
+        // Review R7-F5: a claim whose refusal or supersession was decided in this session but whose result or archive failed:
+        // only the reporting is retried; candidates are never selected again and nothing is removed.
+        FinishedDecided,
+        // A claim this process does not hold (for example the game closed mid-request): nothing is removed; the owner checks the
+        // horse and writes a new request.
         Interrupted,
         // The claimed request had to wait (its horse is not loaded) but the owner wrote a newer request meanwhile: the claimed
         // one is set aside unchanged (review R5-F1) and the newer one is processed on its own later.
@@ -87,18 +90,19 @@ namespace KingmakerMountedCombat.Domain
             "unchanged. The change is written to your save the next time the game saves; to undo it, reload a save made before this " +
             "repair (if you already reloaded one, the fact is back: write a new request to remove it again).";
 
-        // The whole request lifecycle against its host (reviews R4-F5, R5-F1).
-        //  - A stranded claim is settled first: if this session recorded its removal, only the reporting is finished (never a
-        //    second removal, also after a reload restored the fact); otherwise it is closed as interrupted, unchanged.
+        // The whole request lifecycle against its host (reviews R4-F5, R5-F1, R6-F4, R7-F5). The session holds this process's
+        // claim as one record tied to the claimed file's exact bytes and its stage: Undecided -> Decided -> Reported -> Archived.
+        //  - Only an Undecided claim may select candidates or authorize a removal.
+        //  - A refusal or supersession is frozen (Decided, with its result text and archive suffix) BEFORE any publication I/O;
+        //    an application is frozen as soon as the removal is verified (the fact is gone), also when Remove threw although
+        //    the removal completed.
+        //  - A Decided claim retries only the result write, a Reported claim only the archive rename: no reconsideration, no
+        //    second removal and no other request consumed while it is pending (the claim file still exists).
+        //  - A claim file whose bytes are not this process's record (the game restarted mid-request) is closed as interrupted.
         //  - A present request with the write gate closed is pending: nothing is claimed, read for a decision or changed.
-        //  - Otherwise the request is CLAIMED FIRST (atomic rename) and every selection and disposition is made from the bytes
-        //    of the claimed file alone (review R5-F1): a request the owner replaced before the claim is judged as replaced; one
-        //    written after the claim is a separate, later request. The request observed before the claim only signals presence.
-        //  - HorseNotLoaded returns the claim to the request name, unless a newer request appeared meanwhile: then the claimed
-        //    one is set aside unchanged as superseded. Malformed, no-candidate and ambiguous claimed requests are refused.
-        //  - Apply removes the fact named by the claimed bytes; a removal that throws while the fact is still present returns
-        //    the claim and propagates (retried later); once the fact is gone the outcome is recorded in the session before any
-        //    reporting, so a failing result write or rename can only be finished as applied.
+        //  - Otherwise the request is CLAIMED FIRST (atomic rename) and every selection and disposition is made from the bytes of
+        //    the claimed file alone (review R5-F1); a waiting claim returns to the request name, or is set aside as superseded
+        //    when a newer request appeared.
         public static HorseTripRepairDecision Process<TFact>(IHorseTripRepairHost<TFact> host, bool gateAdmitted, HorseTripRepairSession session)
             where TFact : class
         {
@@ -107,25 +111,16 @@ namespace KingmakerMountedCombat.Domain
             string claimText;
             if (host.TryReadClaim(out claimText))
             {
-                var claimedId = ParseRequest(claimText);
-                string applied;
-                if (claimedId != null && session.TryGetApplied(claimedId, out applied))
+                if (session.Owns(claimText))
                 {
-                    host.WriteResult(applied);
-                    host.Close(true, AppliedSuffix);
-                    session.Complete(claimedId);
-                    session.ReleaseClaim();
-                    return HorseTripRepairDecision.FinishedApplied;
-                }
-                // Review R6-F4: a claim this process took and never brought to a removal (a transient read or lookup failure
-                // after the rename) is this process's own: it is re-processed from its exact claimed bytes. The write gate still
-                // applies (a closed gate keeps the claim untouched). Only a claim this process did not take (the game restarted
-                // mid-request) is closed as interrupted.
-                if (session.HoldsClaim)
-                {
+                    if (session.Stage != HorseTripClaimStage.Undecided) return Publish(host, session);
+                    // Review R6-F4: this process's own undecided claim (a transient failure after the rename) is re-processed
+                    // from its exact bytes; the write gate still applies.
                     if (!gateAdmitted) return HorseTripRepairDecision.Pending;
                     return DecideClaimed(host, session, claimText);
                 }
+                var claimedId = ParseRequest(claimText);
+                session.Clear();
                 host.WriteResult("Interrupted: a claimed request for horse " + (claimedId ?? "<unreadable>") + " did not finish in this game " +
                     "session, so KMC made no further change. Check that horse in game (a bite hit followed by a Trip means the fact is still " +
                     "there) and write a new request if you still want it removed.");
@@ -133,20 +128,21 @@ namespace KingmakerMountedCombat.Domain
                 return HorseTripRepairDecision.Interrupted;
             }
             // No claim file: any record of an earlier claim of this process is stale.
-            session.ReleaseClaim();
+            session.Clear();
             string observed;
             if (!host.TryReadRequest(out observed)) return HorseTripRepairDecision.NoRequest;
             if (!gateAdmitted) return HorseTripRepairDecision.Pending;
             host.Claim();
-            // Recorded the moment the rename succeeded: whatever fails before the removal, the next poll re-processes this claim.
-            session.TakeClaim();
+            // Recorded the moment the rename succeeded (review R6-F4): the claim is this process's, undecided, with its bytes
+            // bound at the first successful read, so whatever fails before a decision the next poll re-processes exactly it.
+            session.TakeUnread();
             string text;
             if (!host.TryReadClaim(out text)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
+            session.Owns(text);
             return DecideClaimed(host, session, text);
         }
 
-        // Every selection and disposition from the claimed file's bytes (review R5-F1), for a fresh claim or this process's own
-        // retained claim (review R6-F4). A failure before the removal leaves the claim in place and recorded as this process's.
+        // Every selection and disposition from the claimed file's bytes (review R5-F1); only reached for an Undecided claim.
         private static HorseTripRepairDecision DecideClaimed<TFact>(IHorseTripRepairHost<TFact> host, HorseTripRepairSession session, string text)
             where TFact : class
         {
@@ -158,56 +154,72 @@ namespace KingmakerMountedCombat.Domain
             switch (decision)
             {
                 case HorseTripRepairDecision.HorseNotLoaded:
-                    if (host.ReleaseClaim()) { session.ReleaseClaim(); break; }
-                    host.WriteResult("Superseded: the request for horse " + horseId + " was waiting for that horse to be loaded when a newer " +
-                        "request was written, so it was set aside unchanged; the newer request is processed on its own.");
-                    host.Close(true, SupersededSuffix);
-                    session.ReleaseClaim();
-                    return HorseTripRepairDecision.Superseded;
+                    if (host.ReleaseClaim()) { session.Clear(); return decision; }
+                    session.Decide(HorseTripRepairDecision.Superseded, "Superseded: the request for horse " + horseId + " was waiting for that " +
+                        "horse to be loaded when a newer request was written, so it was set aside unchanged; the newer request is processed on its own.",
+                        SupersededSuffix);
+                    return Publish(host, session);
                 case HorseTripRepairDecision.Apply:
                     var fact = candidates[0];
+                    Exception removalFailure = null;
                     try { host.Remove(fact); }
-                    catch (Exception)
+                    catch (Exception exception) { removalFailure = exception; }
+                    if (host.StillPresent(fact))
                     {
-                        if (host.StillPresent(fact))
+                        // Not removed (failed, or returned without effect): still Undecided, so nothing is reported as applied.
+                        if (host.ReleaseClaim()) session.Clear();
+                        else
                         {
-                            if (host.ReleaseClaim()) session.ReleaseClaim();
-                            else
-                            {
-                                host.WriteResult("Superseded: removing the TrippingBite from horse " + horseId + " failed with nothing changed, " +
-                                    "and a newer request was written meanwhile, so this one was set aside; the newer request is processed on its own.");
-                                host.Close(true, SupersededSuffix);
-                                session.ReleaseClaim();
-                            }
-                            throw;
+                            session.Decide(HorseTripRepairDecision.Superseded, "Superseded: removing the TrippingBite from horse " + horseId +
+                                " failed with nothing changed, and a newer request was written meanwhile, so this one was set aside; the newer " +
+                                "request is processed on its own.", SupersededSuffix);
+                            Publish(host, session);
                         }
+                        if (removalFailure != null) throw removalFailure;
+                        throw new InvalidOperationException("The Horse Trip repair removal returned without removing the fact.");
                     }
-                    var result = AppliedResult(horseId);
-                    session.MarkApplied(horseId, result);
-                    host.WriteResult(result);
-                    host.Close(true, AppliedSuffix);
-                    session.Complete(horseId);
-                    session.ReleaseClaim();
-                    break;
+                    // Verified removed (also when Remove threw after completing): frozen as applied before any reporting.
+                    session.Decide(HorseTripRepairDecision.Apply, AppliedResult(horseId), AppliedSuffix);
+                    Publish(host, session);
+                    return HorseTripRepairDecision.Apply;
                 case HorseTripRepairDecision.Malformed:
-                    host.WriteResult("Refused: the request must contain exactly one line of the form horse=<UniqueId> (copy it from the " +
-                        "KMC log line 'KMC Horse Trip repair candidate'); blank lines and lines starting with # are ignored. Nothing was changed.");
-                    host.Close(true, RefusedSuffix);
-                    session.ReleaseClaim();
-                    break;
+                    session.Decide(decision, "Refused: the request must contain exactly one line of the form horse=<UniqueId> (copy it from the " +
+                        "KMC log line 'KMC Horse Trip repair candidate'); blank lines and lines starting with # are ignored. Nothing was changed.",
+                        RefusedSuffix);
+                    return Publish(host, session);
                 case HorseTripRepairDecision.NoCandidate:
-                    host.WriteResult("Refused: horse " + horseId + " has no sourceless stock TrippingBite to remove. Nothing was changed.");
-                    host.Close(true, RefusedSuffix);
-                    session.ReleaseClaim();
-                    break;
+                    session.Decide(decision, "Refused: horse " + horseId + " has no sourceless stock TrippingBite to remove. Nothing was changed.",
+                        RefusedSuffix);
+                    return Publish(host, session);
                 case HorseTripRepairDecision.Ambiguous:
-                    host.WriteResult("Refused: horse " + horseId + " has " + candidates.Count +
-                        " sourceless stock TrippingBite facts, so the inherited one cannot be singled out. Nothing was changed.");
-                    host.Close(true, RefusedSuffix);
-                    session.ReleaseClaim();
-                    break;
+                    session.Decide(decision, "Refused: horse " + horseId + " has " + candidates.Count +
+                        " sourceless stock TrippingBite facts, so the inherited one cannot be singled out. Nothing was changed.", RefusedSuffix);
+                    return Publish(host, session);
             }
             return decision;
+        }
+
+        // Review R7-F5: publication of a frozen decision only. Decided -> (result written) Reported -> (claim archived) Archived.
+        // A failure leaves the stage where it was; the next poll resumes from there. Returns the decision on the poll that made
+        // it, and FinishedApplied / FinishedDecided on a later poll that completes the reporting.
+        private static HorseTripRepairDecision Publish<TFact>(IHorseTripRepairHost<TFact> host, HorseTripRepairSession session) where TFact : class
+        {
+            var decision = session.Decision;
+            var resumed = session.PublicationAttempted;
+            session.MarkPublicationAttempted();
+            if (session.Stage == HorseTripClaimStage.Decided)
+            {
+                host.WriteResult(session.Result);
+                session.Advance(HorseTripClaimStage.Reported);
+            }
+            if (session.Stage == HorseTripClaimStage.Reported)
+            {
+                host.Close(true, session.Suffix);
+                session.Advance(HorseTripClaimStage.Archived);
+            }
+            session.Clear();
+            if (!resumed) return decision;
+            return decision == HorseTripRepairDecision.Apply ? HorseTripRepairDecision.FinishedApplied : HorseTripRepairDecision.FinishedDecided;
         }
     }
 
@@ -219,23 +231,64 @@ namespace KingmakerMountedCombat.Domain
             string.IsNullOrEmpty(dataParent) ? null : Path.Combine(dataParent, HorseTripRepairPolicy.FolderName);
     }
 
-    // Per game process: the requests whose removal happened, until their reporting finished.
+    // Review R7-F5: the stages of this process's claim. Only Undecided may select candidates or mutate a horse.
+    public enum HorseTripClaimStage { None, Undecided, Decided, Reported, Archived }
+
+    // Per game process: the one claim this process took, tied to the claimed file's exact bytes, with its stage and, once
+    // decided, its frozen outcome, result text and archive suffix (reviews R4-F5, R6-F4, R7-F5).
     public sealed class HorseTripRepairSession
     {
-        private readonly Dictionary<string, string> applied = new Dictionary<string, string>(StringComparer.Ordinal);
+        private string claimText;
+        private bool bytesUnknown;
 
-        // Review R6-F4: this process renamed the request to the claim and has not yet closed, returned or applied it.
-        public bool HoldsClaim { get; private set; }
-        public void TakeClaim() => HoldsClaim = true;
-        public void ReleaseClaim() => HoldsClaim = false;
+        public HorseTripClaimStage Stage { get; private set; }
+        public HorseTripRepairDecision Decision { get; private set; }
+        public string Result { get; private set; }
+        public string Suffix { get; private set; }
+        internal bool PublicationAttempted { get; private set; }
 
-        public void MarkApplied(string horseId, string result) => applied[horseId] = result;
+        // This process renamed the request to the claim and has not yet archived, returned or abandoned it.
+        public bool HoldsClaim => Stage != HorseTripClaimStage.None;
 
-        public bool TryGetApplied(string horseId, out string result) => applied.TryGetValue(horseId, out result);
+        // A decided claim whose reporting has not finished (1 or 0).
+        public int PendingReports => Stage == HorseTripClaimStage.Decided || Stage == HorseTripClaimStage.Reported ? 1 : 0;
 
-        public void Complete(string horseId) => applied.Remove(horseId);
+        public void Take(string text)
+        {
+            claimText = text; bytesUnknown = false; Stage = HorseTripClaimStage.Undecided;
+            Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
+        }
 
-        public int PendingReports => applied.Count;
+        // The rename succeeded but the bytes could not be read: the next read of the claim file supplies them.
+        public void TakeUnread()
+        {
+            Take(null); bytesUnknown = true;
+        }
+
+        // Whether the claim file's bytes are exactly this process's claim. An undecided claim taken with unknown bytes adopts the
+        // bytes of its first successful read; a decided claim must match exactly.
+        public bool Owns(string text)
+        {
+            if (Stage == HorseTripClaimStage.None) return false;
+            if (bytesUnknown && Stage == HorseTripClaimStage.Undecided) { claimText = text; bytesUnknown = false; return true; }
+            return string.Equals(claimText, text, StringComparison.Ordinal);
+        }
+
+        public void Decide(HorseTripRepairDecision decision, string result, string suffix)
+        {
+            if (Stage != HorseTripClaimStage.Undecided) throw new InvalidOperationException("Only an undecided claim can be decided.");
+            Decision = decision; Result = result; Suffix = suffix; Stage = HorseTripClaimStage.Decided;
+        }
+
+        internal void Advance(HorseTripClaimStage stage) => Stage = stage;
+
+        internal void MarkPublicationAttempted() => PublicationAttempted = true;
+
+        public void Clear()
+        {
+            claimText = null; bytesUnknown = false; Stage = HorseTripClaimStage.None;
+            Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
+        }
     }
 
     public interface IHorseTripRepairHost<TFact> where TFact : class
