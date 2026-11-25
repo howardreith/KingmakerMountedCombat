@@ -42,7 +42,7 @@ namespace KingmakerMountedCombat.Integration
         public int SeatSettleFrames => seatSampler == null ? 0 : seatSampler.FramesToSettle;
         public float SeatSettleAnimationSeconds => seatSampler == null ? 0f : seatSampler.AnimationSecondsToSettle;
         public int SeatIgnoredFrames => seatSampler == null ? 0 : seatSampler.IgnoredFrames;
-        public int SeatCorrections => seatSampler == null ? 0 : seatSampler.Corrections;
+        public int SeatIneligibleFrames => seatSampler == null ? 0 : seatSampler.IneligibleFrames;
         // Review R5-F3: the attachment-frame anchor relation (rider position anchor minus Chest, mount root frame).
         public PoseVector3 CalibrationAnchorFromSource { get; private set; }
         // Set by the pair runtime before ConfigureAnimatedSaddle: (phase, observed, applied, frames, animation seconds, anchor
@@ -221,34 +221,30 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // MMR-01 (review R1-F12): every seat frame until the rider's own pose settles: the rider's animated pelvis minus the
-        // Chest in the mount root frame (after native animation and the profile pelvis offset, before this frame's seat write;
-        // the frame lease restored the previous write before the animator pass). On the frame it settles, the saddle is
-        // re-acquired once from that sample; a pose that never settles keeps the attachment sample.
-        // Round 6 (R5-F4): sampling continues after the first settle while the sampler's correction horizon is open; a later
-        // evidenced stable window that differs from the applied basis by more than the threshold re-acquires the saddle once
-        // more (phase=corrected).
+        // MMR-01 (review R1-F12): every seat frame until the rider's resting pose is confirmed: the normalized sample (after native
+        // animation and the profile pelvis offset, before this frame's seat write; the frame lease restored the previous write
+        // before the animator pass), the frame's fresh-evaluation advance and its rest eligibility (reviews R5-F4, R7-F2, R7-F3).
+        // On the frame a resting window settles, the saddle is re-acquired once from it; the confirmed reference is never
+        // replaced afterwards. A pose not settled after the notice interval is logged once (phase=unsettled) and keeps the
+        // attachment sample while sampling continues.
         private void ObserveSettlingSeat()
         {
             if (seatSampler == null || !seatSampler.Observing) return;
             var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
             var observed = NormalizedSeatSample();
-            var outcome = seatSampler.Observe(observed, SeatAnimationAdvanceSeconds());
-            if (outcome == SeatSampleOutcome.GaveUp)
+            var advance = SeatAnimationAdvanceSeconds();
+            var outcome = seatSampler.Observe(observed, advance, advance > 0f && SeatRestEligible());
+            if (outcome == SeatSampleOutcome.Unsettled)
             {
                 NotifySeatCalibration("unsettled", observed, CalibrationAppliedSeatFromSource, seatSampler.Frames, seatSampler.AnimationSeconds);
                 return;
             }
-            if (outcome != SeatSampleOutcome.Settled && outcome != SeatSampleOutcome.Corrected) return;
+            if (outcome != SeatSampleOutcome.Settled) return;
             animatedSaddle.Release();
             animatedSaddle.Acquire(source, source + seatSampler.SettledSample, seatCorrection);
             CalibrationAppliedSeatFromSource = seatSampler.SettledSample;
-            if (outcome == SeatSampleOutcome.Settled)
-                NotifySeatCalibration("settled", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.FramesToSettle,
-                    seatSampler.AnimationSecondsToSettle);
-            else
-                NotifySeatCalibration("corrected", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.Frames,
-                    seatSampler.AnimationSeconds);
+            NotifySeatCalibration("settled", seatSampler.SettledSample, CalibrationAppliedSeatFromSource, seatSampler.FramesToSettle,
+                seatSampler.AnimationSecondsToSettle);
         }
 
         // Review R5-F3: the attachment-frame anchor relation plus the rider-local pelvis (pelvis minus the rider root, which
@@ -256,15 +252,46 @@ namespace KingmakerMountedCombat.Integration
         private PoseVector3 NormalizedSeatSample() => AnimatedSaddleCalibration.NormalizedSeatFromSource(CalibrationAnchorFromSource,
             ToPose(saddleMountRoot.InverseTransformPoint(pelvis.position)), ToPose(saddleMountRoot.InverseTransformPoint(riderView.transform.position)));
 
-        // Review R5-F4: how far the rider's animation advanced this frame. The native AnimationManager advances its playables by
-        // the game delta in its own Update unless Disabled; Kingmaker's pause suspends Time.timeScale (TimeController.Suspend), so
-        // a paused, disabled or inactive animation advanced 0 and its frames never count toward settling.
+        // Review R5-F4: how far the rider's freshly evaluated animation advanced this frame (0 = not evaluated or not advancing).
+        // Installed contracts (Test-MmrHorseSeatNativeContract.ps1): UnitEntityView.OnDataAttached sets every unit Animator's
+        // cullingMode to AlwaysAnimate, so off-screen culling does not stop the skeleton's transform writes; the native
+        // AnimationManager's PlayableGraph (created in OnEnable, output bound to that Animator) is evaluated by the Animator's
+        // update while it plays. Not evaluated: the manager or Animator inactive or disabled, the graph invalid or stopped, or a
+        // culling mode other than AlwaysAnimate (Kingmaker never sets one for a unit; treated as unverified). Not advancing: the
+        // manager Disabled (its graph speed 0: StandUp, resurrection) or a paused game (TimeController.Suspend: Time.timeScale 0).
         private float SeatAnimationAdvanceSeconds()
         {
             var manager = riderView == null ? null : riderView.AnimationManager;
             if (manager == null || !manager.isActiveAndEnabled || manager.Disabled) return 0f;
+            var animator = manager.Animator;
+            if (animator == null || !animator.isActiveAndEnabled || animator.cullingMode != AnimatorCullingMode.AlwaysAnimate) return 0f;
+            var graph = manager.PlayableGraph;
+            if (!graph.IsValid() || !graph.IsPlaying()) return 0f;
             var delta = Time.deltaTime;
             return delta > 0f ? delta : 0f;
+        }
+
+        // Reviews R7-F2, R7-F3: whether the rider's current pose is a resting reference, by the native idle stage itself:
+        // UnitAnimationManager.CanRunIdleAction (installed: animation Speed <= 0, and every active action is the locomotion
+        // handle, additive or released). The carried rider's Speed follows the mount's movement (RiderMovementAgent reports the
+        // mount agent's speed; UnitAnimationController.TickOnUnit sets the animation Speed from it), so the pair moving is not
+        // rest. A released action still blending out (an active animation of a released, non-additive handle with weight > 0)
+        // is a transition, not rest. A command that waits (queued, or not yet started and not moving) plays no action and stays
+        // eligible; an approach, attack, cast, idle variant or transition does not.
+        private bool SeatRestEligible()
+        {
+            var manager = riderView == null ? null : riderView.AnimationManager;
+            if (manager == null || !manager.CanRunIdleAction()) return false;
+            var animations = manager.ActiveAnimations;
+            if (animations == null) return true;
+            foreach (var animation in animations)
+            {
+                var handle = animation == null ? null : animation.Handle;
+                if (handle == null || !handle.IsReleased) continue;
+                if (handle.Action != null && handle.Action.IsAdditive) continue;
+                if (animation.GetWeight() > 0f) return false;
+            }
+            return true;
         }
 
         private void NotifySeatCalibration(string phase, PoseVector3 observed, PoseVector3 applied, int frames, float animationSeconds)

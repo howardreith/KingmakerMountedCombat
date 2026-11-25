@@ -1008,7 +1008,7 @@ namespace KingmakerMountedCombat.Integration
                     poseAdapter.SeatCalibrationSettled ? "settled" : "provisional") +
                     ";observedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationObservedSeatFromSource) +
                     ";appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationAppliedSeatFromSource) +
-                    ";settleFrames=" + poseAdapter.SeatSettleFrames + ";seatCorrections=" + poseAdapter.SeatCorrections) +
+                    ";settleFrames=" + poseAdapter.SeatSettleFrames + ";seatIneligibleFrames=" + poseAdapter.SeatIneligibleFrames) +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

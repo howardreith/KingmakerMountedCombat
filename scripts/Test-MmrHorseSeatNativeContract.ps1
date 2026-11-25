@@ -94,4 +94,35 @@ Check (CallsResolved $updateDt $disabled) 'MMR-01 (R5-F4): installed AnimationMa
 $suspend = (GameType 'Kingmaker.Controllers.TimeController').GetMethod('Suspend')
 $setScale = $unityTime.GetProperty('timeScale').GetSetMethod()
 Check (CallsResolved $suspend $setScale) 'MMR-01 (R5-F4): installed TimeController.Suspend (pause) sets Time.timeScale, so a paused frame has no animation delta'
+# ---- PR-3 (reviews R5-F4, R7-F2, R7-F3): the installed members behind fresh evaluation and rest eligibility ------------------
+$unitView = GameType 'Kingmaker.View.UnitEntityView'
+$animatorType = [Type]::GetType('UnityEngine.Animator, UnityEngine.AnimationModule', $true)
+$setCulling = $animatorType.GetProperty('cullingMode').GetSetMethod()
+$attached = $unitView.GetMethod('OnDataAttached', $any)
+$attachedIl = $attached.GetMethodBody().GetILAsByteArray(); $alwaysAnimate = $false
+for ($i = 1; $i -le $attachedIl.Length - 5; $i++) { if ($attachedIl[$i] -eq 0x6F -and $attachedIl[$i - 1] -eq 0x16) { try { if ($attached.Module.ResolveMethod([BitConverter]::ToInt32($attachedIl, $i + 1)) -eq $setCulling) { $alwaysAnimate = $true } } catch { } } }
+Check $alwaysAnimate 'MMR-01 (R5-F4): installed UnitEntityView.OnDataAttached sets every unit Animator.cullingMode = 0 (AlwaysAnimate): off-screen culling does not stop the skeleton writes'
+$graphType = [Type]::GetType('UnityEngine.Playables.PlayableGraph, UnityEngine.CoreModule', $false); if ($null -eq $graphType) { $graphType = [Type]::GetType('UnityEngine.Playables.PlayableGraph, UnityEngine.DirectorModule', $true) }
+$outputType = [Type]::GetType('UnityEngine.Animations.AnimationPlayableOutput, UnityEngine.AnimationModule', $true)
+$onEnable = $nativeAnimation.GetMethod('OnEnable', $any)
+Check ((CallsResolved $onEnable ($graphType.GetMethod('Play'))) -and (CallsResolved $onEnable ($outputType.GetMethod('Create', [Reflection.BindingFlags]'Static,Public')))) 'MMR-01 (R5-F4): installed AnimationManager.OnEnable creates and plays its PlayableGraph with an AnimationPlayableOutput bound to the unit Animator'
+$unitAnimation = GameType 'Kingmaker.Visual.Animation.Kingmaker.UnitAnimationManager'
+$canIdle = $unitAnimation.GetMethod('CanRunIdleAction', $any)
+$handleType = GameType 'Kingmaker.Visual.Animation.Actions.AnimationActionHandle'
+$actionBase = GameType 'Kingmaker.Visual.Animation.Actions.AnimationActionBase'
+$canIdleTokens = IlTokens $canIdle
+Check ($canIdle.IsPublic -and (CallsResolved $canIdle ($unitAnimation.GetProperty('Speed').GetGetMethod())) -and (CallsResolved $canIdle ($nativeAnimation.GetProperty('ActiveActions').GetGetMethod())) -and
+    (CallsResolved $canIdle ($handleType.GetProperty('IsReleased').GetGetMethod())) -and (CallsResolved $canIdle ($actionBase.GetProperty('IsAdditive').GetGetMethod())) -and
+    $canIdleTokens.ContainsKey($unitAnimation.GetField('m_LocoMotionHandle', $any).MetadataToken)) 'MMR-01 (R7-F2/F3): installed UnitAnimationManager.CanRunIdleAction is the native idle stage: animation Speed <= 0 and every active action is the locomotion handle, additive or released'
+$tickOnUnit = (GameType 'Kingmaker.Controllers.Units.UnitAnimationController').GetMethod('TickOnUnit', $any)
+Check ((CallsResolved $tickOnUnit ((GameType 'Kingmaker.View.UnitMovementAgentBase').GetProperty('Speed').GetGetMethod())) -and (CallsResolved $tickOnUnit ($unitAnimation.GetProperty('Speed').GetSetMethod()))) 'MMR-01 (R7-F3): installed UnitAnimationController.TickOnUnit sets the animation Speed from the unit view''s movement agent Speed'
+$riderAgent = KmcType 'KingmakerMountedCombat.Integration.RiderMovementAgent'
+$agentBase = GameType 'Kingmaker.View.UnitMovementAgentBase'
+$readsMountSpeed = $false
+foreach ($m in $riderAgent.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) { if ($m.Name -cne 'UpdateVelocity') { continue }; $il = $m.GetMethodBody().GetILAsByteArray(); for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { $r = $m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)); if ($r.Name -ceq 'get_Speed' -and $agentBase.IsAssignableFrom($r.DeclaringType)) { $readsMountSpeed = $true } } catch { } } } }
+Check $readsMountSpeed 'MMR-01 (R7-F3): the carried rider''s movement agent (RiderMovementAgent.UpdateVelocity) reports the mount agent''s Speed, so the pair moving is not native idle'
+$rest = $adapterType.GetMethod('SeatRestEligible', [Reflection.BindingFlags]'Instance,NonPublic')
+$animationBase = GameType 'Kingmaker.Visual.Animation.AnimationBase'
+Check ((CallsResolved $rest $canIdle) -and (CallsResolved $rest ($animationBase.GetMethod('GetWeight', [Type[]]@()))) -and (CallsResolved $rest ($handleType.GetProperty('IsReleased').GetGetMethod()))) 'MMR-01 (R7-F2/F3): the adapter''s rest eligibility is native CanRunIdleAction plus no released action still blending out'
+Check ((CallsResolved $advance ($animatorType.GetProperty('cullingMode').GetGetMethod())) -and (CallsResolved $advance ($graphType.GetMethod('IsPlaying'))) -and (CallsResolved $advance ($graphType.GetMethod('IsValid')))) 'MMR-01 (R5-F4): the adapter''s fresh-evaluation gate reads the Animator culling mode and the native graph''s IsValid/IsPlaying'
 Write-Host ('Mounted alpha 2 native contract (seat) PASS=' + $script:passed + ' FAIL=0')

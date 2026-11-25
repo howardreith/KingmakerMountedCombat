@@ -31,6 +31,7 @@ $members=[ordered]@{
  'ADAPTER_SETTLE'=(Extract $adapter 'private void ObserveSettlingSeat()')
  'ADAPTER_NORMALIZED'=(ExtractExpression $adapter 'private PoseVector3 NormalizedSeatSample() =>')
  'ADAPTER_ADVANCE'=(Extract $adapter 'private float SeatAnimationAdvanceSeconds()')
+ 'ADAPTER_REST'=(Extract $adapter 'private bool SeatRestEligible()')
  'ADAPTER_NOTIFY'=(Extract $adapter 'private void NotifySeatCalibration(')
  'ADAPTER_SCALE'=(Extract $adapter 'internal void CompensateMountScale(Transform exactAnchor)')
  'ADAPTER_DECONFIGURE'=(Extract $adapter 'public void Deconfigure()')

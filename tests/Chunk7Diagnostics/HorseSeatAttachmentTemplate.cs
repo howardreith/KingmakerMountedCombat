@@ -119,6 +119,9 @@ namespace UnityEngine
         public static float deltaTime = 1f / 60f;
     }
 
+    // The installed Unity enum the adapter compares (Kingmaker sets AlwaysAnimate for every unit view).
+    public enum AnimatorCullingMode { AlwaysAnimate = 0, CullUpdateTransforms = 1, CullCompletely = 2 }
+
     public class MonoBehaviour : Behaviour { }
 
     public sealed class Transform : Component
@@ -315,10 +318,57 @@ namespace KingmakerMountedCombat.Integration
     // Facade of the native humanoid surface the adapter reads: a live Animator and the CharacterAvatar under which the rig is.
     internal sealed class Character : MonoBehaviour { }
 
-    // Facade of the native AnimationManager surface the adapter reads (its Disabled flag; enabled/active as a Behaviour).
+    // Facade of the native UnitAnimationManager surface the adapter reads, with the installed member shapes: Disabled,
+    // enabled/active as a Behaviour, its Animator (enabled, cullingMode), its PlayableGraph (IsValid, IsPlaying),
+    // CanRunIdleAction and ActiveAnimations (Handle.IsReleased, Handle.Action.IsAdditive, GetWeight). CanRunIdleAction is
+    // modelled on the installed IL pinned by Test-MmrHorseSeatNativeContract.ps1 (Speed <= 0 and no active action other than
+    // the locomotion handle, an additive or a released one); the harness drives its inputs, not its result.
     internal sealed class HarnessAnimationManager : MonoBehaviour
     {
         public bool Disabled { get; set; }
+        public HarnessAnimator Animator { get; } = new HarnessAnimator();
+        public bool GraphPlaying = true;
+        public HarnessPlayableGraph PlayableGraph => new HarnessPlayableGraph(GraphPlaying);
+        public float Speed;
+        public bool ActionActive;
+        public bool CanRunIdleAction() => !(Speed > 0f) && !ActionActive;
+        public float BlendingOutWeight;
+        public List<HarnessAnimation> ActiveAnimations => BlendingOutWeight > 0f
+            ? new List<HarnessAnimation> { HarnessAnimation.Locomotion, new HarnessAnimation(new HarnessHandle(true, false), BlendingOutWeight) }
+            : new List<HarnessAnimation> { HarnessAnimation.Locomotion };
+    }
+
+    internal sealed class HarnessAnimator
+    {
+        public bool enabled = true;
+        public bool isActiveAndEnabled => enabled;
+        public UnityEngine.AnimatorCullingMode cullingMode = UnityEngine.AnimatorCullingMode.AlwaysAnimate;
+    }
+
+    internal struct HarnessPlayableGraph
+    {
+        private readonly bool playing;
+        public HarnessPlayableGraph(bool playing) { this.playing = playing; }
+        public bool IsValid() => true;
+        public bool IsPlaying() => playing;
+    }
+
+    internal sealed class HarnessAction { public bool IsAdditive; }
+
+    internal sealed class HarnessHandle
+    {
+        public HarnessHandle(bool released, bool additive) { IsReleased = released; Action = new HarnessAction { IsAdditive = additive }; }
+        public bool IsReleased { get; }
+        public HarnessAction Action { get; }
+    }
+
+    internal sealed class HarnessAnimation
+    {
+        public static readonly HarnessAnimation Locomotion = new HarnessAnimation(new HarnessHandle(false, false), 1f);
+        private readonly float weight;
+        public HarnessAnimation(HarnessHandle handle, float weight) { Handle = handle; this.weight = weight; }
+        public HarnessHandle Handle { get; }
+        public float GetWeight() => weight;
     }
 
     internal sealed class UnitEntityView : MonoBehaviour
@@ -395,6 +445,7 @@ namespace KingmakerMountedCombat.Integration
         /* ADAPTER_SETTLE */
         /* ADAPTER_NORMALIZED */
         /* ADAPTER_ADVANCE */
+        /* ADAPTER_REST */
         /* ADAPTER_NOTIFY */
         /* ADAPTER_SCALE */
         /* ADAPTER_DECONFIGURE */
@@ -524,11 +575,10 @@ internal static class Program
     }
 
     private static bool Near(Vector3 a, Vector3 b) => Vector3.Distance(a, b) <= Tolerance;
-    // A settled seat is the mean of a breathing window (0.3 mm breathing), so seats are compared to 0.25 mm; restoration and
-    // unsettled (attachment-sample) seats stay exact (Near).
+    // Settled seats are the mean of a stable window: exact for a stationary idle, within 0.25 mm for a breathing one.
     private const float SeatTolerance = 0.00025f;
     private static bool NearSeat(Vector3 a, Vector3 b) => Vector3.Distance(a, b) <= SeatTolerance;
-    // A living pose breathes: the frame-to-frame change is the sampler's evidence that the native animation evaluated it.
+    // Stable idle variation (a breathing idle, 0.3 mm), used only where variation itself is under test.
     private const float Breath = 0.0003f;
     private static float Breathe(float height, int frame) => height + Breath * (float)Math.Sin(frame * 0.35);
     private static Vector3 U(PoseVector3 value) => new Vector3(value.X, value.Y, value.Z);
@@ -618,49 +668,97 @@ internal static class Program
     private static int ConfiguredAdapters(GameObject view) =>
         view.GetComponents<KingmakerMountedCombat.Integration.MountedRiderPoseAdapter>().Count(adapter => adapter.IsConfigured);
 
-    // Engine frames while mounted: the movement agent keeps the rider root on its anchor, then the animator writes its own
-    // pelvis pose (cast, walk, idle) before the adapter's LateUpdate.
-    private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, IEnumerable<float> animatedHeights)
+    // One frame of the full rig: the Horse Chest height (mount-root-local Y), the rider's animated pelvis height, the frame delta
+    // (0 = paused: Kingmaker suspends Time.timeScale) and the native state the adapter reads this frame: whether the Animator
+    // evaluated (disabled = not), whether an action is active (attack, cast, idle variant), whether the pair moves (animation
+    // Speed > 0) and the weight of a released action still blending out.
+    private struct RigFrame
     {
-        Time.deltaTime = 1f / 60f;
-        foreach (var height in animatedHeights)
-            runtime.PoseAdapter.HarnessFrame(() => { runtime.HarnessSync(); pelvis.localPosition = new Vector3(0f, height, 0f); });
-        return pelvis.position;
+        public float Pelvis, ChestY, Delta, Blend;
+        public bool Unevaluated, Action, Moving;
+        public RigFrame(float pelvis, float chestY, float delta) { Pelvis = pelvis; ChestY = chestY; Delta = delta; Blend = 0f; Unevaluated = false; Action = false; Moving = false; }
     }
 
-    // One frame of the full rig: the Horse Chest height (mount-root-local Y), the rider's animated pelvis height and the frame
-    // delta (0 = paused: Kingmaker suspends Time.timeScale).
-    private struct RigFrame { public float Pelvis, ChestY, Delta; public RigFrame(float pelvis, float chestY, float delta) { Pelvis = pelvis; ChestY = chestY; Delta = delta; } }
-
-    private static Vector3 Drive(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, Mount mount, IEnumerable<RigFrame> frames)
+    private static void Apply(KingmakerMountedCombat.Integration.HarnessAnimationManager manager, RigFrame frame)
     {
+        manager.Animator.enabled = !frame.Unevaluated;
+        manager.ActionActive = frame.Action;
+        manager.Speed = frame.Moving ? 1f : 0f;
+        manager.BlendingOutWeight = frame.Blend;
+    }
+
+    // The rider view's native animation manager facade: the nearest UnitEntityView above the pelvis.
+    private static KingmakerMountedCombat.Integration.HarnessAnimationManager ManagerOf(Transform pelvis)
+    {
+        for (var node = pelvis; node != null; node = node.parent)
+        {
+            var views = node.GetComponents<KingmakerMountedCombat.Integration.UnitEntityView>();
+            if (views.Length > 0) return views[0].AnimationManager;
+        }
+        throw new InvalidOperationException("No rider view above the pelvis.");
+    }
+
+    private static void Rest(KingmakerMountedCombat.Integration.HarnessAnimationManager manager) => Apply(manager, new RigFrame(0f, 0f, Dt));
+
+    // Engine frames while mounted: the movement agent keeps the rider root on its anchor, then the animator writes its own
+    // pelvis pose before the adapter's LateUpdate. Plain heights are resting frames.
+    private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, IEnumerable<float> animatedHeights) =>
+        Frames(runtime, pelvis, animatedHeights.Select(height => new RigFrame(height, 0f, Dt)));
+
+    private static Vector3 Frames(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, IEnumerable<RigFrame> frames)
+    {
+        var manager = ManagerOf(pelvis);
         foreach (var frame in frames)
         {
             Time.deltaTime = frame.Delta;
+            Apply(manager, frame);
+            var f = frame;
+            runtime.PoseAdapter.HarnessFrame(() => { runtime.HarnessSync(); pelvis.localPosition = new Vector3(0f, f.Pelvis, 0f); });
+        }
+        Time.deltaTime = Dt; Rest(manager);
+        return pelvis.position;
+    }
+
+    private static Vector3 Drive(KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime runtime, Transform pelvis, Mount mount, IEnumerable<RigFrame> frames)
+    {
+        var manager = ManagerOf(pelvis);
+        foreach (var frame in frames)
+        {
+            Time.deltaTime = frame.Delta;
+            Apply(manager, frame);
             mount.Chest.localPosition = new Vector3(ChestLocal.x, frame.ChestY, ChestLocal.z);
             var f = frame;
             runtime.PoseAdapter.HarnessFrame(() => { runtime.HarnessSync(); pelvis.localPosition = new Vector3(0f, f.Pelvis, 0f); });
         }
-        Time.deltaTime = 1f / 60f;
+        Time.deltaTime = Dt; Rest(manager);
         return pelvis.position;
     }
 
     private const float Dt = 1f / 60f;
+    // A stationary resting pose (no motion at all): the positive case the sampler must accept.
     private static IEnumerable<RigFrame> Rig(float pelvis, float chestY, int frames, float delta = Dt) =>
-        Enumerable.Range(0, frames).Select(frame => new RigFrame(Breathe(pelvis, frame), chestY, delta));
+        Enumerable.Range(0, frames).Select(frame => new RigFrame(pelvis, chestY, delta));
 
-    // Round 6 (R5-F4): the game clock advances and the manager is enabled, but the rider pose is not evaluated: bit-identical.
+    private static IEnumerable<RigFrame> Breathing(float pelvis, float chestY, int frames) =>
+        Enumerable.Range(0, frames).Select(frame => new RigFrame(Breathe(pelvis, frame), chestY, Dt));
+
+    // Not evaluated: the game clock advances but the rider's Animator does not evaluate (the pose stays where it was).
     private static IEnumerable<RigFrame> Unevaluated(float pelvis, float chestY, int frames) =>
-        Enumerable.Repeat(new RigFrame(pelvis, chestY, Dt), frames);
+        Enumerable.Range(0, frames).Select(frame => new RigFrame(pelvis, chestY, Dt) { Unevaluated = true });
 
-    private static IEnumerable<float> Hold(float height, int frames) => Enumerable.Range(0, frames).Select(frame => Breathe(height, frame));
+    // An evaluated action pose (attack, cast, idle variant), lightly animated around the held height.
+    private static IEnumerable<RigFrame> Acting(float pelvis, float chestY, int frames) =>
+        Enumerable.Range(0, frames).Select(frame => new RigFrame(Breathe(pelvis, frame), chestY, Dt) { Action = true });
 
-    // A Mount Companion cast clip: animated (never still) for the given frames, then a blend into the idle height.
-    private static IEnumerable<float> CastThenIdle(float cast, float idle, int castFrames, int idleFrames)
+    private static IEnumerable<float> Hold(float height, int frames) => Enumerable.Repeat(height, frames);
+
+    // A Mount Companion cast: an active action animating for the given frames, then its release blending into a stationary idle.
+    private static IEnumerable<RigFrame> CastThenIdle(float cast, float idle, int castFrames, int idleFrames, float chestY = 0f)
     {
-        for (var frame = 0; frame < castFrames; frame++) yield return cast + 0.04f * (float)Math.Sin(frame * 0.7);
-        for (var frame = 1; frame <= 10; frame++) yield return cast + (idle - cast) * frame / 10f;
-        for (var frame = 0; frame < idleFrames; frame++) yield return Breathe(idle, frame);
+        if (chestY == 0f) chestY = ChestLocal.y;
+        for (var frame = 0; frame < castFrames; frame++) yield return new RigFrame(cast + 0.04f * (float)Math.Sin(frame * 0.7), chestY, Dt) { Action = true };
+        for (var frame = 1; frame <= 10; frame++) yield return new RigFrame(cast + (idle - cast) * frame / 10f, chestY, Dt) { Blend = 1f - frame / 10f + 0.05f };
+        for (var frame = 0; frame < idleFrames; frame++) yield return new RigFrame(idle, chestY, Dt);
     }
 
     private const float IdleHeight = 0.95f;
@@ -811,12 +909,17 @@ internal static class Program
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var restless = Enumerable.Range(0, (int)Math.Ceiling(SettledSeatSampler.MaximumAnimationSeconds / Dt) + 5).Select(frame => (frame % 2) == 0 ? 1.10f : 1.11f);
+            var restless = Enumerable.Range(0, (int)Math.Ceiling(SettledSeatSampler.UnsettledNoticeSeconds / Dt) + 5).Select(frame => (frame % 2) == 0 ? 1.10f : 1.11f);
             var seat = Frames(runtime, rider.Pelvis, restless);
             var expectedProvisional = rider.Pelvis.parent.position + new Vector3(0f, 1.10f, 0f) + U(MountedRiderPoseProfiles.HorseAnimatedSeatCorrection);
             var lines = SeatLines("rider-g");
-            var ok = !runtime.PoseAdapter.SeatCalibrationSettled && Near(seat, expectedProvisional) &&
+            var noticed = !runtime.PoseAdapter.SeatCalibrationSettled && Near(seat, expectedProvisional) &&
                 lines.Count == 2 && lines[1].Contains("phase=unsettled");
+            // Not exhausted: a resting idle after the notice still settles, once.
+            var later = Frames(runtime, rider.Pelvis, Hold(IdleHeight, settleBudget));
+            lines = SeatLines("rider-g");
+            var ok = noticed && runtime.PoseAdapter.SeatCalibrationSettled && NearSeat(later, ExpectedSettledSeat(rider.Pelvis, IdleHeight)) &&
+                lines.Count == 3 && lines[2].Contains("phase=settled");
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
             return ok;
@@ -907,7 +1010,7 @@ internal static class Program
             var ignored = runtime.PoseAdapter.SeatIgnoredFrames;
             var held = pelvisFromChest(mount, rider);
             // Resumed: the cast animates on, blends, then idle.
-            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.20f, IdleHeight, 60, settleBudget).Select(height => new RigFrame(height, ChestLocal.y, Dt)));
+            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.20f, IdleHeight, 60, settleBudget));
             var resumed = pelvisFromChest(mount, rider);
             var resumedSettled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
@@ -945,71 +1048,144 @@ internal static class Program
             return !driftSettled && stillSettled && NearSeat(still, expectedFromChest);
         });
 
-        Check("round 6 (R5-F4): game delta positive and the manager enabled but the rider pose not evaluated, past the settle interval: no settle; resumed at idle it settles there and matches the remount control", () =>
+        // Remount control shared by the cases below: a fresh attachment that settles on the stationary idle.
+        Func<Rider, Mount, KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime, Vector3> remountControl = (r, m, rt) =>
+        {
+            rt.Seed(r.Unit, m.Unit, Horse());
+            rt.AttachPresentation(PairOf(r, m));
+            Drive(rt, r.Pelvis, m, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var control = pelvisFromChest(m, r);
+            var settled = rt.PoseAdapter.SeatCalibrationSettled;
+            rt.RestorePresentation(PairOf(r, m));
+            Engine.EndOfFrame();
+            return settled ? control : new Vector3(float.NaN, float.NaN, float.NaN);
+        };
+        var longFrames = (int)Math.Ceiling(31.5f / Dt);
+
+        Check("R5-F4: 31.5 s without skeleton evaluation (Animator disabled, game time advancing) at a high pose: no settle, nothing consumed; evaluation and rest return and it settles on idle matching the remount control", () =>
         {
             var mount = NewMount("horse-l", "Chest", mountRoot);
             var rider = NewRider("rider-l", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.20f);
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            // 4 s of advancing game time with the cast pose bit-frozen (the manager enabled, Time.deltaTime > 0, no evaluation).
-            Drive(runtime, rider.Pelvis, mount, Unevaluated(1.20f, ChestLocal.y, 240));
+            Drive(runtime, rider.Pelvis, mount, Unevaluated(1.20f, ChestLocal.y, longFrames));
             var frozenSettled = runtime.PoseAdapter.SeatCalibrationSettled;
-            var frozenIgnored = runtime.PoseAdapter.SeatIgnoredFrames;
+            var ignored = runtime.PoseAdapter.SeatIgnoredFrames;
             var held = pelvisFromChest(mount, rider);
             Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
             var resumed = pelvisFromChest(mount, rider);
             var resumedSettled = runtime.PoseAdapter.SeatCalibrationSettled;
-            var corrections = runtime.PoseAdapter.SeatCorrections;
+            var lines = SeatLines("rider-l");
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            runtime.Seed(rider.Unit, mount.Unit, Horse());
-            runtime.AttachPresentation(PairOf(rider, mount));
-            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
-            var control = pelvisFromChest(mount, rider);
-            runtime.RestorePresentation(PairOf(rider, mount));
-            Engine.EndOfFrame();
-            Console.WriteLine("  frozenSettled=" + frozenSettled + " frozenIgnored=" + frozenIgnored + " held=" + held + " resumed=" + resumed + " control=" + control);
-            return !frozenSettled && frozenIgnored == 0 && held.y - expectedFromChest.y > 0.2f && resumedSettled && corrections == 0 &&
-                NearSeat(resumed, control) && NearSeat(resumed, expectedFromChest);
+            var control = remountControl(rider, mount, runtime);
+            Console.WriteLine("  ignored=" + ignored + " held=" + held + " resumed=" + resumed + " control=" + control + " lines=" + string.Join(" | ", lines));
+            return !frozenSettled && ignored == longFrames && held.y - expectedFromChest.y > 0.2f && resumedSettled &&
+                NearSeat(resumed, control) && NearSeat(resumed, expectedFromChest) && lines.Count == 2 && lines[1].Contains("phase=settled");
         });
 
-        Check("round 6 (R5-F4): an evaluated cast pose that held still settles first; the rider's later resting idle is applied once as a logged correction and matches the control", () =>
+        Check("R5-F4: 31.5 s of evaluated cast pose (an action active) logs unsettled once without exhausting calibration; the later resting idle settles and matches the remount control", () =>
         {
             var mount = NewMount("horse-m", "Chest", mountRoot);
             var rider = NewRider("rider-m", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.20f);
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            Drive(runtime, rider.Pelvis, mount, Rig(1.20f, ChestLocal.y, settleBudget));
-            var heldSettled = runtime.PoseAdapter.SeatCalibrationSettled;
-            var heldSeat = pelvisFromChest(mount, rider);
-            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.20f, IdleHeight, 0, settleBudget).Select(height => new RigFrame(height, ChestLocal.y, Dt)));
-            var corrected = pelvisFromChest(mount, rider);
-            var corrections = runtime.PoseAdapter.SeatCorrections;
+            Drive(runtime, rider.Pelvis, mount, Acting(1.20f, ChestLocal.y, longFrames));
+            var castSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            var ineligible = runtime.PoseAdapter.SeatIneligibleFrames;
+            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.20f, IdleHeight, 0, settleBudget));
+            var resumed = pelvisFromChest(mount, rider);
             var lines = SeatLines("rider-m");
+            var settled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            Console.WriteLine("  heldSeat=" + heldSeat + " corrected=" + corrected + " corrections=" + corrections + " lines=" + string.Join(" | ", lines));
-            return heldSettled && heldSeat.y - expectedFromChest.y > 0.2f && corrections == 1 && NearSeat(corrected, expectedFromChest) &&
-                lines.Count == 3 && lines[1].Contains("phase=settled") && lines[2].Contains("phase=corrected");
+            var control = remountControl(rider, mount, runtime);
+            Console.WriteLine("  ineligible=" + ineligible + " resumed=" + resumed + " control=" + control + " lines=" + string.Join(" | ", lines));
+            return !castSettled && ineligible == longFrames && settled && NearSeat(resumed, control) &&
+                lines.Count == 3 && lines[1].Contains("phase=unsettled") && lines[2].Contains("phase=settled");
         });
 
-        Check("round 6 control: a normal breathing idle settles once and makes no spurious correction over the whole correction horizon", () =>
+        Check("R7-F2: a cast followed by a completely stationary evaluated idle (pelvis fixed) settles on it; first mount equals the remount control; a frozen-high unevaluated pose and a breathing idle are the controls", () =>
         {
-            var mount = NewMount("horse-n", "Chest", mountRoot);
-            var rider = NewRider("rider-n", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
+            var mount = NewMount("horse-o", "Chest", mountRoot);
+            var rider = NewRider("rider-o", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.25f);
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            var horizon = (int)Math.Ceiling((SettledSeatSampler.MinimumAnimationSeconds + SettledSeatSampler.CorrectionHorizonSeconds) / Dt) + 120;
-            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, horizon));
-            var seat = pelvisFromChest(mount, rider);
-            var ok = runtime.PoseAdapter.SeatCalibrationSettled && runtime.PoseAdapter.SeatCorrections == 0 && NearSeat(seat, expectedFromChest) &&
-                SeatLines("rider-n").Count == 2;
+            Drive(runtime, rider.Pelvis, mount, CastThenIdle(1.25f, IdleHeight, 90, settleBudget));
+            var first = pelvisFromChest(mount, rider);
+            var firstSettled = runtime.PoseAdapter.SeatCalibrationSettled;
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
-            return ok;
+            var control = remountControl(rider, mount, runtime);
+            // Negative control: the same high pose never evaluated for the same span does not settle.
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Unevaluated(1.25f, ChestLocal.y, settleBudget));
+            var frozenSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            // Breathing idle: stable variation settles on its mean.
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Breathing(IdleHeight, ChestLocal.y, settleBudget));
+            var breathing = pelvisFromChest(mount, rider);
+            var breathingSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            Console.WriteLine("  first=" + first + " control=" + control + " breathing=" + breathing + " frozenSettled=" + frozenSettled);
+            return firstSettled && Near(first, control) && Near(first, expectedFromChest) && !frozenSettled && breathingSettled && NearSeat(breathing, expectedFromChest);
+        });
+
+        Check("R7-F3: a confirmed idle seat survives two held action poses (1.20 m then 1.10 m, lightly animated, one second each) and the return to idle; it matches the idle remount control", () =>
+        {
+            var mount = NewMount("horse-p", "Chest", mountRoot);
+            var rider = NewRider("rider-p", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
+            var runtime = NewRuntime();
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var confirmed = runtime.PoseAdapter.CalibrationAppliedSeatFromSource;
+            Drive(runtime, rider.Pelvis, mount, Acting(1.20f, ChestLocal.y, 60).Concat(Acting(1.10f, ChestLocal.y, 60)));
+            var afterActions = runtime.PoseAdapter.CalibrationAppliedSeatFromSource;
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var final = pelvisFromChest(mount, rider);
+            var lines = SeatLines("rider-p");
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            var control = remountControl(rider, mount, runtime);
+            Console.WriteLine("  confirmed=" + U(confirmed) + " afterActions=" + U(afterActions) + " final=" + final + " control=" + control);
+            return Near(U(confirmed), U(afterActions)) && Near(final, control) && lines.Count == 2 && lines[1].Contains("phase=settled");
+        });
+
+        Check("rest eligibility from native stages: a waiting order (no action, not moving) settles; the pair moving on an unstarted approach and a released action blending out do not, and the seat settles once both end", () =>
+        {
+            var mount = NewMount("horse-q", "Chest", mountRoot);
+            var rider = NewRider("rider-q", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
+            var runtime = NewRuntime();
+            // Waiting: an order waits in its slot while the rider plays no action and the pair stands: rest, settles.
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var waiting = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            // Moving: an approach that has not started its attack already moves the pair (Speed > 0) with a steady pelvis.
+            runtime.Seed(rider.Unit, mount.Unit, Horse());
+            runtime.AttachPresentation(PairOf(rider, mount));
+            Drive(runtime, rider.Pelvis, mount, Rig(1.02f, ChestLocal.y, settleBudget).Select(f => { f.Moving = true; return f; }));
+            var movingSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            // A released action still blending out with a steady pelvis is a transition, not rest.
+            Drive(runtime, rider.Pelvis, mount, Rig(1.08f, ChestLocal.y, settleBudget).Select(f => { f.Blend = 0.4f; return f; }));
+            var blendSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
+            var after = pelvisFromChest(mount, rider);
+            var settled = runtime.PoseAdapter.SeatCalibrationSettled;
+            runtime.RestorePresentation(PairOf(rider, mount));
+            Engine.EndOfFrame();
+            return waiting && !movingSettled && !blendSettled && settled && Near(after, expectedFromChest);
         });
 
         Check("the actual adapter refuses a second configuration of the same rider view while mounted", () =>

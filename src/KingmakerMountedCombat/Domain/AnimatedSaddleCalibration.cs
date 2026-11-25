@@ -17,21 +17,20 @@ namespace KingmakerMountedCombat.Domain
     // so two attachments made with the Chest at different heights settle on the same pelvis relative to the Chest once the
     // rigs reach the same idle geometry. Mechanics (anchor, rider root, entity position) are not touched.
     //
-    // Settling (reviews R5-F4, round 6) counts only frames in which the rider's animation advanced (its animation manager
-    // enabled and not disabled, and a positive game delta: Kingmaker's pause suspends Time.timeScale). No installed contract
-    // guarantees that an enabled manager actually EVALUATED the rider pose in a counted frame (the native AnimationManager's
-    // PlayableGraph runs in DirectorUpdateMode.GameTime, subject to Animator culling), so the sampler also requires evidence
-    // of evaluation: a window settles only if the sampled rider-local pose changed frame to frame by more than
-    // EvaluationEpsilonMetres in at least MinimumEvidenceFrames of its frames (a living idle breathes; a bit-frozen pose never
-    // settles). A window settles once the sample stays within StableMetres of the window's FIRST sample for
-    // StableWindowSeconds of animation time, after at least MinimumAnimationSeconds, and applies the window's mean. After a
-    // settle the basis stays correctable for CorrectionHorizonSeconds of advancing animation (at most MaximumCorrections): a
-    // later evidenced stable window whose mean differs from the applied basis by more than CorrectionThresholdMetres is applied
-    // and logged as phase=corrected, so a pose that was withheld or held when the first window settled is still replaced by
-    // the rider's real resting pose.
-    // HorseAnimatedSeatCorrection (the accepted +0.19/-0.16/-0.18 visual correction) is added relative to the basis. Every
-    // attachment logs the attachment and the settled sample (FormatNotice). Mammoth has no animated saddle; Small profiles keep
-    // their fixed-from-source seat.
+    // The reference is confirmed from the rider's RESTING pose, from three separate facts per frame (reviews R5-F4, R7-F2, R7-F3):
+    //  1. fresh native evaluation with advancing animation time (the adapter reads it from the installed contracts: an enabled
+    //     native AnimationManager whose PlayableGraph is valid and playing, its Animator enabled with Kingmaker's AlwaysAnimate
+    //     culling mode, not Disabled, and a positive game delta);
+    //  2. eligibility of the current pose as a resting reference (the native idle stage: UnitAnimationManager.CanRunIdleAction,
+    //     and no released action still blending out);
+    //  3. stability of the eligible samples (within StableMetres of the window's FIRST sample for StableWindowSeconds).
+    // A window settles only on consecutive evaluated, eligible, stable frames, after MinimumAnimationSeconds of evaluated time
+    // since attachment, and confirms the window's mean once. A perfectly stationary idle is a positive case: no motion is
+    // required. Unevaluated or non-advancing frames (disabled, paused, graph stopped) and ineligible frames (moving, attacking,
+    // casting, micro-idles, transitions) consume nothing and end the current window, so when evaluation and rest eligibility
+    // return a fresh window begins. Nothing exhausts the calibration: a pose that has not settled after UnsettledNoticeSeconds of
+    // evaluated time is logged once as phase=unsettled and the sampler keeps observing. A confirmed reference is never
+    // overwritten (later movement, attacks, casts and transitions cannot replace it).
     public static class AnimatedSaddleCalibration
     {
         // The normalized seat sample: the attachment-frame anchor relation plus the rider's current rider-local pelvis.
@@ -54,108 +53,88 @@ namespace KingmakerMountedCombat.Domain
     {
         None,
         Settled,
-        Corrected,
-        GaveUp
+        // Logged once when no resting window settled within UnsettledNoticeSeconds of evaluated time; observation continues.
+        Unsettled
     }
 
-    // The settle and correction decision for one attachment, in animation time with evaluation evidence (reviews R5-F4, round 6).
+    // The settle decision for one attachment (reviews R5-F4, R7-F2, R7-F3).
     public sealed class SettledSeatSampler
     {
-        // Longer than the Mount Companion cast and an approach walk's blend, measured only while animation advances.
+        // Longer than the Mount Companion cast and an approach walk's blend, measured only while animation is evaluated and advances.
         public const float MinimumAnimationSeconds = 2f;
         public const float StableWindowSeconds = 0.5f;
         public const float StableMetres = 0.002f;
-        // Evaluation evidence: a frame-to-frame change of the sampled pose above float noise (0.01 mm).
-        public const float EvaluationEpsilonMetres = 0.00001f;
-        public const int MinimumEvidenceFrames = 3;
-        public const float MaximumAnimationSeconds = 30f;
-        public const float CorrectionHorizonSeconds = 30f;
-        public const float CorrectionThresholdMetres = 0.01f;
-        public const int MaximumCorrections = 2;
+        public const float UnsettledNoticeSeconds = 30f;
 
-        private PoseVector3 windowStart, windowSum, previous;
-        private bool hasWindow, hasPrevious;
-        private float windowSeconds, settledAtSeconds;
-        private int windowCount, windowEvidence;
+        private PoseVector3 windowStart, windowSum;
+        private bool hasWindow;
+        private float windowSeconds;
+        private int windowCount;
 
         public int Frames { get; private set; }
+        // Frames without fresh evaluation or advancing time (disabled, paused, graph stopped): never counted.
         public int IgnoredFrames { get; private set; }
+        // Evaluated frames whose pose was not a resting reference (moving, acting, casting, idle variant, transition).
+        public int IneligibleFrames { get; private set; }
         public float AnimationSeconds { get; private set; }
         public bool Settled { get; private set; }
-        public bool GaveUp { get; private set; }
-        public int Corrections { get; private set; }
+        public bool UnsettledReported { get; private set; }
         public int FramesToSettle { get; private set; }
         public float AnimationSecondsToSettle { get; private set; }
-        // The basis currently applied by the sampler: the first settled window's mean, then each correction's.
+        // The confirmed resting reference (valid once Settled).
         public PoseVector3 SettledSample { get; private set; }
-        public int LastWindowEvidenceFrames => windowEvidence;
 
-        // Still sampling: not given up, and (before the first settle, or inside the correction horizon with corrections left).
-        public bool Observing => !GaveUp && (!Settled || Corrections < MaximumCorrections && AnimationSeconds - settledAtSeconds < CorrectionHorizonSeconds);
+        public bool Observing => !Settled;
 
-        // advancedAnimationSeconds is how far the rider's animation advanced since the previous frame (0 while paused, disabled
-        // or not evaluated by the native clock). Returns Settled once, Corrected for each applied correction, GaveUp once.
-        public SeatSampleOutcome Observe(PoseVector3 seatFromSource, float advancedAnimationSeconds)
+        // evaluatedAdvanceSeconds: how far the rider's freshly evaluated animation advanced since the previous frame (0 when not
+        // evaluated or not advancing). restEligible: whether this frame's pose is a resting reference.
+        public SeatSampleOutcome Observe(PoseVector3 seatFromSource, float evaluatedAdvanceSeconds, bool restEligible)
         {
             if (!Observing || !seatFromSource.IsFinite) return SeatSampleOutcome.None;
-            if (!(advancedAnimationSeconds > 0f) || float.IsInfinity(advancedAnimationSeconds))
+            if (!(evaluatedAdvanceSeconds > 0f) || float.IsInfinity(evaluatedAdvanceSeconds))
             {
                 IgnoredFrames++;
+                hasWindow = false;
                 return SeatSampleOutcome.None;
             }
             Frames++;
-            AnimationSeconds += advancedAnimationSeconds;
-            var evidenced = hasPrevious && (seatFromSource - previous).Magnitude > EvaluationEpsilonMetres;
-            previous = seatFromSource;
-            hasPrevious = true;
-            if (!hasWindow || (seatFromSource - windowStart).Magnitude > StableMetres)
+            AnimationSeconds += evaluatedAdvanceSeconds;
+            if (!restEligible)
             {
-                StartWindow(seatFromSource);
+                IneligibleFrames++;
+                hasWindow = false;
             }
             else
             {
-                windowSeconds += advancedAnimationSeconds;
-                windowSum = windowSum + seatFromSource;
-                windowCount++;
-                if (evidenced) windowEvidence++;
-            }
-            if (AnimationSeconds >= MinimumAnimationSeconds && windowSeconds >= StableWindowSeconds && windowEvidence >= MinimumEvidenceFrames)
-            {
-                var mean = windowSum * (1f / windowCount);
-                if (!Settled)
+                if (!hasWindow || (seatFromSource - windowStart).Magnitude > StableMetres)
+                {
+                    windowStart = seatFromSource;
+                    windowSum = seatFromSource;
+                    windowCount = 1;
+                    windowSeconds = 0f;
+                    hasWindow = true;
+                }
+                else
+                {
+                    windowSeconds += evaluatedAdvanceSeconds;
+                    windowSum = windowSum + seatFromSource;
+                    windowCount++;
+                }
+                if (AnimationSeconds >= MinimumAnimationSeconds && windowSeconds >= StableWindowSeconds)
                 {
                     Settled = true;
-                    SettledSample = mean;
-                    settledAtSeconds = AnimationSeconds;
+                    SettledSample = windowSum * (1f / windowCount);
                     FramesToSettle = Frames;
                     AnimationSecondsToSettle = AnimationSeconds;
-                    StartWindow(seatFromSource);
                     return SeatSampleOutcome.Settled;
                 }
-                if ((mean - SettledSample).Magnitude > CorrectionThresholdMetres)
-                {
-                    Corrections++;
-                    SettledSample = mean;
-                    StartWindow(seatFromSource);
-                    return SeatSampleOutcome.Corrected;
-                }
             }
-            if (!Settled && AnimationSeconds >= MaximumAnimationSeconds)
+            if (!UnsettledReported && AnimationSeconds >= UnsettledNoticeSeconds)
             {
-                GaveUp = true;
-                return SeatSampleOutcome.GaveUp;
+                UnsettledReported = true;
+                return SeatSampleOutcome.Unsettled;
             }
             return SeatSampleOutcome.None;
-        }
-
-        private void StartWindow(PoseVector3 first)
-        {
-            windowStart = first;
-            windowSum = first;
-            windowCount = 1;
-            windowSeconds = 0f;
-            windowEvidence = 0;
-            hasWindow = true;
         }
     }
 }
