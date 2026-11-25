@@ -304,6 +304,7 @@ namespace KingmakerMountedCombat.Integration
             var participant = Find(context);
             return participant == null || participant.ShouldRunNativeIgnoreClick(context, ref result);
         }
+        internal void AdmitPairedAttackClick(TurnController context, ref bool result) => Find(context)?.AdmitPairedAttackClick(context, ref result);
         internal bool PrepareNativeInputPrediction(TurnController context) => Find(context)?.PrepareNativeInputPrediction(context) ?? true;
         internal bool IsPartnerContext(TurnController turn) => Find(turn)?.IsPartnerContext(turn) ?? false;
         internal bool IsPairedResume(TurnController turn) => Find(turn)?.IsPairedResume(turn) ?? false;

@@ -1,0 +1,38 @@
+{
+  "schema": "kmc.mission.baseline.v1",
+  "observed_date": "2026-11-24",
+  "repository": "howardreith/KingmakerMountedCombat",
+  "pr": {
+    "number": 61,
+    "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/61",
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "branch": "codex/mounted-shield",
+    "target": "main"
+  },
+  "archive_head": "122a9f94680d1fbf512a0f9ec7386a1447d0c1f7",
+  "reviewed_head": "7dd2adc136d334bc10f021c9d1469c2ed7354d33",
+  "packaged_source": "cc17fe36f6fca17bcb7fafccf331e611454a2e4f",
+  "main_at_preparation": "fb743911200f150af407198c6c28519e522ef58c",
+  "alpha_1": {
+    "version": "0.2.16-alpha.1",
+    "path": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip",
+    "bytes": 4283262,
+    "sha256": "d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545",
+    "dll_sha256": "cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974",
+    "dll_mvid": "103a44bc-6bd0-4ffa-b12f-a6d8318660b3",
+    "icon_sha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0"
+  },
+  "umm": {
+    "build_and_declared_minimum": "0.31.1",
+    "previous_windows_runtime": "0.33.0",
+    "runtime_must_be_reverified": true
+  },
+  "owner_screenshot_binary_identity_confirmed": false,
+  "notes": [
+    "Prior artifact identity is baseline provenance from the accepted alpha handoff; it is not the new mission output.",
+    "These pinned observations must be reconciled with actual branch/installation state before execution.",
+    "No local game launched or artifact rebuilt during packet preparation."
+  ]
+}

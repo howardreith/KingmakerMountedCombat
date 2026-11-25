@@ -26,6 +26,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
+            runner.Run("MMR-01 (R5-F3/F4): the Horse seat settles on the rider's normalized, evaluated pose in advancing animation time, correctable within a bound", AnimatedSaddleSettledHorseSeat);
+            runner.Run("MMR-03: one ordinary paired order carries to the horse on its own lawful activation", PairOrderHorseFollowThrough);
+            runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
+            runner.Run("R1-F4/F6: follow-through uses dispatch admission and the accepted kind; newer work keeps the horse out", FollowThroughEligibility);
+            runner.Run("R1-F13/R2-F4 (formatter only): the Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -423,6 +428,226 @@ namespace KingmakerMountedCombat.Tests
                 var repeat = saddle.Project(sample);
                 TestRunner.True((repeat - projected).Magnitude < 0.00001f, "Repeated phase accumulated translation.");
             }
+        }
+
+        private static void AnimatedSaddleSettledHorseSeat()
+        {
+            // Synthetic mount-root-local normalized samples (not measurements). dt is one 60 fps game frame of animation; a living
+            // pose breathes (0.3 mm), which is the sampler's evidence that the pose was evaluated.
+            const float dt = 1f / 60f;
+            var idle = new PoseVector3(-0.19f, 0.78f, 0.02f);
+            var cast = new PoseVector3(-0.05f, 1.03f, 0.13f);
+            PoseVector3 Breathe(PoseVector3 pose, int frame) => pose + new PoseVector3(0f, 0.0003f * (float)Math.Sin(frame * 0.35), 0f);
+            PoseVector3 Lerp(PoseVector3 x, PoseVector3 y, float t) => x + (y - x) * t;
+            SettledSeatSampler Run(Func<int, PoseVector3> pose, Func<int, float> advance, int frames, out int settledFrame, out int settleCount, out int correctionCount)
+            {
+                var sampler = new SettledSeatSampler(); settledFrame = -1; settleCount = 0; correctionCount = 0;
+                for (var frame = 1; frame <= frames; frame++)
+                {
+                    var outcome = sampler.Observe(pose(frame), advance(frame));
+                    if (outcome == SeatSampleOutcome.Settled) { settledFrame = frame; settleCount++; }
+                    if (outcome == SeatSampleOutcome.Corrected) correctionCount++;
+                }
+                return sampler;
+            }
+            bool Close(PoseVector3 x, PoseVector3 y) => (x - y).Magnitude < 0.0005f;
+            int at, settles, corrections;
+            // Control: a remount from a breathing idle settles once on idle after the minimum animation time, with no correction
+            // over the whole correction horizon.
+            var horizonFrames = (int)((SettledSeatSampler.MinimumAnimationSeconds + SettledSeatSampler.CorrectionHorizonSeconds) / dt) + 120;
+            var remount = Run(f => Breathe(idle, f), f => dt, horizonFrames, out at, out settles, out corrections);
+            TestRunner.True(remount.Settled && settles == 1 && corrections == 0 && Close(remount.SettledSample, idle) && !remount.Observing &&
+                remount.AnimationSecondsToSettle >= SettledSeatSampler.MinimumAnimationSeconds - 0.0001f, "The remount control did not settle once on idle.");
+            // Round 6: game delta positive and the manager enabled, but the rider pose is NOT evaluated (bit-frozen cast pose) for
+            // 4 s, past the settle interval: no settle; resumed (breathing) at idle it settles there and matches the control.
+            var frozen = Run(f => f <= 240 ? cast : Breathe(idle, f), f => dt, 600, out at, out settles, out corrections);
+            TestRunner.True(frozen.Settled && settles == 1 && at > 240 && corrections == 0 && Close(frozen.SettledSample, remount.SettledSample),
+                "A frozen (unevaluated) pose settled, or the resumed idle did not match the remount control.");
+            // A held (evaluated, breathing) cast pose settles first; the rider's later resting idle is applied as one correction.
+            var held = Run(f => f <= 300 ? Breathe(cast, f) : f <= 310 ? Lerp(cast, idle, (f - 300) / 10f) : Breathe(idle, f), f => dt, 700,
+                out at, out settles, out corrections);
+            TestRunner.True(held.Settled && settles == 1 && corrections == 1 && held.Corrections == 1 && Close(held.SettledSample, remount.SettledSample),
+                "A later resting idle did not correct a held settle once.");
+            // R5-F4 controls: paused frames (no advance) never count; sub-2 mm drift never settles while drifting.
+            var paused = Run(f => f <= 120 ? cast : f <= 200 ? cast + new PoseVector3(0f, 0.01f * (float)Math.Sin(f * 0.7), 0f) :
+                f <= 210 ? Lerp(cast, idle, (f - 200) / 10f) : Breathe(idle, f), f => f <= 120 ? 0f : dt, 600, out at, out settles, out corrections);
+            TestRunner.True(paused.Settled && settles == 1 && paused.IgnoredFrames == 120 && Close(paused.SettledSample, remount.SettledSample),
+                "A paused cast settled, or the resumed idle did not match the remount control.");
+            var drift = Run(f => f <= 180 ? idle + new PoseVector3(0f, 0.0015f * (180 - f), 0f) : Breathe(idle, f), f => dt, 600, out at, out settles, out corrections);
+            TestRunner.True(drift.Settled && settles == 1 && at > 180 && Close(drift.SettledSample, remount.SettledSample),
+                "Slow drift settled before the pose was still, or the settled pose was not the later stable one.");
+            // Corrections are bounded: at most MaximumCorrections, and none after the horizon.
+            var restlessHolds = Run(f => Breathe(new PoseVector3(-0.19f, 0.78f + 0.02f * ((f / 90) % 2), 0.02f), f), f => dt, horizonFrames,
+                out at, out settles, out corrections);
+            TestRunner.True(settles == 1 && corrections == SettledSeatSampler.MaximumCorrections && !restlessHolds.Observing,
+                "Corrections were not bounded: " + corrections);
+            // A pose that never holds still gives up after the animation-time bound; paused frames do not consume that bound.
+            var never = Run(f => idle + new PoseVector3(0f, (f % 2) == 0 ? 0.01f : 0f, 0f), f => (f % 3) == 0 ? 0f : dt,
+                (int)(SettledSeatSampler.MaximumAnimationSeconds / dt * 1.6f), out at, out settles, out corrections);
+            TestRunner.True(!never.Settled && never.GaveUp && settles == 0 && never.IgnoredFrames > 0 &&
+                never.AnimationSeconds >= SettledSeatSampler.MaximumAnimationSeconds - 0.001f, "An unsettled pose settled or was sampled without bound.");
+            var nan = new SettledSeatSampler();
+            TestRunner.True(nan.Observe(new PoseVector3(float.NaN, 0f, 0f), dt) == SeatSampleOutcome.None && nan.Frames == 0, "A non-finite sample was counted.");
+            // R5-F3: the normalized sample removes the Chest displacement at attachment.
+            var anchorRelation = MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset;
+            var riderLocalPelvis = new PoseVector3(0f, 0.95f, 0f);
+            var chestNow = new PoseVector3(0f, 1.50f, 0.47f);
+            PoseVector3 Sample(float chestHeightAtAttach, out PoseVector3 raw)
+            {
+                var chestAtAttach = new PoseVector3(0f, chestHeightAtAttach, 0.47f);
+                var anchor = chestAtAttach + anchorRelation;
+                var pelvis = anchor + riderLocalPelvis;
+                raw = pelvis - chestNow;
+                return AnimatedSaddleCalibration.NormalizedSeatFromSource(anchor - chestAtAttach, pelvis, anchor);
+            }
+            PoseVector3 rawHigh, rawLow;
+            var high = Sample(1.56f, out rawHigh); var low = Sample(1.46f, out rawLow);
+            TestRunner.True((high - low).Magnitude < 0.00001f && (rawHigh - rawLow).Magnitude > 0.09f,
+                "The normalized sample kept the attachment-time Chest height.");
+            var line = AnimatedSaddleCalibration.FormatNotice("corrected", "rider-1", idle, idle, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection, 46,
+                2.5f, anchorRelation);
+            TestRunner.True(line.Contains("phase=corrected") && line.Contains("observedSeatFromSource=(-0.1900,0.7800,0.0200)") &&
+                line.Contains("appliedSeatFromSource=") && line.Contains("anchorFromSource=") && line.Contains("seatCorrection=") &&
+                line.Contains("frames=46") && line.Contains("animationSeconds=2.500"), "The seat line lost a field: " + line);
+        }
+
+        private static void FollowThroughEligibility()
+        {
+            // The production dispatcher admission (the action evaluator) decides each actor's eligibility.
+            bool Admitted(MountedCombatActionKind action, Action<MountedCombatActionContext> change)
+            {
+                var context = MountedCombatDomainTests.Eligible(action);
+                change(context);
+                return MountedCombatActionEvaluator.Evaluate(context).IsAllowed;
+            }
+            MountedStockAttackDecision Next(bool riderEligible, bool mountEligible, bool melee = true, bool overridden = false, bool explicitMount = false) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderEligible, mountEligible, !melee, true,
+                    riderIsLegalActor: !explicitMount,
+                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, true, false, true, melee, overridden));
+            var ready = Admitted(MountedCombatActionKind.RiderMelee, context => { });
+            var endedRider = Admitted(MountedCombatActionKind.RiderMelee, context => context.ActionActorOwnsCurrentTurnOrRealTime = false);
+            var prohibitedRider = Admitted(MountedCombatActionKind.RiderMelee, context => context.ActionActorCapabilityBlock = MountedActorCapabilityBlock.CanNotAttack);
+            var horse = Admitted(MountedCombatActionKind.MountPrimaryNatural, context => { });
+            var prohibitedHorse = Admitted(MountedCombatActionKind.MountPrimaryNatural, context => context.ActionActorCapabilityBlock = MountedActorCapabilityBlock.CanNotAttack);
+            TestRunner.True(ready && horse && !endedRider && !prohibitedRider && !prohibitedHorse, "The evaluator inputs did not behave as dispatch admission.");
+            // R1-F6: an individually ended rider, or one that may not attack despite a Standard, leaves the eligible horse its attack.
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(endedRider, horse), "An ended rider discarded the horse's attack.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(prohibitedRider, horse), "A prohibited rider discarded the horse's attack.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(ready, prohibitedHorse), "The reciprocal: the rider lost its attack.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(prohibitedRider, prohibitedHorse), "A prohibited horse attacked.");
+            // R1-F4/R2-F1: the order's accepted kind (fixed at acceptance) scopes participation: a bow order never spends the horse,
+            // even if the rider changes to a melee weapon before the next decision; a melee order reaches the eligible horse once.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, horse, melee: false), "A retained bow order spent the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(false, horse), "The melee order did not reach the eligible horse.");
+            // R1-F5: newer player work recorded for the order (whether still queued or already finished) keeps the horse out;
+            // the pair's own command, reactions and coexisting Free/Swift actions do not override.
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(false, horse, overridden: true), "A newer order was overridden.");
+            // How the controller derives "melee" and "overridden" (the retained-order ledger at acceptance and at native
+            // acceptance) is exercised in MountedAlpha2LifecycleTests.
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, true, false, true, false, true, false, true), "An explicit mount order lost its meaning.");
+        }
+
+        private static void HorseStrikeLines()
+        {
+            var bite = HorseStrikeDiagnostic.Format("horse-1", 1, 3, "Bite1d4", "Bite", true, "HorseAnimationSet_Bite", true, true, false, 2.4f, 0, 1,
+                "BiteAttack", 0.8f, "Playing", "kobold");
+            TestRunner.True(bite.Contains("horse=horse-1") && bite.Contains("handle=started,acted") && bite.Contains("action=HorseAnimationSet_Bite") &&
+                bite.Contains("speedScale=2.4") && bite.Contains("activeClip=BiteAttack") && bite.Contains("clipWeight=0.8") &&
+                bite.Contains("animationState=Playing") && bite.Contains("index=1/3") && !bite.Contains("playback"), "A stock Bite handle was not stated literally: " + bite);
+            var missing = HorseStrikeDiagnostic.Format("horse-1", 1, 3, "Bite1d4", "Bite", false, null, false, false, false, 0f, 0, 0, null, 0f, null, "kobold");
+            TestRunner.True(missing.Contains("handle=none") && !missing.Contains("activeClip"), "A missing Bite handle was not identifiable: " + missing);
+            TestRunner.Equal("started,not-acted", HorseStrikeDiagnostic.HandleState(true, true, false, false), "An unacted handle was misstated.");
+            TestRunner.Equal("started,acted,interrupted", HorseStrikeDiagnostic.HandleState(true, true, true, true), "An interrupted handle was misstated.");
+            var hoof = HorseStrikeDiagnostic.Format("horse-1", 2, 3, "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2,
+                "Left_Hoof_Attack", 1f, "Playing", "kobold");
+            TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("activeClip=Left_Hoof_Attack") && hoof.Contains("index=2/3"),
+                "The hoof control was not distinguishable: " + hoof);
+        }
+
+        private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }
+
+        private static void SavedHorseRepairLedger()
+        {
+            var ledger = new LoadedInstanceRepairLedger<LoadedUnit>();
+            var removals = 0;
+            Func<LoadedUnit, int> repair = unit => { var n = unit.Stale; unit.Stale = 0; removals += n; return n; };
+            int changed;
+            var first = new LoadedUnit("horse-1");
+            // The composition root's write gate (shared with Mounted Shield) through disable, save suspension, an area transition,
+            // a pending restoration, a save worker and an owned load, plus a native load: zero removals, object still pending.
+            bool Admitted(bool enabled = true, bool suspended = false, bool area = false, bool restoration = false, bool worker = false,
+                bool load = false, bool nativeLoading = false) =>
+                HorseInheritedFactRepairPolicy.MayRepair(true, !nativeLoading,
+                    !MountedWorldWriteGate.Allows(enabled, suspended, area, restoration, worker, load));
+            foreach (var admitted in new[] { Admitted(enabled: false), Admitted(suspended: true), Admitted(area: true),
+                Admitted(restoration: true), Admitted(worker: true), Admitted(load: true), Admitted(nativeLoading: true) })
+            {
+                TestRunner.True(!ledger.TryRun(first, admitted, repair, out changed) && changed == 0 && removals == 0 && !ledger.IsCompleted(first),
+                    "A protected phase repaired or completed the Horse.");
+            }
+            TestRunner.True(Admitted() && !HorseInheritedFactRepairPolicy.MayRepair(false, true, false), "The settled gate or a disposed service was misread.");
+            // A failed pass leaves the object pending; the next settled update retries it once.
+            var failed = false;
+            try { ledger.TryRun(first, true, unit => { throw new InvalidOperationException("simulated"); }, out changed); }
+            catch (InvalidOperationException) { failed = true; }
+            TestRunner.True(failed && !ledger.IsCompleted(first) && removals == 0, "A failed pass was recorded as complete.");
+            TestRunner.True(ledger.TryRun(first, Admitted(), repair, out changed) && changed == 1 &&
+                ledger.IsCompleted(first), "The settled retry did not repair the Horse.");
+            TestRunner.True(!ledger.TryRun(first, true, repair, out changed) && removals == 1, "A completed Horse was repaired twice.");
+            // A reload: a new object with the same stable ID is examined again, independently of the old one.
+            var reloaded = new LoadedUnit("horse-1");
+            TestRunner.True(!ledger.IsCompleted(reloaded) && ledger.TryRun(reloaded, true, repair, out changed) && changed == 1 && removals == 2,
+                "A reloaded Horse with the same ID was skipped.");
+        }
+
+        private static void PairOrderHorseFollowThrough()
+        {
+            // The legality input comes from a genuine paired activation's CanAddress, as the controller passes it.
+            MountedStockAttackDecision Next(PairedActivation<object, object> pair, object boundary, bool explicitMount, bool automatic,
+                bool pairedActivation, bool riderStandard, bool mountStandard) =>
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderStandard, mountStandard, false, true,
+                    riderIsLegalActor: !explicitMount,
+                    mountIsLegalActor: UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, explicitMount, false, pairedActivation, automatic,
+                        pair.CanAddress(pair.Partner, boundary)));
+            PairedActivation<object, object> Prepared(out object boundary)
+            {
+                var pair = new PairedActivation<object, object>(new object(), new object());
+                boundary = new object();
+                pair.Begin(boundary);
+                pair.BeginActorPreparation(pair.Principal, boundary); pair.FinishActorPreparation(pair.Principal);
+                pair.BeginActorPreparation(pair.Partner, boundary); pair.FinishActorPreparation(pair.Partner);
+                return pair;
+            }
+            object turn;
+            var active = Prepared(out turn);
+            // One rider click: the rider strikes first, then (rider spent) the horse follows through, then the intent completes.
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider, Next(active, turn, false, false, true, true, true), "The rider did not strike first.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(active, turn, false, false, true, false, true), "The ready horse did not follow the pair order.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(active, turn, false, false, true, false, false), "A spent horse was asked to attack again.");
+            // An ended horse (used, End, or adopted mid-encounter with its participation spent) is never reactivated.
+            active.EndActor(active.Partner);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(active, turn, false, false, true, false, true), "An ended horse attacked.");
+            var adopted = new PairedActivation<object, object>(new object(), new object()); var adoptedTurn = new object();
+            adopted.AdoptRunningBoundary(adoptedTurn, MidEncounterAdoption.RetainPartnerParticipation);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(adopted, adoptedTurn, false, false, true, false, true), "An already-used adopted partner attacked.");
+            // Not the activation's boundary (another round), unprepared, suspended (delay), ending (End Turn) or split: no follow-through.
+            var other = Prepared(out turn);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(other, new object(), false, false, true, false, true), "A horse attacked across the activation boundary.");
+            other.Suspend(turn);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(other, turn, false, false, true, false, true), "A suspended horse attacked.");
+            var ending = Prepared(out turn); ending.BeginEnding();
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(ending, turn, false, false, true, false, true), "A horse attacked after End Turn.");
+            var split = Prepared(out turn); split.Detach();
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(split, turn, false, false, true, false, true), "A split horse attacked.");
+            var unprepared = new PairedActivation<object, object>(new object(), new object()); var early = new object(); unprepared.Begin(early);
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(unprepared, early, false, false, true, false, true), "An unprepared horse attacked.");
+            // Explicit per-actor orders keep their meaning; an automatic intent and separate turns never spend the partner.
+            var fresh = Prepared(out turn);
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount, Next(fresh, turn, true, false, true, true, true), "An explicit mount order did not reach the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, true, false, true, true, false), "An explicit mount order spent the rider.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, false, true, true, false, true), "An automatic intent spent the horse.");
+            TestRunner.Equal(MountedStockAttackDecision.CompleteTurnBasedIntent, Next(fresh, turn, false, false, false, false, true), "A separate-turn rider order spent the horse.");
+            TestRunner.True(UnifiedMountedStockAttackPolicy.MountJoinsIntent(false, false, false, false, true, false), "Real time lost its pair dispatch.");
         }
 
         private static void AnimatedSaddleCleanup()

@@ -4,6 +4,7 @@ using Kingmaker.EntitySystem.Entities;
 using KingmakerMountedCombat.Domain;
 using Kingmaker.TurnBasedMode;
 using Kingmaker.TurnBasedMode.Controllers;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.TurnBasedMode;
@@ -209,6 +210,77 @@ namespace KingmakerMountedCombat.Integration
             result = addressed.IgnoreClick();
             return false;
         }
+
+        private static readonly System.Reflection.FieldInfo NativeNeedNewPredictions =
+            ResolveField(typeof(TurnController), "m_NeedNewPredictions", 0x04000691);
+        // The commands native IgnoreClick's simulated click ran (swapped back into this field when its Temporary disposed).
+        private static readonly System.Reflection.FieldInfo NativePredictionCommands =
+            ResolveField(typeof(TurnController), "m_PredictionCommands", 0x0400066E);
+
+        // MMR-02 (reviews R1-F3, R3-F2). After native IgnoreClick on the rider's own paired context: when native dropped the
+        // exact predicted plain melee UnitAttack of the selected, addressable rider on the highlighted hostile, KMC admits the
+        // click only if it can prove the order legal by its own rule (PairedAttackClickAdmissionPolicy): the strike already
+        // admissible from where the pair stands, or a complete native route of the MOUNT's own agent whose cost is within the
+        // mount's granted movement for the player's current step/single-move mode and whose endpoint admits the strike
+        // (PairedAttackClickProbe). Every other drop keeps native's refusal, so the previous order is untouched. The step and
+        // single-move flags are the player's input mode (mirrored onto the mount's context); the allowance is the mount's.
+        internal void AdmitPairedAttackClick(TurnController context, ref bool result)
+        {
+            if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
+            var rider = activation.Principal;
+            var mount = activation.Partner;
+            var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
+            var predicted = (NativePredictionCommands.GetValue(context) as UnitCommands)?.GetCommand(UnitCommand.CommandType.Standard) as UnitAttack;
+            var weapon = rider?.GetFirstWeapon();
+            var meleeOnTarget = rider != null && mount != null && predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&
+                predicted.TargetUnit == target && !target.Descriptor.State.IsDead && rider.IsEnemy(target) &&
+                weapon?.Blueprint != null && !weapon.Blueprint.IsRanged;
+            var riderSelected = SelectionManager.Instance?.SingleSelectedUnit == rider;
+            var riderAddressable = rider != null && CanAddressActor(rider, context);
+            var predictionsCurrent = !(bool)NativeNeedNewPredictions.GetValue(context);
+            var abilitySelected = Game.Instance?.SelectedAbilityHandler?.Ability != null;
+            var riderCommandsEmpty = rider != null && rider.Commands.Empty;
+            var inputCandidate = meleeOnTarget && riderSelected && riderAddressable && predictionsCurrent && !abilitySelected &&
+                riderCommandsEmpty && !context.IsOverTerrain;
+            var combat = relationship.CombatOwner;
+            var riderAttack = inputCandidate && combat != null && combat.RiderMeleeClickAdmitted(target);
+            // Review R5-F2: the grant is read first and bounds the probe's walk.
+            bool stepMode = false, singleMove = false;
+            var grantReason = "<not-read>";
+            var granted = riderAttack ? PairedMountGrantedMetres(context, out stepMode, out singleMove, out grantReason) : 0f;
+            PairedAttackClickProbe.Result probe = null;
+            if (riderAttack)
+            {
+                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target, granted); }
+                catch (Exception error) { logger.Exception("Turn-based rider attack click probe failed; native decision kept", error); }
+            }
+            string reason;
+            var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
+                predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget, riderAttack,
+                probe != null && probe.AdmissibleNow, probe != null && probe.RouteComplete, probe?.RouteMetres ?? float.NaN, granted,
+                probe != null && probe.EndpointAdmitsStrike, out reason);
+            if (decision != PairedAttackClickAdmission.NativeDecision)
+            {
+                result = false;
+                AdmittedAttackClickCount++;
+            }
+            // Review R4-F1: the admitted order's carrier follows exactly the validated route; any other outcome clears it.
+            // An admitted order of either kind is route-bound: any carrier it later needs is revalidated from its current origin.
+            combat?.RememberValidatedClickRoute(target, context, decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
+                decision == PairedAttackClickAdmission.AdmitInRange ? new System.Collections.Generic.List<UnityEngine.Vector3>() : null);
+            if (!meleeOnTarget) return;
+            LastAttackClickDecision = decision + ":" + reason;
+            logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +
+                "; rider=" + rider.UniqueId + "; target=" + target.UniqueId +
+                "; mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason +
+                "; mountGrantedMetres=" + granted.ToString("R") +
+                "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") + "; probe=" + (probe?.Detail ?? "<not-run>") +
+                "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
+                "; nativeApproachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
+        }
+
+        internal int AdmittedAttackClickCount { get; private set; }
+        internal string LastAttackClickDecision { get; private set; }
 
         internal bool PrepareNativeInputPrediction(TurnController context)
         {

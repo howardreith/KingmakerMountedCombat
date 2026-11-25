@@ -1,0 +1,11 @@
+{
+  "zip": "KingmakerMountedCombat-0.2.16-alpha.6-mounted-alpha6-46444b30-diagnostic.zip",
+  "sha256": "93ef3edac36c3cc47d1bb279e3d82bee3e0814ee39d37331223e2660e35ee115",
+  "bytes": 4311613,
+  "sourceCommit": "46444b302ea9a0c77950dcf28f31d5472b9d3992",
+  "version": "0.2.16-alpha.6",
+  "ummMinimum": "0.31.1",
+  "dllSha256": "a600244819aee9cd0b44ad54215198447aa2d8dde7ca322f23f4921cc8561ad0",
+  "dllMvid": "31c65ba0-564b-422d-9c29-5a19dd71a485",
+  "iconSha256": "fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0"
+}

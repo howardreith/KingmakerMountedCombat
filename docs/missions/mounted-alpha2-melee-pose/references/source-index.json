@@ -1,0 +1,102 @@
+{
+  "schema": "kmc.mission.sources.v1",
+  "research_date": "2026-11-24",
+  "scope": "Read-only repository and primary rules research; no native tests or new factory enrollment.",
+  "rules": [
+    {
+      "url": "https://www.aonprd.com/DruidCompanions.aspx?ItemName=Horse",
+      "supports": "Core Rulebook horse companion natural attack list does not include intrinsic trip."
+    },
+    {
+      "url": "https://www.aonprd.com/DruidCompanions.aspx?ItemName=Wolf",
+      "supports": "Wolf companion bite explicitly includes trip."
+    },
+    {
+      "url": "https://www.aonprd.com/MonsterDisplay.aspx?ItemName=Riding%20Dog",
+      "supports": "Riding Dog bite explicitly includes trip."
+    },
+    {
+      "url": "https://legacy.aonprd.com/bestiary/universalMonsterRules.html#trip",
+      "supports": "Hit-triggered special attack is distinct from a separately selected maneuver."
+    },
+    {
+      "url": "https://legacy.aonprd.com/coreRulebook/combat.html#trip",
+      "supports": "Ordinary trip combat maneuver; use actual Kingmaker runtime contracts for implementation."
+    },
+    {
+      "url": "https://legacy.aonprd.com/coreRulebook/combat.html#take-5-foot-step",
+      "supports": "Five-foot-step is subject to movement restrictions; do not manufacture a free step."
+    }
+  ],
+  "repositories": [
+    {
+      "repository": "howardreith/KingmakerMountedCombat",
+      "reference": "122a9f94680d1fbf512a0f9ec7386a1447d0c1f7",
+      "purpose": "Current accepted Shield archive and implementation investigation",
+      "paths": [
+        "AGENTS.md",
+        "docs/VALIDATION-POLICY.md",
+        "src/KingmakerMountedCombat/Integration/KingmakerMountedPairRuntime.cs",
+        "src/KingmakerMountedCombat/Integration/MountedRiderPoseAdapter.cs",
+        "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "src/KingmakerMountedCombat/Integration/MountedPairSingleAttack.cs",
+        "src/KingmakerMountedCombat/Integration/HorseCompanionBlueprintService.cs",
+        "src/KingmakerMountedCombat/Integration/HorsePrimaryAttackAnimationAdapter.cs",
+        "src/KingmakerMountedCombat/Integration/PairedActivationLifecycle.cs",
+        "src/KingmakerMountedCombat/Domain/MountedStockAttack.cs",
+        "src/KingmakerMountedCombat/Domain/AnimatedSaddlePosition.cs",
+        "src/KingmakerMountedCombat/Domain/MountedAutomaticAttackPolicy.cs",
+        "planning/HORSE-MOVEMENT-AND-ANIMATION-CONTRACT.md",
+        "planning/HORSE-COMPANION-CONTRACT.md"
+      ],
+      "urls": [
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/AGENTS.md",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/docs/VALIDATION-POLICY.md",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/KingmakerMountedPairRuntime.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/MountedRiderPoseAdapter.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/MountedPairSingleAttack.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/HorseCompanionBlueprintService.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/HorsePrimaryAttackAnimationAdapter.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Integration/PairedActivationLifecycle.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Domain/MountedStockAttack.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Domain/AnimatedSaddlePosition.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/src/KingmakerMountedCombat/Domain/MountedAutomaticAttackPolicy.cs",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/planning/HORSE-MOVEMENT-AND-ANIMATION-CONTRACT.md",
+        "https://github.com/howardreith/KingmakerMountedCombat/blob/122a9f94680d1fbf512a0f9ec7386a1447d0c1f7/planning/HORSE-COMPANION-CONTRACT.md"
+      ]
+    },
+    {
+      "repository": "howardreith/development-process",
+      "reference": "a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b",
+      "controller_blob": "afb03a1de147f5e9095dc74211a5bab59e88b483",
+      "purpose": "Verified factory commands, explicit target, limits and strict report schema",
+      "paths": [
+        "agent_review/agent_review.py",
+        "agent_review/README.md",
+        "agent_review/projects/kingmaker-mounted-combat.json",
+        "agent_review/plans/single.json",
+        "agent_review/developer-report.v1.schema.json"
+      ],
+      "urls": [
+        "https://github.com/howardreith/development-process/blob/a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b/agent_review/agent_review.py",
+        "https://github.com/howardreith/development-process/blob/a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b/agent_review/README.md",
+        "https://github.com/howardreith/development-process/blob/a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b/agent_review/projects/kingmaker-mounted-combat.json",
+        "https://github.com/howardreith/development-process/blob/a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b/agent_review/plans/single.json",
+        "https://github.com/howardreith/development-process/blob/a6aa2b1fcfa0f946d94183acca36b2b5ddd04c0b/agent_review/developer-report.v1.schema.json"
+      ]
+    }
+  ],
+  "baseline_review_urls": [
+    "https://github.com/howardreith/KingmakerMountedCombat/pull/61#issuecomment-7123686141",
+    "https://github.com/howardreith/KingmakerMountedCombat/pull/61#issuecomment-7123696649"
+  ],
+  "limitations": [
+    "External repository state can change after preparation; recheck before execution.",
+    "Tabletop sources constrain the unintended intrinsic Trip, but do not substitute for inspecting actual installed Kingmaker blueprints and native action contracts.",
+    "Historical animation records identify an existing path; they do not prove current visible playback.",
+    "Owner screenshots are preserved observations, not full native acceptance of the new candidate."
+  ]
+}
