@@ -105,6 +105,18 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 5 (2026-11-25, scope freeze)
+
+- **Owner-profile dependency admission.** `Get-KmcBaseGameDependencies` takes the resolved runtime loader profile and
+  refuses, before anything is staged, when the installed UnityModManager or Harmony 2 (`0Harmony.dll`) it measures differs
+  from that profile, so the admission receipt's profile identities are the verified installed ones. The launcher stays
+  owner-only; alternate-loader launch support stays removed.
+- **Reuse receipt.** The repository-root `Directory.Build.props` and `Directory.Build.targets` are receipt inputs whether
+  or not Git tracks them (absent is recorded as absent).
+- **One check for Full reuse.** A Full `-SkipBuild` run no longer checks the receipt in a separate parent step; `Test.ps1
+  -SkipBuild` checks it once inside the admitted umbrella step, before any runner. A direct `Test.ps1 -SkipBuild` keeps
+  the same check; Fast and Candidate keep theirs; the plan still lists the check and its estimate.
+
 ## Review round 4 (2026-11-24, scope freeze)
 
 - **Launcher profile selection removed.** Under the owner's scope freeze, native execution is not part of this change, so

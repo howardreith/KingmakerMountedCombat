@@ -13,15 +13,19 @@ PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#
 - `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1`: validate any ZIP.
 - `scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>`: the controller gate.
   - `-SkipBuild` reuses outputs only while the build receipt (`bin/<cfg>/.loader-input-stamp`) is current. The receipt
-    covers the loader pins and their parser and verifier, both MSBuild loader targets, project files, the build bootstrap
+    covers the loader pins and their parser and verifier, both MSBuild loader targets, the repository-root
+    `Directory.Build.props` and `Directory.Build.targets` whether or not Git tracks them, project files, the build bootstrap
     `scripts/Build-Local.ps1`, the local `LocalGamePaths.props`, the manifests `Info.json` and `version.json`, every
     compiled source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both
     DLLs and the component runner.
-  - Fast, Candidate and Full check the receipt in their first admitted step (nothing is hashed before budget admission);
-    `scripts/Test.ps1 -SkipBuild` checks it before any runner starts. `-Plan` reports the receipt state, read-only, on
+  - Fast and Candidate check the receipt in their first admitted step (nothing is hashed before budget admission); Full
+    checks it once, through `scripts/Test.ps1 -SkipBuild` inside its admitted umbrella step, and a direct
+    `scripts/Test.ps1 -SkipBuild` checks it the same way before any runner starts. `-Plan` reports the receipt state, read-only, on
     both the reuse-check line and the artifact line.
 - `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
-  profile (`umm-0.33.0`) is the installed loader before any admission and records it in the admission receipt. It offers
+  profile (`umm-0.33.0`) is the installed loader before any admission, compares the installed UnityModManager and
+  Harmony 2 (`0Harmony.dll`) it measures with that profile at dependency admission before staging, and records the
+  profile in the admission receipt. It offers
   no other loader profile: a native row on another loader needs its own reviewed disposable environment (follow-up).
 
 **Candidate (source `11df053b`; later commits are harness, test, documentation and evidence changes).** Both DLLs are
@@ -53,7 +57,21 @@ budget rules refuse; `dbe51d82` runs those two cases as top-level invocations. T
 recorded by the controller and on the draft PR. The budget record, with the owner's 15-minute
 allowance adjustment and its authorizing assignment, is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline.json`.
 
-**Offline checks.** Round 4: `Test-PackageAdmissionAndReuse` 51/51 at `dbe51d82` (run with a simulated enclosing
+**Budget reconciliation (round 5).** The round-4 direct focused runs (outside budget admission) were imported into
+`umm-0311-baseline` with the append-only import (`Reconcile-WorkflowBudget.ps1 -ImportKind`) after the owner accepted them
+as a one-time documented overrun (no exemption for later direct runs): `Test-FrozenProductSource` plus
+`Test-Chunk7NativeLoaderContracts` 11.5 s, `Test-PackageAdmissionAndReuse` 166 s and 184 s (each run's own timer), and
+two `Validate-Source` runs, 20.9 s and 13.9 s (estimates: upper bounds from the measured tool-call spans, which also
+included a commit). The four gate entries, including the failed round-4 gate, are unchanged. The reconciled total was
+20.62 min; the owner then authorized 10 more minutes from it, recorded as the second `allowanceAdjustments` entry
+(15 -> 30.62 min) with the authorizing text. Round-5 direct runs are imported the same way. The record at the time of
+the round-5 evidence is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r5.json`; the round-4 copy keeps its
+original identity.
+
+**Offline checks.** Round 5 (`d5268152`, counted in the budget): `Test-BaseGameIsolation` 121/0 (owner-profile
+admission: matching fixture recorded, Harmony 2 alone changed refused), `Test-Chunk7NativeLoaderContracts` 118/0 (the
+launcher admits dependencies against the owner profile before staging), `Validate-Source` 153/0;
+`Test-PackageAdmissionAndReuse` runs in the controller gate. Round 4: `Test-PackageAdmissionAndReuse` 51/51 at `dbe51d82` (run with a simulated enclosing
 workflow entry), `Test-FrozenProductSource` 32/32 and `Test-Chunk7NativeLoaderContracts` 117/117 at `d63d4cc0`. Round 3 (`11df053b`), unchanged since:
 
 | Check | Result |
