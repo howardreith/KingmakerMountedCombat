@@ -462,7 +462,7 @@ $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $gameExecutable=Join-Path ([string]$intake.requestedLayout.kingmakerInstallDir) 'Kingmaker.exe'
 $expectedGameExecutableHash=[string](@($fingerprint.kingmaker.files|Where-Object role -eq 'executable')[0].sha256)
 $baseGameDependencies=$null
-if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint}
+if($BaseGameOnly){$baseGameDependencies=Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint -RuntimeLoaderProfile $runtimeLoaderProfile}
 $retainedDependencies=@()
 if(-not[string]::IsNullOrEmpty($RetainedDependencySelectionPath)){
     if(-not$BaseGameOnly){throw 'Retained dependencies are staged only in the explicit base-game mode.'}

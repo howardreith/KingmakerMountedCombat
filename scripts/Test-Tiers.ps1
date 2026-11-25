@@ -110,11 +110,12 @@ $productDll = Join-Path $repoRoot ('bin/' + $Configuration + '/KingmakerMountedC
 $steps = New-Object 'System.Collections.Generic.List[object]'
 . (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
 # Reused outputs (-SkipBuild) are admitted only against the build receipt written next to them. Plan mode reports the
-# receipt state, read-only; an execution hashes nothing before budget admission and checks the receipt inside its
-# admitted 'reuse check' step.
+# receipt state, read-only; an execution hashes nothing before budget admission and checks the receipt once: inside its
+# admitted 'reuse check' step, or for Full inside the admitted umbrella step, where Test.ps1 -SkipBuild checks it
+# before any runner (the same check protects a direct Test.ps1 -SkipBuild). The plan and estimate keep the check.
 $reuseState = if ($SkipBuild -and $Plan) { Test-KmcLoaderInputStamp $repoRoot $Configuration } else { $null }
 function Add-Step([string]$Name, [string]$Detail, [string]$Prerequisite) { $steps.Add([pscustomobject]@{ Name = $Name; Detail = $Detail; Prerequisite = $Prerequisite }) }
-if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(if (-not $Plan) { 'checked inside the admitted step' } else { switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } } }) }
+if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(if (-not $Plan) { if ($Tier -eq 'Full') { 'checked once by Test.ps1 -SkipBuild inside the admitted umbrella step' } else { 'checked inside the admitted step' } } else { switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } } }) }
 if ($Tier -eq 'Full') {
     Add-Step 'FULL umbrella (scripts/Test.ps1)' ('Test.ps1 -AssemblyTarget ' + $AssemblyTarget + $(if ($SkipBuild) { ' -SkipBuild' } else { '' }) + '; task: ' + $QualificationTask) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test.ps1')) { 'present' } else { 'MISSING Test.ps1' })
 } else {
@@ -244,7 +245,7 @@ function Invoke-TestScript([string]$Name, [string[]]$Extra = @(), [string]$Path 
 }
 $outcome = 'failed'
 try {
-    if ($SkipBuild) { Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration } }
+    if ($SkipBuild -and $Tier -ne 'Full') { Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration } }
     if ($Tier -eq 'Full') {
         $fullArguments = @('-AssemblyTarget', $AssemblyTarget)
         if ($SkipBuild) { $fullArguments += '-SkipBuild' }

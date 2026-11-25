@@ -199,7 +199,10 @@ try {
         @{ Name = 'project-reference'; Apply = { [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>')) }; Undo = { [IO.File]::WriteAllText($projectFile, $projectOriginal) } },
         @{ Name = 'build-bootstrap'; Apply = { [IO.File]::AppendAllText((Join-Path $clone 'scripts\Build-Local.ps1'), "`r`n# changed bootstrap option`r`n") }; Undo = { & git -C $clone checkout -q -- scripts/Build-Local.ps1 } },
         @{ Name = 'local-build-settings'; Apply = { $script:localPropsOriginal = [IO.File]::ReadAllText((Join-Path $clone 'LocalGamePaths.props')); [IO.File]::WriteAllText((Join-Path $clone 'LocalGamePaths.props'), $script:localPropsOriginal.Replace('</Project>', '<PropertyGroup><CheckForOverflowUnderflow>true</CheckForOverflowUnderflow></PropertyGroup></Project>')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'LocalGamePaths.props'), $script:localPropsOriginal) } },
-        @{ Name = 'main-manifest-only'; Apply = { $script:infoOriginal = [IO.File]::ReadAllText((Join-Path $clone 'Info.json')); [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal.Replace('"Id"', ' "Id"')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal) } })) {
+        @{ Name = 'main-manifest-only'; Apply = { $script:infoOriginal = [IO.File]::ReadAllText((Join-Path $clone 'Info.json')); [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal.Replace('"Id"', ' "Id"')) }; Undo = { [IO.File]::WriteAllText((Join-Path $clone 'Info.json'), $script:infoOriginal) } },
+        # The repository-level CoreCompile hook of Test-PinnedLoaderMsBuild.ps1 (it rewrites the compiler's UnityModManager
+        # reference), added after the build and never staged in Git.
+        @{ Name = 'untracked-root-directory-build-targets'; Apply = { [IO.File]::WriteAllText((Join-Path $clone 'Directory.Build.targets'), "<Project><Target Name=`"KmcTestLateRewrite`" BeforeTargets=`"CoreCompile`"><ItemGroup><_KmcTestUmm Include=`"@(ReferencePathWithRefAssemblies)`" Condition=`"'%(Filename)' == 'UnityModManager'`" /><ReferencePathWithRefAssemblies Remove=`"@(_KmcTestUmm)`" /><ReferencePathWithRefAssemblies Include=`"$([Security.SecurityElement]::Escape((Join-Path $temp 'stray copy\UnityModManager.dll')))`" /></ItemGroup></Target></Project>"); if (@(& git -C $clone ls-files -- Directory.Build.targets).Count -ne 0) { throw 'The root hook fixture must stay untracked.' } }; Undo = { Remove-Item -LiteralPath (Join-Path $clone 'Directory.Build.targets') } })) {
         & $change.Apply
         $r = & $stampCheck
         Add-Case "reuse-after-$($change.Name)-change-rejected" ($r.ExitCode -ne 0 -and $r.Output -match 'cannot reuse these outputs') (Get-Reason $r.Output)
@@ -256,31 +259,44 @@ try {
         stepHistory = [ordered]@{ 'reuse check' = [ordered]@{ seconds = 600; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $budgetRoot 'fixture-denied.json') -Encoding UTF8
     # Both runs are top-level invocations of the disposable budgets: any enclosing workflow entry (for example the
     # controller gate running this suite) is set aside for them and restored afterwards.
+    # Full stops at its first runner boundary: an instrumented Test.ps1 in the disposable clone exits where the component
+    # runner would start, so the Full suite never runs. With a current receipt the Full parent and Test.ps1 check it
+    # once; with a stale receipt Test.ps1 refuses before that boundary.
+    $testScript = Join-Path $clone 'scripts\Test.ps1'
+    $testText = [IO.File]::ReadAllText($testScript)
+    if (([regex]::Matches($testText, [regex]::Escape('& $runner'))).Count -ne 1) { throw 'Test.ps1 runner anchor not found exactly once.' }
+    $scanCount = { $n = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }; Remove-Item -LiteralPath $scanLog -ErrorAction SilentlyContinue; $n }
     $previousRoot = $env:KMC_WORKFLOW_BUDGET_ROOT; $env:KMC_WORKFLOW_BUDGET_ROOT = $budgetRoot
     $previousEntry = $env:KMC_WORKFLOW_BUDGET_ENTRY; $env:KMC_WORKFLOW_BUDGET_ENTRY = $null
     $previousBudgetId = $env:KMC_WORKFLOW_BUDGET_ID; $env:KMC_WORKFLOW_BUDGET_ID = $null
     try {
         [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
         $denied = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-denied')
-        $deniedScans = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }
-        Remove-Item -LiteralPath $scanLog -ErrorAction SilentlyContinue
+        $deniedScans = & $scanCount
         $admitted = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-admitted')
-        $admittedScans = if (Test-Path -LiteralPath $scanLog) { @(Get-Content -LiteralPath $scanLog | Where-Object { $_ }).Count } else { 0 }
+        $admittedScans = & $scanCount
+        [IO.File]::WriteAllText($testScript, $testText.Replace('& $runner', "Write-Host 'RUNNER BOUNDARY: the fixture stops before the component runner'; exit 0"))
+        [IO.File]::WriteAllText($projectFile, $projectOriginal)
+        $fullCurrent = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full')
+        $fullCurrentScans = & $scanCount
+        [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
+        $full = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full')
+        $fullStaleScans = & $scanCount
     }
     finally {
         $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot; $env:KMC_WORKFLOW_BUDGET_ENTRY = $previousEntry; $env:KMC_WORKFLOW_BUDGET_ID = $previousBudgetId
         [IO.File]::WriteAllText($projectFile, $projectOriginal)
-        & git -C $clone checkout -q -- scripts/LoaderInputStamp.ps1
+        & git -C $clone checkout -q -- scripts/LoaderInputStamp.ps1 scripts/Test.ps1
     }
     Add-Case 'denied-execution-refused-by-budget-before-any-receipt-scan' ($denied.ExitCode -ne 0 -and $denied.Output -match 'Workflow budget refuses' -and $deniedScans -eq 0) ("exit $($denied.ExitCode); receipt scans $deniedScans; " + (Get-Reason $denied.Output))
     Add-Case 'admitted-execution-scans-the-receipt-once-inside-its-step' ($admitted.ExitCode -ne 0 -and $admitted.Output -match 'cannot reuse these outputs' -and $admittedScans -eq 1) ("exit $($admitted.ExitCode); receipt scans $admittedScans; " + (Get-Reason $admitted.Output))
-    # Fast and Full reuse boundaries refuse stale outputs before running anything.
+    Add-Case 'full-reuse-with-current-receipt-scans-once-and-reaches-the-runner-boundary' ($fullCurrent.ExitCode -eq 0 -and $fullCurrent.Output -match 'RUNNER BOUNDARY' -and $fullCurrentScans -eq 1) ("exit $($fullCurrent.ExitCode); receipt scans $fullCurrentScans; runner boundary reached: $($fullCurrent.Output -match 'RUNNER BOUNDARY')" + $(if ($fullCurrent.ExitCode) { '; ' + (Get-Reason $fullCurrent.Output) } else { '' }))
+    Add-Case 'full-reuse-with-old-outputs-refused-before-the-runner' ($full.ExitCode -ne 0 -and $full.Output -match 'cannot reuse these outputs' -and $full.Output -notmatch 'RUNNER BOUNDARY' -and $fullStaleScans -eq 1) ("exit $($full.ExitCode); receipt scans $fullStaleScans; " + (Get-Reason $full.Output))
+    # The Fast reuse boundary refuses stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
     $tiers = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild')
-    $full = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild')
     [IO.File]::WriteAllText($projectFile, $projectOriginal)
     Add-Case 'test-tiers-skipbuild-with-old-outputs-refused' ($tiers.ExitCode -ne 0 -and $tiers.Output -match 'cannot reuse these outputs') (Get-Reason $tiers.Output)
-    Add-Case 'full-admission-with-old-outputs-refused-before-umbrella' ($full.ExitCode -ne 0 -and $full.Output -match 'cannot reuse these outputs' -and $full.Output -notmatch 'FULL umbrella \(scripts/Test\.ps1\) \(') (Get-Reason $full.Output)
 
     $failed = @($cases | Where-Object { -not $_.passed })
     $summary = [ordered]@{ schema = 'kmc.package-admission-reuse-tests.v1'; commit = $commit; released_fixture_sha256 = Get-Sha $ReleasedPackage

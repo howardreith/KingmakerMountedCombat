@@ -103,7 +103,7 @@ function Assert-KmcBaseGameDependencyReceipt {
 }
 
 function Get-KmcBaseGameDependencies {
-    param([Parameter(Mandatory=$true)][string]$GameRoot,[Parameter(Mandatory=$true)]$Fingerprint)
+    param([Parameter(Mandatory=$true)][string]$GameRoot,[Parameter(Mandatory=$true)]$Fingerprint,[Parameter(Mandatory=$true)]$RuntimeLoaderProfile)
     $game=[IO.Path]::GetFullPath($GameRoot).TrimEnd('\')
     $loader=Join-Path $game 'Kingmaker_Data/Managed/UnityModManager'
     Assert-KmcNotReparsePoint $loader 'base-game installed loader'
@@ -128,6 +128,13 @@ function Get-KmcBaseGameDependencies {
         $actual=@($files|Where-Object {[string]$_.relativePath-ceq$pin[1]})
         if($expected.Count-ne1-or$actual.Count-ne1-or[string]$expected[0].sha256-cne[string]$actual[0].sha256-or
             [long]$expected[0].length-ne[long]$actual[0].length){throw ('Base-game dependency differs from the selected environment fingerprint: '+$pin[0])}
+    }
+    # The runtime loader profile the run is admitted for (the measured owner installation) must be the installed loader:
+    # its UnityModManager and Harmony 2 bytes are the ones measured above, before anything is staged, so the admission
+    # receipt's profile identities are the verified installed ones.
+    foreach($pin in @(@('UnityModManager',$relativePaths[1],[string]$RuntimeLoaderProfile.UmmSha256),@('Harmony 2',$relativePaths[4],[string]$RuntimeLoaderProfile.Harmony2Sha256))){
+        $actual=@($files|Where-Object {[string]$_.relativePath-ceq$pin[1]})
+        if($actual.Count-ne1-or[string]$actual[0].sha256-cne$pin[2]){throw ('Base-game dependency differs from runtime loader profile '+[string]$RuntimeLoaderProfile.Id+': installed '+$pin[0]+' '+$(if($actual.Count-eq1){[string]$actual[0].sha256}else{'missing'})+', profile '+$pin[2])}
     }
     $receipt=[pscustomobject][ordered]@{schemaVersion=1;mode='base-game-only-kmc';gameRoot=$game;modsRoot=(Join-Path $game 'Mods');
         loaderRoot=$loader;configSha256=(Get-KmcSha256 $config);files=$files;dependencyDigest=''}

@@ -26,23 +26,27 @@ function New-Fixture([string]$Name){
     $pins=@(foreach($pair in @(@('gameplayAssembly',$gameAssembly),@('umm',(Join-Path $loader 'UnityModManager.dll')),@('harmony',(Join-Path $loader '0Harmony12.dll')))){
         [pscustomobject]@{role=$pair[0];length=(Get-Item -LiteralPath $pair[1]).Length;sha256=(Get-KmcSha256 $pair[1])}
     })
-    return [pscustomobject]@{home=$fixtureRoot;game=$game;mods=$mods;loader=$loader;parameters=$params;fingerprint=[pscustomobject]@{kingmaker=[pscustomobject]@{files=$pins}}}
+    $loaderProfile=[pscustomobject]@{Id='fixture-owner';UmmSha256=(Get-KmcSha256 (Join-Path $loader 'UnityModManager.dll'));Harmony2Sha256=(Get-KmcSha256 (Join-Path $loader '0Harmony.dll'))}
+    return [pscustomobject]@{home=$fixtureRoot;game=$game;mods=$mods;loader=$loader;parameters=$params;fingerprint=[pscustomobject]@{kingmaker=[pscustomobject]@{files=$pins}};profile=$loaderProfile}
 }
 $f=New-Fixture 'main'
-$receipt=Get-KmcBaseGameDependencies -GameRoot $f.game -Fingerprint $f.fingerprint
+$receipt=Get-KmcBaseGameDependencies -GameRoot $f.game -Fingerprint $f.fingerprint -RuntimeLoaderProfile $f.profile
+Check 'owner-profile admission records the measured UMM and Harmony 2 identities' {foreach($pair in @(@('UnityModManager.dll',$f.profile.UmmSha256),@('0Harmony.dll',$f.profile.Harmony2Sha256))){$row=@($receipt.files|Where-Object {[string]$_.relativePath-ceq('Kingmaker_Data/Managed/UnityModManager/'+$pair[0])});Need ($row.Count-eq1-and[string]$row[0].sha256-ceq$pair[1]) ('receipt '+$pair[0]+' differs from the admitted profile')}}
+$h2=New-Fixture 'changed-harmony2';[IO.File]::WriteAllText((Join-Path $h2.loader '0Harmony.dll'),'fixture-another-harmony2')
+Check 'changed Harmony 2 alone refused by owner-profile admission' {$m='';try{Get-KmcBaseGameDependencies $h2.game $h2.fingerprint $h2.profile|Out-Null}catch{$m=$_.Exception.Message};Need ($m-match'differs from runtime loader profile fixture-owner: installed Harmony 2') ('expected the profile refusal, got: '+$m)}
 Check 'dependency receipt records exact loader set without moving it' {Need (@($receipt.files).Count-eq6) 'dependency count';Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles}
 Check 'dependency identity is stable across receipt serialization' {Assert-KmcBaseGameDependencyReceipt ($receipt|ConvertTo-Json -Depth 8|ConvertFrom-Json) -VerifyFiles}
 $beforeDependencies=Get-KmcDirectoryManifest (Split-Path $f.loader)
 $bad=New-Fixture 'wrong-fingerprint';$bad.fingerprint.kingmaker.files[1].sha256='0'*64
-Reject 'changed pinned UMM rejected' {Get-KmcBaseGameDependencies $bad.game $bad.fingerprint|Out-Null}
+Reject 'changed pinned UMM rejected' {Get-KmcBaseGameDependencies $bad.game $bad.fingerprint $bad.profile|Out-Null}
 $bad2=New-Fixture 'missing-harmony';[IO.File]::Delete((Join-Path $bad2.loader '0Harmony12.dll'))
-Reject 'missing required Harmony rejected' {Get-KmcBaseGameDependencies $bad2.game $bad2.fingerprint|Out-Null}
+Reject 'missing required Harmony rejected' {Get-KmcBaseGameDependencies $bad2.game $bad2.fingerprint $bad2.profile|Out-Null}
 $bad3=New-Fixture 'unknown-loader';[IO.File]::WriteAllText((Join-Path $bad3.loader 'ForeignPlugin.dll'),'foreign')
-Reject 'foreign loader DLL rejected' {Get-KmcBaseGameDependencies $bad3.game $bad3.fingerprint|Out-Null}
+Reject 'foreign loader DLL rejected' {Get-KmcBaseGameDependencies $bad3.game $bad3.fingerprint $bad3.profile|Out-Null}
 $bad4=New-Fixture 'redirected-mods';[IO.File]::WriteAllText((Join-Path $bad4.loader 'Config.xml'),'<Config><ModsDirectory>../Mods</ModsDirectory><ModInfo>Info.json</ModInfo><GameExe>Kingmaker.exe</GameExe></Config>')
-Reject 'redirected Mods layout rejected' {Get-KmcBaseGameDependencies $bad4.game $bad4.fingerprint|Out-Null}
+Reject 'redirected Mods layout rejected' {Get-KmcBaseGameDependencies $bad4.game $bad4.fingerprint $bad4.profile|Out-Null}
 $bad5=New-Fixture 'disabled-kmc';[IO.File]::WriteAllText((Join-Path $bad5.loader 'Params.xml'),$bad5.parameters.Replace('Id="KingmakerMountedCombat" Enabled="true"','Id="KingmakerMountedCombat" Enabled="false"'))
-Reject 'owner-disabled KMC never enabled by isolation' {Get-KmcBaseGameDependencies $bad5.game $bad5.fingerprint|Out-Null}
+Reject 'owner-disabled KMC never enabled by isolation' {Get-KmcBaseGameDependencies $bad5.game $bad5.fingerprint $bad5.profile|Out-Null}
 Reject 'DTD loader XML rejected' {Read-KmcBaseGameXml '<!DOCTYPE Config [<!ENTITY x "Mods">]><Config><ModsDirectory>&x;</ModsDirectory></Config>'|Out-Null}
 $duplicate=$f.parameters.Replace('</ModParams>','<Mod Id="kingmakermountedcombat" Enabled="true"/></ModParams>')
 Reject 'case-ambiguous mod parameters rejected' {Assert-KmcBaseGameParameters $duplicate|Out-Null}
@@ -91,7 +95,7 @@ $foreignMods="`n    <Mod Id=`"ForeignOne`" Enabled=`"true`">`n      <Hotkey>`n  
 $kmcAppended="`n    <Mod Id=`"KingmakerMountedCombat`" Enabled=`"true`">`n      <Hotkey>`n        <keyCode>None</keyCode>`n        <modifiers>0</modifiers>`n      </Hotkey>`n    </Mod>`n  "
 $ownerParams=New-OwnerParams $foreignMods
 $absent=New-Fixture 'absent-kmc';[IO.File]::WriteAllText((Join-Path $absent.loader 'Params.xml'),$ownerParams)
-Check 'absent KMC entry admitted (UMM 0.33.2.0 enables an unlisted mod by default)' {Need (@((Get-KmcBaseGameDependencies $absent.game $absent.fingerprint).files).Count-eq6) 'dependency count'}
+Check 'absent KMC entry admitted (UMM 0.33.2.0 enables an unlisted mod by default)' {Need (@((Get-KmcBaseGameDependencies $absent.game $absent.fingerprint $absent.profile).files).Count-eq6) 'dependency count'}
 Reject 'duplicate exact KMC entries refused' {Assert-KmcBaseGameParameters $f.parameters.Replace('</ModParams>','<Mod Id="KingmakerMountedCombat" Enabled="true"/></ModParams>')|Out-Null}
 Reject 'lone case-variant KMC entry refused' {Assert-KmcBaseGameParameters (New-OwnerParams ($foreignMods+'<Mod Id="kingmakermountedcombat" Enabled="true"/>'))|Out-Null}
 Reject 'present KMC entry without Enabled refused' {Assert-KmcBaseGameParameters (New-OwnerParams ($foreignMods+'<Mod Id="KingmakerMountedCombat"/>'))|Out-Null}

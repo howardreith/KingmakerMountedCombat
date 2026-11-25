@@ -128,6 +128,12 @@ Check 'launcher carries the owner profile to the inventory, the result reader an
  }
  if($launcher.IndexOf('$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment')-gt$launcher.IndexOf('Get-KmcMeasuredPackage -PackagePath $PackagePath')){throw 'The profile is not resolved before package admission.'}
 }
+Check 'launcher admits base-game dependencies against the owner profile before staging' {
+ $launcher=[IO.File]::ReadAllText((Join-Path $RepositoryRoot 'scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1'))
+ $admit=$launcher.IndexOf('Get-KmcBaseGameDependencies -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -Fingerprint $fingerprint -RuntimeLoaderProfile $runtimeLoaderProfile')
+ $stage=$launcher.IndexOf('Enter-KmcModsTransaction -Lock')
+ if($admit-lt0-or$stage-lt0-or$admit-gt$stage-or$launcher.IndexOf('$runtimeLoaderProfile=Resolve-KmcRuntimeLoaderProfileForEnvironment')-gt$admit){throw 'Dependency admission against the resolved owner profile does not precede staging.'}
+}
 Check 'exact pinned Harmony memory identity and UMM candidate cache' {
  $scope=Assert-KmcBaseGameNativeInventory $request $exact $pinned -PassThru
  if($scope.fileBackedAssemblyCount-ne5-or$scope.inMemoryAssemblyCount-ne1-or$scope.dynamicAssemblyCount-ne0-or

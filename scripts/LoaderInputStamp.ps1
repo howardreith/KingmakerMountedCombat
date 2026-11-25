@@ -1,5 +1,6 @@
 # The receipt a build writes next to its outputs and a run that reuses them (-SkipBuild) must find unchanged: the inputs
-# that decide what was compiled (the loader pins, their verifier, the MSBuild guards, every project file, the build
+# that decide what was compiled (the loader pins, their verifier, the MSBuild guards, the repository-root
+# Directory.Build.props and Directory.Build.targets whether or not Git tracks them, every project file, the build
 # bootstrap Build-Local.ps1, the local LocalGamePaths.props the projects import, the shipping manifests Info.json and
 # version.json, every compiled source under src/, tools/KmcRemovalObserver/ and tests/, the cached loader bytes) and the bytes of the outputs it
 # produced (both shipping DLLs and the component runner). Reuse is refused when the receipt is missing or any of them
@@ -15,7 +16,8 @@ function Get-KmcLoaderInputStamp([string]$RepositoryRoot, [string]$Configuration
     $root = [IO.Path]::GetFullPath($RepositoryRoot)
     $sources = @(& git -C $root ls-files --cached --others --exclude-standard -- src tools/KmcRemovalObserver tests)
     $inputs = @('scripts/loader-reference-pins.json', 'scripts/LoaderPins.ps1', 'scripts/Get-PinnedLoaderReferences.ps1', 'LoaderReferences.targets',
-        'LoaderReferences.Final.targets', 'KingmakerMountedCombat.sln', 'scripts/Build-Local.ps1', 'LocalGamePaths.props', 'Info.json', 'version.json') + @(& git -C $root ls-files -- '*.csproj' '*.props' '*.targets' | Where-Object { $_ -notlike 'docs/*' }) + $sources
+        'LoaderReferences.Final.targets', 'KingmakerMountedCombat.sln', 'scripts/Build-Local.ps1', 'LocalGamePaths.props', 'Info.json', 'version.json',
+        'Directory.Build.props', 'Directory.Build.targets') + @(& git -C $root ls-files -- '*.csproj' '*.props' '*.targets' | Where-Object { $_ -notlike 'docs/*' }) + $sources
     $lines = foreach ($relative in @($inputs | Sort-Object -Unique)) {
         $full = Join-Path $root $relative
         if (Test-Path -LiteralPath $full -PathType Leaf) { $relative + "`t" + (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() } else { $relative + "`tabsent" }
@@ -49,6 +51,6 @@ function Test-KmcLoaderInputStamp([string]$RepositoryRoot, [string]$Configuratio
 function Assert-KmcLoaderInputStamp([string]$RepositoryRoot, [string]$Configuration) {
     switch (Test-KmcLoaderInputStamp $RepositoryRoot $Configuration) {
         'missing' { throw '-SkipBuild cannot reuse these outputs: no build receipt was recorded by the build that produced them. Build again.' }
-        'changed' { throw '-SkipBuild cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loader bytes or the outputs themselves changed since they were built. Build again.' }
+        'changed' { throw '-SkipBuild cannot reuse these outputs: the loader pins, verifier, MSBuild guards, repository-root Directory.Build files, project files, build bootstrap, local build settings, manifests, compiled sources, cached loader bytes or the outputs themselves changed since they were built. Build again.' }
     }
 }
