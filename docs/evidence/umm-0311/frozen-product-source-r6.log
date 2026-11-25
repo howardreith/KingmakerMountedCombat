@@ -1,0 +1,38 @@
+PASS actual source validator recognizes properties with LF
+PASS actual source validator recognizes properties with CRLF
+PASS archived production retains its identity under a later clean harness
+PASS actual WhatIf entry validates archived bytes and preserves the later ShouldProcess request
+PASS actual WhatIf entry still rejects an incorrect original-freeze hash
+PASS package admission rechecks the archived product without relabeling it
+PASS another manifest path cannot borrow archived admission
+PASS changed harness cannot keep an earlier admission
+PASS changed package is refused
+PASS dirty archived worktree is refused
+PASS dirty execution worktree is refused
+PASS changed original freeze is refused
+PASS execution checkout cannot impersonate archived source
+PASS wrong frozen tree is refused even with a matching record hash
+PASS changed suite bytes are refused
+PASS committed loader build pins change requires another candidate
+PASS unchanged product inputs remain reusable after restoring loader build pins
+PASS committed loader reference verifier change requires another candidate
+PASS unchanged product inputs remain reusable after restoring loader reference verifier
+PASS committed MSBuild loader guard change requires another candidate
+PASS unchanged product inputs remain reusable after restoring MSBuild loader guard
+PASS committed build bootstrap change requires another candidate
+PASS unchanged product inputs remain reusable after restoring build bootstrap
+PASS committed final compiler-input guard change requires another candidate
+PASS unchanged product inputs remain reusable after restoring final compiler-input guard
+PASS committed loader pin parser change requires another candidate
+PASS unchanged product inputs remain reusable after restoring loader pin parser
+PASS documentation-only descendant keeps the archived observer identity
+PASS observer-only change rejects the archived observer
+PASS observer-only change keeps main-only reuse
+PASS committed tools/Directory.Build.targets rejects the archived observer
+PASS committed tools/Directory.Build.targets keeps main-only reuse
+PASS committed tools/Directory.Build.props rejects the archived observer
+PASS committed tools/Directory.Build.props keeps main-only reuse
+PASS archived observer accepted again after the inherited files are removed
+PASS committed production change requires another candidate
+PASS actual launcher refuses incomplete archived-source pins before preflight
+FROZEN PRODUCT SOURCE PASS=37 FAIL=0; disposable fixture retained at <repo>\obj\frozen-source-test-986d7bbc02d7454c8ee5fcda7500576e
