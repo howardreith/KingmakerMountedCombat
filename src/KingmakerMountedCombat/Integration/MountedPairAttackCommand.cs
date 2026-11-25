@@ -183,6 +183,12 @@ namespace KingmakerMountedCombat.Integration
         public bool AttackAnimationFinished { get; set; }
 
         public bool AttackAnimationInterrupted { get; set; }
+
+        // MMR-07 owner-log evidence: the native routine compresses every limb's clip into one window with one SpeedScale
+        // (UnitAttack.ConfigureAnimations), so a short bite clip in a Bite/Hoof/Hoof routine can play very fast.
+        public float AttackAnimationSpeedScale { get; set; } = float.NaN;
+
+        public int RoutineAttackCount { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
@@ -814,6 +820,9 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HasAnyRecordedHorsePrimaryAnimation => horsePrimaryAnimationHandle != null;
 
+        // The recorded SpecialAttack action (null until a handle is recorded); a refresh must play the same action.
+        internal UnitAnimationActionSpecialAttack RecordedHorsePrimaryAnimationAction => horsePrimaryAnimationAction;
+
         internal bool HasRecordedHorsePrimaryAnimation(UnitAnimationActionHandle handle)
         {
             return handle != null && ReferenceEquals(horsePrimaryAnimationHandle, handle);
@@ -988,7 +997,59 @@ namespace KingmakerMountedCombat.Integration
 
         protected override ResultType OnAction()
         {
+            ObserveHorseStrike();
             return base.OnAction();
+        }
+
+        // MMR-07 owner-log evidence (review R1-F13), one line per native strike of the exact KMC Horse, read at its own act
+        // event before native triggers the attack rule. The facts come from the production reader (HorseStrikeReader) over the
+        // planned attack and the handle bound to it (HorseStrikeSource below): limb index, weapon, special animation type,
+        // handle facts stated literally, and the active AnimationBase's clip, weight and state. Read only: OnAction still calls
+        // base.OnAction exactly once, so the native attack event and damage count are unchanged.
+        private void ObserveHorseStrike()
+        {
+            try
+            {
+                // Only the exact KMC Horse (not a Mammoth, Riding Dog or other mount's natural attack).
+                if (action != MountedCombatActionKind.MountPrimaryNatural || actionActor != mount || mount == null ||
+                    !string.Equals(mount.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) return;
+                var record = HorseStrikeReader.Read(new HorseStrikeSource(PlannedAttack), mount.UniqueId, GetAttackIndex() + 1,
+                    AllAttacks.Count, Target?.UniqueId);
+                TryLogInfo(record.Format());
+            }
+            catch (Exception)
+            {
+                // Diagnostics never affect the native strike.
+            }
+        }
+
+        // The real-type source of HorseStrikeReader: the planned attack's weapon and its current native handle.
+        private sealed class HorseStrikeSource : IHorseStrikeSource<UnitAnimationActionHandle>
+        {
+            private readonly AttackHandInfo planned;
+
+            internal HorseStrikeSource(AttackHandInfo planned) { this.planned = planned; }
+
+            public string WeaponName => planned?.Weapon?.Blueprint?.name;
+            public string SpecialType
+            {
+                get
+                {
+                    var weapon = planned?.Weapon?.Blueprint;
+                    return weapon?.VisualParameters == null ? null : weapon.VisualParameters.SpecialAnimation.ToString();
+                }
+            }
+            public UnitAnimationActionHandle Handle => planned?.AnimationHandle;
+            public string ActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
+            public bool IsStarted(UnitAnimationActionHandle handle) => handle.IsStarted;
+            public bool IsActed(UnitAnimationActionHandle handle) => handle.IsActed;
+            public bool IsInterrupted(UnitAnimationActionHandle handle) => handle.IsInterrupted;
+            public float SpeedScale(UnitAnimationActionHandle handle) => handle.SpeedScale;
+            public int Variant(UnitAnimationActionHandle handle) => handle.Variant;
+            public int VariantsCount(UnitAnimationActionHandle handle) => handle.VariantsCount;
+            public string ActiveClip(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.GetActiveClip()?.name;
+            public float ActiveWeight(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.GetWeight() ?? 0f;
+            public string ActiveState(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.State.ToString();
         }
 
         protected override void OnEnded(bool raiseEvent = true)
@@ -1830,7 +1891,9 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationActionType = horsePrimaryAnimationActionType,
                 AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
-                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
+                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted,
+                AttackAnimationSpeedScale = horsePrimaryAnimationHandle != null ? horsePrimaryAnimationHandle.SpeedScale : float.NaN,
+                RoutineAttackCount = AllAttacks?.Count ?? 0
             };
         }
 

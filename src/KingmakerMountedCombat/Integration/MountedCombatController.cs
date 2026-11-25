@@ -2324,6 +2324,12 @@ namespace KingmakerMountedCombat.Integration
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
                 "; transaction=" + (outcome.TransactionState ?? "<none>") +
                 "; terminal=" + terminal +
+                (outcome.AttackAnimationHandleCreated
+                    ? "; horseBite={action=" + outcome.AttackAnimationActionName + ",source=" + outcome.AttackAnimationHandleSource +
+                      ",speedScale=" + outcome.AttackAnimationSpeedScale.ToString("R") + ",routineAttacks=" + outcome.RoutineAttackCount +
+                      ",acted=" + outcome.AttackAnimationActed + ",finished=" + outcome.AttackAnimationFinished +
+                      ",interrupted=" + outcome.AttackAnimationInterrupted + "}"
+                    : string.Empty) +
                 "; feedback=" + LastFeedback);
             if (!stockIntentOwned || MountedAttackTerminalPolicy.RetainsIntent(terminal))
             {
