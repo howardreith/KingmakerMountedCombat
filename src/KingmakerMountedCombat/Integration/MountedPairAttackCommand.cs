@@ -447,6 +447,19 @@ namespace KingmakerMountedCombat.Integration
         // IsTargetValid restricted rule with the action's current range) is retired by the controller, which ends this command once, so
         // no destination is produced at any approach step (pre-start, native start, repath, carrier creation) or strike before delivery.
         internal Func<MountedPairAttackCommand, bool> AutomaticOrderAdmissionLost;
+        // Review R4-F1: set for a turn-based order whose click KMC admitted over native's refusal. Every carrier of such an
+        // order is created only on a route revalidated from the CURRENT origin and grant (RouteRevalidator: the click probe's
+        // production walk); when that proof cannot be established the approach ends cleanly instead of falling back to
+        // native routing.
+        internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
+        internal Func<System.Collections.Generic.List<Vector3>> RouteRevalidator;
+        internal bool RouteBound => ValidatedApproachRoute != null;
+        internal int RouteRevalidationCount { get; private set; }
+        // Review R6-F1: a route-bound carrier is a point command whose destination is the verified strike endpoint and whose
+        // native proximity radius is this small, so native's own proximity rule cannot complete it before that endpoint.
+        internal const float RouteBoundArrivalRadiusMetres = 0.05f;
+        internal int RouteProofExpiredCount { get; private set; }
+        internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
         // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
         private bool nativePreStartApproaching;
@@ -1837,6 +1850,33 @@ namespace KingmakerMountedCombat.Integration
                 chargeCarrierView = mount.View;
                 chargeCarrierAgent = mount.View?.AgentASP;
                 chargeCarrierMotionOwned = true;
+            }
+            // Review R4-F1: the first carrier of a click-admitted turn-based order follows exactly the route the click probe
+            // validated (native TickApproaching follows a ForcedPath before any visualizer path). It is used once, only from
+            // the route's own start; a repath or a moved pair falls back to native routing.
+            if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            {
+                RouteRevalidationCount++;
+                var route = RouteRevalidator?.Invoke();
+                if (route == null || route.Count < 2)
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based approach is no longer a legal route within the mount's movement.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "validated approach expired");
+                    Interrupt();
+                    return false;
+                }
+                var endpoint = route[route.Count - 1];
+                delegatedMoveApproachRadius = RouteBoundArrivalRadiusMetres;
+                delegatedMove = new UnitMoveTo(endpoint, RouteBoundArrivalRadiusMetres)
+                {
+                    CreatedByPlayer = true,
+                    ShowTargetMarker = false,
+                    NeedLoS = false
+                };
+                delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
+                ValidatedRouteFollowed = true;
             }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;

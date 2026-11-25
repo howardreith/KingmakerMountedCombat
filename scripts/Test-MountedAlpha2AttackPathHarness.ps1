@@ -1,11 +1,11 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$TemplatePath,[string]$OutputDirectory)
-# Production-path check of the mounted pair attack's approach and start (reviews R3-F1, R4-F2). Splices the ACTUAL source
+# Production-path check of the mounted pair attack's approach and start (reviews R3-F1, R4-F2, R4-F1). Splices the ACTUAL source
 # of: the whole MountedPairSingleAttack class (strike admission, position admission, start admission) and its admission enum;
 # the MountedPairAttackCommand members on the approach/start paths (own-move registry, pre-start approach for the rider's
 # carrier and the horse's native approach, automatic perception guard, OnStart, OnTick, target invalidation, OnEnded,
 # TickApproach, Repath, BeginDelegatedMove, StopDelegatedMove, StartChildAttack, end-cause recording, fault ending);
-# MountedPatchController.MountedAttackApproachPrefix
+# MountedPatchController.MountedAttackApproachPrefix; PairedAttackClickProbe; MountedCombatController.RevalidateAdmittedClickRoute
 # into tests/Chunk7Diagnostics/AttackPathHarnessTemplate.cs, compiles them with every real Domain source and runs the
 # reviewers' counterexamples with controls on a facade of the native command surface. Offline evidence only (nativeProof=false).
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
@@ -20,6 +20,7 @@ $integration=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Integration'
 $commandPath=Join-Path $integration 'MountedPairAttackCommand.cs';$command=[IO.File]::ReadAllText($commandPath)
 $childPath=Join-Path $integration 'MountedPairSingleAttack.cs';$child=[IO.File]::ReadAllText($childPath)
 $patchPath=Join-Path $integration 'MountedPatchController.cs';$patch=[IO.File]::ReadAllText($patchPath)
+$probePath=Join-Path $integration 'PairedAttackClickProbe.cs';$probe=[IO.File]::ReadAllText($probePath)
 $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
 $terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
@@ -27,6 +28,8 @@ $members=[ordered]@{
  'ADMISSION_ENUM'=(Extract $child 'internal enum MountedPairNativeAdmissionState')
  'CHILD_ATTACK_CLASS'=(Extract $child 'internal class MountedPairSingleAttack : UnitAttack')
  'APPROACH_PREFIX'=(Extract $patch 'internal static bool MountedAttackApproachPrefix(UnitCommand __instance)')
+ 'PROBE_CLASS'=(Extract $probe 'internal static class PairedAttackClickProbe')
+ 'REVALIDATE'=(Extract $controller 'private List<Vector3> RevalidateAdmittedClickRoute(UnitEntityData target)')
  'APPROACH_FAILURE'=(Extract $command 'private sealed class ApproachFailure : InvalidOperationException')
  'RECORD_END_CAUSE'=(Extract $command 'internal void RecordEndCause(MountedAttackEndCause cause, string detail,')
  'END_AFTER_FAULT'=(Extract $command 'private void EndAfterFault(Exception exception, string phase)')
@@ -116,7 +119,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

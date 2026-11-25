@@ -562,6 +562,33 @@ namespace KingmakerMountedCombat.Integration
         /* CLICK_ASSIGNMENT_HOOK */
     }
 
+    /* PROBE_CLASS */
+
+    internal sealed class HarnessRelationship { public UnitEntityData Rider, Mount; }
+
+    internal sealed class HarnessTurnParticipant
+    {
+        public float GrantMetres;
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)
+        {
+            step = false; singleMove = false; reason = GrantMetres > 0f ? "granted" : "mount-movement-spent";
+            return GrantMetres;
+        }
+    }
+
+    // The controller members the revalidation uses, around the ACTUAL RevalidateAdmittedClickRoute.
+    internal sealed class HarnessController
+    {
+        private readonly HarnessRelationship relationship = new HarnessRelationship();
+        internal readonly HarnessTurnParticipant unifiedTurn = new HarnessTurnParticipant();
+        private bool disposed;
+        public readonly List<string> Log = new List<string>();
+        public HarnessController(UnitEntityData rider, UnitEntityData mount) { relationship.Rider = rider; relationship.Mount = mount; }
+        private void TryLog(Func<string> line) { Log.Add(line()); }
+        internal List<Vector3> Revalidate(UnitEntityData target) => RevalidateAdmittedClickRoute(target);
+        /* REVALIDATE */
+        internal string LastRouteRevalidation { get; private set; }
+    }
 
     // Native NativeSingleAttackWeaponResolver: the mount's primary natural attack (the Horse Bite in its first additional limb).
     // Native NativeSingleAttackWeaponResolver: the mount's primary natural attack, its actual weapon in its actual first limb slot.
@@ -3551,6 +3578,237 @@ namespace Harness
                 "PR-1 R9-F3 the ordinal full-result comparison rejects a TargetInvalid result with an appended CommandCancelled code");
         }
 
+        private static void R4F1()
+        {
+            // Corner: the target sits beyond the corner; within reach but out of sight until the route has turned it.
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f && from.x > 1.0f;
+            var turnPoint = new Vector3(2f, 0f, 0f);
+            Func<Vector3, Vector3, List<Vector3>> route = (from, to) => new List<Vector3> { from, turnPoint, new Vector3(2f, 0f, 1.5f) };
+            List<Vector3> firstRoute = null;
+            foreach (var shift in new[] { 0f, 0.1f, 0.3f })
+            {
+                var world = NewWorld(new Vector3(-shift, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+                world.Horse.View.AgentASP.Route = route;
+                var controller = new HarnessController(world.Rider, world.Horse);
+                controller.unifiedTurn.GrantMetres = 9f;
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                order.ValidatedApproachRoute = new List<Vector3> { new Vector3(0f, 0f, 0f), turnPoint, new Vector3(2f, 0f, 0.6f) }; // the click-time route
+                order.RouteRevalidator = () => controller.Revalidate(world.Target);
+                world.Rider.Commands.Run(order);
+                order.Start();
+                var carrier = order.DelegatedMove;
+                var forced = carrier?.ForcedPath?.vectorPath;
+                var label = "shift " + shift.ToString("0.0") + " m";
+                Check(carrier != null && forced != null && Kingmaker.Utility.GeometryUtils.MechanicsDistance(forced[0], world.Horse.Position) < 1e-4f &&
+                    order.RouteRevalidationCount == 1 && controller.LastRouteRevalidation.StartsWith("proven=True", StringComparison.Ordinal),
+                    "R4-F1 " + label + ": the submitted carrier's route was recomputed from the current origin (" + controller.LastRouteRevalidation + ")");
+                var end = forced == null ? default(Vector3) : forced[forced.Count - 1];
+                Check(forced != null && Math.Abs(end.x - 2f) < 0.01f && end.z >= 0.6f - 0.01f && end.z < 0.7f,
+                    "R4-F1 " + label + ": the route ends at the first strike-admissible point past the corner, not the point-move end");
+                if (shift == 0f) firstRoute = forced;
+                var safety = 0;
+                while (!order.IsFinished && order.Transaction.State == MountedCombatTransactionState.Approaching && safety++ < 80)
+                { NativeTick(world, world.Horse); NativeTick(world, world.Rider); }
+                if (order.Transaction.State == MountedCombatTransactionState.Attacking) NativeTick(world, world.Rider);
+                Check(carrier.FollowedForcedPath && UnitAttack.NativeAttackStarts == 1 && order.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted,
+                    "R4-F1 " + label + ": the carrier followed the validated route and the strike was admitted once at its end");
+            }
+            // A grant that no longer covers the recomputed route ends the approach cleanly: no carrier, no native fallback.
+            var short_ = NewWorld(new Vector3(-0.3f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+            short_.Horse.View.AgentASP.Route = route;
+            var shortController = new HarnessController(short_.Rider, short_.Horse);
+            shortController.unifiedTurn.GrantMetres = 2.75f; // covers the unshifted 2.6 m route, not the shifted 2.9 m one
+            var expired = Order(short_, MountedCombatActionKind.RiderMelee, false);
+            expired.ValidatedApproachRoute = new List<Vector3> { new Vector3(0f, 0f, 0f), turnPoint, new Vector3(2f, 0f, 0.6f) };
+            expired.RouteRevalidator = () => shortController.Revalidate(short_.Target);
+            short_.Rider.Commands.Run(expired);
+            var runsBefore = short_.Horse.Commands.RunCount;
+            expired.Start();
+            Check(expired.IsFinished && expired.DelegatedMove == null && short_.Horse.Commands.RunCount == runsBefore &&
+                short_.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null && expired.RouteProofExpiredCount == 1 &&
+                expired.Transaction.State == MountedCombatTransactionState.Cancelled && UnitAttack.NativeAttackStarts == 0,
+                "R4-F1: an expired proof ends the approach cleanly (no carrier submitted, no native fallback, no attack)");
+            // Control: a non-route-bound order keeps native routing (no forced route, no revalidation).
+            var native = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+            var plain = Order(native, MountedCombatActionKind.RiderMelee, false);
+            native.Rider.Commands.Run(plain);
+            plain.Start();
+            Check(plain.DelegatedMove != null && plain.DelegatedMove.ForcedPath == null && plain.RouteRevalidationCount == 0,
+                "R4-F1 control: a non-route-bound order keeps native routing");
+        }
+
+        // Runs an admitted route-bound order from its start until the attack begins (or the approach ends), returning the
+        // carrier the order submitted and the mount position at which the strike was admitted.
+        private static UnitMoveTo RunRouteBound(World world, HarnessController controller, MountedPairAttackCommand order, out Vector3 admittedAt,
+            out MountedPairNativeAdmissionState admissionAtRelease)
+        {
+            order.ValidatedApproachRoute = new List<Vector3> { world.Horse.Position, world.Horse.Position };
+            order.RouteRevalidator = () => controller.Revalidate(world.Target);
+            world.Rider.Commands.Run(order);
+            order.Start();
+            var carrier = order.DelegatedMove;
+            admittedAt = default(Vector3);
+            admissionAtRelease = MountedPairNativeAdmissionState.Unavailable;
+            var safety = 0;
+            while (!order.IsFinished && order.Transaction.State == MountedCombatTransactionState.Approaching && safety++ < 120)
+            {
+                NativeTick(world, world.Horse);
+                NativeTick(world, world.Rider);
+            }
+            if (order.Transaction.State == MountedCombatTransactionState.Attacking)
+            {
+                admittedAt = world.Horse.Position;
+                admissionAtRelease = order.EvaluateCurrentNativeAdmission();
+                NativeTick(world, world.Rider);
+            }
+            return carrier;
+        }
+
+        // Review R5-F2: a legal step endpoint inside a sight window narrower than the walk's sample spacing.
+        private static void R5F2()
+        {
+            // Straight route east toward the target; the rider sees it only through a slot 1.412..1.428 m along (between the
+            // regular samples at 1.40 and 1.45). In pair reach from x = 1.0 on.
+            Func<Vector3, Vector3, bool> slot = (from, to) => !(from.x >= 1.412f && from.x <= 1.428f);
+            foreach (var grant in new[] { 1.42f, 1.40f })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3f, 0f, 0f), slot, true);
+                var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, grant);
+                string reason;
+                var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, true, true, true, true, false, false, true, true,
+                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteMetres, grant, probe.EndpointAdmitsStrike, out reason);
+                var label = "grant " + grant.ToString("0.00") + " m";
+                if (grant == 1.42f)
+                {
+                    var end = probe.Route == null ? default(Vector3) : probe.Route[probe.Route.Count - 1];
+                    Check(decision == PairedAttackClickAdmission.AdmitRoute && probe.Route != null && end.x >= 1.412f && end.x <= 1.42f &&
+                        probe.RouteMetres <= grant, "R5-F2 " + label + ": the click whose grant ends inside the sight window is admitted (" +
+                        decision + ":" + reason + ", endpoint " + end + ", cost " + probe.RouteMetres.ToString("R") + ")");
+                    var controller = new HarnessController(world.Rider, world.Horse);
+                    controller.unifiedTurn.GrantMetres = grant;
+                    var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                    Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+                    var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+                    var forcedEnd = carrier?.ForcedPath?.vectorPath?.Last() ?? default(Vector3);
+                    Check(carrier != null && controller.LastRouteRevalidation.StartsWith("proven=True", StringComparison.Ordinal) &&
+                        Math.Abs(forcedEnd.x - end.x) < 1e-4f && carrier.ApproachPoint.Equals(forcedEnd) &&
+                        Math.Abs(admittedAt.x - end.x) < 1e-3f && atRelease == MountedPairNativeAdmissionState.Admitted &&
+                        UnitAttack.NativeAttackStarts == 1 && carrier.TravelledMetres <= grant + 1e-4f,
+                        "R5-F2 " + label + ": revalidation carries the verified endpoint to the carrier, which stops there (travelled " +
+                        (carrier?.TravelledMetres ?? -1f).ToString("R") + " m) and one strike is admitted");
+                }
+                else
+                {
+                    Check(decision == PairedAttackClickAdmission.NativeDecision && probe.Route == null,
+                        "R5-F2 " + label + ": a grant ending before the sight window keeps native's refusal, so the prior order stands (" +
+                        decision + ":" + reason + ", probe " + probe.Detail + ")");
+                }
+            }
+        }
+
+        // Review R6-F1: the mount starts INSIDE the old enemy point-command radius but the rider lacks line of sight until the
+        // flank; the verified strike endpoint lies OUTSIDE that radius.
+        private static void R6F1()
+        {
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f;
+            Func<Vector3, Vector3, List<Vector3>> flank = (from, to) => new List<Vector3> { from, new Vector3(0.5f, 0f, 0f), new Vector3(0.5f, 0f, 1.5f) };
+            var target = new Vector3(2.5f, 0f, 0f);
+            var start = new Vector3(1.3f, 0f, 0f);
+            var world = NewWorld(start, target, wall, true);
+            world.Horse.View.AgentASP.Route = flank;
+            var controller = new HarnessController(world.Rider, world.Horse);
+            controller.unifiedTurn.GrantMetres = 9f;
+            var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+            // The strike's own admission at the start, as the click probe evaluates it (an unrun child with the strike's sight).
+            var strike = new MountedPairSingleAttack(world.Target, world.Rider, world.Horse, true);
+            strike.Init(world.Rider);
+            var startAdmission = strike.EvaluateCurrentNativeAdmission();
+            var oldRadius = strike.DelegatedMoveApproachRadius;
+            Check(startAdmission == MountedPairNativeAdmissionState.BlockedLineOfSight &&
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, target) <= oldRadius,
+                "R6-F1 setup: the mount starts within the enemy point-command radius (" + oldRadius.ToString("R") + " m) with the rider's sight blocked (" + startAdmission + ")");
+            Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+            var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+            var forced = carrier?.ForcedPath?.vectorPath;
+            var endpoint = forced == null ? default(Vector3) : forced[forced.Count - 1];
+            Check(forced != null && Math.Abs(endpoint.x - 0.5f) < 1e-3f && Math.Abs(endpoint.z - 0.6f) < 0.01f &&
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(endpoint, target) > oldRadius,
+                "R6-F1: the verified strike endpoint " + endpoint + " lies outside the old point-command radius");
+            Check(carrier != null && carrier.ApproachPoint.Equals(endpoint) && carrier.ApproachRadius == MountedPairAttackCommand.RouteBoundArrivalRadiusMetres &&
+                !carrier.NeedLoS && carrier.FirstProximityDecision == false,
+                "R6-F1: the carrier's destination and arrival criterion are the verified endpoint; native's first proximity decision is 'not close' (" +
+                carrier?.FirstProximityDecision + ")");
+            Check(carrier != null && carrier.FollowedForcedPath && !carrier.CompletedWithoutMoving && Math.Abs(carrier.TravelledMetres - 1.4f) < 0.01f &&
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(admittedAt, endpoint) < 1e-3f,
+                "R6-F1: the carrier moved along the validated flank route (" + (carrier?.TravelledMetres ?? -1f).ToString("R") + " m) to the endpoint " + admittedAt);
+            Check(atRelease == MountedPairNativeAdmissionState.Admitted && order.CarrierReleaseProven && order.DelegatedMove == null &&
+                world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null && UnitAttack.NativeAttackStarts == 1,
+                "R6-F1: exact release at the endpoint (carrier gone, Move slot and queue empty) and one admitted strike");
+            // Control (the facade's native proximity rule): a point command to the enemy with the old radius over the same
+            // validated route is 'close' at the start and completes without moving, so it could never reach the flank.
+            var control = NewWorld(start, target, wall, true);
+            var old = new UnitMoveTo(target, oldRadius) { NeedLoS = false };
+            old.ForcedPath = new Pathfinding.ForcedPath(forced ?? flank(start, target));
+            control.Horse.Commands.Run(old);
+            NativeTick(control, control.Horse);
+            Check(old.FirstProximityDecision == true && old.CompletedWithoutMoving && old.IsFinished && control.Horse.Position.Equals(start) &&
+                control.Rider.EyePosition.z < 0.6f,
+                "R6-F1 control: the old enemy point command and radius completes at once without moving, the rider still blind");
+        }
+
+        // Review R6-F2: a rider carried at a horizontal mount-local offset turns with the mount at a right-angle corner.
+        private static void R6F2()
+        {
+            // Target beyond a corner; sight is blocked for any eye with z < 0.6 east of x = 1.0. The rider sits 0.4 m to the
+            // horse's left (horse facing +Z, so at -X). Travelling east the rider is on the north side (+Z); after turning north
+            // it is west again. Translating the start offset instead puts the eye west of the wall early on the east leg.
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f && from.x > 1.0f;
+            Func<Vector3, Vector3, List<Vector3>> route = (from, to) => new List<Vector3> { from, new Vector3(2f, 0f, 0f), new Vector3(2f, 0f, 1.5f) };
+            var target = new Vector3(3.6f, 0f, 1.6f);
+            var offset = new Vector3(-0.4f, 0f, 0f);
+            Func<World> make = () =>
+            {
+                var w = NewWorld(new Vector3(0f, 0f, 0f), target, wall, true);
+                w.Horse.View.AgentASP.Route = route;
+                w.Horse.Orientation = 0f;
+                w.Rider.Position = w.Horse.Position + offset;
+                return w;
+            };
+            var world = make();
+            var controller = new HarnessController(world.Rider, world.Horse);
+            controller.unifiedTurn.GrantMetres = 9f;
+            var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+            Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+            var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+            var forced = carrier?.ForcedPath?.vectorPath;
+            var predicted = forced == null ? default(Vector3) : forced[forced.Count - 1];
+            Check(forced != null && Math.Abs(predicted.x - 2f) < 1e-3f && Math.Abs(predicted.z - 0.6f) < 0.01f,
+                "R6-F2: the rotated-offset prediction ends past the corner at " + predicted);
+            var riderOffsetAfter = world.Rider.Position - world.Horse.Position;
+            Check(Kingmaker.Utility.GeometryUtils.MechanicsDistance(admittedAt, predicted) < 1e-3f && atRelease == MountedPairNativeAdmissionState.Admitted &&
+                UnitAttack.NativeAttackStarts == 1 && Math.Abs(riderOffsetAfter.x + 0.4f) < 1e-3f && Math.Abs(riderOffsetAfter.z) < 1e-3f,
+                "R6-F2: after rider synchronisation the strike is admitted exactly at the predicted endpoint (" + admittedAt + ", rider offset " + riderOffsetAfter + ")");
+            // Control: the same production walk with the start offset only translated (no heading: travel vector zero) predicts
+            // an endpoint on the east leg; carrying the rider there with the mount's turn, the actual admission disagrees.
+            var cw = make();
+            var probe = new MountedPairSingleAttack(cw.Target, cw.Rider, cw.Horse, true);
+            probe.Init(cw.Rider);
+            List<Vector3> translatedRoute; float translatedCost;
+            var translatedFound = MountedRouteWalker.Walk(route(cw.Horse.Position, target), (a, b) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(a, b),
+                Vector3.Lerp, (point, from, to) => probe.EvaluateNativeAdmissionAtMountPosition(point, Vector3.zero) == MountedPairNativeAdmissionState.Admitted,
+                9f, out translatedRoute, out translatedCost);
+            var translatedEnd = translatedFound ? translatedRoute[translatedRoute.Count - 1] : default(Vector3);
+            var follow = new UnitMoveTo(translatedEnd, MountedPairAttackCommand.RouteBoundArrivalRadiusMetres) { NeedLoS = false };
+            if (translatedFound) follow.ForcedPath = new Pathfinding.ForcedPath(translatedRoute);
+            cw.Horse.Commands.Run(follow);
+            var guard = 0;
+            while (translatedFound && !follow.IsFinished && guard++ < 60) NativeTick(cw, cw.Horse);
+            var actual = probe.EvaluateCurrentNativeAdmission();
+            Check(translatedFound && translatedEnd.z < 0.01f && translatedEnd.x < 2f && Kingmaker.Utility.GeometryUtils.MechanicsDistance(cw.Horse.Position, translatedEnd) < 1e-3f &&
+                actual != MountedPairNativeAdmissionState.Admitted,
+                "R6-F2 control: a translated-offset prediction (" + translatedEnd + ") disagrees with admission after synchronisation (" + actual + ")");
+        }
+
         private static int Main()
         {
             try { R3F1(); } catch (Exception exception) { Check(false, "R3-F1 threw " + exception); }
@@ -3600,6 +3858,10 @@ namespace Harness
             try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }
             try { Round7TieBreak(); } catch (Exception exception) { Check(false, "PR-1 round 7 tie-break threw " + exception); }
             try { Round7InvalidationParity(); } catch (Exception exception) { Check(false, "PR-1 round 7 invalidation parity threw " + exception); }
+            try { R4F1(); } catch (Exception exception) { Check(false, "R4-F1 threw " + exception); }
+            try { R5F2(); } catch (Exception exception) { Check(false, "R5-F2 threw " + exception); }
+            try { R6F1(); } catch (Exception exception) { Check(false, "R6-F1 threw " + exception); }
+            try { R6F2(); } catch (Exception exception) { Check(false, "R6-F2 threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }

@@ -72,6 +72,21 @@ namespace KingmakerMountedCombat.Domain
             if (remaining > 3f) return remaining - 3f;
             return singleMove && moveUsed > 0f ? 0f : remaining;
         }
+        // Review R6-F3: the time available across one order, as successive Advance calls of this same state would grant it.
+        // Remaining is only the current action's slice (native GetRemainingMovementTime(total: false)); an ordinary
+        // two-action move continues into the Standard conversion (the mount pays it, moveUsed passing 3) unless the
+        // single-move limit, a five-foot step, auto-stop after the first Move action, a restriction or a spent Standard ends it.
+        public float RemainingAcrossOrder(float speed, float stepRange, float moveUsed, bool standardUsed, bool moveRestricted,
+            bool step, bool singleMove, bool autoStop)
+        {
+            var current = Remaining(speed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove);
+            if (step || singleMove || current <= 0f) return current;
+            if (AutoStopPending) return 0f;
+            var total = Math.Max(0f, Math.Min(6f, 3f * ((moveRestricted ? 1f : 2f) - (standardUsed ? 1f : 0f)) - moveUsed));
+            if (autoStop && moveUsed < 3f) return Math.Min(total, 3f - moveUsed);
+            return total;
+        }
+
         private static bool Finite(float value) => value >= 0f && !float.IsNaN(value) && !float.IsInfinity(value);
     }
 }

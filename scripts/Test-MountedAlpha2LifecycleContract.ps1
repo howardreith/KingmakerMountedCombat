@@ -10,6 +10,8 @@ param([string]$Configuration = 'Release')
 #  3. Pre-start approach: native TickApproaching reaches the pair command's TickPreStartApproach; the command neither
 #     overrides CanStart nor sets IsIgnoreCooldown (native start gate untouched); each delegated move is announced before
 #     native Run; the start adopts the live carrier.
+#  4. Turn-based click: the IgnoreClick postfix decides through PairedAttackClickAdmissionPolicy with the click probe (the
+#     strike's production admission and the mount agent's native FindPath) and the mount's granted movement.
 #  5. Native target comparison: the installed Character_Brain actions and considerations (exact serialized bytes at pinned
 #     offsets of the pinned sharedassets1) and the brain context fields the proposal ranking reader reads.
 # Not covered: any game run.
@@ -137,6 +139,51 @@ $canAct = (GameType 'Kingmaker.Controllers.Combat.UnitCombatState').GetProperty(
 $should = @(Method (GameType 'Kingmaker.Controllers.Units.UnitActionController') 'ShouldStartCommand')[0]
 $cooldowns = @(Method (GameType 'Kingmaker.Controllers.Combat.UnitCombatState') 'HasCooldownForCommand')
 Check ((Calls $should $canAct) -ge 1 -and (@($cooldowns | Where-Object { (Calls $should $_) -ge 1 }).Count) -ge 1) 'R3-F1: native ShouldStartCommand gates the start on CanActInCombat and the cooldown'
+
+# ---- 4. Turn-based click --------------------------------------------------------------------------------------------
+$participant = KmcType 'KingmakerMountedCombat.Integration.MountedPairTurnParticipant'
+$admit = @(Method $participant 'AdmitPairedAttackClick')[0]
+$policy = (KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('Decide')
+$probe = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('Evaluate', $any)
+$movementState = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
+$grantHelper = @(Method $participant 'PairedMountGrantedMetres')[0]
+Check ((Calls $admit $policy) -eq 1 -and (Calls $admit $probe) -eq 1 -and (Calls $admit $grantHelper) -eq 1) 'R3-F2: the IgnoreClick postfix decides through the policy, the probe and the shared mount grant'
+$canMoveHelper = @(Method $participant 'CanMovePairedMount')[0]
+foreach ($term in @(@(Method $participant 'PairedMovementContext')[0], $movementState.GetMethod('HasGrantedMovement', $any), @(Method $participant 'CanAddressActor')[0], (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetMethod('IsAbleToAct'))) {
+    Check ((Calls $grantHelper $term) -ge 1 -and (Calls $canMoveHelper $term) -ge 1) ('R3-F2: the click grant and paired execution share ' + $term.Name)
+}
+Check ((Calls $grantHelper ($movementState.GetMethod('RemainingOrderMetres', $any))) -eq 1 -and (Calls ($movementState.GetMethod('RemainingOrderMetres', $any)) ((KmcType 'KingmakerMountedCombat.Domain.MountedMovementState').GetMethod('RemainingAcrossOrder'))) -eq 1) 'R3-F2/R6-F3: the click grant is the mount allocation''s distance across the order (same state Advance spends)'
+Check ((Calls $admit (@(Method $participant 'PairedMovementContext')[0])) -eq 0 -and (Calls $admit ((GameType 'TurnBased.Controllers.TurnController').GetProperty('EnabledFiveFootStep').GetGetMethod())) -eq 0) 'R3-F2: the click decision reads no rider-context step flags of its own'
+$findPath = (GameType 'Kingmaker.View.UnitMovementAgent').GetMethod('FindPath')
+$closeEnough = $command.GetMethod('IsUnitCloseEnough', [Reflection.BindingFlags]'Static,Public')
+$single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
+$evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
+$evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
+$walkerType = KmcType 'KingmakerMountedCombat.Domain.MountedRouteWalker'
+$walksRoute = @(Refs $probe | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count -eq 2
+$admitsAlongRoute = @($probe.DeclaringType.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $evaluateAt) -ge 1 }).Count -ge 1
+Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker, bounded by the mount grant (and once unbounded for the diagnostic), until the strike''s production admission passes'
+$offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
+Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
+$turnDegrees = (KmcType 'KingmakerMountedCombat.Domain.MountedHeading').GetMethod('TurnDegrees')
+$orientation = (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetProperty('Orientation').GetGetMethod()
+Check ((Calls $evaluateAt $turnDegrees) -eq 1 -and (Calls $evaluateAt $orientation) -eq 1) 'R6-F2: admission along the route turns the rider and eye offsets from the mount''s current orientation to its heading on the segment'
+$setForced = $command.GetProperty('ForcedPath').GetSetMethod()
+$getForced = $command.GetProperty('ForcedPath').GetGetMethod()
+Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F1: the click-admitted order''s carrier follows the validated route (ForcedPath)'
+$nativeApproach = MemberAt 0x060027A6
+$currentPathForUnit = MemberAt 0x0600700F
+Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeApproach $getForced) -lt (FirstOffset $nativeApproach $currentPathForUnit)) 'R4-F1: native turn-based TickApproaching follows a ForcedPath before any visualizer path'
+Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $tryExecute ($pair.GetField('RouteRevalidator', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
+$revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
+Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
+$invoke = [Func[System.Collections.Generic.List[UnityEngine.Vector3]]].GetMethod('Invoke')
+$moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
+$moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
+Check ($moveCtorOffsets.Count -eq 2 -and $moveCtorOffsets[1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'
+Check ((FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -ge 0 -and (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R4-F1: a route-bound carrier revalidates before its route is set; there is no unchecked fallback'
+$visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
+Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'
 
 # ---- 5. Native target comparison --------------------------------------------------------------------------------------
 $assets = Join-Path $data 'sharedassets1.assets'

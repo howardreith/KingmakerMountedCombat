@@ -876,6 +876,13 @@ namespace KingmakerMountedCombat.Integration
                     command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(orderGeneration, issued);
                     // PR-1 review R2-F1: supersession stops the installed wrapper before its first delivery.
                     command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(orderGeneration);
+                    // Review R4-F1: a turn-based rider melee order admitted by the click probe follows the validated route.
+                    if (action == MountedCombatActionKind.RiderMelee && stockIntentValidatedRoute != null)
+                    {
+                        command.ValidatedApproachRoute = stockIntentValidatedRoute;
+                        command.RouteRevalidator = () => RevalidateAdmittedClickRoute(target);
+                        stockIntentValidatedRoute = null;
+                    }
                 }
                 if (automaticOrigin)
                 {
@@ -1091,6 +1098,12 @@ namespace KingmakerMountedCombat.Integration
         // MMR-03/R1-F6: turn-based participant selection uses the dispatcher's own admission (CaptureContext and the action
         // evaluator: Standard, native capability block, paired addressability, selection and transaction), so an
         // individually ended or prohibited actor is skipped exactly as dispatch would refuse it.
+        // MMR-02 (review R3-F2): the dispatcher's own admission of the rider's melee attack on a clicked target (Standard,
+        // native capability block, paired addressability, selection and transaction), read before native accepts the click.
+        internal bool RiderMeleeClickAdmitted(UnitEntityData target) =>
+            !disposed && relationship.State == RelationshipState.Mounted && target != null &&
+            EvaluateStockActor(MountedCombatActionKind.RiderMelee, target).IsAllowed;
+
         private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target)
         {
             NativeSingleAttackWeaponSelection ignored;
@@ -1208,6 +1221,56 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal int OwnMoveHoldRestoredCount { get; private set; }
+
+        // Review R4-F1: the route the click probe validated (mount start to the first point where the strike's production
+        // admission passes), bound to the exact click: target, turn context and frame. The order it admits hands it to its
+        // carrier as a ForcedPath; anything else (another target, turn or frame, or a refused click) leaves no route.
+        private List<Vector3> validatedClickRoute;
+        private UnitEntityData validatedClickTarget;
+        private object validatedClickTurn;
+        private int validatedClickFrame = -1;
+
+        internal void RememberValidatedClickRoute(UnitEntityData target, object turn, List<Vector3> route)
+        {
+            validatedClickRoute = route == null ? null : new List<Vector3>(route);
+            validatedClickTarget = route == null ? null : target;
+            validatedClickTurn = route == null ? null : turn;
+            validatedClickFrame = route == null ? -1 : Time.frameCount;
+        }
+
+        private List<Vector3> TakeValidatedClickRoute(UnitEntityData target, object turn)
+        {
+            var route = validatedClickRoute;
+            var exact = route != null && ReferenceEquals(validatedClickTarget, target) && turn != null &&
+                ReferenceEquals(validatedClickTurn, turn) &&
+                Time.frameCount - validatedClickFrame <= 1;
+            RememberValidatedClickRoute(null, null, null);
+            return exact ? route : null;
+        }
+
+        private List<Vector3> stockIntentValidatedRoute;
+
+        // Review R4-F1: the proof for a carrier of a click-admitted turn-based order, recomputed from the CURRENT origin with the
+        // CURRENT grant by the same production walk the click used; null when the proof cannot be established.
+        private List<Vector3> RevalidateAdmittedClickRoute(UnitEntityData target)
+        {
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (disposed || rider == null || mount == null || target == null || turn == null) return null;
+            bool step, single;
+            string reason;
+            var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out reason);
+            var probe = PairedAttackClickProbe.Evaluate(rider, mount, target, grant);
+            if (probe.AdmissibleNow) return new List<Vector3> { mount.Position, mount.Position };
+            var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteComplete, probe.EndpointAdmitsStrike, probe.RouteMetres, grant);
+            LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
+                ";mountGrant=" + reason + ";probe=" + probe.Detail;
+            TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
+            return proven ? probe.Route : null;
+        }
+
+        internal string LastRouteRevalidation { get; private set; }
 
         internal void ObserveHoldInput()
         {
@@ -1422,6 +1485,7 @@ namespace KingmakerMountedCombat.Integration
             // Review R2-F1: the order's attack kind is fixed here, at acceptance, for its whole lifetime.
             retainedOrder.Begin(stockIntent.Generation, false,
                 ownerIsMount || actionContext != MountedCombatActionKind.RiderRanged);
+            stockIntentValidatedRoute = turnBased && !ownerIsMount ? TakeValidatedClickRoute(target, turn) : null;
             StockAttackIntentStartCount++;
             OwnManualTarget(principal, target, stockIntent.Generation);
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -2316,6 +2380,7 @@ namespace KingmakerMountedCombat.Integration
             mountSelection.Release();
             stockIntent.Cancel();
             retainedOrder.Clear();
+            stockIntentValidatedRoute = null;
             stockIntentCommand = null;
             automaticRuns.Clear();
             if (target != null)

@@ -345,7 +345,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, nameof(PatchMethods.TurnPreparePrefix), nameof(PatchMethods.TurnPreparePostfix), nameof(PatchMethods.PairedPreparationTranspiler));
                 PatchExact(typeof(TurnController), "Tick", 0x06000C34, Type.EmptyTypes, nameof(PatchMethods.PairedTickPrefix), null, nameof(PatchMethods.PairedActivityTranspiler));
                 PatchExact(typeof(TurnController), "UpdateActionPredictions", 0x06000C6E, Type.EmptyTypes, nameof(PatchMethods.PairedInputPredictionPrefix));
-                PatchExact(typeof(TurnController), "IgnoreClick", 0x06000C2F, Type.EmptyTypes, nameof(PatchMethods.PairedIgnoreClickPrefix));
+                PatchExact(typeof(TurnController), "IgnoreClick", 0x06000C2F, Type.EmptyTypes, nameof(PatchMethods.PairedIgnoreClickPrefix),
+                    nameof(PatchMethods.PairedIgnoreClickPostfix));
                 PatchExact(typeof(UnitCombatState), "get_IsFullAttackRestrictedBecauseOfMoveAction", 0x06009391,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullAttackInputTranspiler));
                 PatchExact(typeof(CombatController), "ModifyMovementLimitOn", 0x06000BDF, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
@@ -1544,6 +1545,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn?.PrepareNativeInputPrediction(__instance) ?? true;
             internal static bool PairedIgnoreClickPrefix(TurnController __instance, ref bool __result) =>
                 PatchBridge.UnifiedTurn == null || PatchBridge.UnifiedTurn.ShouldRunNativeIgnoreClick(__instance, ref __result);
+            internal static void PairedIgnoreClickPostfix(TurnController __instance, ref bool __result) =>
+                PatchBridge.UnifiedTurn?.AdmitPairedAttackClick(__instance, ref __result);
             internal static bool PairedPreserveSelection(TurnController turn) => PatchBridge.UnifiedTurn?.PreservePartnerSelection(turn) ?? false;
             internal static TurnController PairedInputContext(TurnController turn) => PatchBridge.UnifiedTurn?.SelectedNativeInputContext(turn) ?? turn;
             internal static UnitEntityData PairedPathInputUnit() =>

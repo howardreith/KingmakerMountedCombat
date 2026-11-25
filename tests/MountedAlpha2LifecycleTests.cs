@@ -20,12 +20,15 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R2-F5: newer player work in a mount slot retires a waiting real-time order; own carrier moves do not", RealTimeMountSlotSuccessor);
             runner.Run("R4-F3: an explicit rider order survives older mount-slot work and yields to newer work", ExplicitOrderVersusOlderSlotWork);
             runner.Run("R5-F5: promotion of older queued work is not a new override; insertion after the order is", PromotionIsNotAcceptance);
+            runner.Run("R6-F3: the click's order allowance equals execution across the Standard conversion; limits hold", OrderAllowanceMatchesExecution);
+            runner.Run("R5-F2/R4-F1/R6-F2: the budgeted route walk finds a legal step inside a narrow sight window, never passes the grant, and recosts a shifted start", RouteWalkerBoundaries);
             runner.Run("R4-F8: a sustained order releases finished command identities and keeps the live carrier", LedgerReleasesFinished);
             runner.Run("PR-1 R1-F1: turn-based follow-through is offered only while the horse's strike is in its current reach; explicit mount orders keep their approach", FollowThroughNeedsReach);
             runner.Run("PR-1 R1-F3: an actor-specific rider end is remembered for its generation only; the rider is not redispatched", RiderEndedLedger);
             runner.Run("PR-1 R1-F10: native's last-target +1 does not outrank a nearer in-reach enemy on fresh acquisition; manual target, live order and ranged controls", FreshAcquisitionTieBreak);
             runner.Run("R1-F8: any mount Hold restricts automatic movement except an own-carrier write with positive provenance", MountHoldProvenance);
             runner.Run("R3-F1: rider or horse striker moves before readiness, queued orders move after promotion; native keeps the start", PreStartApproach);
+            runner.Run("R3-F2: a dropped turn-based click is admitted only for an in-range strike or a granted native mount route", TurnBasedClickAdmission);
             runner.Run("R1-F11: engagement attribution credits only the same exact carrier across an interval", EngagementAttribution);
             runner.Run("R1-F11: equally ranked eligible native candidates resolve to the nearest without oscillation", EqualRankTieBreak);
             runner.Run("R1-F11: model of the traced native target comparison (two eligible, nearer ineligible, manual target)", NativeTargetChoice);
@@ -49,6 +52,107 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(after.Superseded(52), "Direct queue insertion after the click did not supersede it.");
             after.ObserveAccepted(insertedLater, standard, MountedAcceptedWorkRoute.Promotion, "mount:promoted");
             TestRunner.True(after.Superseded(52), "Promotion cleared a real override.");
+        }
+
+        // Review R5-F2 (production MountedRouteWalker, the walk the click probe and every carrier revalidation use): a route whose
+        // first legal reach lies between samples is found at its boundary; a grant ending just inside passes, one ending short
+        // refuses; a corner where the point-move end differs from the first visible striking point stops at the visible point.
+        private static void RouteWalkerBoundaries()
+        {
+            float Dist(float[] a, float[] b) => (float)Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]));
+            float[] Lerp(float[] a, float[] b, float t) => new[] { a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t };
+            var unbounded = float.PositiveInfinity;
+            // Straight route along x; the strike becomes admissible at x >= 1.437 (between 0.05 m samples).
+            var straight = new List<float[]> { new[] { 0f, 0f }, new[] { 3f, 0f } };
+            List<float[]> route; float cost;
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.437f, unbounded, out route, out cost) &&
+                Math.Abs(cost - 1.437f) < 0.001f && Math.Abs(route[route.Count - 1][0] - 1.437f) < 0.001f, "The first legal reach was not found at its boundary: " + cost);
+            TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
+            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f), "A grant ending short of legal reach passed.");
+            // Review R5-F2: a sight window narrower than the sample spacing (1.412..1.428 m) that contains the grant boundary but
+            // neither neighbouring regular sample (1.40, 1.45). Regular sampling alone misses it; the exact grant point finds it and
+            // the walk refines back to the window's start, never beyond the grant.
+            Func<float[], float[], float[], bool> window = (point, from, to) => point[0] >= 1.412f && point[0] <= 1.428f;
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, unbounded, out route, out cost),
+                "Control: regular samples alone unexpectedly found the narrow sight window.");
+            TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.42f, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f &&
+                cost <= 1.42f && PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f),
+                "The legal step whose grant ends inside the sight window was refused: " + cost);
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.40f, out route, out cost) && route == null,
+                "A grant ending before the sight window produced a route (the prior order must stand).");
+            // Never beyond the grant: a later window is not returned for a shorter grant.
+            TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.43f, 1.42f, out route, out cost) &&
+                route == null && Math.Abs(cost - 1.42f) < 1e-5f, "An endpoint beyond the grant was returned.");
+            // Corner: the route goes east then north around a wall; within reach of the target at (2, 2) everywhere past x = 1,
+            // but line of sight is blocked until the route has turned the corner (y >= 0.6). The predicate receives the segment.
+            var corner = new List<float[]> { new[] { 0f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
+            float[] lastFrom = null, lastTo = null;
+            Func<float[], float[], float[], bool> admissible = (point, from, to) =>
+            {
+                lastFrom = from; lastTo = to;
+                return Dist(point, new[] { 2f, 2f }) <= 2.3f && point[1] >= 0.6f;
+            };
+            TestRunner.True(MountedRouteWalker.Walk(corner, Dist, Lerp, admissible, unbounded, out route, out cost) && Math.Abs(cost - 2.6f) < 0.001f &&
+                route.Count == 3 && Math.Abs(route[2][1] - 0.6f) < 0.001f && lastFrom[0] == 2f && lastFrom[1] == 0f && lastTo[1] == 1.5f,
+                "The corner route did not stop at the first visible striking point on its own segment: " + cost);
+            // A start shifted by more or less than 0.2 m is walked again from its own origin (no reused segment).
+            var shifted = new List<float[]> { new[] { -0.3f, 0f }, new[] { 2f, 0f }, new[] { 2f, 1.5f } };
+            TestRunner.True(MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, unbounded, out route, out cost) && Math.Abs(cost - 2.9f) < 0.001f &&
+                Math.Abs(route[0][0] + 0.3f) < 1e-6f, "A shifted start was not recosted from its own origin.");
+            TestRunner.True(!MountedRouteWalker.Walk(shifted, Dist, Lerp, admissible, 2.7f, out route, out cost), "The shifted route was found within a grant it exceeds.");
+            // Never admissible: no route.
+            TestRunner.True(!MountedRouteWalker.Walk(corner, Dist, Lerp, (point, from, to) => false, unbounded, out route, out cost) && route == null,
+                "A route without legal reach was accepted.");
+            // Review R6-F2 heading arithmetic (Unity yaw): a right turn from facing +Z to travelling +X rotates a left-side offset
+            // (-0.4, 0) to (0, +0.4).
+            float rx, rz;
+            MountedHeading.Rotate(-0.4f, 0f, MountedHeading.TurnDegrees(0f, 1f, 0f), out rx, out rz);
+            TestRunner.True(Math.Abs(MountedHeading.TurnDegrees(0f, 1f, 0f) - 90f) < 1e-4f && Math.Abs(rx) < 1e-5f && Math.Abs(rz - 0.4f) < 1e-5f &&
+                MountedHeading.TurnDegrees(30f, 0f, 0f) == 0f, "The mount heading rotation is wrong.");
+        }
+
+        // Review R6-F3: the order allowance the click and revalidation use (RemainingAcrossOrder) equals what the same production
+        // MountedMovementState grants when the mount's turn accounting advances it tick by tick (Advance), across the Standard
+        // conversion; single-move, step, auto-stop and a spent Standard keep their limits. The mount pays every debit (its
+        // native Move cooldown passes 3 into the conversion); the rider's own actions are not involved.
+        private static void OrderAllowanceMatchesExecution()
+        {
+            const float speed = 9f, step = 1.524f, dt = 0.05f;
+            float Execute(float moveUsed, bool standardUsed, bool singleMove, bool autoStop, out float mountMoveCooldown)
+            {
+                var state = new MountedMovementState();
+                var travelled = 0f; var used = moveUsed;
+                for (var tick = 0; tick < 400; tick++)
+                {
+                    float debit;
+                    var granted = state.Advance(dt, speed, step, used, standardUsed, false, false, singleMove, false, false, autoStop, out debit);
+                    used += debit;
+                    travelled += granted;
+                    if (granted <= 0f && tick > 0) break;
+                }
+                mountMoveCooldown = used;
+                return travelled;
+            }
+            float Admission(float moveUsed, bool standardUsed, bool singleMove, bool autoStop) =>
+                new MountedMovementState().RemainingAcrossOrder(speed, step, moveUsed, standardUsed, false, false, singleMove, autoStop);
+            float cooldown;
+            // Partially spent first Move (1.5 s), TwoActions, auto-stop off: 4.5 s across the order; the mount pays the conversion.
+            var executed = Execute(1.5f, false, false, false, out cooldown);
+            TestRunner.True(Math.Abs(Admission(1.5f, false, false, false) - 4.5f) < 1e-4f && Math.Abs(executed - 4.5f) < 1e-3f && cooldown > 3f,
+                "The order allowance did not match execution across the conversion: admission " + Admission(1.5f, false, false, false) + ", executed " + executed + ", cooldown " + cooldown);
+            TestRunner.True(Math.Abs(new MountedMovementState().Remaining(speed, step, 1.5f, false, false, false, false) - 1.5f) < 1e-4f,
+                "The current-action slice changed (it remains the per-tick native allowance).");
+            // Controls: conversion unavailable (Standard spent), single-move limit, auto-stop after the first Move action.
+            foreach (var control in new[] { new[] { true, false, false }, new[] { false, true, false }, new[] { false, false, true } })
+            {
+                var admitted = Admission(1.5f, control[0], control[1], control[2]);
+                var done = Execute(1.5f, control[0], control[1], control[2], out cooldown);
+                TestRunner.True(Math.Abs(admitted - 1.5f) < 1e-4f && Math.Abs(done - 1.5f) < 1e-3f && cooldown <= 3.0001f,
+                    "A limited order exceeded its first action: admission " + admitted + ", executed " + done + ", cooldown " + cooldown);
+            }
+            // A five-foot step keeps the step allowance.
+            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) - step / speed) < 1e-4f,
+                "The step allowance changed.");
         }
 
         private static readonly MountedAcceptedWorkFacts PlayerMove = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = true };
@@ -343,6 +447,41 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(MountedPreStartApproachAction.Issue, Step(failed: 1, retryDue: true), "A failed route was not retried.");
             TestRunner.Equal(MountedPreStartApproachAction.None, Step(failed: MountedPreStartApproachPolicy.MaximumFailedRoutes, retryDue: true),
                 "A failed route was requested without bound.");
+        }
+
+        private static void TurnBasedClickAdmission()
+        {
+            PairedAttackClickAdmission Decide(out string reason, bool ignored = true, bool addressable = true, bool attack = true,
+                bool inRange = false, bool route = true, float routeMetres = 1.2f, float granted = 1.5f, bool endpoint = true,
+                bool melee = true, bool selected = true, bool empty = true, bool current = true, bool terrain = false, bool ability = false) =>
+                PairedAttackClickAdmissionPolicy.Decide(ignored, true, addressable, selected, empty, current, terrain, ability, melee, attack,
+                    inRange, route, routeMetres, granted, endpoint, out reason);
+            string why;
+            // A legal five-foot step: the mount's remaining step covers its native route to a point that admits the strike.
+            TestRunner.Equal(PairedAttackClickAdmission.AdmitRoute, Decide(out why, routeMetres: 1.2f, granted: 1.5f), "A legal step was refused.");
+            // Ordinary movement within the mount's granted Move.
+            TestRunner.Equal(PairedAttackClickAdmission.AdmitRoute, Decide(out why, routeMetres: 6.4f, granted: 9.1f), "Ordinary movement was refused.");
+            // Already in mounted reach after the mount's movement is spent: no locomotion grant is involved.
+            TestRunner.Equal(PairedAttackClickAdmission.AdmitInRange, Decide(out why, inRange: true, route: false, routeMetres: float.NaN, granted: 0f),
+                "An in-range attack after spent movement was refused.");
+            // Insufficient movement and blocked routes keep native's refusal (the previous order stays).
+            TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, routeMetres: 6.4f, granted: 1.5f), "An over-budget route was admitted.");
+            TestRunner.Equal("insufficient-movement", why, "The over-budget reason was lost.");
+            TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, route: false), "A failed route was admitted.");
+            TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, endpoint: false), "A route ending out of reach or sight was admitted.");
+            TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, routeMetres: 1.2f, granted: 0f), "Spent movement admitted a route.");
+            // Not the rider's lawful attack input: native decides (another initiative arrangement's actor, refused Standard, a
+            // non-attack prediction, stale predictions, terrain, a selected ability, a busy rider).
+            TestRunner.True(Decide(out why, addressable: false) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, attack: false) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, melee: false) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, current: false) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, terrain: true) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, ability: true) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, empty: false) == PairedAttackClickAdmission.NativeDecision &&
+                Decide(out why, selected: false) == PairedAttackClickAdmission.NativeDecision, "Unrelated input was admitted.");
+            // A click native accepted is never touched.
+            TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, ignored: false, inRange: true), "An accepted click was altered.");
         }
 
         private static void EngagementAttribution()
