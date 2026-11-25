@@ -216,6 +216,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRetainedOrderLedger.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedHoldProvenance.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedEngagementDiagnostic.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedHeading.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />
     <Compile Include="ReactiveBooleanValueReaderTests.cs" />
     <Compile Include="PresentationOverlayEvidenceTests.cs" />

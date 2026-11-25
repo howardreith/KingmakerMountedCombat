@@ -874,6 +874,8 @@ namespace KingmakerMountedCombat.Integration
                     var orderGeneration = stockIntent.Generation;
                     retainedOrder.RecordOwnIssued(orderGeneration, command);
                     command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(orderGeneration, issued);
+                    // PR-1 review R2-F1: supersession stops the installed wrapper before its first delivery.
+                    command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(orderGeneration);
                 }
                 if (automaticOrigin)
                 {
@@ -936,7 +938,7 @@ namespace KingmakerMountedCombat.Integration
                     LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
-                if (!automaticOrigin) OwnManualTarget(actionActor, target);
+                if (!automaticOrigin) OwnManualTarget(actionActor, target, ordinaryIntent ? stockIntent.Generation : -1);
                 LastFeedback = "Mounted pair command accepted: " + action + ".";
                 logger.Info("Mounted combat command accepted: action=" + action +
                     "; inputSurface=" + inputSurface +
@@ -1117,8 +1119,12 @@ namespace KingmakerMountedCombat.Integration
             };
             if (MountedRetainedOrderLedger.Classify(retainedOrder.IsRetainedOwn(command), facts) != MountedAcceptedWorkClass.Competing) return;
             retainedOrder.ObserveAccepted(command, facts, route, (onRider ? "rider:" : "mount:") + DescribeCommand(command));
-            // PR-1 review R1-F11: a later accepted command takes over that actor's selection; the order no longer owns it.
-            if (onRider) riderManualTargetOwned = false; else mountManualTargetOwned = false;
+            // PR-1 review R1-F11: only an actual replacement target write (a command installed into its slot, directly or by
+            // promotion, that marks its actor's manual target) takes over that actor's selection; a queue insertion writes nothing.
+            if (route != MountedAcceptedWorkRoute.Queue && command.MarkManualTarget)
+            {
+                if (onRider) riderManualTargetOwned = null; else mountManualTargetOwned = null;
+            }
             LastCompetingWorkDetail = retainedOrder.OverrideDetail;
         }
 
@@ -1307,7 +1313,7 @@ namespace KingmakerMountedCombat.Integration
                 retainedOrder.PromoteToPlayer();
                 stockIntentCommand?.PromoteToPlayerOrigin();
                 automaticRuns.Clear();
-                OwnManualTarget(principal, target);
+                OwnManualTarget(principal, target, stockIntent.Generation);
                 LastStockAttackObservation = "intent-continued;target=" + target.UniqueId;
                 return false;
             }
@@ -1320,7 +1326,7 @@ namespace KingmakerMountedCombat.Integration
             retainedOrder.Begin(stockIntent.Generation, false,
                 ownerIsMount || actionContext != MountedCombatActionKind.RiderRanged);
             StockAttackIntentStartCount++;
-            OwnManualTarget(principal, target);
+            OwnManualTarget(principal, target, stockIntent.Generation);
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = "Mounted stock attack intent accepted: rider principal, " +
                 MountDisplayName + " movement authority.";
@@ -1428,6 +1434,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             AutomaticAdmittedCount++;
+            // PR-1 review R1-F11: an automatic order inherits no ownership of an existing selection.
+            riderManualTargetOwned = null;
+            mountManualTargetOwned = null;
             stockIntent.Begin(target, null, false, IsPairInCombat(), rider, mount, rider.GetFirstWeapon(), mount.GetFirstWeapon(),
                 (int)ResolveRiderPrimaryAction(), true);
             retainedOrder.Begin(stockIntent.Generation, true, ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderRanged);
@@ -1492,6 +1501,11 @@ namespace KingmakerMountedCombat.Integration
         // admission on an unrun MountedPairSingleAttack built exactly as the pair command builds its child (rider melee:
         // mount-origin reach; horse natural attack: the horse executes), never a separate reach formula.
         internal long PlannedStrikeProbeCount { get; private set; }
+
+        // PR-1 review R1-F1: a turn-based horse follow-through is offered only while the planned horse strike's own production
+        // admission passes from where the pair stands (exact native distance, planned weapon, command sight).
+        private bool FollowThroughStrikeAdmissibleNow(UnitEntityData target) =>
+            PlannedStrikeAdmissibleNow(MountedCombatActionKind.MountPrimaryNatural, target);
 
         private bool PlannedStrikeAdmissibleNow(MountedCombatActionKind action, UnitEntityData target)
         {
@@ -1678,6 +1692,14 @@ namespace KingmakerMountedCombat.Integration
         {
             const string reason = "newer accepted player work supersedes the order";
             var command = stockIntentCommand;
+            if (command != null && !command.IsStarted && !command.IsFinished)
+            {
+                // PR-1 review R1-F2 (round 2): the exact retired wrapper is taken out of its native queue and remembered, so neither
+                // a later queue advance nor an already scheduled promotion can install it or write player state.
+                retiredQueuedWrappers.Add(command);
+                var queue = command.Executor?.Commands?.Queue;
+                if (queue != null && queue.Remove(command)) RetiredQueueEntryRemovedCount++;
+            }
             ClearStockAttackIntent(reason, true);
             SupersededPlayerOrderCount++;
             if (command != null && ReferenceEquals(activeCommand, command) && !command.IsFinished)
@@ -1690,10 +1712,17 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal long SupersededPlayerOrderCount { get; private set; }
+        internal long RetiredQueueEntryRemovedCount { get; private set; }
+        private readonly HashSet<MountedPairSingleAttack> retiredQueuedWrappers = new HashSet<MountedPairSingleAttack>();
 
         // PR-1 review R1-F2: native promotion of this pair's explicit queued wrapper; a superseded older order never promotes.
         internal bool AdmitQueuedExplicitRun(MountedPairSingleAttack command)
         {
+            if (command != null && retiredQueuedWrappers.Remove(command))
+            {
+                if (!command.IsFinished) EndQueuedCommand(command, "retired superseded pair command");
+                return false;
+            }
             if (disposed || command == null || !ReferenceEquals(command, stockIntentCommand) || stockIntent.Automatic) return true;
             if (!RetainedOrderSuperseded()) return true;
             RetireSupersededPlayerOrder();
@@ -1839,7 +1868,7 @@ namespace KingmakerMountedCombat.Integration
                     settings.EnablePairedActivation, stockIntent.Automatic,
                     turnBased && mount != null && unifiedTurn.CanAddressActor(mount, dispatchTurn),
                     meleeOrder, retainedOrder.Superseded(orderGeneration),
-                    !turnBased || stockIntent.MountActor || IsMountAlreadyInPrimaryRange(target)),
+                    !turnBased || stockIntent.MountActor || FollowThroughStrikeAdmissibleNow(target)),
                 settings.EnablePairedActivation && stockIntent.PreferMount);
 
             if (decision == MountedStockAttackDecision.Wait)
@@ -1863,6 +1892,9 @@ namespace KingmakerMountedCombat.Integration
                     ? ownRefusal.Feedback
                     : UnifiedMountedStockAttackPolicy.NoStandardFeedback(
                         spent?.CharacterName, partner?.CharacterName, partner != null && partner.HasStandardAction()));
+                // PR-1 review R2-F4: neither actor executed: the rider's evidenced refusal is shown once.
+                if (feedback == null && riderRefusalAwaitingHorse != null) feedback = riderRefusalAwaitingHorse;
+                riderRefusalAwaitingHorse = null;
                 if (feedback != null)
                 {
                     LastFeedback = feedback;
@@ -1890,7 +1922,10 @@ namespace KingmakerMountedCombat.Integration
                 ? riderAction
                 : MountedCombatActionKind.MountPrimaryNatural;
             var generation = stockIntent.Generation;
-            var allowApproach = !stationary && (!ranged || action != MountedCombatActionKind.MountPrimaryNatural);
+            // PR-1 review R1-F1: a turn-based horse follow-through on a rider's order has no movement authority of its own; a target
+            // that left the horse's reach before start settles the opportunity without a carrier (OnStart).
+            var allowApproach = !stationary && (!ranged || action != MountedCombatActionKind.MountPrimaryNatural) &&
+                !(turnBased && action == MountedCombatActionKind.MountPrimaryNatural && !stockIntent.MountActor);
             var result = TryExecuteAction(
                 action,
                 target,
@@ -1932,6 +1967,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             stockIntentCommand = activeCommand;
+            if (action == MountedCombatActionKind.MountPrimaryNatural) riderRefusalAwaitingHorse = null;
             if (automaticOrigin) { AutomaticDispatchCount++; engagement.ObserveDispatch(generation); }
             if (dispatchBeforeReadiness) StockAttackDispatchBeforeReadinessCount++;
             stockIntent.ObserveDispatch(action == MountedCombatActionKind.MountPrimaryNatural);
@@ -1971,15 +2007,23 @@ namespace KingmakerMountedCombat.Integration
                 mount.HasLOS(target);
         }
 
-        private bool riderManualTargetOwned, mountManualTargetOwned;
+        // PR-1 review R1-F11 (round 2): ownership of a manual-target assignment is bound to the actor, the stock generation that
+        // wrote it and the exact target; an action outside a stock generation owns nothing.
+        private sealed class ManualTargetOwnership { public long Generation; public UnitEntityData Target; }
+        private ManualTargetOwnership riderManualTargetOwned, mountManualTargetOwned;
 
-        private void OwnManualTarget(UnitEntityData actor, UnitEntityData target)
+        private void OwnManualTarget(UnitEntityData actor, UnitEntityData target, long generation)
         {
             if (actor == null) return;
             actor.CombatState.ManualTarget = target;
-            if (actor == relationship.Rider) riderManualTargetOwned = true;
-            if (actor == relationship.Mount) mountManualTargetOwned = true;
+            if (generation < 0) return;
+            var owned = new ManualTargetOwnership { Generation = generation, Target = target };
+            if (actor == relationship.Rider) riderManualTargetOwned = owned;
+            if (actor == relationship.Mount) mountManualTargetOwned = owned;
         }
+
+        private static bool OwnsAssignment(ManualTargetOwnership owned, long generation, UnitEntityData target) =>
+            owned != null && owned.Generation == generation && ReferenceEquals(owned.Target, target);
 
         private void ClearStockAttackIntent(string reason, bool countCancellation)
         {
@@ -1990,16 +2034,17 @@ namespace KingmakerMountedCombat.Integration
             }
             // PR-1 review R1-F11: only a manual-target assignment this order made (and still owns) is released; a pre-existing
             // player selection or a newer command's same-target assignment survives.
-            if (target != null && riderManualTargetOwned && relationship.Rider?.CombatState?.ManualTarget == target)
+            var retiringGeneration = stockIntent.Generation;
+            if (target != null && OwnsAssignment(riderManualTargetOwned, retiringGeneration, target) && relationship.Rider?.CombatState?.ManualTarget == target)
             {
                 relationship.Rider.CombatState.ManualTarget = null;
             }
-            if (target != null && mountManualTargetOwned && relationship.Mount?.CombatState?.ManualTarget == target)
+            if (target != null && OwnsAssignment(mountManualTargetOwned, retiringGeneration, target) && relationship.Mount?.CombatState?.ManualTarget == target)
             {
                 relationship.Mount.CombatState.ManualTarget = null;
             }
-            riderManualTargetOwned = false;
-            mountManualTargetOwned = false;
+            riderManualTargetOwned = null;
+            mountManualTargetOwned = null;
             stockIntent.Cancel();
             retainedOrder.Clear();
             stockIntentCommand = null;
@@ -2677,6 +2722,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal long RiderSpecificTerminalCount { get; private set; }
+        private string riderRefusalAwaitingHorse;
 
         private void HandleCommandTerminal(
             MountedPairAttackCommand command,
@@ -2763,11 +2809,14 @@ namespace KingmakerMountedCombat.Integration
             // redispatched, and an independently eligible horse (its full eligibility rechecked at the next drive) may follow
             // through once in the same activation. Target invalidation, replacement and pair-wide cancellation are unchanged.
             if (CombatController.IsInTurnBasedCombat() && !stockIntent.Automatic && !stockIntent.MountActor &&
-                command.Action == MountedCombatActionKind.RiderMelee && capabilityIsCause && outcome.ChildAttackStartCount == 0 &&
+                command.Action == MountedCombatActionKind.RiderMelee && capabilityIsCause && !command.IsActed &&
+                !outcome.NativeAttackRuleObserved && outcome.NativeCompletedAttackCount == 0 &&
                 cause != MountedAttackEndCause.TargetInvalid && retainedOrder.IsCurrent(stockIntent.Generation) && retainedOrder.Melee)
             {
                 retainedOrder.MarkRiderEnded(stockIntent.Generation);
                 RiderSpecificTerminalCount++;
+                // PR-1 review R2-F4: delivered once if the whole order then ends without the horse executing.
+                riderRefusalAwaitingHorse = LastFeedback;
                 LastStockAttackObservation = "rider-attempt-ended-actor-specific;block=" + causalBlock + ";order-retained-for-the-horse";
                 return;
             }

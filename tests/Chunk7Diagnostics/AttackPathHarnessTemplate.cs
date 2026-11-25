@@ -304,7 +304,9 @@ namespace Kingmaker.UnitLogic.Commands
         {
             for (var i = 0; i < raw.Length; i++) if (raw[i] != null && raw[i].IsFinished) raw[i] = null;
             var first = Queue.First?.Value;
-            if (first != null && raw[(int)first.Type] == null) { Queue.RemoveFirst(); Run(first); }
+            // Native promotion of a Standard command also requires the Move slot to be empty (Run pairs Move/Standard).
+            if (first != null && raw[(int)first.Type] == null &&
+                (first.Type != UnitCommand.CommandType.Standard || raw[(int)UnitCommand.CommandType.Move] == null)) { Queue.RemoveFirst(); Run(first); }
         }
     }
 }
@@ -480,6 +482,8 @@ namespace KingmakerMountedCombat.Integration
         private void TryLogException(string phase, Exception exception) { try { logger.Exception(phase, exception); } catch (Exception) { } }
         private static float HorizontalDistance(Vector3 first, Vector3 second) => GeometryUtils.MechanicsDistance(first, second);
 
+        // Harness-only: mark the child attack as delivered (an attack rule raised), the native release evidence.
+        internal void MarkDeliveredForHarness() { if (childAttack != null) childAttack.LastAttackRule = new object(); }
         /* APPROACH_FAILURE */
         /* RECORD_END_CAUSE */
         /* END_AFTER_FAULT */
@@ -495,6 +499,7 @@ namespace KingmakerMountedCombat.Integration
         /* BEGIN_DELEGATED */
         /* STOP_DELEGATED */
         /* SUCCESSOR_STEERS */
+        /* FORBID_APPROACH */
         /* DEFERRED_CARRIER */
         /* APPROACHING_BEFORE_ATTACK */
         /* START_CHILD */
@@ -596,17 +601,6 @@ namespace Harness
             var close = move.IsUnitEnoughClose;
             if (move.FirstProximityDecision == null) move.FirstProximityDecision = close;
             if (close) { move.CompletedWithoutMoving = move.Travelled.Count == 0; move.FinishSuccess(); return; }
-            if (move.NeedLoS && move.ForcedPath == null &&
-                Kingmaker.Utility.GeometryUtils.MechanicsDistance(move.ApproachPoint, mover.Position) <= move.ApproachRadius)
-            {
-                // In distance but out of sight: native's line-of-sight route steps around the obstruction (stand-in: north).
-                var stepBefore = mover.Position;
-                mover.Position = mover.Position + new Vector3(0f, 0f, 0.25f);
-                move.Travelled.Add(mover.Position);
-                move.TravelledMetres += 0.25f;
-                if (mover == world.Horse) world.Rider.Position = world.Rider.Position + (mover.Position - stepBefore);
-                return;
-            }
             var points = move.ForcedPath?.vectorPath;
             Vector3 goal;
             if (points != null && points.Count > 0)
@@ -822,7 +816,13 @@ namespace Harness
                 var carrier = order.DelegatedMove;
                 var successor = new HarnessApproachingCommand(new Vector3(-6f, 0f, 0f));
                 if (mode == "direct") world.Horse.Commands.Run(successor);
-                if (mode == "queue-promoted") { world.Horse.Commands.Enqueue(successor); world.Horse.Commands.RemoveFinishedAndUpdateQueue(); }
+                if (mode == "queue-promoted")
+                {
+                    world.Horse.Commands.Enqueue(successor);
+                    world.Horse.Commands.RemoveFinishedAndUpdateQueue();
+                    Check(world.Horse.Commands.Queue.Contains(successor) && world.Horse.Commands.Standard != successor,
+                        "PR-1 R1-F6 queue-promoted: before cleanup the successor is queue-only (the live carrier holds Move)");
+                }
                 var stopsBefore = world.Horse.View.StopMovingCount;
                 order.Interrupt();
                 var stops = world.Horse.View.StopMovingCount - stopsBefore;
@@ -836,36 +836,152 @@ namespace Harness
             }
         }
 
-        // PR-1 reviews R1-F7, R1-F8: a real-time rider striker whose horse is already inside the point carrier's arrival distance
-        // while a wall blocks the rider's strike line; a lateral (northward) position has sight. The carrier must travel, nothing
-        // strikes while blocked or cooling, and one strike starts after sight and readiness; a native group stop during the
-        // pre-start movement sees the approach. Control: the old distance-only carrier completes without moving.
+        // PR-1 review R1-F7 (round 2): the horse sees the hostile point while the rider's own eye line is blocked (the rider sits
+        // 0.3 m behind the horse's origin; sight requires an eye at z >= 0.6). The point carrier's distance-only arrival is
+        // satisfied at the start. Production selects a goal by the rider's strike admission at candidate mount positions; the
+        // facade moves straight to it (no hard-coded detour). Zero strikes while blocked or cooling; one legal start after.
         private static void PR1R1F7()
         {
             Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f;
-            var world = NewWorld(new Vector3(1.3f, 0f, 0f), new Vector3(2.5f, 0f, 0f), wall, false);
+            var world = NewWorld(new Vector3(1.3f, 0f, 0.7f), new Vector3(2.5f, 0f, 0.7f), wall, false);
+            world.Rider.Position = world.Horse.Position + new Vector3(0f, 0f, -0.3f);
             world.Ready[world.Rider] = false;
+            var horseSees = !LineOfSightGeometry.Instance.HasObstacle(world.Horse.EyePosition, world.Target.Position, 0);
+            var riderSees = !LineOfSightGeometry.Instance.HasObstacle(world.Rider.EyePosition, world.Target.Position, 7);
+            Check(horseSees && !riderSees, "PR-1 R1-F7 setup: the horse sees the hostile point, the rider's strike line is blocked");
             var order = Order(world, MountedCombatActionKind.RiderMelee, false);
             order.AllowPreStartApproach();
             world.Rider.Commands.Run(order);
             Check(!order.IsApproachingBeforeAttack, "PR-1 R1-F8: a waiting order with no movement is not an approach (stationary windups keep it)");
             NativeTick(world, world.Rider);
             var carrier = world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
-            Check(carrier != null && carrier.NeedLoS && order.IsApproachingBeforeAttack,
-                "PR-1 R1-F7/F8: the blind point arrival makes the carrier require sight, and the live pre-start movement is an approach for a group stop");
+            var goal = carrier == null ? default(Vector3) : carrier.Point;
+            Check(carrier != null && !carrier.NeedLoS && order.SightGoalCount == 1 && !goal.Equals(world.Target.Position) && order.IsApproachingBeforeAttack,
+                "PR-1 R1-F7: production chose a goal " + goal + " by the rider's strike admission (not the hostile's point); the live pre-start movement is an approach for a group stop");
             for (var tick = 0; tick < 12; tick++) { NativeTick(world, world.Horse); NativeTick(world, world.Rider); }
-            Check(carrier.TravelledMetres > 0f && !carrier.CompletedWithoutMoving && UnitAttack.NativeAttackStarts == 0 && world.Horse.Position.z >= 0.6f,
-                "PR-1 R1-F7: the carrier travelled " + carrier.TravelledMetres.ToString("R") + " m to sight (" + world.Horse.Position + "), nothing struck while cooling");
+            Check(carrier.TravelledMetres > 0f && !carrier.CompletedWithoutMoving && UnitAttack.NativeAttackStarts == 0 && world.Rider.EyePosition.z >= 0.6f,
+                "PR-1 R1-F7: the carrier travelled " + carrier.TravelledMetres.ToString("R") + " m; the rider's eye now sees (" + world.Rider.EyePosition + "); nothing struck while cooling");
             world.Ready[world.Rider] = true;
             for (var tick = 0; tick < 6 && UnitAttack.NativeAttackStarts == 0; tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
-            Check(UnitAttack.NativeAttackStarts == 1, "PR-1 R1-F7: one strike starts once sight and readiness allow it");
-            var control = NewWorld(new Vector3(1.3f, 0f, 0f), new Vector3(2.5f, 0f, 0f), wall, false);
+            Check(UnitAttack.NativeAttackStarts == 1, "PR-1 R1-F7: one strike starts once the rider's sight and readiness allow it");
+            var control = NewWorld(new Vector3(1.3f, 0f, 0.7f), new Vector3(2.5f, 0f, 0.7f), wall, false);
+            control.Rider.Position = control.Horse.Position + new Vector3(0f, 0f, -0.3f);
             var strike = new MountedPairSingleAttack(control.Target, control.Rider, control.Horse, true);
             strike.Init(control.Rider);
-            var old = new UnitMoveTo(control.Target.Position, strike.DelegatedMoveApproachRadius) { NeedLoS = false };
+            var old = new UnitMoveTo(control.Target.Position, strike.DelegatedMoveApproachRadius) { NeedLoS = true };
             control.Horse.Commands.Run(old);
             NativeTick(control, control.Horse);
-            Check(old.IsFinished && old.CompletedWithoutMoving, "PR-1 R1-F7 control: the old distance-only carrier completes without moving, the rider still blind");
+            Check(old.IsFinished && old.CompletedWithoutMoving && control.Rider.EyePosition.z < 0.6f,
+                "PR-1 R1-F7 control: a point move needing only the horse's sight of the hostile completes without moving; the rider stays blind");
+        }
+
+        // PR-1 round-2 review: R1-F4 adoption, R1-F1 authority, R2-F1 windup, R2-F2 controller-first end, R2-F3 long wait.
+        private static void PR1Round2()
+        {
+            // R1-F4: a live pre-start carrier, movement revoked at the start handoff: no continued or replacement carrier, no strike.
+            foreach (var revoke in new[] { true, false })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), null, false);
+                world.Ready[world.Rider] = false;
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                var forbid = false;
+                order.PreStartMovementForbidden = () => forbid;
+                order.AllowPreStartApproach();
+                world.Rider.Commands.Run(order);
+                NativeTick(world, world.Rider);
+                var carrier = world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+                forbid = revoke;
+                world.Ready[world.Rider] = true;
+                for (var tick = 0; tick < 30 && !order.IsFinished && UnitAttack.NativeAttackStarts == 0; tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                if (revoke)
+                    Check(carrier != null && order.IsFinished && carrier.IsFinished && world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null &&
+                        order.DelegatedMove == null && UnitAttack.NativeAttackStarts == 0,
+                        "PR-1 R1-F4 adoption: movement revoked at the start handoff ends the order; its exact pre-start carrier is released, no replacement, no strike");
+                else
+                    Check(carrier != null && order.PreStartMoveAdoptedAtStart && UnitAttack.NativeAttackStarts == 1,
+                        "PR-1 R1-F4 adoption control: with movement permitted the live carrier is adopted and one strike follows");
+            }
+            // R1-F1: a horse order without approach authority (follow-through) settles when its target is outside the exact strike
+            // radius, also after leaving reach before start; an in-reach control strikes once.
+            foreach (var kase in new[] { "just outside", "left reach before start", "in reach" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(kase == "in reach" ? 1.5f : 2.41f, 0f, 0f), null, true);
+                var order = Order(world, MountedCombatActionKind.MountPrimaryNatural, false);
+                order.ForbidApproach();
+                world.Horse.Commands.Run(order);
+                if (kase == "left reach before start") world.Target.Position = new Vector3(3.5f, 0f, 0f);
+                order.Start();
+                for (var tick = 0; tick < 3 && !order.IsFinished; tick++) NativeTick(world, world.Horse);
+                if (kase == "in reach")
+                    Check(UnitAttack.NativeAttackStarts == 1 && order.DelegatedMove == null, "PR-1 R1-F1 in-reach control: one horse strike, no carrier");
+                else
+                    Check(order.IsFinished && order.DelegatedMove == null && world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null &&
+                        UnitAttack.NativeAttackStarts == 0 && world.Horse.View.AgentASP.FindPathCount == 0,
+                        "PR-1 R1-F1 " + kase + ": the follow-through settles with no carrier and no strike");
+            }
+            // R2-F1: supersession and perception loss during the first strike's windup stop it before delivery; a delivered strike
+            // keeps native's handling.
+            foreach (var kase in new[] { "superseded", "unperceived", "delivered control" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var order = Order(world, MountedCombatActionKind.RiderMelee, kase == "unperceived");
+                var superseded = false;
+                order.RetainedOrderSupersededCheck = () => superseded;
+                world.Rider.Commands.Run(order);
+                NativeTick(world, world.Rider);
+                var started = UnitAttack.NativeAttackStarts == 1 && order.Transaction.State == MountedCombatTransactionState.Attacking && !order.StrikeReleased;
+                if (kase == "delivered control") { order.MarkDeliveredForHarness(); superseded = true; }
+                if (kase == "superseded") superseded = true;
+                if (kase == "unperceived") world.Perceived = false;
+                NativeTick(world, world.Rider);
+                if (kase == "delivered control")
+                    Check(started && !order.IsFinished, "PR-1 R2-F1 delivered control: a delivered strike keeps running under native handling");
+                else
+                    Check(started && order.IsFinished && !order.StrikeReleased, "PR-1 R2-F1 " + kase + " during windup: the wrapper ends before its first delivery");
+            }
+            // R2-F2: the horse is the automatic striker and approaches natively; the controller ends the wrapper first (its
+            // InterruptOwnedCommand): the horse's path stops, no strike; a successor already steering keeps moving.
+            foreach (var successor in new[] { false, true })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.9f, 0f, 0f), (from, to) => from.z < 0.6f, false);
+                var order = Order(world, MountedCombatActionKind.MountPrimaryNatural, true);
+                order.AllowPreStartApproach();
+                world.Horse.Commands.Run(order);
+                world.Ready[world.Horse] = false;
+                NativeTick(world, world.Horse);
+                var approaching = order.CurrentMovementOwner == order;
+                if (successor) world.Horse.Commands.Run(new UnitMoveTo(new Vector3(-5f, 0f, 0f), 0.5f));
+                var stopsBefore = world.Horse.View.StopMovingCount;
+                world.Perceived = false;
+                order.RecordEndCause(MountedAttackEndCause.Cancelled, "automatic target left perception");
+                order.Interrupt();
+                var stops = world.Horse.View.StopMovingCount - stopsBefore;
+                Check(approaching && order.IsFinished && UnitAttack.NativeAttackStarts == 0 && order.CurrentMovementOwner == null && stops == (successor ? 0 : 1),
+                    "PR-1 R2-F2 " + (successor ? "successor control" : "controller-first end") + ": the horse's own native approach is released (stops " + stops + ")");
+            }
+            // R2-F3: older horse work holds the slot longer than the chase allowance; the target moves meanwhile; once free, one carrier
+            // toward the current target and one strike.
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), null, false);
+                var cast = new HarnessStationaryCommand();
+                world.Horse.Commands.Run(cast);
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                world.Rider.Commands.Run(order);
+                for (var tick = 0; tick < 160; tick++) NativeTick(world, world.Rider);
+                var waited = !order.IsFinished && order.CarrierDeferred;
+                world.Target.Position = new Vector3(4f, 0f, 2f);
+                cast.FinishSuccess();
+                world.Horse.Commands.RemoveFinishedAndUpdateQueue();
+                NativeTick(world, world.Rider);
+                var carrier = order.DelegatedMove;
+                var towardCurrent = carrier != null && carrier.ApproachPoint.Equals(world.Target.Position);
+                var safety = 0;
+                while (!order.IsFinished && order.Transaction.State != MountedCombatTransactionState.Attacking && safety++ < 80)
+                { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                if (order.Transaction.State == MountedCombatTransactionState.Attacking) NativeTick(world, world.Rider);
+                Check(waited && towardCurrent && UnitAttack.NativeAttackStarts == 1,
+                    "PR-1 R2-F3: a 16 s wait behind older work is not chase time; the carrier heads for the target's current position and one strike follows");
+            }
         }
 
         private static int Main()
@@ -875,6 +991,7 @@ namespace Harness
             try { PR1R1F4(); } catch (Exception exception) { Check(false, "PR-1 R1-F4 threw " + exception); }
             try { PR1R1F6(); } catch (Exception exception) { Check(false, "PR-1 R1-F6 threw " + exception); }
             try { PR1R1F7(); } catch (Exception exception) { Check(false, "PR-1 R1-F7 threw " + exception); }
+            try { PR1Round2(); } catch (Exception exception) { Check(false, "PR-1 round 2 threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }

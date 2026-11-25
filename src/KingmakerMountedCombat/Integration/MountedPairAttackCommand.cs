@@ -496,7 +496,11 @@ namespace KingmakerMountedCombat.Integration
             nativePreStartApproaching = false;
             ApproachRadius = InfiniteRange;
             NeedLoS = false;
-            mount.View?.StopMoving();
+            // PR-1 review R2-F2: a successor already steering the horse keeps its movement.
+            var commands = mount?.Commands;
+            var slotMove = commands?.GetCommand(CommandType.Move);
+            var successor = slotMove != null && !slotMove.IsFinished || SuccessorSteersMount(commands, null);
+            if (!successor) mount?.View?.StopMoving();
             PreStartMoveStopCount++;
         }
 
@@ -612,9 +616,50 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // PR-1 review R1-F7: the point carrier's distance-only arrival is already satisfied while the planned strike is not admitted
-        // (blocked sight): such a carrier would complete without moving, again and again. It then also requires sight of the
-        // target, so native moves the mount until the obstruction clears; the native strike sight check at release is unchanged.
+        // PR-1 review R1-F7 (round 2): when the point carrier's distance-only arrival is already satisfied while the rider's planned
+        // strike is not admitted, the carrier instead targets a mount position from which the RIDER's strike is admitted: candidate
+        // positions around the target (24 directions at 95/75/50 % of the pair reach) are tested with the strike's own production
+        // admission at that mount position (MountedPairSingleAttack.EvaluateNativeAdmissionAtMountPosition: rider and eye offsets
+        // turned to the travel heading, native distance and command sight with the target's own blocker identity), and the nearest
+        // admitted one is the goal. Native pathing finds the route; the exact native strike gate at release is unchanged.
+        internal const float SightGoalArrivalMetres = 0.1f;
+        internal int SightGoalCount { get; private set; }
+
+        private bool TryRiderSightGoal(out Vector3 goal)
+        {
+            goal = default(Vector3);
+            if (childAttack == null || actionActor != rider || attackTarget == null) return false;
+            var reach = childAttack.PairApproachRadius;
+            if (float.IsNaN(reach) || reach <= 0f) return false;
+            var found = false; var best = float.MaxValue;
+            foreach (var factor in new[] { 0.95f, 0.75f, 0.5f })
+                for (var k = 0; k < 24; k++)
+                {
+                    var angle = k * Math.PI / 12d;
+                    var candidate = attackTarget.Position + new Vector3((float)Math.Cos(angle), 0f, (float)Math.Sin(angle)) * (reach * factor);
+                    candidate.y = mount.Position.y;
+                    if (childAttack.EvaluateNativeAdmissionAtMountPosition(candidate, candidate - mount.Position) != MountedPairNativeAdmissionState.Admitted)
+                        continue;
+                    var distance = GeometryUtils.MechanicsDistance(candidate, mount.Position);
+                    if (distance < best) { best = distance; goal = candidate; found = true; }
+                }
+            if (found) SightGoalCount++;
+            return found;
+        }
+
+        private UnitMoveTo NewApproachMove(float radius)
+        {
+            Vector3 goal;
+            if (!chargeMode && PointArrivalWithoutStrike(radius) && TryRiderSightGoal(out goal))
+                return new UnitMoveTo(goal, SightGoalArrivalMetres) { CreatedByPlayer = true, ShowTargetMarker = false, NeedLoS = false };
+            return new UnitMoveTo(targetSnapshot, radius)
+            {
+                CreatedByPlayer = true,
+                ShowTargetMarker = false,
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
+            };
+        }
+
         private bool PointArrivalWithoutStrike(float radius)
         {
             if (GeometryUtils.SqrMechanicsDistance(targetSnapshot, mount.Position) > radius * radius) return false;
@@ -639,12 +684,7 @@ namespace KingmakerMountedCombat.Integration
             if (radius < 0f) return false;
             delegatedMoveApproachRadius = radius;
             targetSnapshot = attackTarget.Position;
-            var move = new UnitMoveTo(targetSnapshot, radius)
-            {
-                CreatedByPlayer = true,
-                ShowTargetMarker = false,
-                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight || PointArrivalWithoutStrike(radius)
-            };
+            var move = NewApproachMove(radius);
             delegatedMove = move;
             AnnounceOwnMove(move);
             delegatedMoveStartCount++;
@@ -947,8 +987,24 @@ namespace KingmakerMountedCombat.Integration
         internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && (transaction.State == MountedCombatTransactionState.Approaching &&
             transaction.ChildAttackStartCount == 0 || !IsStarted && (delegatedMove != null && !delegatedMove.IsFinished || nativePreStartApproaching));
 
-        // PR-1 reviews R1-F2, R1-F9: the strike has been released to native (it then keeps native's own handling).
-        internal bool StrikeReleased => IsActed || transaction.ChildAttackStartCount > 0;
+        // PR-1 reviews R1-F2, R1-F9, R2-F1: the strike has been DELIVERED to native (the action event fired, an attack rule was
+        // raised or an attack completed); a windup that has only begun is not released and stays cancellable.
+        internal bool StrikeReleased => IsActed || childAttack != null && (childAttack.LastAttackRule != null || GetAttackIndex() > 0);
+
+        // PR-1 review R2-F1: set by the controller for an ordinary order: its retained generation was superseded by newer
+        // accepted player work. Checked at start, before release and during windup, so an installed wrapper stops too.
+        internal Func<bool> RetainedOrderSupersededCheck;
+
+        private bool EndIfSupersededBeforeDelivery()
+        {
+            if (StrikeReleased || RetainedOrderSupersededCheck == null || !RetainedOrderSupersededCheck()) return false;
+            StopDelegatedMove(false);
+            StopNativePreStartApproach();
+            if (!transaction.IsTerminal) transaction.Cancel("Newer accepted player work supersedes this order.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, "superseded before delivery");
+            Interrupt();
+            return true;
+        }
 
         internal bool ValidateNativeSequenceTarget()
         {
@@ -1121,10 +1177,16 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(initialNativeAdmissionState);
                 var requiresApproach = initialNativeAdmissionState != MountedPairNativeAdmissionState.Admitted;
                 approachRequiredAtStart = requiresApproach;
+                // PR-1 review R2-F1: a wrapper installed before the controller saw newer accepted work stops at its start.
+                if (EndIfSupersededBeforeDelivery()) return;
                 if (requiresApproach && !allowApproach)
                 {
-                    throw new InvalidOperationException(
-                        "Mounted stock ranged intent forbids automatic mount melee approach.");
+                    // PR-1 review R1-F1: an order without approach authority (a ranged order's horse, or a turn-based horse
+                    // follow-through whose target left its reach) settles here: no carrier, no strike, no fault.
+                    if (!transaction.IsTerminal) transaction.Cancel("The strike is out of reach and this order has no approach authority.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "out of reach without approach authority");
+                    Interrupt();
+                    return;
                 }
                 if (!transaction.AcceptTarget(attackTarget.UniqueId, requiresApproach))
                 {
@@ -1137,6 +1199,9 @@ namespace KingmakerMountedCombat.Integration
                 if (requiresApproach)
                 {
                     StopNativePreStartApproach();
+                    // PR-1 review R1-F4: the current movement permission is rechecked BEFORE a live carrier is adopted or a new
+                    // one admitted; ending here releases the exact owned approach (successors keep theirs).
+                    if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
                     var commands = mount.Commands;
                     if (!chargeMode && delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
                         ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove) && commands.Queue.Count == 0)
@@ -1155,12 +1220,12 @@ namespace KingmakerMountedCombat.Integration
                         Interrupt();
                         return;
                     }
-                    // PR-1 review R1-F4: native start rechecks the current movement permission, and an older compatible action still
-                    // holding a mount slot or the queue delays the carrier: the order stays pending instead of failing the click.
-                    if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
+                    // PR-1 review R1-F4: an older compatible action still holding a mount slot or the queue delays the carrier: the
+                    // order stays pending instead of failing the click. Review R2-F3: the wait is not chase time.
                     if (!chargeMode && !DelegatedCarrierAdmissible())
                     {
                         carrierDeferred = true;
+                        deferralStartedAt = TimeSinceStart;
                         CarrierDeferralCount++;
                         return;
                     }
@@ -1193,7 +1258,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
-                if (TimeSinceStart > MaximumElapsedSeconds + approachAllowanceSeconds)
+                if (ChaseElapsed > MaximumElapsedSeconds + approachAllowanceSeconds)
                 {
                     const string bounded = "Mounted pair command exceeded its bounded execution time.";
                     // Still approaching after a delegated move began: the approach failed. Any other overrun is a fault.
@@ -1212,6 +1277,10 @@ namespace KingmakerMountedCombat.Integration
                 {
                     TickApproach();
                 }
+                // PR-1 review R2-F1: during the first strike's windup (child started, nothing delivered) perception loss of an
+                // automatic target and supersession still stop the strike before delivery.
+                if (!IsFinished && transaction.State == MountedCombatTransactionState.Attacking && !StrikeReleased &&
+                    (EndIfAutomaticTargetUnperceived() || EndIfSupersededBeforeDelivery())) return;
 
                 if (transaction.State == MountedCombatTransactionState.Attacking &&
                     transaction.ChildAttackStartCount == 0)
@@ -1275,6 +1344,8 @@ namespace KingmakerMountedCombat.Integration
 
         protected override void OnEnded(bool raiseEvent = true)
         {
+            // PR-1 review R2-F2: whoever ends this wrapper (the controller included) releases its own native pre-start approach.
+            try { StopNativePreStartApproach(); } catch (Exception) { }
             if (chargeMode)
             {
                 // Interrupt stamps Result before invoking OnEnded and cannot be replayed after an
@@ -1339,7 +1410,10 @@ namespace KingmakerMountedCombat.Integration
 
         // PR-1 review R1-F4: a carrier waiting behind older work.
         private bool carrierDeferred;
+        private float deferralStartedAt, deferredSeconds;
         internal int CarrierDeferralCount { get; private set; }
+        // PR-1 review R2-F3: execution time excluding waits behind older work.
+        private float ChaseElapsed => TimeSinceStart - deferredSeconds - (carrierDeferred ? TimeSinceStart - deferralStartedAt : 0f);
         internal bool CarrierDeferred => carrierDeferred;
 
         private bool DelegatedCarrierAdmissible() => MountedCombatSpatialPolicy.CanAdmitDelegatedMove(mount.Commands?.Raw,
@@ -1364,6 +1438,7 @@ namespace KingmakerMountedCombat.Integration
             if (EndIfAutomaticTargetUnperceived()) return;
             if (admission == MountedPairNativeAdmissionState.Admitted)
             {
+                deferredSeconds += TimeSinceStart - deferralStartedAt;
                 carrierDeferred = false;
                 if (!transaction.Arrive(attackTarget.UniqueId))
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
@@ -1372,7 +1447,10 @@ namespace KingmakerMountedCombat.Integration
             }
             if (EndIfMovementForbiddenAtApproach()) return;
             if (!DelegatedCarrierAdmissible()) return;
+            deferredSeconds += TimeSinceStart - deferralStartedAt;
             carrierDeferred = false;
+            // PR-1 review R2-F3: legal movement starts from the target's current position.
+            targetSnapshot = attackTarget.Position;
             if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null) return;
         }
 
@@ -1383,6 +1461,7 @@ namespace KingmakerMountedCombat.Integration
                 TickDeferredCarrier();
                 return;
             }
+            if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
             ObserveApproachInvariants();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
@@ -1628,12 +1707,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Mount approach conflicts with an existing command or queue.");
             }
             delegatedMoveApproachRadius = childAttack.DelegatedMoveApproachRadius;
-            delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)
-            {
-                CreatedByPlayer = true,
-                ShowTargetMarker = false,
-                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight || PointArrivalWithoutStrike(delegatedMoveApproachRadius)
-            };
+            delegatedMove = NewApproachMove(delegatedMoveApproachRadius);
             if (chargeMode)
             {
                 // The native turn-based approach would request its own path and so drop the forced line, the cause of the
@@ -1847,6 +1921,7 @@ namespace KingmakerMountedCombat.Integration
             if (chargeCleanupRequested) { Interrupt(false); return; }
             // Review R4-F2: the last boundary before release.
             if (EndIfAutomaticTargetUnperceived()) return;
+            if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
