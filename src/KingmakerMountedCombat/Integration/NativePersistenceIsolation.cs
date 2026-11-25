@@ -238,6 +238,9 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool CloudPrefix() => authority == null;
 
+        // The game's persistent data folder (the save roots' parent), or the isolated parent under a guarded run.
+        internal static string UserDataParent => IsolatedDataParent();
+
         private static string IsolatedDataParent() => authority == null ? ApplicationPaths.persistentDataPath :
             engineShapedRoot ? NativeArchiveReplacementPath.EngineShapedParent(authority.Root) : Path.GetDirectoryName(authority.Root);
 

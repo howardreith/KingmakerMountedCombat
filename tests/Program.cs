@@ -717,6 +717,7 @@ runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAr
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
+            HorseTripRepairPolicyTests.Register(runner);
             Finalize3MovementEconomyTests.Register(runner);
             MountedPresentationPolicyTests.Register(runner);
             Finalize4OrdersAiTransitionsTests.Register(runner);

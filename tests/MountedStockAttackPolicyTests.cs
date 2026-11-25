@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
+            runner.Run("MMR-06: saved-Horse repair runs once per loaded object, only on a settled world, and retries a failed pass", SavedHorseRepairLedger);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -423,6 +424,42 @@ namespace KingmakerMountedCombat.Tests
                 var repeat = saddle.Project(sample);
                 TestRunner.True((repeat - projected).Magnitude < 0.00001f, "Repeated phase accumulated translation.");
             }
+        }
+
+        private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }
+
+        private static void SavedHorseRepairLedger()
+        {
+            var ledger = new LoadedInstanceRepairLedger<LoadedUnit>();
+            var removals = 0;
+            Func<LoadedUnit, int> repair = unit => { var n = unit.Stale; unit.Stale = 0; removals += n; return n; };
+            int changed;
+            var first = new LoadedUnit("horse-1");
+            // The composition root's write gate (shared with Mounted Shield) through disable, save suspension, an area transition,
+            // a pending restoration, a save worker and an owned load, plus a native load: zero removals, object still pending.
+            bool Admitted(bool enabled = true, bool suspended = false, bool area = false, bool restoration = false, bool worker = false,
+                bool load = false, bool nativeLoading = false) =>
+                HorseInheritedFactRepairPolicy.MayRepair(true, !nativeLoading,
+                    !MountedWorldWriteGate.Allows(enabled, suspended, area, restoration, worker, load));
+            foreach (var admitted in new[] { Admitted(enabled: false), Admitted(suspended: true), Admitted(area: true),
+                Admitted(restoration: true), Admitted(worker: true), Admitted(load: true), Admitted(nativeLoading: true) })
+            {
+                TestRunner.True(!ledger.TryRun(first, admitted, repair, out changed) && changed == 0 && removals == 0 && !ledger.IsCompleted(first),
+                    "A protected phase repaired or completed the Horse.");
+            }
+            TestRunner.True(Admitted() && !HorseInheritedFactRepairPolicy.MayRepair(false, true, false), "The settled gate or a disposed service was misread.");
+            // A failed pass leaves the object pending; the next settled update retries it once.
+            var failed = false;
+            try { ledger.TryRun(first, true, unit => { throw new InvalidOperationException("simulated"); }, out changed); }
+            catch (InvalidOperationException) { failed = true; }
+            TestRunner.True(failed && !ledger.IsCompleted(first) && removals == 0, "A failed pass was recorded as complete.");
+            TestRunner.True(ledger.TryRun(first, Admitted(), repair, out changed) && changed == 1 &&
+                ledger.IsCompleted(first), "The settled retry did not repair the Horse.");
+            TestRunner.True(!ledger.TryRun(first, true, repair, out changed) && removals == 1, "A completed Horse was repaired twice.");
+            // A reload: a new object with the same stable ID is examined again, independently of the old one.
+            var reloaded = new LoadedUnit("horse-1");
+            TestRunner.True(!ledger.IsCompleted(reloaded) && ledger.TryRun(reloaded, true, repair, out changed) && changed == 1 && removals == 2,
+                "A reloaded Horse with the same ID was skipped.");
         }
 
         private static void AnimatedSaddleCleanup()
