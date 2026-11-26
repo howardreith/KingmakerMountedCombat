@@ -2654,7 +2654,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.TotalDamage > 0 && !horse.HasStandardAction() &&
                     // PR-5 review R1-F4: judged on the Bite handle observed at its strike, never on the registration alone.
                     HorseBiteTerminal.PlaybackAccepted(mountedTurnHorseOutcome.AttackAnimationHandleCreated,
-                        mountedTurnHorseOutcome.AttackAnimationHandleSource, mountedTurnHorseOutcome.AttackAnimationInterrupted) &&
+                        mountedTurnHorseOutcome.AttackAnimationHandleSource, mountedTurnHorseOutcome.AttackAnimationInterrupted,
+                        mountedTurnHorseOutcome.AttackAnimationFactsUnreadable) &&
                     animationSnapshot.HorsePrimaryHandleCreateCount +
                         animationSnapshot.HorsePrimaryHandleAdoptCount == 1 &&
                     animationSnapshot.HorsePrimaryHandleRejectCount == 0,
@@ -2829,7 +2830,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.TotalDamage > 0 &&
                     (!IncludesNativeControlsUx ||
                      (HorseBiteTerminal.PlaybackAccepted(mountedHorseOutcome.AttackAnimationHandleCreated,
-                          mountedHorseOutcome.AttackAnimationHandleSource, mountedHorseOutcome.AttackAnimationInterrupted) &&
+                          mountedHorseOutcome.AttackAnimationHandleSource, mountedHorseOutcome.AttackAnimationInterrupted,
+                          mountedHorseOutcome.AttackAnimationFactsUnreadable) &&
                       mountedHorseAnimationSnapshot.HorsePrimaryHandleCreateCount +
                           mountedHorseAnimationSnapshot.HorsePrimaryHandleAdoptCount == 2 &&
                       mountedHorseAnimationSnapshot.HorsePrimaryHandleRejectCount == 0)),
@@ -3095,11 +3097,10 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             if (includeAnimation)
             {
-                result["attackAnimationObservation"] = outcome.AttackAnimationObservation;
+                // PR-5 review R3-F1: the schema-8 wire format is unchanged (the strict reader in RuntimeHarness.Common.ps1); the observation,
+                // registration and readability facts stay on the in-process outcome, where the playback checks above read them.
                 result["attackAnimationHandleCreated"] = outcome.AttackAnimationHandleCreated;
                 result["attackAnimationHandleSource"] = outcome.AttackAnimationHandleSource;
-                result["attackAnimationHandleRegistered"] = outcome.AttackAnimationHandleRegistered;
-                result["attackAnimationRegisteredSource"] = outcome.AttackAnimationRegisteredSource;
                 result["attackAnimationActionName"] = outcome.AttackAnimationActionName;
                 result["attackAnimationActionType"] = outcome.AttackAnimationActionType;
                 result["attackAnimationActed"] = outcome.AttackAnimationActed;

@@ -176,15 +176,37 @@ namespace KingmakerMountedCombat.Integration
         // hoof); the planned weapon is that registered blueprint and the planned hand is the Horse's runtime first additional
         // limb. A hoof (limb1, limb2), a hand, a foreign weapon or an unrelated untyped weapon is not. A registered Bite whose
         // visual SpecialAnimation is None is still the Bite.
-        internal static bool IsHorseBiteSlot(UnitEntityData horse, AttackHandInfo attack) =>
-            string.Equals(horse?.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal) &&
-            IsBiteLimb(attack?.Hand, attack?.Weapon?.Blueprint, horse?.Body?.AdditionalLimbs, horse?.Blueprint?.Body?.AdditionalLimbs);
+        // PR-5 review R3-F5: the planned weapon must also carry the registration-time Bite identity (the GUID
+        // HorseCompanionBlueprintService registered, RegisteredBiteGuid), so a foreign weapon substituted into both the blueprint's
+        // first limb and the runtime slot is never the Bite. Binding stays fail-closed: only Bite binds.
+        internal static bool IsHorseBiteSlot(UnitEntityData horse, AttackHandInfo attack) => ClassifyHorseStrike(horse, attack) == HorseBiteClass.Bite;
+
+        // PR-5 review R2-F2 (round 4): Unavailable when the proof's inputs are missing (not a positive non-Bite).
+        internal static HorseBiteClass ClassifyHorseStrike(UnitEntityData horse, AttackHandInfo attack)
+        {
+            var blueprint = horse?.Blueprint;
+            if (ReferenceEquals(blueprint, null) || attack == null) return HorseBiteClass.Unavailable;
+            if (!string.Equals(blueprint.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) return HorseBiteClass.NotBite;
+            return ClassifyBiteLimb(attack.Hand, attack.Weapon?.Blueprint, horse.Body?.AdditionalLimbs, blueprint.Body?.AdditionalLimbs,
+                HorseCompanionBlueprintService.RegisteredBiteGuid);
+        }
 
         // Reference tests only (a blueprint is never a destroyed Unity object), so genuine objects are judged the same inside and
-        // outside Unity. blueprintLimbs is the registered Horse body's limbs.
-        internal static bool IsBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs, BlueprintItemWeapon[] blueprintLimbs) =>
-            hand != null && !ReferenceEquals(planned, null) && runtimeLimbs != null && runtimeLimbs.Count > 0 && ReferenceEquals(runtimeLimbs[0], hand) &&
-            blueprintLimbs != null && blueprintLimbs.Length > 0 && ReferenceEquals(blueprintLimbs[0], planned);
+        // outside Unity. blueprintLimbs is the registered Horse body's limbs; registeredBiteGuid the registration-time Bite identity.
+        internal static HorseBiteClass ClassifyBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs,
+            BlueprintItemWeapon[] blueprintLimbs, string registeredBiteGuid)
+        {
+            if (hand == null || ReferenceEquals(planned, null) || runtimeLimbs == null || runtimeLimbs.Count == 0 || blueprintLimbs == null ||
+                blueprintLimbs.Length == 0 || string.IsNullOrEmpty(registeredBiteGuid))
+                return HorseBiteClass.Unavailable;
+            return ReferenceEquals(runtimeLimbs[0], hand) && ReferenceEquals(blueprintLimbs[0], planned) &&
+                string.Equals(planned.AssetGuid, registeredBiteGuid, StringComparison.Ordinal)
+                ? HorseBiteClass.Bite : HorseBiteClass.NotBite;
+        }
+
+        internal static bool IsBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs, BlueprintItemWeapon[] blueprintLimbs,
+            string registeredBiteGuid) =>
+            ClassifyBiteLimb(hand, planned, runtimeLimbs, blueprintLimbs, registeredBiteGuid) == HorseBiteClass.Bite;
 
         // The real-type boundary of HorseStrikeHandleBinding. Its classification members read only the native handle's Action
         // and Manager references and the action's AttackType (no Unity engine calls), so the contract

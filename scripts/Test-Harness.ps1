@@ -38,6 +38,8 @@ function New-TestChildEntryPreamble([string]$Scenario,[string]$RunId) {
 
 function Invoke-HarnessTest {
     param([string]$Name, [scriptblock]$Body)
+    # PR-5 review R3-F6: optional single-case selection (exact name); unset runs every case as before.
+    if (-not [string]::IsNullOrEmpty($env:KMC_HARNESS_ONLY) -and $Name -cne $env:KMC_HARNESS_ONLY) { return }
     try {
         & $Body
         $script:passed++
@@ -10501,6 +10503,24 @@ try {
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $nativeControlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+        # PR-5 review R3-F6: the binding moved from inline adapter statements into HorseStrikeHandleBinding (driven on genuine Kingmaker
+        # objects by Test-MountedAlpha2BiteContract.ps1); these predicates check the same exact-action, ownership and idempotence rules
+        # in the current production source, and each has a negative over a source with that rule removed.
+        $bindingSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\HorseStrikeHandleBinding.cs'))
+        $exactSingleAction = { param($binding) $binding.Contains('if (candidate == null || !boundary.IsBiteAction(candidate)) continue;') -and $binding.Contains('if (count != 1)') -and
+            $binding.Contains('result.Outcome = HorseStrikeHandleOutcome.RejectedCandidateCount;') }
+        $exactOwnershipIdempotence = { param($adapterText, $binding)
+            $adapterText.Contains('handle => command.HasRecordedHorsePrimaryAnimation(handle)') -and
+            $adapterText.Contains('(handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source)') -and
+            $adapterText.Contains('(handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action)') -and
+            $binding.Contains('if (!boundary.ExactContext) return result;') -and $binding.Contains('if (boundary.IsRecorded(current))') -and
+            $binding.Contains('!boundary.HandleUsesHorseManager(current)') -and $binding.Contains('if (boundary.HasAnyRecorded)') -and
+            $binding.Contains('boundary.Refresh(current, stock);') -and $binding.Contains('boundary.Record(current, stock, StockCreated);') }
+        Assert-Test (-not (& $exactSingleAction $bindingSource.Replace('if (count != 1)', 'if (count < 1)')) -and
+            -not (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource.Replace('if (boundary.IsRecorded(current))', 'if (false)')) -and
+            -not (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource.Replace('!boundary.HandleUsesHorseManager(current)', 'false'))) `
+            'Horse primary binding predicates accept an ambiguous-action, duplicate-binding or foreign-manager source'
+
         $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
         $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
@@ -10524,8 +10544,8 @@ try {
             $horsePrimaryAnimationSource.Contains('command.Action == MountedCombatActionKind.MountPrimaryNatural') -and
             $horsePrimaryAnimationSource.Contains('HorseCompanionBlueprintService.UnitGuid') -and
             $horsePrimaryAnimationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
-            $horsePrimaryAnimationSource.Contains('if (actions.Length != 1)') -and
-            $horsePrimaryAnimationSource.Contains('attack.AnimationHandle = handle;') -and
+            (& $exactSingleAction $bindingSource) -and
+            $horsePrimaryAnimationSource.Contains('handle => attack.AnimationHandle = handle') -and
             $projectSource.Contains('Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs"') -and
             -not $animationSource.Contains('catch') -and
             -not $horsePrimaryAnimationSource.Contains('catch')) `
@@ -10538,12 +10558,9 @@ try {
             $directAnimationIndex -gt $childInitIndex -and
             $childValidationIndex -gt $directAnimationIndex -and
             $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
-            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse))') -and
-            $horsePrimaryAnimationSource.Contains('command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle)') -and
-            $horsePrimaryAnimationSource.Contains('if (command.HasAnyRecordedHorsePrimaryAnimation)') -and
-            $horsePrimaryAnimationSource.Contains('command.RefreshStockCreatedHorsePrimaryAnimation(attack.AnimationHandle, stockAction);') -and
+            $horsePrimaryAnimationSource.Contains('var exact = IsExactHorsePrimaryContext(command, attack, horse) && IsHorseBiteSlot(horse, attack);') -and
+            (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource) -and
             $horsePrimaryAnimationSource.Contains('HandleRefreshCount++;') -and
-            $horsePrimaryAnimationSource.Contains('command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");') -and
             $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;') -and
             $attackCommandSource.Contains('!ReferenceEquals(horsePrimaryAnimationAction, animationAction)') -and
             $attackCommandSource.Contains('horsePrimaryAnimationHandleSource = "stock-created";')) `

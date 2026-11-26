@@ -87,6 +87,10 @@ namespace KingmakerMountedCombat.Domain
     // PR-5 review R2-F2: Unreadable is a recognized Horse strike whose plan, limb or handle could not be read.
     public enum HorseBiteObservationKind { NotReached, Handle, NoHandle, Unreadable }
 
+    // PR-5 review R2-F2 (round 4): a strike's classification. Unavailable means the inputs that prove Bite or not-Bite (plan, hand,
+    // weapon, the Horse's runtime and registered limbs, the registered Bite identity) are missing, which is not a positive non-Bite.
+    public enum HorseBiteClass { Bite, NotBite, Unavailable }
+
     // PR-5 review R1-F4: the Bite as actually observed at its strike, kept apart from the binding's registration (which stays
     // historical for idempotence). Only a strike of the proven Bite limb is an observation; a hoof never changes it. The
     // latest Bite strike of the command wins. PR-5 review R2-F2: a strike that could not be classified replaces any earlier
@@ -97,12 +101,18 @@ namespace KingmakerMountedCombat.Domain
         public THandle Handle { get; private set; }
         public int BiteStrikes { get; private set; }
         public string UnreadableReason { get; private set; }
+        // PR-5 review R3-F4: the observed handle's registration source captured at the strike (null when not captured), so a later
+        // registration refresh cannot rewrite the source of a Bite that was already observed.
+        public string Source { get; private set; }
 
-        public void Observe(bool biteStrike, THandle handle)
+        public void Observe(bool biteStrike, THandle handle) => Observe(biteStrike, handle, null);
+
+        public void Observe(bool biteStrike, THandle handle, string source)
         {
             if (!biteStrike) return;
             BiteStrikes++;
             Handle = handle;
+            Source = handle == null ? null : source;
             UnreadableReason = null;
             Kind = handle == null ? HorseBiteObservationKind.NoHandle : HorseBiteObservationKind.Handle;
         }
@@ -110,6 +120,7 @@ namespace KingmakerMountedCombat.Domain
         public void ObserveUnreadable(string reason)
         {
             Handle = null;
+            Source = null;
             UnreadableReason = reason ?? "unknown";
             Kind = HorseBiteObservationKind.Unreadable;
         }
@@ -121,8 +132,8 @@ namespace KingmakerMountedCombat.Domain
     // identifiable strike line for the Horse.
     public static class HorseStrikeObservationStep
     {
-        public static void Observe<TPlan, THandle>(HorseBiteObservation<THandle> observation, Func<TPlan> readPlan, Func<TPlan, bool> isBiteLimb,
-            Func<TPlan, THandle> handleOf, Func<TPlan, string> strikeLine, Func<string> horseId, Action<string> log)
+        public static void Observe<TPlan, THandle>(HorseBiteObservation<THandle> observation, Func<TPlan> readPlan, Func<TPlan, HorseBiteClass> classify,
+            Func<TPlan, THandle> handleOf, Func<THandle, string> sourceOf, Func<TPlan, string> strikeLine, Func<string> horseId, Action<string> log)
             where TPlan : class where THandle : class
         {
             try
@@ -132,31 +143,38 @@ namespace KingmakerMountedCombat.Domain
                 var planRead = false;
                 var bite = false;
                 THandle handle = null;
+                string source = null;
                 try { plan = readPlan(); planRead = true; }
                 catch (Exception exception) { unreadable = "plan:" + HorseStrikeDiagnostic.Reason(exception); }
-                if (planRead)
+                // PR-5 review R2-F2 (round 4): a missing plan, or missing classification inputs, is an unavailable observation, never a
+                // positive non-Bite that would leave an earlier Bite standing.
+                if (planRead && plan == null) unreadable = "plan:missing";
+                if (unreadable == null)
                 {
-                    try { bite = isBiteLimb(plan); }
+                    var bite3 = HorseBiteClass.Unavailable;
+                    try { bite3 = classify(plan); }
                     catch (Exception exception) { unreadable = "limb:" + HorseStrikeDiagnostic.Reason(exception); }
-                    if (unreadable == null && bite)
+                    if (unreadable == null && bite3 == HorseBiteClass.Unavailable) unreadable = "limb:unavailable";
+                    bite = unreadable == null && bite3 == HorseBiteClass.Bite;
+                    if (bite)
                     {
-                        try { handle = handleOf(plan); }
+                        try { handle = handleOf(plan); source = handle == null ? null : sourceOf(handle); }
                         catch (Exception exception) { unreadable = "handle:" + HorseStrikeDiagnostic.Reason(exception); }
                     }
                 }
                 try
                 {
                     if (unreadable != null) observation.ObserveUnreadable(unreadable);
-                    else observation.Observe(bite, handle);
+                    else observation.Observe(bite, handle, source);
                 }
                 catch (Exception) { }
                 string line = null;
-                if (planRead) { try { line = strikeLine(plan); } catch (Exception) { line = null; } }
+                if (planRead && plan != null) { try { line = strikeLine(plan); } catch (Exception) { line = null; } }
                 if (line == null)
                 {
                     string id = null;
                     try { id = horseId(); } catch (Exception) { id = null; }
-                    line = "Horse strike: horse=" + (id ?? "<unreadable>") + "; planned=" + (planRead ? "read; strike facts unreadable" : "unreadable") + ".";
+                    line = "Horse strike: horse=" + (id ?? "<unreadable>") + "; planned=" + (planRead ? (plan == null ? "missing" : "read; strike facts unreadable") : "unreadable") + ".";
                 }
                 if (unreadable != null) line = line.TrimEnd('.') + "; biteObservation=unreadable(" + unreadable + "); the native strike proceeds unchanged.";
                 try { log(line); } catch (Exception) { }
@@ -220,7 +238,7 @@ namespace KingmakerMountedCombat.Domain
             var handle = observation.Handle;
             playback.Observation = "handle";
             playback.HandleObserved = true;
-            playback.Source = recordedHandle != null && ReferenceEquals(handle, recordedHandle) ? recordedSource : Unrecorded;
+            playback.Source = SourceOf(observation, recordedHandle, recordedSource);
             try
             {
                 playback.ActionName = actionName(handle);
@@ -236,11 +254,18 @@ namespace KingmakerMountedCombat.Domain
         // The playback judgement the scenario checks use: a Bite handle observed at the strike, bound by the exact stock adoption or
         // KMC supply, its facts readable and not interrupted. A handle-less or unreached Bite, or one whose handle is not the
         // registered one, is rejected whatever the registration says.
-        public static bool PlaybackAccepted(HorseBitePlayback playback) =>
-            playback.HandleObserved && playback.FactsUnreadable == null && PlaybackAccepted(true, playback.Source, playback.Interrupted);
+        // PR-5 review R3-F4: the source captured with the observed handle at its strike; the terminal comparison is only the fallback
+        // for an observation recorded without one.
+        private static string SourceOf<THandle>(HorseBiteObservation<THandle> observation, THandle recordedHandle, string recordedSource) where THandle : class =>
+            observation.Source ?? (recordedHandle != null && ReferenceEquals(observation.Handle, recordedHandle) ? recordedSource : Unrecorded);
 
-        public static bool PlaybackAccepted(bool handleObserved, string source, bool interrupted) =>
-            handleObserved && IsExactPlaybackSource(source) && !interrupted;
+        // PR-5 review R3-F3: one complete decision for the component check and the scenario checks: an observed handle with an exact
+        // source, readable facts, not interrupted.
+        public static bool PlaybackAccepted(HorseBitePlayback playback) =>
+            PlaybackAccepted(playback.HandleObserved, playback.Source, playback.Interrupted, playback.FactsUnreadable);
+
+        public static bool PlaybackAccepted(bool handleObserved, string source, bool interrupted, string factsUnreadable) =>
+            handleObserved && factsUnreadable == null && IsExactPlaybackSource(source) && !interrupted;
 
         public static bool IsExactPlaybackSource(string source) =>
             string.Equals(source, HorseStrikeHandleBinding.StockCreated, StringComparison.Ordinal) ||
@@ -257,7 +282,7 @@ namespace KingmakerMountedCombat.Domain
                 return HorseStrikeDiagnostic.FormatTerminalBite(observation?.Kind ?? HorseBiteObservationKind.NotReached, null, null, float.NaN,
                     routineAttacks, false, false, false, observation?.UnreadableReason);
             var handle = observation.Handle;
-            var source = recordedHandle != null && ReferenceEquals(handle, recordedHandle) ? recordedSource : Unrecorded;
+            var source = SourceOf(observation, recordedHandle, recordedSource);
             try
             {
                 return HorseStrikeDiagnostic.FormatTerminalBite(HorseBiteObservationKind.Handle, actionName(handle), source, speedScale(handle),

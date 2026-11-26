@@ -8377,6 +8377,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 $outcome.attackWeaponIsRanged -ne $false -or [string]$outcome.attackWeaponSlot -cne 'AdditionalLimb' -or
                 $outcome.attackAnimationHandleCreated -ne $true -or $outcome.attackAnimationActed -ne $true -or
                 $outcome.attackAnimationFinished -ne $true -or $outcome.attackAnimationInterrupted -ne $false -or
+                # PR-5 review R3-F2: the observed handle's source must be the exact stock adoption or KMC supply, and its facts readable.
+                # A field an older artifact does not carry is not required (historical semantics: such rows were judged on the flags).
+                ($null -ne $outcome.PSObject.Properties['attackAnimationHandleSource'] -and
+                    [string]$outcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied')) -or
+                ($null -ne $outcome.PSObject.Properties['attackAnimationFactsUnreadable'] -and
+                    -not [string]::IsNullOrEmpty([string]$outcome.attackAnimationFactsUnreadable)) -or
                 [long]$rules.riderAttackRules -ne 0L -or [long]$rules.mountAttackRules -ne 1L -or
                 [long]$rules.pairNonOpportunityAttackRules -ne 1L -or
                 [long]$rules.pairOpportunityAttackRules -ne 0L -or

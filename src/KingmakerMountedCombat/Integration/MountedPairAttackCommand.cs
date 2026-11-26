@@ -177,6 +177,10 @@ namespace KingmakerMountedCombat.Integration
 
         public string AttackAnimationObservation { get; set; }
 
+        // PR-5 review R3-F3: the exception type of an observed handle fact that could not be read at the terminal (null when read);
+        // the scenario checks reject the playback when set (HorseBiteTerminal.PlaybackAccepted).
+        public string AttackAnimationFactsUnreadable { get; set; }
+
         public bool AttackAnimationHandleRegistered { get; set; }
 
         public string AttackAnimationRegisteredSource { get; set; }
@@ -1042,8 +1046,10 @@ namespace KingmakerMountedCombat.Integration
             // A failed read is an explicit unreadable observation (replacing any earlier Bite) with one identifiable line.
             HorseStrikeObservationStep.Observe(horseBiteObservation,
                 () => PlannedAttack,
-                planned => HorsePrimaryAttackAnimationAdapter.IsHorseBiteSlot(mount, planned),
+                planned => HorsePrimaryAttackAnimationAdapter.ClassifyHorseStrike(mount, planned),
                 planned => planned?.AnimationHandle,
+                // PR-5 review R3-F4: the source is captured with the observed handle at its strike.
+                handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationHandleSource : HorseBiteTerminal.Unrecorded,
                 planned => HorseStrikeReader.Read(new HorseStrikeSource(planned, mount), mount.UniqueId, GetAttackIndex() + 1,
                     AllAttacks.Count, Target?.UniqueId).Format(),
                 () => mount?.UniqueId,
@@ -1936,7 +1942,13 @@ namespace KingmakerMountedCombat.Integration
             outcome.AttackAnimationActed = playback.Acted;
             outcome.AttackAnimationFinished = playback.Finished;
             outcome.AttackAnimationInterrupted = playback.Interrupted;
+            outcome.AttackAnimationFactsUnreadable = playback.FactsUnreadable;
         }
+
+        // The native action-name read of an observed handle that is not the registered one, kept in its own method so the terminal
+        // descriptions read it only for such a handle (the registered handle's name was captured when it was recorded).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static string NativeActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
 
         private HorseBitePlayback DescribeHorseBitePlayback()
         {
@@ -1945,7 +1957,7 @@ namespace KingmakerMountedCombat.Integration
                 if (!IsExactKmcHorseCommand)
                     return new HorseBitePlayback { RegisteredHandle = horsePrimaryAnimationHandle != null, RegisteredSource = horsePrimaryAnimationHandleSource };
                 return HorseBiteTerminal.Project(horseBiteObservation, horsePrimaryAnimationHandle, horsePrimaryAnimationHandleSource,
-                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : handle.Action?.name,
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : NativeActionName(handle),
                     handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionType : (handle.Action as UnitAnimationAction)?.Type.ToString(),
                     handle => handle.IsActed, handle => handle.IsFinished, handle => handle.IsInterrupted);
             }
@@ -1964,7 +1976,7 @@ namespace KingmakerMountedCombat.Integration
                 if (!IsExactKmcHorseCommand) return null;
                 return HorseBiteTerminal.Describe(horseBiteObservation, horsePrimaryAnimationHandle, horsePrimaryAnimationHandleSource,
                     AllAttacks?.Count ?? 0,
-                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : handle.Action?.name,
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : NativeActionName(handle),
                     handle => handle.SpeedScale, handle => handle.IsActed, handle => handle.IsFinished, handle => handle.IsInterrupted);
             }
             catch (Exception exception)

@@ -36,6 +36,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-5 R2-F4: a failing variant-count read keeps the readable handle facts and the BiteAttack playback in the one strike line", HandleMetadataFaultKeepsPlayback);
             runner.Run("PR-5 R2-F3: the minimal terminal outcome carries the observed Bite disposition (one callback); detailed and non-Horse controls", MinimalTerminalKeepsBite);
             runner.Run("PR-5 R1-F4: the structured playback projection follows the observed Bite; a handle-less Bite after adoption is rejected; Bite then hoof is accepted", StructuredPlaybackFollowsObservation);
+            runner.Run("PR-5 R2-F2: a missing plan or missing limb evidence after a Bite is an explicit unavailable observation with one line; a known hoof keeps the Bite", MissingInputsAreUnavailable);
+            runner.Run("PR-5 R3-F4: a registration refresh before the command ends keeps the source captured with the observed Bite; an unregistered handle stays unrecorded", ObservedSourceSurvivesRefresh);
+            runner.Run("PR-5 R3-F3: an unreadable observed handle fact is rejected by the one complete playback decision; the readable positive passes", UnreadableFactsRejected);
         }
 
         internal sealed class FakeAction
@@ -368,8 +371,8 @@ namespace KingmakerMountedCombat.Tests
             {
                 var observation = new HorseBiteObservation<FakeHandle>();
                 var earlier = new FakeHandle { Action = BiteAction, Acted = true };
-                HorseStrikeObservationStep.Observe<object, FakeHandle>(observation, () => new object(), plan => true, plan => earlier,
-                    plan => "Horse strike: horse=horse-1; index=1/3; slot=limb0.", () => "horse-1", line => { });
+                HorseStrikeObservationStep.Observe<object, FakeHandle>(observation, () => new object(), plan => HorseBiteClass.Bite, plan => earlier,
+                    handle => HorseStrikeHandleBinding.StockCreated, plan => "Horse strike: horse=horse-1; index=1/3; slot=limb0.", () => "horse-1", line => { });
                 TestRunner.True(observation.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(observation.Handle, earlier),
                     "The earlier Bite was not observed (" + failAt + ").");
                 var lines = new List<string>();
@@ -379,8 +382,9 @@ namespace KingmakerMountedCombat.Tests
                 {
                     HorseStrikeObservationStep.Observe<object, FakeHandle>(observation,
                         () => { if (failAt == "plan") throw new InvalidOperationException("simulated planned-attack read"); return new object(); },
-                        plan => { if (failAt == "limb") throw new NullReferenceException("simulated limb read"); return true; },
+                        plan => { if (failAt == "limb") throw new NullReferenceException("simulated limb read"); return HorseBiteClass.Bite; },
                         plan => { if (failAt == "handle") throw new InvalidOperationException("simulated handle read"); return null; },
+                        handle => HorseStrikeHandleBinding.StockCreated,
                         plan => "Horse strike: horse=horse-1; index=2/3; slot=limb0.", () => "horse-1", lines.Add);
                     delegated++;   // the command's base.OnAction follows the step (OnAction: ObserveHorseStrike, then base.OnAction)
                 }
@@ -395,14 +399,14 @@ namespace KingmakerMountedCombat.Tests
             }
             // The strike line itself failing: the observation still records, and one fallback line names the Horse.
             var observed = new HorseBiteObservation<FakeHandle>(); var lineOut = new List<string>(); var handleNow = new FakeHandle { Action = BiteAction };
-            HorseStrikeObservationStep.Observe<object, FakeHandle>(observed, () => new object(), plan => true, plan => handleNow,
-                plan => { throw new InvalidOperationException("simulated reader fault"); }, () => "horse-1", lineOut.Add);
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(observed, () => new object(), plan => HorseBiteClass.Bite, plan => handleNow,
+                handle => HorseStrikeHandleBinding.StockCreated, plan => { throw new InvalidOperationException("simulated reader fault"); }, () => "horse-1", lineOut.Add);
             TestRunner.True(observed.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(observed.Handle, handleNow) && lineOut.Count == 1 &&
                 lineOut[0].StartsWith("Horse strike: horse=horse-1", StringComparison.Ordinal), "A failing strike line suppressed the observation or its line.");
             // Control: a readable hoof after a Bite leaves the Bite observation (a hoof never changes it).
             var bitten = new HorseBiteObservation<FakeHandle>(); var biteHandle = new FakeHandle { Action = BiteAction };
-            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => true, plan => biteHandle, plan => "l", () => "horse-1", line => { });
-            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => false, plan => new FakeHandle { Action = HoofAction }, plan => "l", () => "horse-1", line => { });
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => HorseBiteClass.Bite, plan => biteHandle, handle => HorseStrikeHandleBinding.StockCreated, plan => "l", () => "horse-1", line => { });
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => HorseBiteClass.NotBite, plan => new FakeHandle { Action = HoofAction }, handle => HorseBiteTerminal.Unrecorded, plan => "l", () => "horse-1", line => { });
             TestRunner.True(bitten.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(bitten.Handle, biteHandle) && bitten.BiteStrikes == 1,
                 "A hoof strike changed the Bite observation.");
         }
@@ -470,7 +474,7 @@ namespace KingmakerMountedCombat.Tests
             var line = Terminal(observation, command);
             TestRunner.True(line.StartsWith("{observed=no-handle", StringComparison.Ordinal) && negative.Observation == "no-handle" && !negative.HandleObserved &&
                 negative.Source == null && !negative.Acted && negative.RegisteredHandle && negative.RegisteredSource == HorseStrikeHandleBinding.StockCreated &&
-                !HorseBiteTerminal.PlaybackAccepted(negative) && !HorseBiteTerminal.PlaybackAccepted(negative.HandleObserved, negative.Source, negative.Interrupted),
+                !HorseBiteTerminal.PlaybackAccepted(negative) && !HorseBiteTerminal.PlaybackAccepted(negative.HandleObserved, negative.Source, negative.Interrupted, negative.FactsUnreadable),
                 "R1-F4: a handle-less Bite after adoption produced positive structured playback evidence.");
             // A different handle observed than the registered one: its own facts, source unrecorded, rejected.
             var other = new FakeHandle { Action = BiteAction, Acted = true };
@@ -489,6 +493,70 @@ namespace KingmakerMountedCombat.Tests
             var unreadable = new HorseBiteObservation<FakeHandle>(); unreadable.ObserveUnreadable("plan:InvalidOperationException");
             TestRunner.True(Playback(unreadable, command).Observation == "unreadable(plan:InvalidOperationException)" && !HorseBiteTerminal.PlaybackAccepted(Playback(unreadable, command)) &&
                 Playback(new HorseBiteObservation<FakeHandle>(), command).Observation == "not-reached", "R1-F4: unreadable or unreached Bites were not stated.");
+        }
+
+        // PR-5 review R2-F2 (round 4): a missing plan, or a plan without the inputs that prove Bite or not-Bite, after a known Bite:
+        // one identifiable line and an explicit unavailable observation; a positively identified hoof keeps the earlier Bite.
+        private static void MissingInputsAreUnavailable()
+        {
+            foreach (var kind in new[] { "plan:missing", "limb:unavailable" })
+            {
+                var observation = new HorseBiteObservation<FakeHandle>(); var earlier = new FakeHandle { Action = BiteAction };
+                observation.Observe(true, earlier, HorseStrikeHandleBinding.StockCreated);
+                var lines = new List<string>();
+                HorseStrikeObservationStep.Observe<object, FakeHandle>(observation, () => kind == "plan:missing" ? null : new object(),
+                    plan => HorseBiteClass.Unavailable, plan => new FakeHandle(), handle => HorseBiteTerminal.Unrecorded, plan => "Horse strike: horse=horse-1; index=2/3.",
+                    () => "horse-1", lines.Add);
+                TestRunner.True(observation.Kind == HorseBiteObservationKind.Unreadable && observation.UnreadableReason == kind && observation.Handle == null &&
+                    lines.Count == 1 && lines[0].Contains("horse=horse-1") && lines[0].Contains("biteObservation=unreadable(" + kind + ")"),
+                    "R2-F2: missing inputs (" + kind + ") left the earlier Bite or were not stated once: " + string.Join(" || ", lines.ToArray()));
+            }
+            var bitten = new HorseBiteObservation<FakeHandle>(); var bite = new FakeHandle { Action = BiteAction };
+            bitten.Observe(true, bite, HorseStrikeHandleBinding.StockCreated);
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => HorseBiteClass.NotBite, plan => new FakeHandle { Action = HoofAction },
+                handle => HorseBiteTerminal.Unrecorded, plan => "l", () => "horse-1", line => { });
+            TestRunner.True(bitten.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(bitten.Handle, bite), "R2-F2: a positively identified hoof changed the Bite.");
+        }
+
+        // PR-5 review R3-F4: the source is captured with the observed Bite. A registered Bite is observed, the registration then
+        // refreshes to another handle of the same action, and the command ends before another Bite acts: both terminal forms keep
+        // the original source. Control: a Bite observed with an unregistered handle stays unrecorded.
+        private static void ObservedSourceSurvivesRefresh()
+        {
+            var first = new FakeHandle { Action = BiteAction, Acted = true, Finished = true };
+            var command = HorseStrike(first);
+            TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, command.Bind().Outcome, "The first Bite handle was not adopted.");
+            var observation = new HorseBiteObservation<FakeHandle>();
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(observation, () => new object(), plan => HorseBiteClass.Bite, plan => first,
+                handle => ReferenceEquals(handle, command.Recorded) ? command.RecordedSource : HorseBiteTerminal.Unrecorded, plan => "l", () => "horse-1", line => { });
+            var later = new FakeHandle { Action = BiteAction, Manager = command.Manager };
+            command.Handle = later;
+            TestRunner.Equal(HorseStrikeHandleOutcome.Refreshed, command.Bind().Outcome, "The later same-action handle did not refresh the registration.");
+            var text = Terminal(observation, command);
+            var playback = Playback(observation, command);
+            TestRunner.True(!ReferenceEquals(command.Recorded, first) && text.Contains("source=stock-created") && playback.Source == HorseStrikeHandleBinding.StockCreated &&
+                HorseBiteTerminal.PlaybackAccepted(playback), "R3-F4: a refresh rewrote the source of the observed Bite: " + text);
+            var unregistered = new HorseBiteObservation<FakeHandle>(); var stray = new FakeHandle { Action = BiteAction };
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(unregistered, () => new object(), plan => HorseBiteClass.Bite, plan => stray,
+                handle => ReferenceEquals(handle, command.Recorded) ? command.RecordedSource : HorseBiteTerminal.Unrecorded, plan => "l", () => "horse-1", line => { });
+            TestRunner.True(Terminal(unregistered, command).Contains("source=unrecorded") && Playback(unregistered, command).Source == HorseBiteTerminal.Unrecorded &&
+                !HorseBiteTerminal.PlaybackAccepted(Playback(unregistered, command)), "R3-F4 control: an unregistered observed handle gained a source.");
+        }
+
+        // PR-5 review R3-F3: a terminal fact-read failure on the registered observed handle: the projection carries it and the one
+        // complete decision (also the scenario checks' four-argument form) rejects it; the readable positive passes.
+        private static void UnreadableFactsRejected()
+        {
+            var handle = new FakeHandle { Action = BiteAction, Acted = true, Finished = true };
+            var command = HorseStrike(handle); command.Bind();
+            var observation = new HorseBiteObservation<FakeHandle>(); observation.Observe(true, handle, HorseStrikeHandleBinding.StockCreated);
+            var failing = HorseBiteTerminal.Project(observation, command.Recorded, command.RecordedSource, h => h.Action?.Name, h => h.Action?.Type,
+                h => { throw new InvalidOperationException("simulated terminal acted read"); }, h => h.Finished, h => h.Interrupted);
+            var readable = Playback(observation, command);
+            TestRunner.True(failing.HandleObserved && failing.FactsUnreadable == "InvalidOperationException" && !HorseBiteTerminal.PlaybackAccepted(failing) &&
+                !HorseBiteTerminal.PlaybackAccepted(failing.HandleObserved, failing.Source, failing.Interrupted, failing.FactsUnreadable) &&
+                HorseBiteTerminal.PlaybackAccepted(readable) && HorseBiteTerminal.PlaybackAccepted(readable.HandleObserved, readable.Source, readable.Interrupted, readable.FactsUnreadable),
+                "R3-F3: an unreadable observed fact was accepted, or the readable positive rejected.");
         }
 
         private static void UnreadableObservationKeepsRecord()

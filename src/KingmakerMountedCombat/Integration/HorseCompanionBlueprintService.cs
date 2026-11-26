@@ -191,6 +191,10 @@ namespace KingmakerMountedCombat.Integration
         private ExactAppendOnlyArrayLease<BlueprintFeature> selectionLease;
         private List<BlueprintScriptableObject> blueprintList;
         private string biteGuid;
+
+        // PR-5 review R3-F5: the registration-time Bite identity (the stock Bite1d4 GUID this service registered on the Horse body),
+        // read by the Bite-limb proof; null until registration.
+        internal static string RegisteredBiteGuid { get; private set; }
         private string biteName;
         private string hoofName;
         private BlueprintCharacterClass companionClass;
@@ -669,6 +673,7 @@ namespace KingmakerMountedCombat.Integration
             RegisterMountedCombatFeatReported(library);
 
             biteGuid = bite.AssetGuid;
+            RegisteredBiteGuid = biteGuid;
             biteName = bite.name;
             hoofName = hoof.name;
             // Installed BlueprintFeatureSelection.Items enumerates AllFeatures,
