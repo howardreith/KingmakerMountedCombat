@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T16:26:32+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T16:43:58+00:00.
 
 ```json
 {"branch": "codex/mmr-attack-orders", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "extraction_commit": "95c26e59", "extraction_proof": "build clean; components 1539/0; Validate-Source 153/0; orders native contract 4/0; lifecycle contract 49/0; attack-path harness 16/0 (metered rerun after removing a PR-2 helper); whole-file identity of 6 owned files with 46444b30; shared-file residuals only PR-2/PR-5 pieces", "initial_push": "audited ordinary push (AGENTS.md; no project helper on main); receipt push-audits/codex_mmr-attack-orders-95c26e59-2026-11-25T153350+0000.json", "kind": "enrollment", "max_rounds": 3, "mission": "docs/missions/mmr-split/PR-1-attack-orders.md", "mission_commit": "f29a45e3", "pr": "PR-1", "pr_number": 65, "prev_sha256": "4ecc6180bebafa14b800701c0c0b66d2a6a255353a0ce6f517bb10c37081dd8a", "program_rounds": {"cap": 22, "child_allocated_so_far": 3, "spent_before": 7}, "seq": 7, "target": "main", "utc": "2026-11-25T15:34:13+00:00"}
@@ -119,6 +119,16 @@ SHA-256 `d5a802ac65eca9d314cc7d630c2651adcb51e3b43b803a78d26c79f21738c8c8`
 ```
 SHA-256 `cc2edf9cbca9d8ee7d14300cd01492a53cbf2b60bc4b44df8d682672f57a0564`
 
+```json
+{"candidate": "f2f2fa554a501d5fb1c2e276a9bd988df697fc58", "controller_status": "ACTIVE (9 of 10)", "decision": "changes_required", "kind": "review_result", "open_blocking": ["R9-F1", "R9-F2", "R9-F3"], "open_optional": ["R9-F4"], "pr": "PR-1", "prev_sha256": "cc2edf9cbca9d8ee7d14300cd01492a53cbf2b60bc4b44df8d682672f57a0564", "records": "decomposition/pr1/developer-report.r9.json, pr1/controller-review-r9.json", "round": 9, "seq": 70, "utc": "2026-11-26T16:43:57+00:00", "verified": ["R8-F1", "R8-F2", "R8-F3"]}
+```
+SHA-256 `4b43ce0a40e0d9ef5fcb7aafcfc6dff1bbe9974c36d1e62f63d5c34bf51401ab`
+
+```json
+{"budget": "budget record read at 2026-11-26T16:43:57Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 125.02 of 150 min; remaining 24.98 min; entries 184 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-attack-orders that regenerates docs/missions/mmr-split/PR-1-ledger-excerpt.md with this entry", "child_rounds": "9 of 10 used (round 10 is the last)", "kind": "pre_review_check", "pr": "PR-1", "prev_sha256": "4b43ce0a40e0d9ef5fcb7aafcfc6dff1bbe9974c36d1e62f63d5c34bf51401ab", "program_rounds": "27 of 38 lifetime (20 of 31 allocated child reviews)", "round": 10, "seq": 71, "utc": "2026-11-26T16:43:57+00:00"}
+```
+SHA-256 `0d55f156293c8bb9fe2c5229b3704431eb623046648f17ada8b7de84825cdb4f`
+
 Controller facts for cross-checking: the r01 request comment on PR #65 was created 2026-11-25T15:35:59Z (after seq 8);
 the r02 request followed gate receipt gate-focused-49b1c7b94e9a-d43d449b6c4-af2513083e1-20261125T164039504028Z (after seq 11).
 Seq 14 is the owner decision of 2026-11-26 (verbatim text committed as docs/missions/mmr-split/owner-authorization-2026-11-26.md):
@@ -129,4 +139,5 @@ the owner extension of 2026-11-26 (docs/missions/mmr-split/owner-authorization-2
 33 lifetime reviews, validation unchanged at 150 minutes. Seq 59 is the PR-1 resume to 8, seq 60 the round-7 check, seq 61 the round-7
 result, seq 62 the round-8 check, seq 63 the round-8 result (cap stop at 8/8), seq 64 the final report of 2026-11-26b;
 seq 65-67 record owner instruction 2026-11-26c (total cap 10), the PR-3 acceptance and the correction to seq 61; seq 68 is the
-resume to 10 and the last entry is the round-9 check for the candidate that adds this version.
+resume to 10, seq 69 the round-9 check, seq 70 the round-9 result; the last entry is the round-10 check for the candidate that
+adds this version.
