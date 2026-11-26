@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using Kingmaker.Controllers.Brain;
+using Kingmaker.Controllers.Brain.Blueprints;
 using Kingmaker.EntitySystem.Entities;
 
 namespace KingmakerMountedCombat.Integration
@@ -26,10 +27,18 @@ namespace KingmakerMountedCombat.Integration
             public UnitEntityData Unit;
             public float Weight;
             public float Distance;
+            // PR-1 review R8-F1: the native facts BlueprintAiAction.IsTargetValid (0x0600942A) reads for this candidate under the proposal's
+            // own action: DecisionContext.ActionRangeWithCorpulence (0x06009416: the action's GetRange plus both bodies' corpulence) and
+            // TargetInfo.InLos (0x06009422, native's cached GameHelper.CheckLOS). InLos is read only where IsTargetValid reads it (the
+            // unit's AiMovementForbidden, or the candidate in AIData.UnreachableUnits), so no line-of-sight probe native would not make.
+            public float ActionRangeWithCorpulence;
+            public bool InLos;
         }
 
-        // The same live list, as native ranked it, for the pair's equal-rank tie-break (review R1-F11). Null when unavailable.
-        internal static List<Candidate> Candidates(UnitEntityData unit)
+        // The same live list, as native ranked it, for the pair's equal-rank tie-break (review R1-F11), with the native admission facts for
+        // the proposal's own AI action (BlueprintAiAction.GetRange reads only the deciding unit: BlueprintAiAttack 0x06009437). Null when
+        // unavailable.
+        internal static List<Candidate> Candidates(UnitEntityData unit, BlueprintAiAction action)
         {
             try
             {
@@ -37,9 +46,21 @@ namespace KingmakerMountedCombat.Integration
                 if (context == null || unit == null || !ReferenceEquals(context.Unit, unit)) return null;
                 var enemies = EnemiesField?.GetValue(context) as List<TargetInfo>;
                 if (enemies == null) return null;
+                var range = action != null ? action.GetRange(context) : context.ActionRange;
+                var unitBody = unit.View != null ? unit.View.Corpulence : 0f;
+                var unreachable = unit.CombatState?.AIData?.UnreachableUnits;
                 var result = new List<Candidate>(enemies.Count);
                 foreach (var info in enemies)
-                    if (info?.Unit != null) result.Add(new Candidate { Unit = info.Unit, Weight = info.Weight, Distance = info.Distance });
+                {
+                    if (info?.Unit == null) continue;
+                    var sightRead = unit.AiMovementForbidden || unreachable != null && unreachable.Contains(info.Unit);
+                    result.Add(new Candidate
+                    {
+                        Unit = info.Unit, Weight = info.Weight, Distance = info.Distance,
+                        ActionRangeWithCorpulence = range + unitBody + (info.Unit.View != null ? info.Unit.View.Corpulence : 0f),
+                        InLos = sightRead && info.InLos(context)
+                    });
+                }
                 return result;
             }
             catch (Exception)

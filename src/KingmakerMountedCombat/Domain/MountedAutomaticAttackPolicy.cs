@@ -105,6 +105,9 @@ namespace KingmakerMountedCombat.Domain
         // Why a live intent stops repeating. A newer player operation retires an intent of either origin (a repeating
         // dispatch would otherwise replace a cast waiting to start); the rest are the automatic intent's own boundaries,
         // re-read every update because they can change between two proposals.
+        // The retirement for failed stationary geometry alone (restricted travel, the strike not admissible from where the pair stands).
+        public const string HoldOutOfReach = "hold out of reach";
+
         public static string RetireReason(
             bool realTime,
             bool automatic,
@@ -123,7 +126,7 @@ namespace KingmakerMountedCombat.Domain
             if (!riderAiEnabled) return "ai off";
             if (!riderBrainActive) return "brain inactive";
             if (stopSuppressed) return "stop";
-            if (movementForbidden && !targetInRiderReach) return "hold out of reach";
+            if (movementForbidden && !targetInRiderReach) return HoldOutOfReach;
             return null;
         }
     }

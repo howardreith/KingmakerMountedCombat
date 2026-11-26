@@ -1472,7 +1472,7 @@ namespace KingmakerMountedCombat.Integration
             // Review R5-F7: only the supported rider MELEE proposal; a mounted archer keeps the brain's choice.
             if (!turnBased && rider != null && target != null)
             {
-                var tieBroken = ResolveEqualRankTie(rider, target);
+                var tieBroken = ResolveEqualRankTie(rider, target, proposal);
                 if (tieBroken != null && !ReferenceEquals(tieBroken, target))
                 {
                     AutomaticTieBreakCount++;
@@ -1551,9 +1551,9 @@ namespace KingmakerMountedCombat.Integration
         internal long AutomaticTieBreakCount { get; private set; }
         internal string LastAutomaticTieBreak { get; private set; }
 
-        private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed)
+        private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)
         {
-            var candidates = NativeBrainRankingReader.Candidates(rider);
+            var candidates = NativeBrainRankingReader.Candidates(rider, proposal.AiAction);
             if (candidates == null) return null;
             var forbidden = AutomaticMovementForbidden(rider);
             // PR-1 review R6-F2: under restricted travel a melee candidate counts only if the pair can perform the stationary mounted
@@ -1564,13 +1564,17 @@ namespace KingmakerMountedCombat.Integration
             {
                 var unit = candidate.Unit;
                 var state = unit?.Descriptor?.State;
-                // PR-1 review R7-F2: native's own sight rule stays (rider.HasLOS where the rider's movement is forbidden or the candidate is
-                // marked unreachable: BlueprintAiAction.IsTargetValid), and restricted pair travel adds the stationary mounted-strike admission
-                // for a melee candidate (R6-F2).
-                var nativeSightRequired = rider.AiMovementForbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit);
+                // PR-1 reviews R7-F2, R8-F1: native's own admission for the proposal's action (BlueprintAiAction.IsTargetValid, 0x0600942A):
+                // where the rider's movement is forbidden or the candidate is marked unreachable, only a candidate within the action's range
+                // (with both bodies) AND in native line of sight is valid; otherwise native admits it and ordinary approach follows. Restricted
+                // pair travel adds the stationary mounted-strike admission for a melee candidate (R6-F2). A disliked target is discounted, not
+                // excluded, by native scoring (NotImpatientConsideration 0.5): native's own disliked proposal stays admissible, while a disliked
+                // alternative, which native scored lower, never replaces the proposal.
+                var nativeAdmissionRestricted = rider.AiMovementForbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit);
+                var nativeValid = !nativeAdmissionRestricted || candidate.Distance <= candidate.ActionRangeWithCorpulence && candidate.InLos;
                 var eligible = unit != null && state != null && state.IsConscious && !state.IsDead && rider.CanAttack(unit) &&
-                    rider.CombatState?.AIData?.DislikedTarget != unit &&
-                    (!nativeSightRequired || rider.HasLOS(unit)) &&
+                    (ReferenceEquals(unit, proposed) || rider.CombatState?.AIData?.DislikedTarget != unit) &&
+                    nativeValid &&
                     (!(forbidden && melee) || StationaryStrikeAdmissible(unit));
                 ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible });
             }
@@ -1774,6 +1778,21 @@ namespace KingmakerMountedCombat.Integration
             if (reason == null) return false;
             var automatic = stockIntent.Automatic;
             var command = stockIntentCommand;
+            // PR-1 review R8-F2: retirement solely for failed stationary geometry yields to the exact unreleased wrapper's own target
+            // invalidation, the precedence its pre-start tick and OnStart give it, so the drive, queued promotion (AdmitQueuedAutomaticRun)
+            // and the wrapper record the same cause and reason. A valid target that merely left reach keeps this retirement; a released
+            // strike and newer player work keep theirs.
+            if (reason == MountedAutomaticAttackPolicy.HoldOutOfReach && command != null && !command.IsFinished && !command.StrikeReleased &&
+                command.TargetInvalidNow())
+            {
+                RetireOrderOnTargetInvalidation();
+                if (automatic)
+                {
+                    AutomaticRetiredCount++;
+                    LastAutomaticRetirement = "automatic target invalid outside stationary reach";
+                }
+                return true;
+            }
             ClearStockAttackIntent(reason, true);
             if (automatic)
             {

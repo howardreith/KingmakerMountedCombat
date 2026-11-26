@@ -287,9 +287,20 @@ $unperceived = @(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]
 Check ((Calls $unperceived (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and (Calls $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
     (FirstOffset $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $unperceived (@(Method $controller 'ClearStockAttackIntent')[0]))) 'PR-1 R6-F1 (round 8): a perception loss that coincides with target invalidation is retired as target invalidation first, the wrapper''s own precedence'
 $tie = @(Method $controller 'ResolveEqualRankTie')[0]
-$hasLos = @($game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetMethods($any) | Where-Object { $_.Name -ceq 'HasLOS' -and $_.GetParameters().Count -eq 1 })[0]
 $aiForbidden = $game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetProperty('AiMovementForbidden', $any).GetGetMethod($true)
-Check ((Calls $tie $hasLos) -eq 1 -and (Calls $tie $aiForbidden) -eq 1 -and (Calls $tie (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R7-F2: the tie-break keeps native sight (rider.HasLOS when the rider is held or the candidate unreachable) and adds the stationary mounted strike under restricted pair travel'
+$rankingReader = KmcType 'KingmakerMountedCombat.Integration.NativeBrainRankingReader'
+$readerCandidates = @(Method $rankingReader 'Candidates')[0]
+$nativeInLos = $game.GetType('Kingmaker.Controllers.Brain.TargetInfo', $true).GetMethod('InLos', $any)
+$nativeGetRange = $game.GetType('Kingmaker.Controllers.Brain.Blueprints.BlueprintAiAction', $true).GetMethod('GetRange', $any)
+$nativeIsTargetValid = $game.GetType('Kingmaker.Controllers.Brain.Blueprints.BlueprintAiAction', $true).GetMethod('IsTargetValid', $any)
+$hasLos = @($game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetMethods($any) | Where-Object { $_.Name -ceq 'HasLOS' -and $_.GetParameters().Count -eq 1 })[0]
+Check ($nativeIsTargetValid.MetadataToken -eq 0x0600942A -and $nativeInLos.MetadataToken -eq 0x06009422 -and
+    (Calls $readerCandidates $nativeInLos) -eq 1 -and (Calls $readerCandidates $nativeGetRange) -eq 1 -and (Calls $tie $readerCandidates) -eq 1 -and
+    (Calls $tie $aiForbidden) -eq 1 -and (Calls $tie $hasLos) -eq 0 -and (Calls $tie (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R7-F2/R8-F1: the tie-break applies native admission for the proposal''s action (the reader takes BlueprintAiAction.GetRange and TargetInfo.InLos, the facts IsTargetValid 0x0600942A reads) where the rider is held or the candidate unreachable, and the stationary mounted strike under restricted travel'
+$tryRetire = @(Method $controller 'TryRetireStockIntent')[0]
+Check ((Calls $tryRetire (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and (Calls $tryRetire (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
+    (FirstOffset $tryRetire (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $tryRetire (@(Method $controller 'ClearStockAttackIntent')[0])) -and
+    (Calls (@(Method $controller 'AdmitQueuedAutomaticRun')[0]) $tryRetire) -eq 1) 'PR-1 R8-F2: geometry-only retirement yields to the unreleased wrapper''s target invalidation in the shared retirement used by the drive and queued promotion'
 $retireInvalid = @(Method $controller 'RetireOrderOnTargetInvalidation')[0]
 $recordInvalid = @(Method $pair 'RecordTargetInvalidation')[0]
 $retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]

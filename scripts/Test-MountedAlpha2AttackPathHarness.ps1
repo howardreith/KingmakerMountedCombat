@@ -57,7 +57,6 @@ $members=[ordered]@{
  'CONTROLLER_CLICK'=(ExtractRegion $controller '        internal long ForeignSelectionWriteCount' '        internal MountedRetainedOrderLedger RetainedOrder => retainedOrder;')
  'CONTROLLER_OWNERSHIP'=(ExtractRegion $controller '        // PR-1 review R1-F11 (round 4): ownership of each actor' '        private void ClearStockAttackIntent(string reason, bool countCancellation)')
  'CONTROLLER_CLEAR_INTENT'=(Extract $controller 'private void ClearStockAttackIntent(string reason, bool countCancellation)')
- 'CONTROLLER_END_QUEUED'=(Extract $controller 'private void EndQueuedCommand(MountedPairSingleAttack command, string reason)')
  'CONTROLLER_INTERRUPT_OWNED'=(Extract $controller 'private void InterruptOwnedCommand(MountedPairAttackCommand command, MountedAttackEndCause cause, string reason)')
  'CONTROLLER_SWEEP'=(Extract $controller 'private void SweepFinishedCommand()')
  'CONTROLLER_PROBE'=(Extract $controller 'private bool PlannedStrikeAdmissibleNow(MountedCombatActionKind action, UnitEntityData target)')
@@ -86,7 +85,9 @@ $members=[ordered]@{
  'CONTROLLER_DRIVE'=(Extract $controller 'private void TryDriveStockAttackIntent()')
  'CONTROLLER_EXECUTE'=(Extract $controller 'private MountedCombatClickResult TryExecuteAction(')
  'CONTROLLER_PROPOSAL'=(Extract $controller 'private void ObserveAutomaticProposal(UnitAttack proposal, bool ownerIsRider, bool turnBased)')
- 'CONTROLLER_TIE'=(Extract $controller 'private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed)')
+ 'CONTROLLER_TIE'=(Extract $controller 'private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)')
+ 'CONTROLLER_ADMIT_AUTOMATIC'=(Extract $controller 'internal bool AdmitQueuedAutomaticRun(MountedPairSingleAttack command)')
+ 'CONTROLLER_END_QUEUED'=(Extract $controller 'private void EndQueuedCommand(MountedPairSingleAttack command, string reason)')
  'CONTROLLER_CAPTURE_CONTEXT'=(Extract $controller 'private MountedCombatActionContext CaptureContext(')
  'CONTROLLER_IN_COMBAT'=(Extract $controller 'private bool IsPairInCombat()')
  'CONTROLLER_TRY_CONTAIN'=(Extract $controller 'private void TryContain(string phase, Action step)')
@@ -114,7 +115,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$controllerPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')
