@@ -316,16 +316,15 @@ namespace KingmakerMountedCombat.Integration
         {
             var manager = riderView == null ? null : riderView.AnimationManager;
             if (manager == null || !manager.CanRunIdleAction()) return false;
-            // PR-3 reviews R1-F1/R2: rest also needs the native resting animation to contribute to the sampled rig. Installed contract
-            // (pinned by Test-MmrHorseSeatNativeContract.ps1): UnitAnimationManager.TickInternal returns while no AnimationSet is bound,
-            // then creates m_LocoMotionHandle once with CreateHandle(UnitAnimationType.LocoMotion) and Executes it; the locomotion
-            // action's OnStart (UnitAnimationActionLocoMotionHuman.UpdateCurrentClips, which selects the idle clip while Speed is idle, or
-            // UnitAnimationActionLocoMotion's controller) adds its composition through AddAnimationClip/AddAnimatorController, which put
-            // it in ActiveAnimations and set handle.ActiveAnimation; AnimationBase.UpdateInternal then ramps its weight in over
-            // TransitionIn. So the resting contributor is the unreleased handle whose action is a UnitAnimationAction of Type LocoMotion
-            // (installed: only UnitAnimationActionLocoMotion and UnitAnimationActionLocoMotionHuman) and whose own current animation this
-            // is, with weight above zero. Before that (no handle, zero weight, a missing or non-locomotion action, a stale composition the
-            // handle has replaced) the rig holds no resting pose, however long it holds; a constant-height idle that contributes is rest.
+            // PR-3 review R1-F1: rest requires (1) native idle eligibility (CanRunIdleAction above), (2) a positively weighted current
+            // locomotion composition: an animation whose unreleased handle's action is a UnitAnimationAction of Type LocoMotion and whose
+            // handle.ActiveAnimation is that animation, with GetWeight() > 0, and (3) no outgoing released non-additive contribution.
+            // It does not require the transition-in to have finished. Installed 2.1.7b trace (docs/missions/mmr-split/evidence/
+            // PR-3-idle-weight-trace.md, pinned by Test-MmrHorseSeatNativeContract.ps1): the stationary humanoid idle is registered by
+            // UnitAnimationActionLocoMotionHuman.UpdateCurrentClips through AnimationManager.AddAnimationClip, which stores the one
+            // PlayableInfo (or off-hand AnimationComposition) as handle.ActiveAnimation and in ActiveAnimations; its GetWeight is
+            // PlayableInfo.m_Weight (Reset to 0, ramped by UpdateInternal over TransitionIn), and MixerInfo.NormalizeWeights gives the
+            // clip a positive mixer input exactly when m_Weight * m_WeightMultiplier (always 1) is above zero.
             var animations = manager.ActiveAnimations;
             if (animations == null) return false;
             var restingContributes = false;

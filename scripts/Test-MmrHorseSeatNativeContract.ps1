@@ -168,4 +168,70 @@ Check ((CallsResolved $humanStart $humanClips) -and $clipsCalled.Count -gt 0 -an
 $updateInternal = $animationBase.GetMethod('UpdateInternal', $declared)
 Check ((CallsResolved $updateInternal ($animationBase.GetMethod('SetWeight', [Type[]]@([single])))) -and (CallsResolved $updateInternal ($animationBase.GetProperty('TransitionIn', $any).GetGetMethod($true)))) 'MMR-01 (PR-3 R1-F1): installed AnimationBase.UpdateInternal ramps the animation weight in over TransitionIn (weight 0 contributes nothing)'
 Check ((CallsResolved $rest $typeGetter) -and (CallsResolved $rest ($handleType.GetProperty('ActiveAnimation').GetGetMethod())) -and (CallsResolved $rest ($animationBase.GetMethod('GetWeight', [Type[]]@())))) 'MMR-01 (PR-3 R1-F1): the adapter''s rest eligibility counts only the unreleased locomotion handle''s own current animation (UnitAnimationAction.Type, handle.ActiveAnimation) with weight above zero'
+# ---- PR-3 review R1-F1 (round 4): the stationary humanoid idle's registration and weight, by operand ---------------------
+# Annotated trace: docs/missions/mmr-split/evidence/PR-3-idle-weight-trace.md. Each check below matches an exact IL sequence
+# in one installed method (bytes, or a token resolved to the named member); the assembly identity binds them to 2.1.7b.
+$gameAssemblyPath = Join-Path $managed 'Assembly-CSharp.dll'
+Check ((Get-FileHash -Algorithm SHA256 -LiteralPath $gameAssemblyPath).Hash -ceq '3B6450FFEC440E296E586F71C711B195AED144B28D53E1CBB29406D18FEF5AFB' -and $game.ManifestModule.ModuleVersionId.ToString() -ceq '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'MMR-01 (PR-3 R1-F1): the idle-weight trace is bound to the installed 2.1.7b Assembly-CSharp (sha256 3B6450FF...EF5AFB, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7)'
+function MemberName([Reflection.MemberInfo]$M) { if ($M -is [Type]) { return $M.Name }; $n = $M.DeclaringType.Name + '::' + $M.Name; if ($M -is [Reflection.MethodBase]) { $n += '(' + (($M.GetParameters() | ForEach-Object { $_.ParameterType.Name }) -join ',') + ')' }; $n }
+# True when the method's IL contains the items contiguously: an [int] is one byte; a [string] is a 4-byte token that resolves to
+# that member (MemberName form, prefix match allowed with a trailing '*').
+function HasSequence([Reflection.MethodBase]$Method, [object[]]$Items) {
+    $il = $Method.GetMethodBody().GetILAsByteArray()
+    for ($start = 0; $start -lt $il.Length; $start++) {
+        $p = $start; $ok = $true
+        foreach ($item in $Items) {
+            if ($item -is [string]) {
+                if ($p + 4 -gt $il.Length) { $ok = $false; break }
+                $name = $null; try { $name = MemberName ($Method.Module.ResolveMember([BitConverter]::ToInt32($il, $p))) } catch { }
+                if ($null -eq $name -or -not ($(if ($item.EndsWith('*')) { $name.StartsWith($item.TrimEnd('*'), [StringComparison]::Ordinal) } else { $name -ceq $item }))) { $ok = $false; break }
+                $p += 4
+            } else { if ($p -ge $il.Length -or $il[$p] -ne [byte]$item) { $ok = $false; break }; $p++ }
+        }
+        if ($ok) { return $true }
+    }
+    $false
+}
+function Declared([Type]$Type, [string]$Name, [int]$Arity = -1) { @($Type.GetMethods($declared) + $Type.GetConstructors($declared) | Where-Object { $_.Name -ceq $Name -and ($Arity -lt 0 -or $_.GetParameters().Count -eq $Arity) }) | Select-Object -First 1 }
+$playableInfo = GameType 'Kingmaker.Visual.Animation.PlayableInfo'
+$composition = GameType 'Kingmaker.Visual.Animation.AnimationComposition'
+$mixerInfo = GameType 'Kingmaker.Visual.Animation.MixerInfo'
+$aacDuration = @($nativeAnimation.GetMethods($declared) | Where-Object { $_.Name -ceq 'AddAnimationClip' -and $_.GetParameters().Count -eq 3 -and $_.GetParameters()[2].ParameterType.Name -ceq 'ClipDurationType' }) | Select-Object -First 1
+$aac7 = 'AnimationManager::AddAnimationClip(AnimationActionHandle,AnimationClip,List`1,Boolean,Boolean,ClipDurationType,IAddableAnimation)'
+# 1. The stationary branch and its registration call.
+Check ((HasSequence $humanClips @(0x6F, 'UnitAnimationManager::get_Speed()', 0x22, 0xCD, 0xCC, 0xCC, 0x3D, 0xFE, 0x04, 0x7D, 'ActionData::IsIdle')) -and
+    (HasSequence (Declared $human 'SelectClip') @(0x6F, 'UnitAnimationManager::get_Speed()', 0x22, 0xCD, 0xCC, 0xCC, 0x3D, 0xFE, 0x04, 0x0B)) -and
+    (HasSequence (Declared $human 'SelectClip') @(0x07, 0x2C, 0x07, 0x02, 0x7B, 'UnitAnimationActionLocoMotionHuman::NonCombatIdle', 0x2A)) -and
+    (HasSequence (Declared $human 'SelectClip') @(0x09, 0x7B, 'WeaponStyleLayer::Idle', 0x2A)) -and
+    (HasSequence $humanClips @(0x07, 0x18, 0x6F, 'AnimationManager::AddAnimationClip(AnimationActionHandle,AnimationClip,ClipDurationType)')) -and
+    (HasSequence $humanClips @(0x03, 0x73, 'AnimationComposition::.ctor(AnimationActionHandle)', 0x6F, $aac7))) 'MMR-01 (PR-3 R1-F1) trace 1: installed UpdateCurrentClips sets ActionData.IsIdle = Speed < 0.1; SelectClip then returns NonCombatIdle (or the weapon-style Idle in combat); the clip is registered with AddAnimationClip(handle, clip, ClipDurationType), or, with an off-hand clip, with a new AnimationComposition passed to the seven-argument AddAnimationClip'
+# 2. The concrete object: the ClipDurationType overload forwards (masks null, default-mask true, addable null), which the seven-argument
+# overload turns into one PlayableInfo from the four-argument AddAnimationClip; an AnimationComposition is cast through otherwise.
+Check ((HasSequence $aacDuration @(0x02, 0x03, 0x04, 0x14, 0x17, 0x16, 0x05, 0x14, 0x28, $aac7, 0x2A)) -and
+    (HasSequence (Declared $nativeAnimation 'AddAnimationClip' 7) @(0x02, 0x03, 0x04, 0x09, 0x0E, 0x05, 0x28, 'AnimationManager::AddAnimationClip(AnimationActionHandle,AnimationClip,AvatarMask,Boolean)', 0x0B)) -and
+    (HasSequence (Declared $nativeAnimation 'AddAnimationClip' 7) @(0x11, 0x04, 0x74, 'AnimationBase', 0x0B)) -and
+    (HasSequence (Declared $mixerInfo 'AddPlayable') @(0x73, 'PlayableInfo::.ctor(AnimationActionHandle,Playable,MixerInfo,Int32)')) -and
+    (HasSequence (Declared $mixerInfo 'AddPlayableFromCache') @(0x6F, 'PlayableInfo::Reset(AnimationActionHandle)'))) 'MMR-01 (PR-3 R1-F1) trace 2: the stationary clip becomes one PlayableInfo (MixerInfo.AddPlayable constructs it, or AddPlayableFromCache Resets a cached one) held in local 1 of the seven-argument AddAnimationClip; with an off-hand clip, local 1 is the AnimationComposition'
+# 3. The same object becomes the handle's ActiveAnimation and the ActiveAnimations entry.
+$activeBacking = $handleType.GetField('<ActiveAnimation>k__BackingField', $any)
+Check ((HasSequence (Declared $nativeAnimation 'AddAnimationClip' 7) @(0x03, 0x07, 0x6F, 'AnimationActionHandle::set_ActiveAnimation(AnimationBase)')) -and
+    (HasSequence (Declared $nativeAnimation 'AddAnimationClip' 7) @(0x02, 0x7B, 'AnimationManager::m_ActiveAnimations', 0x03, 0x6F, 'AnimationActionHandle::get_ActiveAnimation()', 0x6F, 'List`1::Add*')) -and
+    (HasSequence (Declared $handleType 'get_ActiveAnimation') @(0x02, 0x7B, 'AnimationActionHandle::<ActiveAnimation>k__BackingField', 0x2A)) -and
+    (HasSequence (Declared $handleType 'set_ActiveAnimation') @(0x02, 0x03, 0x7D, 'AnimationActionHandle::<ActiveAnimation>k__BackingField', 0x2A)) -and $null -ne $activeBacking) 'MMR-01 (PR-3 R1-F1) trace 3: the seven-argument AddAnimationClip stores local 1 with handle.set_ActiveAnimation and then adds handle.get_ActiveAnimation (a plain backing-field read of that value) to m_ActiveAnimations: one object in both places'
+# 4. The concrete GetWeight.
+Check ((HasSequence (Declared $playableInfo 'GetWeight') @(0x02, 0x7B, 'PlayableInfo::m_Weight', 0x2A)) -and (HasSequence (Declared $playableInfo 'SetWeight') @(0x02, 0x03, 0x7D, 'PlayableInfo::m_Weight', 0x2A)) -and
+    (HasSequence (Declared $composition 'GetWeight') @(0x7B, 'AnimationComposition::m_PlayableInfos', 0x16, 0x6F, 'List`1::get_Item*', 0x6F, 'AnimationBase::GetWeight()', 0x2A)) -and
+    (HasSequence (Declared $composition 'SetWeight') @(0x6F, 'List`1::get_Item*', 0x03, 0x6F, 'AnimationBase::SetWeight(Single)'))) 'MMR-01 (PR-3 R1-F1) trace 4: PlayableInfo.GetWeight returns m_Weight (SetWeight writes only m_Weight); AnimationComposition.GetWeight returns its first PlayableInfo''s weight and SetWeight writes every PlayableInfo'
+# 5. Initialization, transition writes, and the weight's relation to the graph contribution.
+$multiplierCallers = @()
+$setMultiplier = Declared $playableInfo 'SetWeightMultiplier'
+foreach ($t in $game.GetTypes()) { foreach ($m in @($t.GetMethods($declared)) + @($t.GetConstructors($declared))) { $b = $null; try { $b = $m.GetMethodBody() } catch { }; if ($null -eq $b) { continue }; $il = $b.GetILAsByteArray()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq $setMultiplier.MetadataToken) { $multiplierCallers += ($t.Name + '::' + $m.Name) } } } }
+Check ((HasSequence (Declared $playableInfo 'Reset') @(0x02, 0x22, 0x00, 0x00, 0x80, 0x3F, 0x7D, 'PlayableInfo::m_WeightMultiplier', 0x02, 0x22, 0x00, 0x00, 0x00, 0x00, 0x7D, 'PlayableInfo::m_Weight')) -and
+    (HasSequence (Declared $playableInfo '.ctor') @(0x02, 0x03, 0x28, 'PlayableInfo::Reset(AnimationActionHandle)')) -and $multiplierCallers.Count -eq 0 -and
+    (HasSequence (Declared $playableInfo 'GetAdjustedWeight') @(0x02, 0x7B, 'PlayableInfo::m_Weight', 0x02, 0x7B, 'PlayableInfo::m_WeightMultiplier', 0x5A, 0x2A)) -and
+    (HasSequence $updateInternal @(0x02, 0x04, 0x07, 0x5A, 0x6F, 'AnimationBase::SetWeight(Single)')) -and
+    (HasSequence $updateInternal @(0x02, 0x17, 0x28, 'AnimationBase::set_State(AnimationState)', 0x02, 0x04, 0x6F, 'AnimationBase::SetWeight(Single)')) -and
+    (HasSequence (Declared $mixerInfo 'NormalizeWeights') @(0x6F, 'PlayableInfo::GetAdjustedWeight()', 0x13, 0x05, 0x11, 0x05, 0x22, 0x00, 0x00, 0x00, 0x00, 0x36)) -and
+    (HasSequence (Declared $mixerInfo 'NormalizeWeights') @(0x7B, 'PlayableInfo::InputIndex', 0x11, 0x05, 0x28, 'PlayableExtensions::SetInputWeight*'))) ('MMR-01 (PR-3 R1-F1) trace 5: PlayableInfo.Reset (from the constructor and cache reuse) writes m_WeightMultiplier = 1 and m_Weight = 0; no installed method calls SetWeightMultiplier (' + $multiplierCallers.Count + ' callers); UpdateInternal writes SetWeight(w * t / TransitionIn) while transitioning in and SetWeight(w) when Playing; MixerInfo.NormalizeWeights sets the input weight from GetAdjustedWeight = m_Weight * m_WeightMultiplier, positive only when it is above zero: GetWeight() > 0 is exactly a positive mixer contribution of the registered clip')
 Write-Host ('Mounted alpha 2 native contract (seat) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
