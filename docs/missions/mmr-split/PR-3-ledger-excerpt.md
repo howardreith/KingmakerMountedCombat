@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T06:10:32+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T06:36:01+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -19,7 +19,17 @@ SHA-256 `a93b5547a53f07dec2dfb6d63a212ffe5e9e3d03257316ad47a49050c33af7b2`
 ```
 SHA-256 `be84f5fd85902372a3793dc231b1285d0d6bc8d710e7f43c85aca7b4e077c03e`
 
+```json
+{"candidate": "bbb0eeb6bcec63808753a071876764034a7baa41", "child_rounds": "1 of 3 used", "decision": "changes_required", "findings": ["R1-F1", "R1-F2", "R1-F3", "R1-F4", "R1-F5"], "kind": "review_result", "pr": "PR-3", "prev_sha256": "be84f5fd85902372a3793dc231b1285d0d6bc8d710e7f43c85aca7b4e077c03e", "program_rounds": "18 of 25 lifetime (11 of 18 allocated child reviews)", "round": 1, "seq": 37, "utc": "2026-11-26T06:36:01+00:00"}
+```
+SHA-256 `bea278943dff6e518f04f508b59e0d5a9d8a751a1e02eb742c65547728d39909`
+
+```json
+{"budget": "budget record read at 2026-11-26T06:36:01Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 95.87 of 150 min; remaining 54.13 min; entries 109 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-horse-seat that regenerates docs/missions/mmr-split/PR-3-ledger-excerpt.md with this entry", "child_rounds": "1 of 3 used", "kind": "pre_review_check", "pr": "PR-3", "prev_sha256": "bea278943dff6e518f04f508b59e0d5a9d8a751a1e02eb742c65547728d39909", "program_rounds": "18 of 25 lifetime (11 of 18 allocated child reviews)", "round": 2, "seq": 38, "utc": "2026-11-26T06:36:01+00:00"}
+```
+SHA-256 `aac97d8ef9049aa7671198d9a2e311d812b37f7cf6a06500939af5d65c93f339`
+
 Applicable limits: seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`). It raised the shared validation allowance from 90 to 150 minutes
 and set the program to 18 allocated child reviews / 25 lifetime; PR-3 keeps 3 rounds. The hash-pinned mission still states the
-earlier limits (the owner said not to rewrite it for the numbers). The last entry is the round-1 check for the candidate adding this file.
+earlier limits (the owner said not to rewrite it for the numbers). Seq 36 is the round-1 check, seq 37 the round-1 result; the last entry is the round-2 check for the candidate adding this version.
