@@ -105,12 +105,23 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 8 (2026-11-26, scope freeze)
+
+- **Full outcome and timing.** `Test.ps1 -SkipBuild` exits with a dedicated code (51417, `$KmcReceiptRefusedExitCode` in
+  `LoaderInputStamp.ps1`) when the receipt refuses reuse before any work. `Test-Tiers.ps1` reads that exit code at its
+  child-call boundary: such a Full attempt only heartbeats and is charged, leaving Full history unchanged (established,
+  or unknown). Every other step outcome, including a Full run whose work started and then failed, records its measured
+  duration, which governs later admission. The round-7 rule (record only after success) is replaced.
+- **Receipt counted once in Full estimates.** For Full, the receipt check stays a visible plan line ("timed within FULL
+  umbrella") but adds no estimate of its own; a missing standalone receipt duration no longer makes a known Full
+  estimate unknown. Fast and Candidate keep the separately timed receipt step.
+
 ## Review round 7 (2026-11-25, scope freeze)
 
 - **Windows filename semantics.** The archived comparisons match the inherited MSBuild files with case-insensitive exact
   Git pathspecs (`:(icase)Directory.Build.props`, `:(icase)Directory.Build.targets`, and the `tools/` pair for the
   observer), so a differently capitalized committed file is detected; main-only reuse still ignores the `tools/` pair.
-- **Full history.** The round-6 `-Failed` history switch is removed. `Test-Tiers.ps1` records the Full umbrella's
+- **Full history** (replaced in round 8). The round-6 `-Failed` history switch is removed. `Test-Tiers.ps1` records the Full umbrella's
   duration only after the umbrella succeeds; a refused or failed Full attempt only heartbeats and is charged through its
   entry, so the Full duration stays established or unknown. The receipt is still checked once.
 - **Tier-selection fixture.** `Test-TierSelection.ps1` copies the real `LoaderInputStamp.ps1` (no tracing stub), creates
