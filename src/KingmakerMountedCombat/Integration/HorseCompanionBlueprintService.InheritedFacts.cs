@@ -124,11 +124,14 @@ namespace KingmakerMountedCombat.Integration
             var now = UnityEngine.Time.realtimeSinceStartup;
             if (now < nextTripRepairRequestCheck) { return; }
             nextTripRepairRequestCheck = now + 2f;
-            var files = new HorseTripRepairFiles(RepairDirectory?.Invoke());
-            if (!files.FolderPresent) { return; }
+            var directory = RepairDirectory?.Invoke();
             HorseTripRepairDecision decision;
-            var host = new TripRepairFileHost(this, files);
-            try { decision = HorseTripRepairPolicy.Process(host, TripRepairAdmitted(), tripRepairSession); }
+            TripRepairFileHost host = null;
+            try
+            {
+                decision = HorseTripRepairPolicy.ProcessFolder(directory, files => host = new TripRepairFileHost(this, files),
+                    TripRepairAdmitted(), tripRepairSession);
+            }
             catch (Exception exception)
             {
                 if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair request (kept; retried later)", exception);
@@ -136,11 +139,11 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             tripRepairFailureReported = false;
-            if (decision == HorseTripRepairDecision.NoRequest || decision == HorseTripRepairDecision.Pending) { return; }
+            if (host == null || decision == HorseTripRepairDecision.NoRequest || decision == HorseTripRepairDecision.Pending) { return; }
             var notice = decision + ":" + host.RequestText;
             if (decision != HorseTripRepairDecision.Apply && string.Equals(notice, lastTripRepairNotice, StringComparison.Ordinal)) { return; }
             lastTripRepairNotice = notice;
-            logger.Info("KMC Horse Trip repair request: decision=" + decision + "; folder=" + files.Directory +
+            logger.Info("KMC Horse Trip repair request: decision=" + decision + "; folder=" + directory +
                 (decision == HorseTripRepairDecision.HorseNotLoaded ? " (request kept until that horse is loaded in the party)" : string.Empty) +
                 "; result=" + (host.Result ?? "<kept>") + ".");
         }
@@ -183,30 +186,25 @@ namespace KingmakerMountedCombat.Integration
                 return loaded ? TripRepairCandidates(horse) : new List<Feature>();
             }
 
-            // PR-4 review R1-F2: an unavailable collection is not proof of absence.
-            public bool StillPresent(Feature fact)
+            // PR-4 reviews R1-F2/R2-F1: the live collection (an unavailable one throws: it is not proof of absence).
+            private IEnumerable<Feature> ReadFeatures()
             {
                 var features = horse?.Descriptor?.Progression?.Features;
                 if (features == null) throw new InvalidOperationException("The horse's feature collection is unavailable.");
-                return features.Enumerable.Contains(fact);
+                return features.Enumerable;
             }
 
-            // Removes exactly this fact instance and proves it: one candidate fewer and one fact fewer, or it throws.
-            public void Remove(Feature fact)
+            // The native boundary alone; every check is HorseTripRemoval's classification after it returns or throws.
+            private void NativeRemove(Feature fact) => horse.Descriptor.Progression.Features.RemoveFact(fact);
+
+            // Removes this one instance and classifies the result; an application is counted only for an exact removal.
+            public HorseTripRemovalResult RemoveExactly(Feature fact)
             {
-                var features = horse.Descriptor.Progression.Features;
-                var factsBefore = features.Enumerable.Count();
-                var before = TripRepairCandidates(horse).Count;
-                features.RemoveFact(fact);
-                var after = TripRepairCandidates(horse).Count;
-                var factsAfter = features.Enumerable.Count();
-                owner.TripRepairAppliedCount += features.Enumerable.Contains(fact) ? 0 : 1;
-                if (after != before - 1 || factsAfter != factsBefore - 1 || features.Enumerable.Contains(fact))
-                    throw new HorseTripRemovalIntegrityException("The requested TrippingBite was not removed exactly (candidates " + before + "->" + after +
-                        ", features " + factsBefore + "->" + factsAfter + ").");
-                owner.logger.Info("Removed the inherited stock TrippingBite from the KMC Horse at the owner's request (MMR-06): horse=" +
-                    horse.UniqueId + "; name=" + horse.CharacterName + "; candidates " + before + "->" + after + "; features " +
-                    factsBefore + "->" + factsAfter + ".");
+                var removal = HorseTripRemoval.RemoveExactly(fact, ReadFeatures, NativeRemove);
+                if (removal.Outcome == HorseTripRemovalOutcome.Removed) owner.TripRepairAppliedCount++;
+                owner.logger.Info("KMC Horse Trip repair removal (MMR-06): horse=" + horse?.UniqueId + "; name=" + horse?.CharacterName +
+                    "; outcome=" + removal.Outcome + "; " + removal.Detail + ".");
+                return removal;
             }
 
             public void Claim() => files.Claim();
@@ -219,7 +217,7 @@ namespace KingmakerMountedCombat.Integration
                 files.WriteResult(result);
             }
 
-            public void Close(bool claimed, string suffix) => files.Close(claimed, suffix);
+            public bool Close(bool claimed, string suffix, string boundIdentity) => files.Close(claimed, suffix, boundIdentity);
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 
 namespace KingmakerMountedCombat.Domain
 {
@@ -128,7 +129,7 @@ namespace KingmakerMountedCombat.Domain
                 host.WriteResult("Interrupted: a claimed request for horse " + (claimedId ?? "<unreadable>") + " did not finish in this game " +
                     "session, so KMC made no further change. Check that horse in game (a bite hit followed by a Trip means the fact is still " +
                     "there) and write a new request if you still want it removed.");
-                host.Close(true, InterruptedSuffix);
+                host.Close(true, InterruptedSuffix, claimIdentity);
                 return HorseTripRepairDecision.Interrupted;
             }
             // No claim file: any record of an earlier claim of this process is stale.
@@ -144,6 +145,16 @@ namespace KingmakerMountedCombat.Domain
             if (!host.TryReadClaim(out text, out identity)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
             session.Owns(identity);
             return DecideClaimed(host, session, text);
+        }
+
+        // The poll (PR-4 review R1-F1): no folder (an unbound guarded run, or a missing user-data folder) means no request and no
+        // claim recovery: nothing is read, renamed or written. Otherwise the folder's request lifecycle is processed.
+        public static HorseTripRepairDecision ProcessFolder<TFact>(string directory, Func<HorseTripRepairFiles, IHorseTripRepairHost<TFact>> hostFor,
+            bool gateAdmitted, HorseTripRepairSession session) where TFact : class
+        {
+            var files = new HorseTripRepairFiles(directory);
+            if (!files.FolderPresent) return HorseTripRepairDecision.NoRequest;
+            return Process(hostFor(files), gateAdmitted, session);
         }
 
         // Every selection and disposition from the claimed file's bytes (review R5-F1); only reached for an Undecided claim.
@@ -164,47 +175,42 @@ namespace KingmakerMountedCombat.Domain
                         SupersededSuffix);
                     return Publish(host, session);
                 case HorseTripRepairDecision.Apply:
-                    var fact = candidates[0];
-                    Exception removalFailure = null;
-                    try { host.Remove(fact); }
-                    catch (Exception exception) { removalFailure = exception; }
-                    // PR-4 review R1-F2: the adapter's exact-delta check failed (more than the requested fact changed): that integrity
-                    // failure is the terminal outcome, whatever the target's presence; no further deletion under this claim.
-                    if (removalFailure is HorseTripRemovalIntegrityException)
+                    // PR-4 reviews R1-F2/R2-F1: one classified removal (HorseTripRemoval.RemoveExactly): the horse's feature identities are
+                    // captured before the native removal and the collection is classified after it, on a normal return and on an exception.
+                    var removal = host.RemoveExactly(candidates[0]);
+                    switch (removal.Outcome)
                     {
-                        session.Decide(HorseTripRepairDecision.Uncertain, "Failed: removing the TrippingBite from horse " + horseId +
-                            " did not change exactly that one fact (" + removalFailure.Message + "). KMC made no further change and will not retry " +
-                            "this request; reload a save made before it if the horse is not as expected.", UncertainSuffix);
-                        return Publish(host, session);
-                    }
-                    bool stillPresent;
-                    try { stillPresent = host.StillPresent(fact); }
-                    catch (Exception verification)
-                    {
-                        // PR-4 review R1-F2: the removal's outcome cannot be verified: terminal, never another selection or removal.
-                        session.Decide(HorseTripRepairDecision.Uncertain, "Uncertain: a removal of the TrippingBite from horse " + horseId +
-                            " was attempted but its result could not be verified (" + verification.Message + "). KMC made no further change and will " +
-                            "not retry this request; check the horse in game and write a new request if the fact is still there.", UncertainSuffix);
-                        return Publish(host, session);
-                    }
-                    if (stillPresent)
-                    {
-                        // Not removed (failed, or returned without effect): still Undecided, so nothing is reported as applied.
-                        if (host.ReleaseClaim()) session.Clear();
-                        else
-                        {
-                            session.Decide(HorseTripRepairDecision.Superseded, "Superseded: removing the TrippingBite from horse " + horseId +
-                                " failed with nothing changed, and a newer request was written meanwhile, so this one was set aside; the newer " +
-                                "request is processed on its own.", SupersededSuffix);
+                        case HorseTripRemovalOutcome.Removed:
+                            // Exactly the requested instance is gone, every other feature is still there (also when native removal then
+                            // threw): frozen as applied before any reporting.
+                            session.Decide(HorseTripRepairDecision.Apply, AppliedResult(horseId), AppliedSuffix);
                             Publish(host, session);
-                        }
-                        if (removalFailure != null) throw removalFailure;
-                        throw new InvalidOperationException("The Horse Trip repair removal returned without removing the fact.");
+                            return HorseTripRepairDecision.Apply;
+                        case HorseTripRemovalOutcome.Unchanged:
+                        case HorseTripRemovalOutcome.NotAttempted:
+                            // Verified nothing changed (or nothing was attempted): still Undecided, so the request returns for a retry, or is
+                            // set aside unchanged for a newer request through the existing supersession path.
+                            if (host.ReleaseClaim()) session.Clear();
+                            else
+                            {
+                                session.Decide(HorseTripRepairDecision.Superseded, "Superseded: removing the TrippingBite from horse " + horseId +
+                                    " failed with nothing changed, and a newer request was written meanwhile, so this one was set aside; the newer " +
+                                    "request is processed on its own.", SupersededSuffix);
+                                Publish(host, session);
+                            }
+                            if (removal.NativeFailure != null) throw removal.NativeFailure;
+                            throw new InvalidOperationException("The Horse Trip repair removal returned without removing the fact.");
+                        case HorseTripRemovalOutcome.Inconsistent:
+                            session.Decide(HorseTripRepairDecision.Uncertain, "Failed: removing the TrippingBite from horse " + horseId +
+                                " did not change exactly that one fact (" + removal.Detail + "). KMC made no further change and will not retry " +
+                                "this request; reload a save made before it if the horse is not as expected.", UncertainSuffix);
+                            return Publish(host, session);
+                        default:
+                            session.Decide(HorseTripRepairDecision.Uncertain, "Uncertain: a removal of the TrippingBite from horse " + horseId +
+                                " was attempted but its result could not be verified (" + removal.Detail + "). KMC made no further change and will " +
+                                "not retry this request; check the horse in game and write a new request if the fact is still there.", UncertainSuffix);
+                            return Publish(host, session);
                     }
-                    // Verified removed (also when Remove threw after completing): frozen as applied before any reporting.
-                    session.Decide(HorseTripRepairDecision.Apply, AppliedResult(horseId), AppliedSuffix);
-                    Publish(host, session);
-                    return HorseTripRepairDecision.Apply;
                 case HorseTripRepairDecision.Malformed:
                     session.Decide(decision, "Refused: the request must contain exactly one line of the form horse=<UniqueId> (copy it from the " +
                         "KMC log line 'KMC Horse Trip repair candidate'); blank lines and lines starting with # are ignored. Nothing was changed.",
@@ -237,7 +243,9 @@ namespace KingmakerMountedCombat.Domain
             }
             if (session.Stage == HorseTripClaimStage.Reported)
             {
-                host.Close(true, session.Suffix);
+                // PR-4 review R1-F4: only the bytes bound to this decision receive its suffix. When the claim file was replaced after
+                // the decision, Close leaves the replacement in place for its own (interrupted) disposition and archives nothing here.
+                host.Close(true, session.Suffix, session.Identity);
                 session.Advance(HorseTripClaimStage.Archived);
             }
             session.Clear();
@@ -258,6 +266,16 @@ namespace KingmakerMountedCombat.Domain
         // stranded claims are touched).
         public static string SelectFolder(bool automationRun, bool isolatedRootBound, string dataParent) =>
             automationRun && !isolatedRootBound ? null : Folder(dataParent);
+
+        // PR-4 review R1-F1 (round 3): the repository's guarded launches. The KMC runtime host (-kmcRuntimeRequest) and the
+        // observer-only control (-kmcObserverRequest, with no KMC automation host) are both guarded runs: neither may touch the
+        // player's repair folder unless a run-owned isolated root is bound. Exact, ordinal argument names, as both launchers match.
+        public const string RuntimeRequestArgument = "-kmcRuntimeRequest";
+        public const string ObserverRequestArgument = "-kmcObserverRequest";
+
+        public static bool IsGuardedLaunch(bool automationHostPresent, string[] arguments) =>
+            automationHostPresent || (arguments != null && Array.Exists(arguments, argument =>
+                string.Equals(argument, RuntimeRequestArgument, StringComparison.Ordinal) || string.Equals(argument, ObserverRequestArgument, StringComparison.Ordinal)));
     }
 
     // Review R7-F5: the stages of this process's claim. Only Undecided may select candidates or mutate a horse.
@@ -278,6 +296,9 @@ namespace KingmakerMountedCombat.Domain
 
         // This process renamed the request to the claim and has not yet archived, returned or abandoned it.
         public bool HoldsClaim => Stage != HorseTripClaimStage.None;
+
+        // PR-4 review R1-F4: the SHA-256 of the claim bytes this decision is bound to (null until the bytes were read).
+        public string Identity => Stage == HorseTripClaimStage.None || bytesUnknown ? null : claimText;
 
         // A decided claim whose reporting has not finished (1 or 0).
         public int PendingReports => Stage == HorseTripClaimStage.Decided || Stage == HorseTripClaimStage.Reported ? 1 : 0;
@@ -320,10 +341,92 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
-    // PR-4 review R1-F2: thrown by a host whose removal changed more than the requested fact.
-    public sealed class HorseTripRemovalIntegrityException : InvalidOperationException
+
+    // PR-4 reviews R1-F2/R2-F1: the classified outcome of one native removal of one fact instance.
+    public enum HorseTripRemovalOutcome
     {
-        public HorseTripRemovalIntegrityException(string message) : base(message) { }
+        // The collection could not be read before the removal: nothing was attempted.
+        NotAttempted,
+        // Exactly the requested instance is gone and every other captured feature is still present.
+        Removed,
+        // The collection holds exactly the captured features: nothing changed.
+        Unchanged,
+        // Anything else (the target and a neighbour gone, or the target present with another change): terminal.
+        Inconsistent,
+        // The collection could not be read after the removal: terminal.
+        Unreadable
+    }
+
+    public struct HorseTripRemovalResult
+    {
+        public HorseTripRemovalResult(HorseTripRemovalOutcome outcome, Exception nativeFailure, string detail)
+        {
+            Outcome = outcome; NativeFailure = nativeFailure; Detail = detail;
+        }
+
+        public HorseTripRemovalOutcome Outcome { get; }
+        // The native removal's own exception, if it threw (preserved for the retry path and the log).
+        public Exception NativeFailure { get; }
+        public string Detail { get; }
+    }
+
+    public static class HorseTripRemoval
+    {
+        // Captures the feature identities, calls the native removal, and classifies the collection afterwards by reference identity,
+        // on a normal return and on an exception alike. The caller supplies the read of the live collection (throwing when it is
+        // unavailable) and the native removal itself; no check runs inside the native call.
+        public static HorseTripRemovalResult RemoveExactly<T>(T target, Func<IEnumerable<T>> readFeatures, Action<T> nativeRemove) where T : class
+        {
+            if (target == null) throw new ArgumentNullException(nameof(target));
+            List<T> before;
+            try { before = Snapshot(readFeatures()); }
+            catch (Exception unreadable) { return new HorseTripRemovalResult(HorseTripRemovalOutcome.NotAttempted, unreadable, "the features could not be read before removal: " + unreadable.Message); }
+            Exception nativeFailure = null;
+            try { nativeRemove(target); }
+            catch (Exception exception) { nativeFailure = exception; }
+            List<T> after;
+            try { after = Snapshot(readFeatures()); }
+            catch (Exception unreadable)
+            {
+                return new HorseTripRemovalResult(HorseTripRemovalOutcome.Unreadable, nativeFailure,
+                    "the features could not be read after removal: " + unreadable.Message + Native(nativeFailure));
+            }
+            return new HorseTripRemovalResult(Classify(before, target, after), nativeFailure,
+                "features " + before.Count + "->" + after.Count + Native(nativeFailure));
+        }
+
+        // By reference: Removed only when after is exactly before without one occurrence of the target and holds no other copy of it.
+        public static HorseTripRemovalOutcome Classify<T>(IList<T> before, T target, IList<T> after) where T : class
+        {
+            if (SameMultiset(before, after)) return HorseTripRemovalOutcome.Unchanged;
+            var expected = new List<T>(before);
+            var index = expected.FindIndex(item => ReferenceEquals(item, target));
+            if (index < 0) return HorseTripRemovalOutcome.Inconsistent;
+            expected.RemoveAt(index);
+            return SameMultiset(expected, after) && !after.Any(item => ReferenceEquals(item, target))
+                ? HorseTripRemovalOutcome.Removed : HorseTripRemovalOutcome.Inconsistent;
+        }
+
+        private static List<T> Snapshot<T>(IEnumerable<T> features) where T : class
+        {
+            if (features == null) throw new InvalidOperationException("The horse's feature collection is unavailable.");
+            return features.ToList();
+        }
+
+        private static bool SameMultiset<T>(IList<T> first, IList<T> second) where T : class
+        {
+            if (first.Count != second.Count) return false;
+            var remaining = new List<T>(second);
+            foreach (var item in first)
+            {
+                var index = remaining.FindIndex(other => ReferenceEquals(other, item));
+                if (index < 0) return false;
+                remaining.RemoveAt(index);
+            }
+            return true;
+        }
+
+        private static string Native(Exception failure) => failure == null ? string.Empty : "; native removal threw " + failure.GetType().Name + ": " + failure.Message;
     }
 
     public interface IHorseTripRepairHost<TFact> where TFact : class
@@ -333,15 +436,16 @@ namespace KingmakerMountedCombat.Domain
         bool TryReadClaim(out string text, out string identity);
         // The exact candidates on the loaded horse with this UniqueId; loaded is false when no such horse is loaded.
         IList<TFact> CandidatesOf(string horseId, out bool loaded);
-        // Throws when the presence cannot be established (an unavailable collection is not "absent"; PR-4 review R1-F2).
-        bool StillPresent(TFact fact);
-        void Remove(TFact fact);
+        // PR-4 reviews R1-F2/R2-F1: removes this one instance through HorseTripRemoval.RemoveExactly and reports its classified
+        // outcome; the integration counts an application only for Removed.
+        HorseTripRemovalResult RemoveExactly(TFact fact);
         void Claim();
         // Returns the claim to the request name; false (claim kept) when a newer request exists.
         bool ReleaseClaim();
         void WriteResult(string result);
-        // Renames the claim (claimed) or the request to request + suffix.
-        void Close(bool claimed, string suffix);
+        // Renames the claim (claimed) or the request to request + suffix. With a bound identity, only those exact claim bytes are
+        // archived (PR-4 review R1-F4); false means the claim file held other bytes, which were left for their own disposition.
+        bool Close(bool claimed, string suffix, string boundIdentity);
     }
 
     // The request lifecycle's files, all in the KMC user-data folder the composition root supplies (beside, never inside, the
@@ -413,12 +517,42 @@ namespace KingmakerMountedCombat.Domain
         public void WriteResult(string result) =>
             File.WriteAllText(ResultPath, DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture) + "\r\n" + result + "\r\n");
 
-        public void Close(bool claimed, string suffix)
+        // Test hook (PR-4 review R1-F4): invoked after a bound claim was moved to its staging name and before its bytes are verified.
+        public Action BeforeCloseVerify { get; set; }
+
+        public bool Close(bool claimed, string suffix, string boundIdentity)
+        {
+            if (!claimed || boundIdentity == null)
+            {
+                File.Move(claimed ? ClaimPath : RequestPath, ArchiveTarget(suffix));
+                return true;
+            }
+            // PR-4 review R1-F4: the claim is first moved atomically to a staging name of its own (whatever bytes occupy the claim name
+            // now), then those staged bytes are verified against the decision's identity; only a match receives the decision's suffix.
+            // Other bytes go back to the claim name (or, if a newer claim already holds it, to an interrupted archive), so they keep
+            // their own conservative disposition and are never archived under this decision.
+            var staging = ClaimPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + ".closing";
+            File.Move(ClaimPath, staging);
+            BeforeCloseVerify?.Invoke();
+            string identity;
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                identity = BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(staging))).Replace("-", string.Empty);
+            if (string.Equals(identity, boundIdentity, StringComparison.Ordinal))
+            {
+                File.Move(staging, ArchiveTarget(suffix));
+                return true;
+            }
+            try { File.Move(staging, ClaimPath); }
+            catch (IOException) when (File.Exists(ClaimPath) && File.Exists(staging)) { File.Move(staging, ArchiveTarget(HorseTripRepairPolicy.InterruptedSuffix)); }
+            return false;
+        }
+
+        private string ArchiveTarget(string suffix)
         {
             var target = RequestPath + suffix;
             if (File.Exists(target))
                 target = RequestPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + suffix;
-            File.Move(claimed ? ClaimPath : RequestPath, target);
+            return target;
         }
     }
 }

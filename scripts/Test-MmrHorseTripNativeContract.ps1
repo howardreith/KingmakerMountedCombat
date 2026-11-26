@@ -222,7 +222,7 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
         }
     }
 }
-Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.Remove') ('the only fact removal in the Horse service is the owner-request host (' + ($removers -join ', ') + ')')
+Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.NativeRemove') ('the only fact removal in the Horse service is the owner-request host''s native boundary, classified by HorseTripRemoval.RemoveExactly (' + ($removers -join ', ') + ')')
 $policy = KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy'
 Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('FolderName').GetRawConstantValue() -ceq 'KingmakerMountedCombat' -and $null -eq $policy.GetField('CandidateReportFileName')) 'the owner-facing request file and user-data folder names; no candidate report file (candidates are logged only)'
 # Review R4-F6: no file is written into the Mods tree. The request lives in <persistence data parent>/KingmakerMountedCombat (the composition
@@ -235,6 +235,7 @@ $userData = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolat
 $folderOf = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('Folder')
 $selectFolder = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('SelectFolder')
 $isIsolated = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('IsIsolated', $any).GetGetMethod($true)
+$isGuarded = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('IsGuardedLaunch')
 function CallsAny([Type]$Type, [Reflection.MethodBase]$Target) {
     foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
         foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
@@ -257,11 +258,15 @@ foreach ($t in @($root) + @($root.GetNestedTypes($any))) {
             try { $member = $m.Module.ResolveMember([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
             if ($member -eq $selectFolder) { $seen.select = $true } elseif ($member -eq $isIsolated) { $seen.isolated = $true }
             elseif ($member -eq $userData) { $seen.parent = $true } elseif ($member -eq $automationField) { $seen.automation = $true }
+            elseif ($member -eq $isGuarded) { $seen.guarded = $true }
         }
-        if ($seen.Count -eq 4) { $selectors.Add($t.Name + '.' + $m.Name) }
+        if ($seen.Count -eq 5) { $selectors.Add($t.Name + '.' + $m.Name) }
     }
 }
 Check ($selectors.Count -eq 1 -and -not (CallsAny $root $folderOf)) ('the composition root selects the repair folder in one method from runtimeAutomation, NativePersistenceIsolation.IsIsolated and UserDataParent through SelectFolder (' + ($selectors -join ', ') + ')')
+$observerArgs = [string[]]@('Kingmaker.exe', '-applaunch', '640820', '-kmcObserverRequest', 'C:\evidence\observer-request.json', '-kmcObserverToken', 't', '-kmcObserverRequestSha256', 'AB')
+Check ([bool]$isGuarded.Invoke($null, @($false, $observerArgs)) -and [bool]$isGuarded.Invoke($null, @($false, [string[]]@('Kingmaker.exe', '-kmcRuntimeRequest', 'r.json'))) -and
+    -not [bool]$isGuarded.Invoke($null, @($false, [string[]]@('Kingmaker.exe', '-applaunch', '640820')))) 'PR-4 R1-F1 (round 3): the compiled classification calls the observer-only control (-kmcObserverRequest, no KMC host) and a hostless -kmcRuntimeRequest guarded; an ordinary Steam launch is not'
 Check ($null -eq $selectFolder.Invoke($null, @($true, $false, 'C:\player')) -and $selectFolder.Invoke($null, @($true, $true, 'C:\run')) -ceq 'C:\run\KingmakerMountedCombat' -and
     $selectFolder.Invoke($null, @($false, $false, 'C:\player')) -ceq 'C:\player\KingmakerMountedCombat') 'a guarded run without a bound isolated root has no repair folder; an isolated run uses its own data parent; ordinary play the player''s'
 $fileCalls = New-Object 'System.Collections.Generic.List[string]'

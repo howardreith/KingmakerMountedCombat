@@ -78,8 +78,11 @@ namespace KingmakerMountedCombat
                 // under a guarded run), never in the Mods tree (review R4-F6).
                 horseCompanion.InheritedFactRepairAllowed = () => MountedWorldWriteGate.Allows(IsEnabled, persistence.SaveSuspended,
                     persistence.AreaTransitionPending, persistence.CombatRestorationPending, persistence.ActiveSaveWorkerRunning, persistence.LoadInFlight);
-                // PR-4 review R1-F1: a guarded run without a bound isolated root touches no repair file.
-                horseCompanion.RepairDirectory = () => HorseTripRepairPaths.SelectFolder(runtimeAutomation != null,
+                // PR-4 review R1-F1: a guarded run without a bound isolated root touches no repair file. A guarded run is the KMC
+                // runtime host or the repository's observer-only control (-kmcObserverRequest with no KMC automation host).
+                var launchArguments = Environment.GetCommandLineArgs();
+                horseCompanion.RepairDirectory = () => HorseTripRepairPaths.SelectFolder(
+                    HorseTripRepairPaths.IsGuardedLaunch(runtimeAutomation != null, launchArguments),
                     NativePersistenceIsolation.IsIsolated, NativePersistenceIsolation.UserDataParent);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
