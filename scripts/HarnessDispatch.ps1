@@ -5,9 +5,16 @@
 $script:harnessOnly = $null
 $script:harnessMatched = 0
 
-function Initialize-HarnessSelection([string]$Only) {
-    $script:harnessOnly = if ([string]::IsNullOrEmpty($Only)) { $null } else { $Only }
+# PR-5 review R5-F3: omission (not -Supplied) selects every case; a supplied but empty name is refused before any case runs.
+function Initialize-HarnessSelection([string]$Only, [switch]$Supplied) {
+    if ($Supplied -and [string]::IsNullOrEmpty($Only)) { throw '-Only was supplied without a case name (omit it to run every case)' }
+    $script:harnessOnly = if ($Supplied) { $Only } else { $null }
     $script:harnessMatched = 0
+}
+
+# PR-5 review R5-F2: the legacy Horse case's compiled binding check reads the product its caller selected.
+function Get-HarnessBindingContractArguments([string]$Contract, [string]$Configuration) {
+    , @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Contract, '-Configuration', $Configuration)
 }
 
 function Test-HarnessSelected([string]$Name) {

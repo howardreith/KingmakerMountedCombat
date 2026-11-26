@@ -8378,11 +8378,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                 $outcome.attackAnimationHandleCreated -ne $true -or $outcome.attackAnimationActed -ne $true -or
                 $outcome.attackAnimationFinished -ne $true -or $outcome.attackAnimationInterrupted -ne $false -or
                 # PR-5 review R3-F2: the observed handle's source must be the exact stock adoption or KMC supply, and its facts readable.
-                # Round 5: the format is identified first. A current outcome carries the observed-Bite fields introduced with these proofs
-                # (attackAnimationObservation, attackAnimationHandleRegistered) and must carry both the observed source and the
-                # readability field; only a supported historical outcome (neither observed-Bite field) is judged on the fields it has.
-                (($null -ne $outcome.PSObject.Properties['attackAnimationObservation'] -or
-                    $null -ne $outcome.PSObject.Properties['attackAnimationHandleRegistered']) -and
+                # Round 6: the supported historical field sets are identified explicitly. An outcome carrying none of the current-only
+                # fields (attackAnimationObservation, attackAnimationHandleRegistered, attackAnimationRegisteredSource,
+                # attackAnimationFactsUnreadable, horseBiteTerminal) is historical (with or without its source) and judged on the fields
+                # it has; any other shape, including a partially stripped current one, must carry both the observed source and the
+                # readability field.
+                (@(@('attackAnimationObservation','attackAnimationHandleRegistered','attackAnimationRegisteredSource','attackAnimationFactsUnreadable','horseBiteTerminal') |
+                    Where-Object { $null -ne $outcome.PSObject.Properties[$_] }).Count -gt 0 -and
                     ($null -eq $outcome.PSObject.Properties['attackAnimationHandleSource'] -or
                     $null -eq $outcome.PSObject.Properties['attackAnimationFactsUnreadable'])) -or
                 ($null -ne $outcome.PSObject.Properties['attackAnimationHandleSource'] -and
@@ -8792,6 +8794,15 @@ function Assert-KmcMountPreambleEvidence {
         throw 'Narrow Mount preamble evidence changed while being validated.'
     }
 }
+# PR-5 review R5-F1: the permitted Horse primary handle transitions for one command. Observed is the handle seen at the strike, Last
+# the latest registration; Created/Adopted are that command's own creations and adoptions. A stock adoption can only stay stock; a
+# supplied Bite (refreshed to stock or not) needs a supply by that command.
+function Test-KmcHorseHandleTransition([string]$Observed, [string]$Last, [long]$Created, [long]$Adopted) {
+    if ($Observed -cnotin @('stock-created','kmc-supplied') -or $Last -cnotin @('stock-created','kmc-supplied')) { return $false }
+    if ($Observed -ceq 'stock-created') { return $Last -ceq 'stock-created' -and $Adopted -ge 1 }
+    return $Created -ge 1
+}
+
 function Assert-KmcHorseNativeControlsUxEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -9068,11 +9079,12 @@ function Assert-KmcHorseNativeControlsUxEvidence {
                     [long]$o.mountedHorseAnimation.horsePrimaryHandleAdoptCount -ne 2 -or
                 [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
                 [long]$o.mountedHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
-                # PR-5 review R4-F2: the outcome's source is the handle observed at its own strike; the snapshot's is the latest
-                # registration, which a legitimate refresh (KMC-supplied, then the stock handle of the same action) changes after the
-                # strike. Each is validated as its own observation; they are not required to be equal.
-                [string]$o.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource -cnotin @('stock-created','kmc-supplied') -or
-                [string]$o.mountedHorseAnimation.lastHorsePrimaryHandleSource -cnotin @('stock-created','kmc-supplied')) {
+                # PR-5 reviews R4-F2/R5-F1: the outcome's source is the handle observed at its own strike, the snapshot's the latest
+                # registration (a legitimate refresh, KMC-supplied then the stock handle of the same action, changes it after the
+                # strike). The pair must be a permitted transition for that command's own counts: TB from its snapshot, RT from the
+                # difference of the cumulative RT and TB snapshots.
+                -not (Test-KmcHorseHandleTransition ([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource) ([string]$o.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource) ([long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount) ([long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount)) -or
+                -not (Test-KmcHorseHandleTransition ([string]$o.mountedHorseOutcome.attackAnimationHandleSource) ([string]$o.mountedHorseAnimation.lastHorsePrimaryHandleSource) ([long]$o.mountedHorseAnimation.horsePrimaryHandleCreateCount - [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount) ([long]$o.mountedHorseAnimation.horsePrimaryHandleAdoptCount - [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount))) {
                 throw 'PASS Horse native animation did not prove one exact TB and one exact RT stock-adopted or KMC-supplied handle.'
             }
         }

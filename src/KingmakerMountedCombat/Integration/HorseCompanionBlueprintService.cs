@@ -694,15 +694,18 @@ namespace KingmakerMountedCombat.Integration
             // After the Ranger selection exists: the bond reads its group and mode.
             RegisterDivineMountReported(library);
             logger.Info("Riding Dog selections: Ranger + " + string.Join(",", ridingDogSelections.Select(pair => pair.Key.name)) + "; failure=" + (ridingDogFailure ?? "none") + ".");
-            string error;
-            if (!ApplySelectionDesired(out error))
-            {
-                throw new InvalidOperationException(error);
-            }
-            ValidateRegisteredContract(library);
-            // PR-5 review R4-F3: the classifier's registered Bite identity is published only once Horse registration has succeeded
-            // (after the selection transaction and the registered-contract check); a failed registration never publishes it.
-            RegisteredBiteGuid = biteGuid;
+            CompleteRegistration(bite, () => { string error; return ApplySelectionDesired(out error) ? null : error; }, () => ValidateRegisteredContract(library));
+        }
+
+        // PR-5 review R4-F3: the registration's finalization step. The selection transaction and the registered-contract check run
+        // first; only when both succeed is the captured Bite's identity published for the classifier. A late failure throws before
+        // publication (Register's caller then rolls back), so the classifier never sees an identity of a failed registration.
+        internal void CompleteRegistration(BlueprintItemWeapon capturedBite, Func<string> applySelection, Action validateContract)
+        {
+            var error = applySelection();
+            if (!string.IsNullOrEmpty(error)) throw new InvalidOperationException(error);
+            validateContract();
+            RegisteredBiteGuid = capturedBite.AssetGuid;
         }
 
         private void RemoveRidingDog(LibraryScriptableObject library)

@@ -1,12 +1,19 @@
 [CmdletBinding()]
 # PR-5 review R4-F1: -Only runs exactly one named case (invocation-scoped; see scripts/HarnessDispatch.ps1). Without it every case runs.
-param([string]$Only)
+# PR-5 review R5-F2: -Configuration selects the product the compiled checks read (Release by default, as standalone use expects).
+param([string]$Only, [ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 
+# PR-5 review R5-F3: a supplied but empty -Only is refused at the script boundary, before any setup or case.
+if ($PSBoundParameters.ContainsKey('Only') -and [string]::IsNullOrEmpty($Only)) {
+    Write-Host 'FAIL harness selection: -Only was supplied without a case name (omit it to run every case)'
+    Write-Host 'TOTAL PASS=0 FAIL=1'
+    exit 1
+}
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'HarnessDispatch.ps1')
-Initialize-HarnessSelection $Only
+Initialize-HarnessSelection $Only -Supplied:($PSBoundParameters.ContainsKey('Only'))
 
 $repoRoot = Get-KmcRepositoryRoot
 $currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
@@ -10498,7 +10505,8 @@ try {
         $bindingContract = Join-Path $PSScriptRoot 'Test-MountedAlpha2BiteContract.ps1'
         # A PowerShell 7 parent's module path breaks a Windows PowerShell child's autoload (as in the focused wrappers).
         $savedModulePath = $env:PSModulePath; $env:PSModulePath = $null
-        try { $bindingLines = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bindingContract 2>&1 | ForEach-Object { [string]$_ }); $bindingExit = $LASTEXITCODE }
+        $bindingArguments = Get-HarnessBindingContractArguments $bindingContract $Configuration
+        try { $bindingLines = @(& powershell.exe @bindingArguments 2>&1 | ForEach-Object { [string]$_ }); $bindingExit = $LASTEXITCODE }
         finally { $env:PSModulePath = $savedModulePath }
         foreach ($required in @('PASS two Bite actions: the fallback assigns nothing', 'PASS the same genuine handle is recorded exactly once',
                 'PASS a genuine handle from another animation manager is refused')) {
@@ -11423,6 +11431,39 @@ try {
         try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
         catch { $threw = $true }
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
+        $nativeArtifact.observations.mountedTurnHorseOutcome.attackAnimationHandleCreated = $true
+
+        # PR-5 reviews R4-F2/R5-F1: the complete reader on the handle-source transitions. A KMC-supplied Bite observed at its strike
+        # whose registration then refreshed to the stock handle of the same action (one supply for that command, latest registration
+        # stock) passes, for TB and for RT (RT counts are the difference of the cumulative snapshots). A stock adoption reported as a
+        # later supply (stock-to-supplied) and a claimed supply with zero creations for the command are rejected.
+        $setTransition = { param([string]$Observed, [string]$Last, [int]$Created, [int]$Adopted, [int]$RtCreated, [int]$RtAdopted)
+            $nativeArtifact.observations.mountedTurnHorseOutcome.attackAnimationHandleSource = $Observed
+            $nativeArtifact.observations.mountedHorseOutcome.attackAnimationHandleSource = $Observed
+            $nativeArtifact.observations.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount = $Created
+            $nativeArtifact.observations.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount = $Adopted
+            $nativeArtifact.observations.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource = $Last
+            $nativeArtifact.observations.mountedHorseAnimation.horsePrimaryHandleCreateCount = $RtCreated
+            $nativeArtifact.observations.mountedHorseAnimation.horsePrimaryHandleAdoptCount = $RtAdopted
+            $nativeArtifact.observations.mountedHorseAnimation.lastHorsePrimaryHandleSource = $Last
+            Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact
+            $nativeRecord.length=(Get-Item -LiteralPath $nativePath).Length
+            $nativeRecord.sha256=(Get-KmcSha256 $nativePath)
+            [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+            $script:nativeManifestNow = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        }
+        $readerAccepts = { $ok = $true; try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $script:nativeManifestNow -Status PASS -SubscenarioResults @($nativeSubresult) } catch { $ok = $false }; $ok }
+        & $setTransition 'kmc-supplied' 'stock-created' 1 0 2 0
+        Assert-Test (& $readerAccepts) 'Horse native-controls UX validator rejected a KMC-supplied Bite whose registration refreshed to the stock handle of the same action'
+        & $setTransition 'stock-created' 'stock-created' 0 1 0 2
+        Assert-Test (& $readerAccepts) 'Horse native-controls UX validator rejected the historical stock adoption'
+        & $setTransition 'stock-created' 'kmc-supplied' 0 1 0 2
+        Assert-Test (-not (& $readerAccepts)) 'Horse native-controls UX validator accepted a stock adoption that became a supply'
+        & $setTransition 'kmc-supplied' 'stock-created' 0 1 0 2
+        Assert-Test (-not (& $readerAccepts)) 'Horse native-controls UX validator accepted a claimed supply with zero creations for the command'
+        & $setTransition 'unrecorded' 'stock-created' 0 1 0 2
+        Assert-Test (-not (& $readerAccepts)) 'Horse native-controls UX validator accepted an unrecorded observation'
+        & $setTransition 'stock-created' 'stock-created' 0 1 0 2
     }
 
     Invoke-HarnessTest 'narrow Mount preamble validator binds the staged click and refuses a widened run' {
