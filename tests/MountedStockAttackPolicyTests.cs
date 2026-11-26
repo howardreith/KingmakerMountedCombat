@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
+            runner.Run("MMR-01 (R5-F3/F4, R7-F2/F3): the Horse seat settles once on a freshly evaluated, rest-eligible, stable normalized pose; unevaluated or ineligible spans consume nothing; a confirmed reference is final", AnimatedSaddleSettledHorseSeat);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -423,6 +424,102 @@ namespace KingmakerMountedCombat.Tests
                 var repeat = saddle.Project(sample);
                 TestRunner.True((repeat - projected).Magnitude < 0.00001f, "Repeated phase accumulated translation.");
             }
+        }
+
+        private static void AnimatedSaddleSettledHorseSeat()
+        {
+            // Synthetic mount-root-local normalized samples (not measurements). Each frame carries the three separate facts the
+            // adapter supplies (reviews R5-F4, R7-F2, R7-F3): the freshly evaluated animation advance (0 = not evaluated or not
+            // advancing), rest eligibility (native idle stage) and the sample, whose stability the sampler judges itself.
+            const float dt = 1f / 60f;
+            var idle = new PoseVector3(-0.19f, 0.78f, 0.02f);
+            var cast = new PoseVector3(-0.05f, 1.03f, 0.13f);
+            PoseVector3 Breathe(PoseVector3 pose, int frame) => pose + new PoseVector3(0f, 0.0003f * (float)Math.Sin(frame * 0.35), 0f);
+            SettledSeatSampler Run(Func<int, PoseVector3> pose, Func<int, float> advance, Func<int, bool> rest, int frames, out int settledFrame, out int noticeCount)
+            {
+                var sampler = new SettledSeatSampler(); settledFrame = -1; noticeCount = 0;
+                for (var frame = 1; frame <= frames; frame++)
+                {
+                    var outcome = sampler.Observe(pose(frame), advance(frame), rest(frame));
+                    if (outcome == SeatSampleOutcome.Settled) TestRunner.True(settledFrame < 0, "Settled twice.");
+                    if (outcome == SeatSampleOutcome.Settled) settledFrame = frame;
+                    if (outcome == SeatSampleOutcome.Unsettled) noticeCount++;
+                }
+                return sampler;
+            }
+            bool Close(PoseVector3 x, PoseVector3 y) => (x - y).Magnitude < 0.0005f;
+            bool Exact(PoseVector3 x, PoseVector3 y) => (x - y).Magnitude < 0.000001f;
+            int at, notices;
+            var longFrames = (int)(31.5f / dt);
+            // R7-F2: a completely stationary evaluated idle is a positive case: it settles once, exactly, after the minimum time.
+            var still = Run(f => idle, f => dt, f => true, 600, out at, out notices);
+            TestRunner.True(still.Settled && Exact(still.SettledSample, idle) && !still.Observing && notices == 0 &&
+                still.AnimationSecondsToSettle >= SettledSeatSampler.MinimumAnimationSeconds - 0.0001f, "A stationary idle did not settle on itself.");
+            // Stable idle variation (breathing) settles on its mean; cumulative drift (1.5 mm per frame) does not settle while drifting.
+            var breathing = Run(f => Breathe(idle, f), f => dt, f => true, 600, out at, out notices);
+            TestRunner.True(breathing.Settled && Close(breathing.SettledSample, idle), "A breathing idle did not settle on its mean.");
+            var drift = Run(f => f <= 180 ? idle + new PoseVector3(0f, 0.0015f * (180 - f), 0f) : idle, f => dt, f => true, 600, out at, out notices);
+            TestRunner.True(drift.Settled && at > 180 && Close(drift.SettledSample, idle), "Drift settled before the pose was still.");
+            // R5-F4: 31.5 s without evaluation (advance 0) at a high pose consumes nothing; once evaluation returns, a fresh window
+            // settles on idle like the control, with no unsettled notice (no evaluated time passed).
+            var unevaluated = Run(f => f <= longFrames ? cast : idle, f => f <= longFrames ? 0f : dt, f => true, longFrames + 400, out at, out notices);
+            TestRunner.True(unevaluated.Settled && at > longFrames && unevaluated.IgnoredFrames == longFrames && notices == 0 &&
+                Exact(unevaluated.SettledSample, still.SettledSample), "Unevaluated frames consumed the calibration or the resumed idle did not match.");
+            // R5-F4: 31.5 s of evaluated but ineligible pose (a cast) logs one unsettled notice and is not exhausted: the resting idle
+            // afterwards settles on idle.
+            var ineligible = Run(f => f <= longFrames ? Breathe(cast, f) : idle, f => dt, f => f > longFrames, longFrames + 400, out at, out notices);
+            TestRunner.True(ineligible.Settled && at > longFrames && notices == 1 && ineligible.IneligibleFrames == longFrames &&
+                Exact(ineligible.SettledSample, still.SettledSample), "An ineligible span exhausted the calibration or settled on the cast.");
+            // A stable cast held still but ineligible never settles on the cast.
+            var heldCast = Run(f => cast, f => dt, f => false, 600, out at, out notices);
+            TestRunner.True(!heldCast.Settled && heldCast.Observing, "An ineligible held pose settled.");
+            // R7-F3: once confirmed, the reference is final: later frames (action poses or even eligible different poses) are not observed.
+            var confirmed = Run(f => f <= 300 ? idle : f <= 360 ? cast : f <= 420 ? new PoseVector3(-0.1f, 0.90f, 0.05f) : idle, f => dt, f => f <= 300 || f > 360, 600, out at, out notices);
+            TestRunner.True(confirmed.Settled && at <= 300 && Exact(confirmed.SettledSample, idle) && !confirmed.Observing, "A confirmed resting reference was replaced.");
+            // A window is consecutive: an interruption by an ineligible or unevaluated frame starts a fresh window.
+            var interrupted = Run(f => idle, f => f == 100 ? 0f : dt, f => f != 130, 400, out at, out notices);
+            TestRunner.True(interrupted.Settled && at >= 130 + (int)(SettledSeatSampler.StableWindowSeconds / dt), "A window spanned an interruption (settled at " + at + ").");
+            // Paused frames (no advance) never count.
+            var paused = Run(f => f <= 120 ? cast : idle, f => f <= 120 ? 0f : dt, f => true, 600, out at, out notices);
+            TestRunner.True(paused.Settled && paused.IgnoredFrames == 120 && Exact(paused.SettledSample, idle), "A paused pose settled.");
+            var nan = new SettledSeatSampler();
+            TestRunner.True(nan.Observe(new PoseVector3(float.NaN, 0f, 0f), dt, true) == SeatSampleOutcome.None && nan.Frames == 0, "A non-finite sample was counted.");
+            // PR-3 review R1-F3: a non-finite frame inside a nearly complete high window breaks it: a brief return to the high pose cannot
+            // settle it; a later full stationary-idle window does.
+            var broken = new SettledSeatSampler();
+            var nanHigh = new PoseVector3(0f, 1.25f, 0f); var nanIdle = new PoseVector3(0f, 0.95f, 0f);
+            var t = 0;
+            for (; t * dt < SettledSeatSampler.MinimumAnimationSeconds; t++) broken.Observe(new PoseVector3(0f, 1.25f + 0.05f * (t % 2), 0f), dt, true);
+            var nearlyComplete = (int)((SettledSeatSampler.StableWindowSeconds - 0.0625f) / dt);   // without the break, the brief return below would complete it
+            for (var k = 0; k < nearlyComplete; k++) broken.Observe(nanHigh, dt, true);
+            broken.Observe(new PoseVector3(float.NaN, 0f, 0f), 0f, true);
+            var brief = 0;
+            for (var k = 0; k < (int)(0.125f / dt) + 1 && !broken.Settled; k++, brief++) broken.Observe(nanHigh, dt, true);
+            var settledHigh = broken.Settled;
+            for (var k = 0; k < (int)(SettledSeatSampler.StableWindowSeconds / dt) + 4 && !broken.Settled; k++) broken.Observe(nanIdle, dt, true);
+            TestRunner.True(!settledHigh && broken.Settled && (broken.SettledSample - nanIdle).Magnitude < 0.0001f,
+                "A non-finite frame did not break the open window (settledHigh " + settledHigh + ", settled " + broken.Settled + ").");
+            // R5-F3: the normalized sample removes the Chest displacement at attachment.
+            var anchorRelation = MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset;
+            var riderLocalPelvis = new PoseVector3(0f, 0.95f, 0f);
+            var chestNow = new PoseVector3(0f, 1.50f, 0.47f);
+            PoseVector3 Sample(float chestHeightAtAttach, out PoseVector3 raw)
+            {
+                var chestAtAttach = new PoseVector3(0f, chestHeightAtAttach, 0.47f);
+                var anchor = chestAtAttach + anchorRelation;
+                var pelvis = anchor + riderLocalPelvis;
+                raw = pelvis - chestNow;
+                return AnimatedSaddleCalibration.NormalizedSeatFromSource(anchor - chestAtAttach, pelvis, anchor);
+            }
+            PoseVector3 rawHigh, rawLow;
+            var high = Sample(1.56f, out rawHigh); var low = Sample(1.46f, out rawLow);
+            TestRunner.True((high - low).Magnitude < 0.00001f && (rawHigh - rawLow).Magnitude > 0.09f,
+                "The normalized sample kept the attachment-time Chest height.");
+            var line = AnimatedSaddleCalibration.FormatNotice("settled", "rider-1", idle, idle, MountedRiderPoseProfiles.HorseAnimatedSeatCorrection, 46,
+                2.5f, anchorRelation);
+            TestRunner.True(line.Contains("phase=settled") && line.Contains("observedSeatFromSource=(-0.1900,0.7800,0.0200)") &&
+                line.Contains("appliedSeatFromSource=") && line.Contains("anchorFromSource=") && line.Contains("seatCorrection=") &&
+                line.Contains("frames=46") && line.Contains("animationSeconds=2.500"), "The seat line lost a field: " + line);
         }
 
         private static void AnimatedSaddleCleanup()
