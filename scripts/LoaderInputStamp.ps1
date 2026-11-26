@@ -7,6 +7,9 @@
 # produced (both shipping DLLs and the component runner). Reuse is refused when the receipt is missing or any of them
 # differs, so a replaced or removed output, a replaced runner or a changed source cannot be reused.
 Set-StrictMode -Version Latest
+# Exit code of Test.ps1 -SkipBuild when the receipt refuses reuse before any build or test work starts. The Full tier
+# reads it at its child-call boundary: that attempt is charged but leaves the recorded Full duration unchanged.
+$script:KmcReceiptRefusedExitCode = 51417
 function Get-KmcBuildOutputPaths([string]$RepositoryRoot, [string]$Configuration) {
     return @(
         (Join-Path $RepositoryRoot "bin\$Configuration\KingmakerMountedCombat.dll"),

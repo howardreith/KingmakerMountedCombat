@@ -14,9 +14,11 @@ if (-not $SkipBuild) {
     & (Join-Path $PSScriptRoot 'Build-Local.ps1') -Configuration $Configuration
 }
 else {
-    # Reused outputs are admitted only against the receipt their build wrote, before any runner starts.
+    # Reused outputs are admitted only against the receipt their build wrote, before any runner starts. A refusal here
+    # exits with the dedicated receipt-refused code, so a caller can tell that no work started.
     . (Join-Path $PSScriptRoot 'LoaderInputStamp.ps1')
-    Assert-KmcLoaderInputStamp $repoRoot $Configuration
+    try { Assert-KmcLoaderInputStamp $repoRoot $Configuration }
+    catch { Write-Host ('ERROR: ' + $_.Exception.Message); exit $script:KmcReceiptRefusedExitCode }
 }
 
 $runner = Join-Path $repoRoot "bin\Tests\$Configuration\KingmakerMountedCombat.Tests.exe"

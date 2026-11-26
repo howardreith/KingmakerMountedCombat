@@ -309,6 +309,42 @@ try {
         $afterStale | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $historyBudget -Encoding UTF8
         $fullShort = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-history')
         $fullShortScans = & $scanCount
+        # The successful Full run above recorded its measured duration.
+        $fullRecord = Get-Content -LiteralPath (Join-Path $budgetRoot 'fixture-full.json') -Raw | ConvertFrom-Json
+        $successDuration = if ($null -ne $fullRecord.stepHistory -and $null -ne $fullRecord.stepHistory.PSObject.Properties['FULL umbrella (scripts/Test.ps1)']) { [double]$fullRecord.stepHistory.'FULL umbrella (scripts/Test.ps1)'.seconds } else { -1 }
+        # R7-F1: Full work starts and then fails. The instrumented Test.ps1 passes the receipt check, records that it
+        # started, works for about two seconds and fails. The attempt is charged, its measured cost is recorded, and an
+        # identical retry with less remaining allowance than that cost is refused before any receipt scan or work.
+        $startedMarker = Join-Path $temp 'full-work-started.txt'
+        [IO.File]::WriteAllText($testScript, $testText.Replace('& $runner', "[IO.File]::AppendAllText('$($startedMarker.Replace("'", "''"))', ""started`r`n""); Start-Sleep -Seconds 2; Write-Host 'FIXTURE: Full work started and failed'; exit 1"))
+        $fullFailed = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-failed')
+        $fullFailedScans = & $scanCount
+        $failedRecord = Get-Content -LiteralPath (Join-Path $budgetRoot 'fixture-full-failed.json') -Raw | ConvertFrom-Json
+        $failedEntries = @($failedRecord.entries)
+        $failedCharged = if ($failedEntries.Count -eq 1 -and $null -ne $failedEntries[0].seconds) { [double]$failedEntries[0].seconds } else { -1 }
+        $failedMeasured = if ($null -ne $failedRecord.stepHistory -and $null -ne $failedRecord.stepHistory.PSObject.Properties['FULL umbrella (scripts/Test.ps1)']) { [double]$failedRecord.stepHistory.'FULL umbrella (scripts/Test.ps1)'.seconds } else { -1 }
+        $failedRecord.allowanceMinutes = [Math]::Round(($failedCharged + [Math]::Max(1, $failedMeasured / 2)) / 60, 4)
+        $failedRecord | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $budgetRoot 'fixture-full-failed.json') -Encoding UTF8
+        $fullRetry = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-failed')
+        $fullRetryScans = & $scanCount
+        $startedCount = if (Test-Path -LiteralPath $startedMarker) { @(Get-Content -LiteralPath $startedMarker | Where-Object { $_ }).Count } else { 0 }
+        [IO.File]::WriteAllText($testScript, $testText.Replace('& $runner', "Write-Host 'RUNNER BOUNDARY: the fixture stops before the component runner'; exit 0"))
+        # R7-F2: the Full receipt check is a visible prerequisite timed within the umbrella. With 120 s of standalone
+        # receipt history and 200 s of inclusive Full history, the Full estimate is 200 s: an allowance of 270 s (between
+        # 200 and the double-counted 320) admits the stub run, an allowance of 180 s refuses it; Fast and Candidate still
+        # list the receipt step with its own duration.
+        foreach ($inclusive in @(@{ Id = 'fixture-full-inclusive'; Minutes = 4.5 }, @{ Id = 'fixture-full-inclusive-low'; Minutes = 3 })) {
+            [ordered]@{ schemaVersion = 1; budgetId = $inclusive.Id; allowanceMinutes = $inclusive.Minutes; blockCeilingMinutes = 30; createdUtc = (Get-Date).ToUniversalTime().ToString('o'); entries = @()
+                stepHistory = [ordered]@{ 'reuse check' = [ordered]@{ seconds = 120; observedUtc = (Get-Date).ToUniversalTime().ToString('o') }; 'FULL umbrella (scripts/Test.ps1)' = [ordered]@{ seconds = 200; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $budgetRoot ($inclusive.Id + '.json')) -Encoding UTF8
+        }
+        $inclusivePlan = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive', '-Plan')
+        $fastPlan = Invoke-PS @('-File', $tiersScript, '-Tier', 'Fast', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive', '-Plan')
+        $candidatePlan = Invoke-PS @('-File', $tiersScript, '-Tier', 'Candidate', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive', '-Plan')
+        $null = & $scanCount
+        $inclusiveRun = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive')
+        $inclusiveRunScans = & $scanCount
+        $inclusiveLow = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive-low')
+        $inclusiveLowScans = & $scanCount
     }
     finally {
         $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot; $env:KMC_WORKFLOW_BUDGET_ENTRY = $previousEntry; $env:KMC_WORKFLOW_BUDGET_ID = $previousBudgetId
@@ -321,6 +357,14 @@ try {
     Add-Case 'full-reuse-with-old-outputs-refused-before-the-runner' ($full.ExitCode -ne 0 -and $full.Output -match 'cannot reuse these outputs' -and $full.Output -notmatch 'RUNNER BOUNDARY' -and $fullStaleScans -eq 1) ("exit $($full.ExitCode); receipt scans $fullStaleScans; " + (Get-Reason $full.Output))
     Add-Case 'first-full-receipt-refusal-charged-and-duration-left-unknown' ($fullEmpty.ExitCode -ne 0 -and $fullEmpty.Output -match 'cannot reuse these outputs' -and $fullEmpty.Output -notmatch 'RUNNER BOUNDARY' -and $fullEmptyScans -eq 1 -and $emptyEntries.Count -eq 1 -and [string]$emptyEntries[0].status -ceq 'failed' -and $emptyCharged -gt 0 -and -not $emptyHistory -and $fullEmptyPlan.Output -match 'FULL umbrella \(scripts/Test\.ps1\) \[[^\]]*\] last=unknown') ("empty Full history; refused exit $($fullEmpty.ExitCode), receipt scans $fullEmptyScans, runner boundary reached: $($fullEmpty.Output -match 'RUNNER BOUNDARY'); attempt $(if ($emptyEntries.Count) { [string]$emptyEntries[0].status + ' ' + $emptyCharged + ' s' } else { 'missing' }); Full duration recorded: $emptyHistory; later plan: " + [regex]::Match($fullEmptyPlan.Output, 'FULL umbrella \(scripts/Test\.ps1\) \[[^\]]*\] last=\S+').Value + " (plan scans $fullEmptyPlanScans)")
     Add-Case 'full-receipt-refusal-charged-and-established-duration-kept' ($staleEntries.Count -eq 1 -and [string]$staleEntries[0].status -ceq 'failed' -and $staleCharged -gt 0 -and $keptDuration -eq 600) ("seeded Full duration 600 s; refused attempt entry $(if ($staleEntries.Count) { [string]$staleEntries[0].status + ' ' + $staleCharged + ' s' } else { 'missing' }); recorded Full duration after it $keptDuration s")
+    Add-Case 'successful-full-records-its-measured-duration' ($fullCurrent.ExitCode -eq 0 -and $successDuration -gt 0) ("Full duration recorded after the successful run: $successDuration s")
+    Add-Case 'full-work-started-then-failed-is-charged-and-its-cost-recorded' ($fullFailed.ExitCode -ne 0 -and $fullFailed.Output -match 'FIXTURE: Full work started and failed' -and $fullFailedScans -eq 1 -and $failedEntries.Count -eq 1 -and [string]$failedEntries[0].status -ceq 'failed' -and $failedCharged -gt 0 -and $failedMeasured -ge 2) ("exit $($fullFailed.ExitCode); receipt scans $fullFailedScans; attempt $(if ($failedEntries.Count) { [string]$failedEntries[0].status + ' ' + $failedCharged + ' s' } else { 'missing' }); recorded Full cost $failedMeasured s")
+    Add-Case 'identical-retry-with-less-than-the-measured-cost-refused' ($fullRetry.ExitCode -ne 0 -and $fullRetry.Output -match 'refuses oversized work' -and $fullRetryScans -eq 0 -and $startedCount -eq 1) ("allowance set to spent + $([Math]::Max(1, $failedMeasured / 2)) s; exit $($fullRetry.ExitCode); receipt scans $fullRetryScans; work started $startedCount time(s) in total; " + (Get-Reason $fullRetry.Output))
+    $inclusivePlanOk = $inclusivePlan.Output -match 'estimate=200s from recorded durations' -and $inclusivePlan.Output -match 'reuse check \[receipt current: outputs reusable\] timed within FULL umbrella' -and
+        $fastPlan.Output -match 'reuse check \[receipt current: outputs reusable\] last=120s' -and $candidatePlan.Output -match 'reuse check \[receipt current: outputs reusable\] last=120s'
+    Add-Case 'full-estimate-counts-the-inclusive-duration-once' $inclusivePlanOk ("Full plan: " + [regex]::Match($inclusivePlan.Output, 'estimate=[^\r\n]*').Value + "; " + [regex]::Match($inclusivePlan.Output, 'reuse check \[[^\]]*\] [^:]*').Value.Trim() + "; Fast and Candidate list the receipt step with last=120s: $($fastPlan.Output -match 'reuse check \[[^\]]*\] last=120s')/$($candidatePlan.Output -match 'reuse check \[[^\]]*\] last=120s')")
+    Add-Case 'full-admitted-between-inclusive-and-double-counted-cost' ($inclusiveRun.ExitCode -eq 0 -and $inclusiveRun.Output -match 'RUNNER BOUNDARY' -and $inclusiveRunScans -eq 1) ("allowance 270 s; exit $($inclusiveRun.ExitCode); receipt scans $inclusiveRunScans; runner boundary reached: $($inclusiveRun.Output -match 'RUNNER BOUNDARY')" + $(if ($inclusiveRun.ExitCode) { '; ' + (Get-Reason $inclusiveRun.Output) } else { '' }))
+    Add-Case 'full-refused-below-the-inclusive-cost' ($inclusiveLow.ExitCode -ne 0 -and $inclusiveLow.Output -match 'refuses oversized work' -and $inclusiveLowScans -eq 0 -and $inclusiveLow.Output -notmatch 'RUNNER BOUNDARY') ("allowance 180 s; exit $($inclusiveLow.ExitCode); receipt scans $inclusiveLowScans; " + (Get-Reason $inclusiveLow.Output))
     Add-Case 'later-full-admission-with-less-time-than-the-established-duration-refused' ($fullShort.ExitCode -ne 0 -and $fullShort.Output -match 'refuses oversized work' -and $fullShort.Output -notmatch 'RUNNER BOUNDARY' -and $fullShortScans -eq 0) ("exit $($fullShort.ExitCode); receipt scans $fullShortScans; " + (Get-Reason $fullShort.Output))
     # The Fast reuse boundary refuses stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
