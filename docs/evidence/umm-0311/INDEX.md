@@ -1,6 +1,6 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs exported 2026-11-25 15:55 UTC for candidate commit `bad0ad0cd4ab8d274352742404c5e6684ab0643a`. Each row names what produced that output (its
+Machine-generated outputs exported 2026-11-26 02:47 UTC for candidate commit `53c987fafe86c2fb790f94899c8cafbde28f9077`. Each row names what produced that output (its
 source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
@@ -17,9 +17,12 @@ python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_
 
 | File | Produced by | Raw SHA-256 | Exported SHA-256 (Git blob) |
 | --- | --- | --- | --- |
-| `frozen-product-source-r6.log` | bad0ad0c code, run on the uncommitted batch (37/0; counted in the budget) | `3cc054e7b54026295644e084f3156aed10e39dc4e70783435639281b2745be41` | `24a9934e611d3bb2284561e7f3d49a6bfec6aedde1acce0afa0406a941372f97` |
-| `workflow-step-history-probe-r6.txt` | bad0ad0c code, run on the uncommitted batch: Update-KmcWorkflowEntry on a temporary budget root (counted in the budget) | `f1c993a8a5b33e08d821b1d85786675de45234e352b8d83373026361079ac5b9` | `9a953c6e4739d3984f41e709a40a98ccba14780f45d0f9447da8bff9054084cb` |
-| `workflow-budget-umm-0311-baseline-r6.json` | read-only copy of the lab budget record umm-0311-baseline before the round-6 gate (allowance 30.62 min unchanged; round-6 direct runs imported) | `a376bd35097b9e80920c91640404cbaf17e96ff5fbbf5f96fb6d5817ea676006` | `7cae5a570c9560ca310cb2dfeaa2f8cdf43260e61713ed6edaa6ec2bfee6c893` |
+| `frozen-product-source-r7.log` | 53c987fa code, run on the uncommitted batch (41/0; counted in the budget) | `0b8c39e69e8897ee750763fb066b21ba8f397e99ee25c374c90eaf17fbf8338e` | `e930c8d9c3e04654401984c69e8d5fa4079dca2f74b456b31f02337e6714dfbb` |
+| `tier-selection-r7.log` | 53c987fa code, run on the uncommitted batch (29/0; counted in the budget) | `6559674f9067c45d87b618d4010259900645a8ba82f7e03eafe262bdc5fe6b8d` | `cf35f5e5cd48767547b71276452b6f0d2d0dbc94fd6932e7903dfcd4b3ce1654` |
+| `workflow-budget-umm-0311-baseline-r7.json` | read-only copy of the lab budget record umm-0311-baseline before the round-7 gate (third allowance adjustment 30.62 -> 35.62 min; round-7 direct runs imported) | `ebe0e447a44c0f69db54fb0a17fd38b7f868608ea41c04c7b2c4259231341a70` | `9eb3bb8c7c0b9ae4d7cc20509f99cda6c3637c50a95661edc09d66758e50a4b4` |
+| `frozen-product-source-r6.log` | bad0ad0c (round 6; 37/0) | `3cc054e7b54026295644e084f3156aed10e39dc4e70783435639281b2745be41` (original output, from its first export) | `24a9934e611d3bb2284561e7f3d49a6bfec6aedde1acce0afa0406a941372f97` |
+| `workflow-step-history-probe-r6.txt` | bad0ad0c (round 6; the -Failed switch it probed was removed in round 7) | `f1c993a8a5b33e08d821b1d85786675de45234e352b8d83373026361079ac5b9` (original output, from its first export) | `9a953c6e4739d3984f41e709a40a98ccba14780f45d0f9447da8bff9054084cb` |
+| `workflow-budget-umm-0311-baseline-r6.json` | read-only copy before the round-6 gate (round 6) | `a376bd35097b9e80920c91640404cbaf17e96ff5fbbf5f96fb6d5817ea676006` (original output, from its first export) | `7cae5a570c9560ca310cb2dfeaa2f8cdf43260e61713ed6edaa6ec2bfee6c893` |
 | `base-game-isolation-r5.log` | d5268152 (round 5; 121/0) | `8ecb6d97c5ca190451534e4b9d7bd2caae9c34d77d7f2bdc40a66fbbc75ba401` (original output, from its first export) | `1810a5cac0af250a3720f8d022cfab7ceada3a806f6c1c62b514f57e91014de5` |
 | `chunk7-native-loader-contracts-r5.log` | d5268152 (round 5; 118/0) | `5a01b6ca9f176805c4f783069b5c7f52a746058184856ddea934a8d5bd160999` (original output, from its first export) | `5a01b6ca9f176805c4f783069b5c7f52a746058184856ddea934a8d5bd160999` |
 | `workflow-budget-umm-0311-baseline-r5.json` | read-only copy before the round-5 gate (round 5) | `6a72e301078b2baf41e2969360396c75f930c0cc1f3fd929e575e4f74755972a` (original output, from its first export) | `57362eccf5194e5a98bd793f33fe9427710f6aca755e0d6c1b57c16d6454cd9b` |
