@@ -48,6 +48,15 @@ function SetField($Target, [Type]$Type, [string]$Field, $Value) {
     $info.SetValue($Target, $Value)
 }
 $module = $game.ManifestModule
+function CallsAnyMethod([Type]$Type, [Reflection.MethodBase]$Target) {
+    foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
+        foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
+            $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray()
+            for ($i = 0; $i -le $il.Length - 5; $i++) { if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq $Target.MetadataToken) { try { if ($m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { return $true } } catch { } } }
+        }
+    }
+    $false
+}
 function MemberAt([int]$Token) { $module.ResolveMember($Token) }
 function IlTokens([Reflection.MethodBase]$Method) { $il = $Method.GetMethodBody().GetILAsByteArray(); $set = @{}; for ($i = 0; $i -le $il.Length - 4; $i++) { $set[[BitConverter]::ToInt32($il, $i)] = $true }; $set }
 # ---- 1. Installed data ---------------------------------------------------------------------------------------------
@@ -123,6 +132,8 @@ $na = New-Fact 'NaturalArmor7' @((New-Native $statBonusType))
 $td = New-Fact 'TripDefenseFourLegs' @()
 # Another mod's own bite-maneuver fact: same component, different identity (review R1-F1: not the stock grant).
 $otherTrigger = New-Native $maneuverType
+# PR-4 review R1-F6: the same installed Category and Maneuver as the stock control, so the GUID alone distinguishes it.
+$maneuverType.GetField('Category').SetValue($otherTrigger, [Enum]::ToObject($categoryType, $category))
 $maneuverType.GetField('Maneuver').SetValue($otherTrigger, [Enum]::ToObject($combatManeuverType, $maneuver))
 $other = New-Fact '0123456789abcdef0123456789abcdef' @($otherTrigger)
 $sameIdNoTrigger = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @()
@@ -134,7 +145,18 @@ $claw = New-Native $maneuverType
 $maneuverType.GetField('Category').SetValue($claw, [Enum]::Parse($categoryType, 'Claw'))
 $maneuverType.GetField('Maneuver').SetValue($claw, [Enum]::ToObject($combatManeuverType, $maneuver))
 $sameIdClaw = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($claw)
+# PR-4 review R1-F3: the stock GUID carrying the Bite/Trip component and a second effect (another mod's addition).
+$mixedTrigger = New-Native $maneuverType
+$maneuverType.GetField('Category').SetValue($mixedTrigger, [Enum]::ToObject($categoryType, $category))
+$maneuverType.GetField('Maneuver').SetValue($mixedTrigger, [Enum]::ToObject($combatManeuverType, $maneuver))
+$mixed = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($mixedTrigger, (New-Native $statBonusType))
 $stock = $service.GetMethod('IsStockTrippingBite', $any)
+Check ([object]::ReferenceEquals($otherTrigger.GetType(), $trigger.GetType()) -and $otherTrigger.Category -eq $trigger.Category -and $otherTrigger.Maneuver -eq $trigger.Maneuver) 'the foreign-GUID control carries the same installed Category (Bite) and Maneuver (Trip) as the stock control'
+Check (-not [bool]$stock.Invoke($null, @($mixed))) 'a stock-GUID feature carrying the Bite/Trip component and an additional effect is not the withheld stock grant (whole-fact treatment needs the verified one-component list)'
+$mixedDonor = [Array]::CreateInstance($unitFactType, 3); $mixedDonor.SetValue($mixed, 0); $mixedDonor.SetValue($na, 1); $mixedDonor.SetValue($td, 2)
+$mixedInherited = $service.GetMethod('HorseInheritedFacts', $any).Invoke($null, @(, $mixedDonor))
+Check ($mixedInherited.Length -eq 3 -and [object]::ReferenceEquals($mixedInherited[0], $mixed)) 'fresh construction preserves the mixed stock-GUID feature whole'
+$mixedTb = New-Fact 'f957b4444b6fb404e84ae2a5765797bb' @($trigger)
 Check ([bool]$stock.Invoke($null, @($tb)) -and -not [bool]$stock.Invoke($null, @($other)) -and -not [bool]$stock.Invoke($null, @($sameIdNoTrigger)) -and -not [bool]$stock.Invoke($null, @($sameIdDisarm)) -and -not [bool]$stock.Invoke($null, @($sameIdClaw)) -and
     -not [bool]$stock.Invoke($null, @($na)) -and -not [bool]$stock.Invoke($null, @($td)) -and -not [bool]$stock.Invoke($null, @($null))) 'only the installed stock identity with its exact Bite/Trip trigger is the withheld grant (another GUID, no trigger, Disarm or Claw are not)'
 $donor = [Array]::CreateInstance($unitFactType, 4); $donor.SetValue($tb, 0); $donor.SetValue($na, 1); $donor.SetValue($td, 2); $donor.SetValue($other, 3)
@@ -143,7 +165,15 @@ Check ($inherited.Length -eq 3 -and [object]::ReferenceEquals($inherited[0], $na
 Check ($donor.Length -eq 4 -and [object]::ReferenceEquals($donor[0], $tb)) 'the stock Mammoth array itself is not mutated'
 Check ($service.GetMethod('HorseInheritedFacts', $any).Invoke($null, @(, $null)).Length -eq 0) 'absent donor facts give none'
 # The Horse's bite/hoof limbs are not facts: CopyBody sets them independently of AddFacts (unchanged), so the bite and its damage path remain.
-Check ($null -ne $service.GetMethod('CopyBody', $any)) 'the Horse body limbs (bite, hoof, hoof) come from CopyBody, not from the filtered facts'
+$copyBody = $service.GetMethod('CopyBody', $any)
+$weaponType = GameType 'Kingmaker.Blueprints.Items.Weapons.BlueprintItemWeapon'
+$bodyType = $copyBody.GetParameters()[0].ParameterType
+$biteWeapon = New-Native $weaponType; $hoofWeapon = New-Native $weaponType
+$horseBody = $copyBody.Invoke($null, @((New-Native $bodyType), $biteWeapon, $hoofWeapon))
+$limbs = @($horseBody.AdditionalLimbs)
+Check ($limbs.Count -eq 3 -and [object]::ReferenceEquals($limbs[0], $biteWeapon) -and [object]::ReferenceEquals($limbs[1], $hoofWeapon) -and [object]::ReferenceEquals($limbs[2], $hoofWeapon) -and
+    @($horseBody.AdditionalSecondaryLimbs).Count -eq 0 -and $horseBody.DisableHands -and $null -eq $horseBody.PrimaryHand -and $null -eq $horseBody.SecondaryHand) 'the compiled CopyBody builds one bite followed by two hooves (distinct genuine weapons; hands disabled), independently of the filtered facts'
+Check (CallsAnyMethod $service $copyBody) 'the Horse construction uses that CopyBody'
 
 $liveFeatureType = GameType 'Kingmaker.UnitLogic.Feature'
 $factType = GameType 'Kingmaker.Blueprints.Facts.Fact'
@@ -172,6 +202,7 @@ $cutsceneTrip = New-LiveFeature $tb $null $null ([Runtime.Serialization.Formatte
 $otherSourceless = New-LiveFeature $other $null $null $null
 $armor = New-LiveFeature $na $null $null $null
 Check (IsCandidate $horseGuid $inheritedTrip) 'a sourceless exact stock TrippingBite on the KMC Horse is a repair candidate (reported, removed only on request)'
+Check (-not (IsCandidate $horseGuid (New-LiveFeature $mixed $null $null $null)) -and (IsCandidate $horseGuid (New-LiveFeature $mixedTb $null $null $null))) 'saved-horse repair excludes the sourceless mixed stock-GUID feature; the single-component stock control stays a candidate'
 Check (-not (IsCandidate $horseGuid $sourcedTrip) -and -not (IsCandidate $horseGuid $itemTrip) -and -not (IsCandidate $horseGuid $cutsceneTrip)) 'an independently granted copy that records a source fact, item or cutscene is never a candidate'
 Check (-not (IsCandidate $horseGuid $otherSourceless) -and -not (IsCandidate $horseGuid (New-LiveFeature $sameIdDisarm $null $null $null)) -and
     -not (IsCandidate $horseGuid (New-LiveFeature $sameIdClaw $null $null $null)) -and -not (IsCandidate $horseGuid (New-LiveFeature $sameIdNoTrigger $null $null $null)) -and
@@ -202,6 +233,8 @@ Check ($null -eq $mainType.GetProperty('ModDirectory', $any)) 'the mod folder (U
 $rootCtor = @((KmcType 'KingmakerMountedCombat.CompositionRoot').GetConstructors($any))
 $userData = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('UserDataParent', $any).GetGetMethod($true)
 $folderOf = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('Folder')
+$selectFolder = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('SelectFolder')
+$isIsolated = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('IsIsolated', $any).GetGetMethod($true)
 function CallsAny([Type]$Type, [Reflection.MethodBase]$Target) {
     foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
         foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
@@ -212,7 +245,25 @@ function CallsAny([Type]$Type, [Reflection.MethodBase]$Target) {
     $false
 }
 $root = KmcType 'KingmakerMountedCombat.CompositionRoot'
-Check ((CallsAny $root $userData) -and (CallsAny $root $folderOf)) 'the repair folder is the persistence data parent''s KingmakerMountedCombat folder (isolated parent under a guarded run)'
+# PR-4 review R1-F1: one compiled method of the composition root selects the folder from the automation host, the isolation
+# binding and the data parent; SelectFolder refuses a guarded run without a bound isolated root.
+$automationField = $root.GetField('runtimeAutomation', $any)
+$selectors = New-Object 'System.Collections.Generic.List[string]'
+foreach ($t in @($root) + @($root.GetNestedTypes($any))) {
+    foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly))) {
+        $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray(); $seen = @{}
+        for ($i = 0; $i -le $il.Length - 5; $i++) {
+            if ($il[$i] -ne 0x28 -and $il[$i] -ne 0x6F -and $il[$i] -ne 0x7B) { continue }
+            try { $member = $m.Module.ResolveMember([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
+            if ($member -eq $selectFolder) { $seen.select = $true } elseif ($member -eq $isIsolated) { $seen.isolated = $true }
+            elseif ($member -eq $userData) { $seen.parent = $true } elseif ($member -eq $automationField) { $seen.automation = $true }
+        }
+        if ($seen.Count -eq 4) { $selectors.Add($t.Name + '.' + $m.Name) }
+    }
+}
+Check ($selectors.Count -eq 1 -and -not (CallsAny $root $folderOf)) ('the composition root selects the repair folder in one method from runtimeAutomation, NativePersistenceIsolation.IsIsolated and UserDataParent through SelectFolder (' + ($selectors -join ', ') + ')')
+Check ($null -eq $selectFolder.Invoke($null, @($true, $false, 'C:\player')) -and $selectFolder.Invoke($null, @($true, $true, 'C:\run')) -ceq 'C:\run\KingmakerMountedCombat' -and
+    $selectFolder.Invoke($null, @($false, $false, 'C:\player')) -ceq 'C:\player\KingmakerMountedCombat') 'a guarded run without a bound isolated root has no repair folder; an isolated run uses its own data parent; ordinary play the player''s'
 $fileCalls = New-Object 'System.Collections.Generic.List[string]'
 foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
     foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly))) {
@@ -225,4 +276,4 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
     }
 }
 Check ($fileCalls.Count -eq 0) ('the Horse service performs no file operation of its own (' + ($fileCalls -join ', ') + ')')
-Write-Host ('Mounted alpha 2 native contract (trip) PASS=' + $script:passed + ' FAIL=0')
+Write-Host ('Mounted alpha 2 native contract (trip) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

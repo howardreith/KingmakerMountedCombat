@@ -55,8 +55,10 @@ namespace KingmakerMountedCombat.Integration
         // (review R2 R1-F1). Reference comparisons only, so a genuine blueprint is judged the same inside and outside Unity.
         internal static bool IsStockTrippingBite(BlueprintUnitFact fact) =>
             !ReferenceEquals(fact, null) && string.Equals(fact.AssetGuid, StockTrippingBiteGuid, StringComparison.Ordinal) &&
-            fact.ComponentsArray != null && fact.ComponentsArray.Any(component => component is ManeuverOnAttack maneuver &&
-                maneuver.Category == Kingmaker.Enums.WeaponCategory.Bite && maneuver.Maneuver == Kingmaker.RuleSystem.Rules.CombatManeuver.Trip);
+            // PR-4 review R1-F3: exactly the verified stock component list (one ManeuverOnAttack Bite->Trip); a feature carrying any
+            // further effect is preserved whole, since its effects cannot be separated safely.
+            fact.ComponentsArray != null && fact.ComponentsArray.Length == 1 && fact.ComponentsArray[0] is ManeuverOnAttack maneuver &&
+                maneuver.Category == Kingmaker.Enums.WeaponCategory.Bite && maneuver.Maneuver == Kingmaker.RuleSystem.Rules.CombatManeuver.Trip;
 
         // The Horse's AddFacts: the donor's facts in order, without the stock TrippingBite.
         internal static BlueprintUnitFact[] HorseInheritedFacts(BlueprintUnitFact[] donorFacts) =>
@@ -167,9 +169,9 @@ namespace KingmakerMountedCombat.Integration
                 return present;
             }
 
-            public bool TryReadClaim(out string text)
+            public bool TryReadClaim(out string text, out string identity)
             {
-                var present = files.TryReadClaim(out text);
+                var present = files.TryReadClaim(out text, out identity);
                 if (present) RequestText = text;
                 return present;
             }
@@ -181,8 +183,13 @@ namespace KingmakerMountedCombat.Integration
                 return loaded ? TripRepairCandidates(horse) : new List<Feature>();
             }
 
-            public bool StillPresent(Feature fact) => horse?.Descriptor?.Progression?.Features != null &&
-                horse.Descriptor.Progression.Features.Enumerable.Contains(fact);
+            // PR-4 review R1-F2: an unavailable collection is not proof of absence.
+            public bool StillPresent(Feature fact)
+            {
+                var features = horse?.Descriptor?.Progression?.Features;
+                if (features == null) throw new InvalidOperationException("The horse's feature collection is unavailable.");
+                return features.Enumerable.Contains(fact);
+            }
 
             // Removes exactly this fact instance and proves it: one candidate fewer and one fact fewer, or it throws.
             public void Remove(Feature fact)
@@ -195,7 +202,7 @@ namespace KingmakerMountedCombat.Integration
                 var factsAfter = features.Enumerable.Count();
                 owner.TripRepairAppliedCount += features.Enumerable.Contains(fact) ? 0 : 1;
                 if (after != before - 1 || factsAfter != factsBefore - 1 || features.Enumerable.Contains(fact))
-                    throw new InvalidOperationException("The requested TrippingBite was not removed exactly (candidates " + before + "->" + after +
+                    throw new HorseTripRemovalIntegrityException("The requested TrippingBite was not removed exactly (candidates " + before + "->" + after +
                         ", features " + factsBefore + "->" + factsAfter + ").");
                 owner.logger.Info("Removed the inherited stock TrippingBite from the KMC Horse at the owner's request (MMR-06): horse=" +
                     horse.UniqueId + "; name=" + horse.CharacterName + "; candidates " + before + "->" + after + "; features " +

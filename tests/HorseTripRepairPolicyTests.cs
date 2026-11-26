@@ -26,6 +26,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("R5-F1: a request written after the claim is a separate later request; a waiting claim yields to it unchanged", WrittenAfterClaim);
             runner.Run("R6-F4: a one-time read or lookup failure after the claim keeps this process's exact claim; the next poll applies it once", TransientFailureAfterClaim);
             runner.Run("R7-F5: a refusal, supersession or application frozen before reporting stays terminal through result-write and archive failures and candidate changes", TerminalDecisionsStayTerminal);
+            runner.Run("PR-4 R1-F1: a guarded run without an isolated root leaves the player's repair files byte-identical; isolated and ordinary runs use only their own folder", RepairFolderSelection);
+            runner.Run("PR-4 R1-F2: an unverifiable or inexact removal is terminal (one removal in total, truthful result); an exact removal that then threw is applied", UncertainRemovalIsTerminal);
+            runner.Run("PR-4 R1-F4: the claim is bound to its raw bytes; a transient observation failure keeps the frozen outcome", ClaimIdentityIsBytes);
+            runner.Run("PR-4 R1-F5: a newer request winning the return rename supersedes the waiting claim; the waiting horse is untouched", ReturnRenameRace);
         }
 
         private sealed class Fact
@@ -96,19 +100,24 @@ namespace KingmakerMountedCombat.Tests
             // Which horse each removal touched, in order (the integration logs the same horse ID at its removal).
             public readonly List<string> RemovedFrom = new List<string>();
             public bool FailRemovalBefore, FailRemovalAfter, FailClaim, FailResultWrite, FailClose;
+            // PR-4 review R1-F2: the presence read after a removal throws once; a removal that also takes a neighbouring fact.
+            public bool FailPresenceAfterRemoval, AlsoRemoveNeighbour;
+            private bool failNextPresence;
             // One-time failures armed to fire only after a successful claim rename (review R6-F4).
             public bool FailClaimReadAfterClaim, FailLookupAfterClaim;
             private bool failNextClaimRead, failNextLookup;
             public readonly List<Horse> Loaded = new List<Horse>();
             private Horse current;
 
-            public Host(Folders folders) { files = new HorseTripRepairFiles(folders.UserData); }
+            public Host(Folders folders) : this(folders.UserData) { }
+
+            public Host(string directory) { files = new HorseTripRepairFiles(directory); }
 
             public bool TryReadRequest(out string text) => files.TryReadRequest(out text);
-            public bool TryReadClaim(out string text)
+            public bool TryReadClaim(out string text, out string identity)
             {
                 if (failNextClaimRead) { failNextClaimRead = false; throw new IOException("simulated read failure of the claimed request"); }
-                return files.TryReadClaim(out text);
+                return files.TryReadClaim(out text, out identity);
             }
 
             public IList<Fact> CandidatesOf(string horseId, out bool loaded)
@@ -119,14 +128,25 @@ namespace KingmakerMountedCombat.Tests
                 return current == null ? new List<Fact>() : Candidates(current);
             }
 
-            public bool StillPresent(Fact fact) => current != null && current.Facts.Contains(fact);
+            public bool StillPresent(Fact fact)
+            {
+                if (failNextPresence) { failNextPresence = false; throw new InvalidOperationException("simulated presence read failure"); }
+                return current != null && current.Facts.Contains(fact);
+            }
 
+            // Like the integration host: removes exactly this instance and proves one candidate and one fact fewer, or throws the
+            // integrity failure.
             public void Remove(Fact fact)
             {
                 if (FailRemovalBefore) { FailRemovalBefore = false; throw new InvalidOperationException("simulated failure before removal"); }
+                var factsBefore = current.Facts.Count; var candidatesBefore = Candidates(current).Count;
                 TestRunner.True(current.Facts.Remove(fact), "The removed fact was not the horse's own instance.");
                 Removals++;
                 RemovedFrom.Add(current.Id);
+                if (FailPresenceAfterRemoval) { FailPresenceAfterRemoval = false; failNextPresence = true; }
+                if (AlsoRemoveNeighbour) { AlsoRemoveNeighbour = false; current.Facts.RemoveAt(0); }
+                if (current.Facts.Count != factsBefore - 1 || Candidates(current).Count != candidatesBefore - 1)
+                    throw new HorseTripRemovalIntegrityException("The requested TrippingBite was not removed exactly (features " + factsBefore + "->" + current.Facts.Count + ").");
                 if (FailRemovalAfter) { FailRemovalAfter = false; throw new InvalidOperationException("simulated failure after RemoveFact"); }
             }
 
@@ -520,6 +540,171 @@ namespace KingmakerMountedCombat.Tests
                 folders.Request(forA);
                 TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.HorseNotLoaded && host.Removals == 0 &&
                     folders.UserFiles().SequenceEqual(Files(Request)) && Archive(folders, Request) == forA, "A waiting claim was not returned unchanged.");
+            }
+        }
+
+        // PR-4 review R1-F1: the production folder selection (HorseTripRepairPaths.SelectFolder, the composition root's only
+        // repair-folder source) over separate player and run data parents. The player folder holds a stranded claim and an
+        // earlier result: a guarded run without a bound isolated root leaves both byte-identical (no request, no claim recovery);
+        // an isolated run processes only its own folder; ordinary play processes only the player's folder.
+        private static void RepairFolderSelection()
+        {
+            using (var player = new Folders())
+            using (var run = new Folders())
+            {
+                var playerParent = Path.GetDirectoryName(player.UserData);
+                var runParent = Path.GetDirectoryName(run.UserData);
+                var line = HorseTripRepairPolicy.FormatRequestLine("horse-1");
+                File.WriteAllText(Path.Combine(player.UserData, Claimed), line);
+                File.WriteAllText(Path.Combine(player.UserData, ResultFile), "2026-11-20 10:00:00Z\r\nApplied: an earlier result\r\n");
+                Func<string> playerDigest = () => DirectoryDigest(player.UserData);
+                var playerBefore = playerDigest();
+
+                var unbound = HorseTripRepairPaths.SelectFolder(true, false, playerParent);
+                TestRunner.True(unbound == null, "A guarded run without a bound isolated root selected a repair folder: " + unbound);
+                var guarded = new Host(unbound); guarded.Loaded.Add(LegacyHorse("horse-1")); var guardedSession = new HorseTripRepairSession();
+                for (var poll = 0; poll < 3; poll++)
+                    TestRunner.Equal(HorseTripRepairDecision.NoRequest, Run(guarded, guardedSession), "A non-isolated guarded run processed a repair file.");
+                TestRunner.True(guarded.Removals == 0 && playerDigest() == playerBefore,
+                    "A non-isolated guarded run changed the player's stranded claim or result.");
+
+                run.Request(line);
+                var isolated = HorseTripRepairPaths.SelectFolder(true, true, runParent);
+                TestRunner.Equal(run.UserData, isolated, "An isolated run did not select its own data parent's folder.");
+                var isolatedHost = new Host(isolated); var isolatedHorse = LegacyHorse("horse-1"); isolatedHost.Loaded.Add(isolatedHorse);
+                TestRunner.True(Run(isolatedHost, new HorseTripRepairSession()) == HorseTripRepairDecision.Apply && isolatedHost.Removals == 1 &&
+                    run.UserFiles().SequenceEqual(Files(Applied, ResultFile)) && playerDigest() == playerBefore,
+                    "An isolated run did not process exactly its own folder, or touched the player's.");
+                var runAfter = DirectoryDigest(run.UserData);
+
+                var ordinary = HorseTripRepairPaths.SelectFolder(false, false, playerParent);
+                TestRunner.Equal(player.UserData, ordinary, "Ordinary play did not select the player's folder.");
+                var playerHost = new Host(ordinary); playerHost.Loaded.Add(LegacyHorse("horse-1"));
+                TestRunner.True(Run(playerHost, new HorseTripRepairSession()) == HorseTripRepairDecision.Interrupted && playerHost.Removals == 0 &&
+                    player.UserFiles().SequenceEqual(Files(Interrupted, ResultFile)) && DirectoryDigest(run.UserData) == runAfter,
+                    "Ordinary play did not close only the player's own stranded claim.");
+            }
+        }
+
+        private static string DirectoryDigest(string directory)
+        {
+            using (var sha = SHA256.Create())
+                return string.Join("|", Directory.GetFiles(directory).OrderBy(path => path, StringComparer.Ordinal)
+                    .Select(path => Path.GetFileName(path) + ":" + BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(path)))).ToArray());
+        }
+
+        // PR-4 review R1-F2: a removal whose outcome cannot be verified, or which changed more than the requested fact, is a
+        // terminal Uncertain outcome: never another selection or removal under that claim, also after a reload with one candidate.
+        // Control: a removal that completed exactly and then threw is applied once.
+        private static void UncertainRemovalIsTerminal()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var uncertain = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.UncertainSuffix;
+            // Presence read fails after the removal; the horse is then reloaded under the same ID with one candidate.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                host.FailPresenceAfterRemoval = true;
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Uncertain && host.Removals == 1 && !session.HoldsClaim &&
+                    folders.UserFiles().SequenceEqual(Files(ResultFile, uncertain)) && Archive(folders, uncertain) == forA &&
+                    folders.Result().Contains("Uncertain:") && !folders.Result().Contains("Applied"),
+                    "R1-F2: an unverifiable removal was not reported as uncertain.");
+                host.Loaded.Clear(); var reloaded = LegacyHorse("horse-A"); host.Loaded.Add(reloaded);
+                for (var poll = 0; poll < 2; poll++) TestRunner.Equal(HorseTripRepairDecision.NoRequest, Run(host, session), "R1-F2: the uncertain claim was processed again.");
+                TestRunner.True(host.Removals == 1 && Candidates(reloaded).Count == 1, "R1-F2: a reloaded copy was removed after an unverifiable removal.");
+            }
+            // The same with a failed result write: the retry only reports the uncertain outcome, nothing is selected or removed again.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                host.FailPresenceAfterRemoval = true; host.FailResultWrite = true;
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && session.PendingReports == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Claimed)), "R1-F2: the uncertain outcome was not frozen before its failed report.");
+                host.Loaded.Clear(); var reloaded = LegacyHorse("horse-A"); host.Loaded.Add(reloaded);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 1 && Candidates(reloaded).Count == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(ResultFile, uncertain)) && folders.Result().Contains("Uncertain:"),
+                    "R1-F2: the retry of an uncertain outcome selected or removed again.");
+            }
+            // The removal took the target and a neighbouring fact: the host's exact-delta failure is the terminal outcome.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.AlsoRemoveNeighbour = true;
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Uncertain && folders.UserFiles().SequenceEqual(Files(ResultFile, uncertain)) &&
+                    folders.Result().Contains("Failed:") && folders.Result().Contains("not removed exactly") && !folders.Result().Contains("Applied") &&
+                    Run(host, session) == HorseTripRepairDecision.NoRequest,
+                    "R1-F2: a removal that changed more than the requested fact was not reported as an integrity failure.");
+            }
+            // Control: the removal completed exactly and a later callback threw: applied, once.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                folders.Request(forA);
+                host.FailRemovalAfter = true;
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Apply && host.Removals == 1 && Candidates(a).Count == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)), "R1-F2 control: an exact removal followed by a throw was not applied.");
+            }
+        }
+
+        // PR-4 review R1-F4: the claim is bound to its raw bytes. A decided claim replaced by the same visible line in another
+        // encoding is not this process's claim (closed as interrupted, archived byte for byte); a transient failure observing the
+        // held claim (the production read under a sharing violation) keeps the session's frozen outcome for the next poll.
+        private static void ClaimIdentityIsBytes()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(new Horse { Id = "horse-A" });
+                folders.Request(forA);
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, session)) && session.PendingReports == 1 && folders.UserFiles().SequenceEqual(Files(Claimed, ResultFile)),
+                    "R1-F4: the refusal was not frozen before its failed archive.");
+                var replacement = new System.Text.UTF8Encoding(true).GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(forA)).ToArray();
+                File.WriteAllBytes(Path.Combine(folders.UserData, Claimed), replacement);
+                TestRunner.Equal(forA, File.ReadAllText(Path.Combine(folders.UserData, Claimed)), "The replacement does not decode to the same visible line.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Interrupted && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Interrupted, ResultFile)) &&
+                    File.ReadAllBytes(Path.Combine(folders.UserData, Interrupted)).SequenceEqual(replacement) && !folders.Result().Contains("Refused:"),
+                    "R1-F4: a re-encoded replacement received the old refusal or was not archived byte for byte.");
+            }
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(new Horse { Id = "horse-A" });
+                folders.Request(forA);
+                host.FailClose = true;
+                TestRunner.True(Throws(() => Run(host, session)) && session.PendingReports == 1, "R1-F4: the refusal was not frozen.");
+                using (new FileStream(Path.Combine(folders.UserData, Claimed), FileMode.Open, FileAccess.Read, FileShare.None))
+                    TestRunner.True(Throws(() => Run(host, session)) && session.PendingReports == 1 && session.HoldsClaim,
+                        "R1-F4: a transient failure observing the held claim cleared the session.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Refused, ResultFile)) &&
+                    File.ReadAllBytes(Path.Combine(folders.UserData, Refused)).SequenceEqual(System.Text.Encoding.UTF8.GetBytes(forA)),
+                    "R1-F4: the original refusal did not survive a transient observation failure.");
+            }
+        }
+
+        // PR-4 review R1-F5: a newer request that takes the request name during the waiting claim's return rename supersedes the
+        // waiting claim; its horse loading before the next poll is never touched, and the newer request is applied once.
+        private static void ReturnRenameRace()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                folders.Request(forA);
+                host.files.BeforeReturn = () => { folders.Request(forB); host.files.BeforeReturn = null; };
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Superseded && host.Removals == 0 &&
+                    folders.UserFiles().SequenceEqual(Files(Request, Superseded, ResultFile)) && Archive(folders, Superseded) == forA &&
+                    Archive(folders, Request) == forB, "R1-F5: the return-rename collision was not recorded as supersession.");
+                var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
+                    Candidates(a).Count == 1 && Archive(folders, Applied) == forB, "R1-F5: the waiting horse was touched or the newer request not applied.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.NoRequest && host.Removals == 1 && Candidates(a).Count == 1,
+                    "R1-F5: a later poll removed from the superseded horse.");
             }
         }
 

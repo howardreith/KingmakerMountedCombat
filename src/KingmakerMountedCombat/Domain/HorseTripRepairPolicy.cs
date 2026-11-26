@@ -27,6 +27,9 @@ namespace KingmakerMountedCombat.Domain
         // Review R7-F5: a claim whose refusal or supersession was decided in this session but whose result or archive failed:
         // only the reporting is retried; candidates are never selected again and nothing is removed.
         FinishedDecided,
+        // PR-4 review R1-F2: a removal was attempted but its outcome could not be verified (the presence read failed) or the
+        // removal changed more than the requested fact: terminal; no further deletion under this claim.
+        Uncertain,
         // A claim this process does not hold (for example the game closed mid-request): nothing is removed; the owner checks the
         // horse and writes a new request.
         Interrupted,
@@ -45,6 +48,7 @@ namespace KingmakerMountedCombat.Domain
         public const string RefusedSuffix = ".refused";
         public const string InterruptedSuffix = ".interrupted";
         public const string SupersededSuffix = ".superseded";
+        public const string UncertainSuffix = ".uncertain";
         private const string RequestPrefix = "horse=";
 
         // A repair candidate: every term must hold. An independently granted copy that records its provenance (a source
@@ -108,10 +112,10 @@ namespace KingmakerMountedCombat.Domain
         {
             if (host == null) throw new ArgumentNullException(nameof(host));
             if (session == null) throw new ArgumentNullException(nameof(session));
-            string claimText;
-            if (host.TryReadClaim(out claimText))
+            string claimText, claimIdentity;
+            if (host.TryReadClaim(out claimText, out claimIdentity))
             {
-                if (session.Owns(claimText))
+                if (session.Owns(claimIdentity))
                 {
                     if (session.Stage != HorseTripClaimStage.Undecided) return Publish(host, session);
                     // Review R6-F4: this process's own undecided claim (a transient failure after the rename) is re-processed
@@ -136,9 +140,9 @@ namespace KingmakerMountedCombat.Domain
             // Recorded the moment the rename succeeded (review R6-F4): the claim is this process's, undecided, with its bytes
             // bound at the first successful read, so whatever fails before a decision the next poll re-processes exactly it.
             session.TakeUnread();
-            string text;
-            if (!host.TryReadClaim(out text)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
-            session.Owns(text);
+            string text, identity;
+            if (!host.TryReadClaim(out text, out identity)) throw new IOException("The claimed Horse Trip repair request could not be read back.");
+            session.Owns(identity);
             return DecideClaimed(host, session, text);
         }
 
@@ -164,7 +168,26 @@ namespace KingmakerMountedCombat.Domain
                     Exception removalFailure = null;
                     try { host.Remove(fact); }
                     catch (Exception exception) { removalFailure = exception; }
-                    if (host.StillPresent(fact))
+                    // PR-4 review R1-F2: the adapter's exact-delta check failed (more than the requested fact changed): that integrity
+                    // failure is the terminal outcome, whatever the target's presence; no further deletion under this claim.
+                    if (removalFailure is HorseTripRemovalIntegrityException)
+                    {
+                        session.Decide(HorseTripRepairDecision.Uncertain, "Failed: removing the TrippingBite from horse " + horseId +
+                            " did not change exactly that one fact (" + removalFailure.Message + "). KMC made no further change and will not retry " +
+                            "this request; reload a save made before it if the horse is not as expected.", UncertainSuffix);
+                        return Publish(host, session);
+                    }
+                    bool stillPresent;
+                    try { stillPresent = host.StillPresent(fact); }
+                    catch (Exception verification)
+                    {
+                        // PR-4 review R1-F2: the removal's outcome cannot be verified: terminal, never another selection or removal.
+                        session.Decide(HorseTripRepairDecision.Uncertain, "Uncertain: a removal of the TrippingBite from horse " + horseId +
+                            " was attempted but its result could not be verified (" + verification.Message + "). KMC made no further change and will " +
+                            "not retry this request; check the horse in game and write a new request if the fact is still there.", UncertainSuffix);
+                        return Publish(host, session);
+                    }
+                    if (stillPresent)
                     {
                         // Not removed (failed, or returned without effect): still Undecided, so nothing is reported as applied.
                         if (host.ReleaseClaim()) session.Clear();
@@ -229,6 +252,12 @@ namespace KingmakerMountedCombat.Domain
     {
         public static string Folder(string dataParent) =>
             string.IsNullOrEmpty(dataParent) ? null : Path.Combine(dataParent, HorseTripRepairPolicy.FolderName);
+
+        // PR-4 review R1-F1: ordinary play uses the player's data parent; a guarded automation run uses only its bound isolated
+        // data parent; an automation run without one processes no repair files at all (null: no folder, so neither requests nor
+        // stranded claims are touched).
+        public static string SelectFolder(bool automationRun, bool isolatedRootBound, string dataParent) =>
+            automationRun && !isolatedRootBound ? null : Folder(dataParent);
     }
 
     // Review R7-F5: the stages of this process's claim. Only Undecided may select candidates or mutate a horse.
@@ -265,13 +294,13 @@ namespace KingmakerMountedCombat.Domain
             Take(null); bytesUnknown = true;
         }
 
-        // Whether the claim file's bytes are exactly this process's claim. An undecided claim taken with unknown bytes adopts the
-        // bytes of its first successful read; a decided claim must match exactly.
-        public bool Owns(string text)
+        // Whether the claim file's raw bytes (their SHA-256, review PR-4 R1-F4) are exactly this process's claim. An undecided claim
+        // taken with unknown bytes adopts the identity of its first successful read; a decided claim must match exactly.
+        public bool Owns(string identity)
         {
-            if (Stage == HorseTripClaimStage.None) return false;
-            if (bytesUnknown && Stage == HorseTripClaimStage.Undecided) { claimText = text; bytesUnknown = false; return true; }
-            return string.Equals(claimText, text, StringComparison.Ordinal);
+            if (Stage == HorseTripClaimStage.None || identity == null) return false;
+            if (bytesUnknown && Stage == HorseTripClaimStage.Undecided) { claimText = identity; bytesUnknown = false; return true; }
+            return string.Equals(claimText, identity, StringComparison.Ordinal);
         }
 
         public void Decide(HorseTripRepairDecision decision, string result, string suffix)
@@ -291,12 +320,20 @@ namespace KingmakerMountedCombat.Domain
         }
     }
 
+    // PR-4 review R1-F2: thrown by a host whose removal changed more than the requested fact.
+    public sealed class HorseTripRemovalIntegrityException : InvalidOperationException
+    {
+        public HorseTripRemovalIntegrityException(string message) : base(message) { }
+    }
+
     public interface IHorseTripRepairHost<TFact> where TFact : class
     {
         bool TryReadRequest(out string text);
-        bool TryReadClaim(out string text);
+        // PR-4 review R1-F4: identity is the SHA-256 of the claim file's raw bytes (independent of text decoding).
+        bool TryReadClaim(out string text, out string identity);
         // The exact candidates on the loaded horse with this UniqueId; loaded is false when no such horse is loaded.
         IList<TFact> CandidatesOf(string horseId, out bool loaded);
+        // Throws when the presence cannot be established (an unavailable collection is not "absent"; PR-4 review R1-F2).
         bool StillPresent(TFact fact);
         void Remove(TFact fact);
         void Claim();
@@ -323,20 +360,37 @@ namespace KingmakerMountedCombat.Domain
         public string ResultPath => Path.Combine(Directory, HorseTripRepairPolicy.ResultFileName);
         public bool FolderPresent => !string.IsNullOrEmpty(Directory) && System.IO.Directory.Exists(Directory);
 
-        public bool TryReadRequest(out string text) => TryRead(RequestPath, out text);
-
-        public bool TryReadClaim(out string text) => TryRead(ClaimPath, out text);
-
-        private bool TryRead(string path, out string text)
+        public bool TryReadRequest(out string text)
         {
-            text = FolderPresent && File.Exists(path) ? File.ReadAllText(path) : null;
-            return text != null;
+            string identity;
+            return TryRead(RequestPath, out text, out identity);
+        }
+
+        public bool TryReadClaim(out string text, out string identity) => TryRead(ClaimPath, out text, out identity);
+
+        // PR-4 review R1-F4: reads the raw bytes once; absence is only a confirmed missing file or folder, every other failure
+        // propagates (a transient access error must not read as "no claim"). Text is decoded as File.ReadAllText does.
+        private bool TryRead(string path, out string text, out string identity)
+        {
+            text = null; identity = null;
+            // Not FolderPresent: Directory.Exists also answers false on an access error; only a confirmed missing folder is absence.
+            if (string.IsNullOrEmpty(Directory)) return false;
+            byte[] bytes;
+            try { bytes = File.ReadAllBytes(path); }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
+            using (var reader = new StreamReader(new MemoryStream(bytes), System.Text.Encoding.UTF8, true)) text = reader.ReadToEnd();
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                identity = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty);
+            return true;
         }
 
         // Test hooks only (review R5-F1 evidence): invoked immediately before and after the claim rename, so a test can replace
         // the request at the exact moment between observation and claim, or write a newer request after it. Unset in production.
         public Action BeforeClaim { get; set; }
         public Action AfterClaim { get; set; }
+        // Test hook (PR-4 review R1-F5): invoked between the request-name check and the return rename.
+        public Action BeforeReturn { get; set; }
 
         public void Claim()
         {
@@ -345,10 +399,14 @@ namespace KingmakerMountedCombat.Domain
             AfterClaim?.Invoke();
         }
 
+        // Returns the claim to the request name; false (claim kept) when a newer request holds that name, including one that
+        // appeared during the return itself (PR-4 review R1-F5: the non-overwriting rename's destination collision).
         public bool ReleaseClaim()
         {
             if (File.Exists(RequestPath)) return false;
-            File.Move(ClaimPath, RequestPath);
+            BeforeReturn?.Invoke();
+            try { File.Move(ClaimPath, RequestPath); }
+            catch (IOException) when (File.Exists(RequestPath) && File.Exists(ClaimPath)) { return false; }
             return true;
         }
 

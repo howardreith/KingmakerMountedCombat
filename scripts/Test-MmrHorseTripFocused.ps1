@@ -37,5 +37,5 @@ foreach($child in $children){
     & powershell.exe @arguments
     if($LASTEXITCODE -ne 0){$failed.Add($label)}
 }
-if($failed.Count -ne 0){Write-Host ('MMR-HORSE-TRIP FOCUSED FAIL: '+($failed -join ', '));exit 1}
-Write-Host ('MMR-HORSE-TRIP FOCUSED PASS ('+$children.Count+' of '+$children.Count+' children)')
+if($failed.Count -ne 0){Write-Host ('MMR-HORSE-TRIP FOCUSED FAIL: '+($failed -join ', ')+' nativeProof=false');exit 1}
+Write-Host ('MMR-HORSE-TRIP FOCUSED PASS ('+$children.Count+' of '+$children.Count+' children) nativeProof=false')
