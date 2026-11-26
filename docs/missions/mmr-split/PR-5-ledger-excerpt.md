@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T13:14:04+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T13:47:57+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -74,6 +74,16 @@ SHA-256 `1e7b91f5efcf0af14a40be76f6bdb55e1cd82b1830f934e502726df6f994b541`
 ```
 SHA-256 `7290aeb0e0f68c099de18af1394ef0f26fe50cf0977bef5191b21b25a6018c82`
 
+```json
+{"budget": "budget record read at 2026-11-26T13:35:03Z: budget mounted-alpha2-melee-pose-20261124: spent 111.62 of 150 min; remaining 38.38 min; entries 135 (running 0, interrupted 0, unreconciled 0)", "candidate": "eb35a475881fcd24fda838f119fdcce34681cfb8", "child_rounds": "3 of 4", "decision": "changes_required", "kind": "review_result", "note": "a first submission was refused before review for missing dispositions of the optional R2-F6/R2-F7 (no round used); resubmitted with deferred_optional citing the owner instruction", "open_blocking": ["R2-F2 (carried)", "R2-F3 (carried, evidence_gap)", "R3-F1", "R3-F2", "R3-F3", "R3-F4", "R3-F5", "R3-F6"], "open_optional": ["R2-F6", "R2-F7", "R3-F7"], "pr": "PR-5", "prev_sha256": "7290aeb0e0f68c099de18af1394ef0f26fe50cf0977bef5191b21b25a6018c82", "program_rounds": "23 of 33 lifetime (16 of 26 allocated child reviews)", "resolved": ["R1-F4", "R1-F9", "R2-F1", "R2-F4", "R2-F5"], "round": 3, "seq": 56, "utc": "2026-11-26T13:35:03+00:00"}
+```
+SHA-256 `8eaf8e2f0f9030f1e9e4af60a9df97f672369d09f3c754ea0dc0b55d2ee2d1fa`
+
+```json
+{"budget": "budget record read at 2026-11-26T13:47:56Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 114.42 of 150 min; remaining 35.58 min; entries 147 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-horse-bite that regenerates docs/missions/mmr-split/PR-5-ledger-excerpt.md with this entry", "child_rounds": "3 of 4 used (round 4 is the last)", "kind": "pre_review_check", "pr": "PR-5", "prev_sha256": "8eaf8e2f0f9030f1e9e4af60a9df97f672369d09f3c754ea0dc0b55d2ee2d1fa", "program_rounds": "23 of 33 lifetime (16 of 26 allocated child reviews)", "round": 4, "seq": 57, "utc": "2026-11-26T13:47:57+00:00"}
+```
+SHA-256 `1d576f12f88c6b4d2842d99dd2e1febdb1d5131eb0b621ef7e838dd119044984`
+
 Applicable limits: seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`). It raised the shared validation allowance from 90 to 150 minutes
 (budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and set the program to 18 allocated child reviews / 25 lifetime;
@@ -82,5 +92,5 @@ for the numbers). Seq 22 is the round-1 check; seq 23 corrects its budget figure
 (recorded after the round-1 gate). Seq 25 is the round-1 result and seq 26 the round-2 check; seq 42 corrects the blocking counts
 in the final handoff (from blocks_readiness); seq 43 is the owner extension of 2026-11-26 (`docs/missions/mmr-split/owner-authorization-2026-11-26b.md`):
 PR-5 total ceiling 4, program 26 child / 33 lifetime reviews, validation unchanged at 150 minutes. Seq 52 is the resume to a ceiling
-of 4, seq 53 the authorized R1-F9 verification on b1c82f31, seq 54 the R2-F5 evidence runs; the last entry is the round-3 check for
-the candidate that adds this version.
+of 4, seq 53 the authorized R1-F9 verification on b1c82f31, seq 54 the R2-F5 evidence runs, seq 55 the round-3 check and seq 56
+the round-3 result; the last entry is the round-4 check for the candidate that adds this version.
