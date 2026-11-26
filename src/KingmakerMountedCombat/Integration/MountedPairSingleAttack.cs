@@ -33,6 +33,13 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool IsAutomaticOrigin => automaticOrigin;
 
+        // PR-1 review R3-F1/R3-F2: the order this exact wrapper served was retired before its strike was delivered. Held on the
+        // wrapper itself (released with it): a late native queue promotion is refused, and no controller collection keeps
+        // finished wrappers or their actor/target references.
+        internal bool OrderRetired { get; private set; }
+
+        internal void MarkOrderRetired() => OrderRetired = true;
+
         internal void MarkAutomaticOrigin()
         {
             automaticOrigin = true;

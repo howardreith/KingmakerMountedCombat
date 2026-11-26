@@ -20,6 +20,7 @@ $integration=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Integration'
 $commandPath=Join-Path $integration 'MountedPairAttackCommand.cs';$command=[IO.File]::ReadAllText($commandPath)
 $childPath=Join-Path $integration 'MountedPairSingleAttack.cs';$child=[IO.File]::ReadAllText($childPath)
 $patchPath=Join-Path $integration 'MountedPatchController.cs';$patch=[IO.File]::ReadAllText($patchPath)
+$controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
 $members=[ordered]@{
  'ADMISSION_ENUM'=(Extract $child 'internal enum MountedPairNativeAdmissionState')
@@ -45,6 +46,21 @@ $members=[ordered]@{
  'APPROACHING_BEFORE_ATTACK'=(ExtractRegion $command '        // PR-1 review R1-F8: also before native start' '        internal bool ValidateNativeSequenceTarget()')
  'START_CHILD'=(Extract $command 'private void StartChildAttack()')
  'OBSERVE_ADMISSION'=(Extract $command 'private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)')
+ 'ON_ACTION'=(Extract $command 'protected override ResultType OnAction()')
+ 'CONTROLLER_RETIREMENT'=(ExtractRegion $controller '        private bool RetireSupersededPlayerOrder()' '        // PR-1 review R1-F2/R3-F1: native promotion')
+ 'CONTROLLER_RETAINED_SUPERSEDED'=(ExtractExpression $controller 'private bool RetainedOrderSuperseded() =>')
+ 'CONTROLLER_ADMIT_EXPLICIT'=(Extract $controller 'internal bool AdmitQueuedExplicitRun(MountedPairSingleAttack command)')
+ 'CONTROLLER_OBSERVE_ACCEPTED'=(Extract $controller 'internal void ObserveAcceptedWork(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)')
+ 'CONTROLLER_COMMAND_NEEDS_APPROACH'=(Extract $controller 'private static bool CommandNeedsApproach(UnitCommand command)')
+ 'CONTROLLER_OWN_DELEGATED'=(ExtractExpression $controller 'internal bool IsOwnDelegatedMove(UnitCommand command) =>')
+ 'CONTROLLER_CLICK'=(ExtractRegion $controller '        internal long ForeignSelectionWriteCount' '        internal MountedRetainedOrderLedger RetainedOrder => retainedOrder;')
+ 'CONTROLLER_OWNERSHIP'=(ExtractRegion $controller '        // PR-1 review R1-F11 (round 4): ownership of each actor' '        private void ClearStockAttackIntent(string reason, bool countCancellation)')
+ 'CONTROLLER_CLEAR_INTENT'=(Extract $controller 'private void ClearStockAttackIntent(string reason, bool countCancellation)')
+ 'CONTROLLER_END_QUEUED'=(Extract $controller 'private void EndQueuedCommand(MountedPairSingleAttack command, string reason)')
+ 'CONTROLLER_INTERRUPT_OWNED'=(Extract $controller 'private void InterruptOwnedCommand(MountedPairAttackCommand command, MountedAttackEndCause cause, string reason)')
+ 'CONTROLLER_SWEEP'=(Extract $controller 'private void SweepFinishedCommand()')
+ 'CONTROLLER_PROBE'=(Extract $controller 'private bool PlannedStrikeAdmissibleNow(MountedCombatActionKind action, UnitEntityData target)')
+ 'CONTROLLER_FOLLOW_THROUGH'=(ExtractExpression $controller 'private bool FollowThroughStrikeAdmissibleNow(UnitEntityData target) =>')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)
@@ -56,7 +72,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$controllerPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

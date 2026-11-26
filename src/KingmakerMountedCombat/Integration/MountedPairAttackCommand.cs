@@ -623,14 +623,23 @@ namespace KingmakerMountedCombat.Integration
         // turned to the travel heading, native distance and command sight with the target's own blocker identity), and the nearest
         // admitted one is the goal. Native pathing finds the route; the exact native strike gate at release is unchanged.
         internal const float SightGoalArrivalMetres = 0.1f;
+        // PR-1 review R1-F7 (round 4): a goal the carrier would accept without moving (inside its arrival radius plus this margin)
+        // cannot change the rider's heading or eye; it is never chosen. A goal whose carrier ended without strike admission is
+        // excluded (with this radius), and at most MaximumFailedSightGoals alternatives are tried.
+        internal const float SightGoalMinimumTravelMetres = SightGoalArrivalMetres + 0.05f;
+        internal const float FailedSightGoalExclusionMetres = 0.25f;
+        internal const int MaximumFailedSightGoals = 3;
+        private readonly List<Vector3> failedSightGoals = new List<Vector3>();
+        private Vector3? currentSightGoal;
         internal int SightGoalCount { get; private set; }
+        internal int FailedSightGoalCount => failedSightGoals.Count;
 
         private bool TryRiderSightGoal(out Vector3 goal)
         {
             goal = default(Vector3);
             if (childAttack == null || actionActor != rider || attackTarget == null) return false;
             var reach = childAttack.PairApproachRadius;
-            if (float.IsNaN(reach) || reach <= 0f) return false;
+            if (float.IsNaN(reach) || reach <= 0f || failedSightGoals.Count >= MaximumFailedSightGoals) return false;
             var found = false; var best = float.MaxValue;
             foreach (var factor in new[] { 0.95f, 0.75f, 0.5f })
                 for (var k = 0; k < 24; k++)
@@ -641,17 +650,29 @@ namespace KingmakerMountedCombat.Integration
                     if (childAttack.EvaluateNativeAdmissionAtMountPosition(candidate, candidate - mount.Position) != MountedPairNativeAdmissionState.Admitted)
                         continue;
                     var distance = GeometryUtils.MechanicsDistance(candidate, mount.Position);
+                    if (distance <= SightGoalMinimumTravelMetres || NearFailedSightGoal(candidate)) continue;
                     if (distance < best) { best = distance; goal = candidate; found = true; }
                 }
             if (found) SightGoalCount++;
             return found;
         }
 
+        private bool NearFailedSightGoal(Vector3 candidate)
+        {
+            foreach (var failed in failedSightGoals)
+                if (GeometryUtils.MechanicsDistance(candidate, failed) <= FailedSightGoalExclusionMetres) return true;
+            return false;
+        }
+
         private UnitMoveTo NewApproachMove(float radius)
         {
             Vector3 goal;
+            currentSightGoal = null;
             if (!chargeMode && PointArrivalWithoutStrike(radius) && TryRiderSightGoal(out goal))
+            {
+                currentSightGoal = goal;
                 return new UnitMoveTo(goal, SightGoalArrivalMetres) { CreatedByPlayer = true, ShowTargetMarker = false, NeedLoS = false };
+            }
             return new UnitMoveTo(targetSnapshot, radius)
             {
                 CreatedByPlayer = true,
@@ -987,9 +1008,11 @@ namespace KingmakerMountedCombat.Integration
         internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && (transaction.State == MountedCombatTransactionState.Approaching &&
             transaction.ChildAttackStartCount == 0 || !IsStarted && (delegatedMove != null && !delegatedMove.IsFinished || nativePreStartApproaching));
 
-        // PR-1 reviews R1-F2, R1-F9, R2-F1: the strike has been DELIVERED to native (the action event fired, an attack rule was
-        // raised or an attack completed); a windup that has only begun is not released and stays cancellable.
-        internal bool StrikeReleased => IsActed || childAttack != null && (childAttack.LastAttackRule != null || GetAttackIndex() > 0);
+        // PR-1 reviews R1-F2, R1-F9, R2-F1, R1-F3: the strike has been DELIVERED to native: this wrapper's own OnAction ran (native
+        // UnitCommand.Tick calls it at the act and sets IsActed only afterwards), an attack rule was raised, or the routine advanced.
+        // IsActed alone is not delivery: UnitCommand.ForceFinish (ForceFinishForTurnBased) sets it without calling OnAction.
+        private bool strikeDelivered;
+        internal bool StrikeReleased => strikeDelivered || childAttack != null && (childAttack.LastAttackRule != null || GetAttackIndex() > 0);
 
         // PR-1 review R2-F1: set by the controller for an ordinary order: its retained generation was superseded by newer
         // accepted player work. Checked at start, before release and during windup, so an installed wrapper stops too.
@@ -1251,6 +1274,7 @@ namespace KingmakerMountedCombat.Integration
         protected override void OnTick()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            HoldClockWhileDeferred();
             try
             {
                 RequireLiveExactPair();
@@ -1337,8 +1361,11 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        // Native UnitCommand.Tick runs OnTick (where an unreleased windup is stopped by supersession or perception loss) and returns
+        // if the command finished, before it calls OnAction; reaching here is therefore the delivery itself.
         protected override ResultType OnAction()
         {
+            strikeDelivered = true;
             return base.OnAction();
         }
 
@@ -1410,11 +1437,21 @@ namespace KingmakerMountedCombat.Integration
 
         // PR-1 review R1-F4: a carrier waiting behind older work.
         private bool carrierDeferred;
-        private float deferralStartedAt, deferredSeconds;
+        private float deferralStartedAt;
         internal int CarrierDeferralCount { get; private set; }
-        // PR-1 review R2-F3: execution time excluding waits behind older work.
-        private float ChaseElapsed => TimeSinceStart - deferredSeconds - (carrierDeferred ? TimeSinceStart - deferralStartedAt : 0f);
+        // PR-1 review R2-F3: native UnitCommand.Tick interrupts any started command (UnitMoveContiniously aside) once TimeSinceStart
+        // exceeds 9 s, after OnTick. While the carrier waits, OnTick holds TimeSinceStart where the wait began, so neither that
+        // deadline nor the KMC bound counts the wait; the attack's own clock restarts at StartChildAttack with nothing carried over.
+        internal float DeferredSeconds { get; private set; }
+        private float ChaseElapsed => TimeSinceStart;
         internal bool CarrierDeferred => carrierDeferred;
+
+        private void HoldClockWhileDeferred()
+        {
+            if (!carrierDeferred) return;
+            DeferredSeconds += Math.Max(0f, TimeSinceStart - deferralStartedAt);
+            SetTimeSinceStart(deferralStartedAt);
+        }
 
         private bool DelegatedCarrierAdmissible() => MountedCombatSpatialPolicy.CanAdmitDelegatedMove(mount.Commands?.Raw,
             (int)CommandType.Standard, (int)CommandType.Move, this, actionActor == mount,
@@ -1438,7 +1475,6 @@ namespace KingmakerMountedCombat.Integration
             if (EndIfAutomaticTargetUnperceived()) return;
             if (admission == MountedPairNativeAdmissionState.Admitted)
             {
-                deferredSeconds += TimeSinceStart - deferralStartedAt;
                 carrierDeferred = false;
                 if (!transaction.Arrive(attackTarget.UniqueId))
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
@@ -1447,7 +1483,6 @@ namespace KingmakerMountedCombat.Integration
             }
             if (EndIfMovementForbiddenAtApproach()) return;
             if (!DelegatedCarrierAdmissible()) return;
-            deferredSeconds += TimeSinceStart - deferralStartedAt;
             carrierDeferred = false;
             // PR-1 review R2-F3: legal movement starts from the target's current position.
             targetSnapshot = attackTarget.Position;
@@ -1461,10 +1496,12 @@ namespace KingmakerMountedCombat.Integration
                 TickDeferredCarrier();
                 return;
             }
-            if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
             ObserveApproachInvariants();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
+            // PR-1 review R3-F3: revoked movement cancels only an approach that still needs movement; a strike admissible from the
+            // current position releases the exact carrier below and starts (the out-of-range case still ends here).
+            if (nativeAdmission != MountedPairNativeAdmissionState.Admitted && !chargeMode && EndIfMovementForbiddenAtApproach()) return;
             if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
                 // Review R4-F2: perception is rechecked before arrival commits the strike.
@@ -1598,6 +1635,8 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(finishedMoveAdmission);
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
+                    // PR-1 review R1-F7: a sight goal reached without admission is not chosen again.
+                    if (currentSightGoal.HasValue) { failedSightGoals.Add(currentSightGoal.Value); currentSightGoal = null; }
                     if (Repath("unadmitted-after-move;admission=" + finishedMoveAdmission) ||
                         ChargeTransactionStopped() || delegatedMove == null)
                     {
@@ -1956,7 +1995,10 @@ namespace KingmakerMountedCombat.Integration
             }
 
             NeedLoS = true;
+            // PR-1 review R2-F3: the attack phase gets its own ordinary bound: the clock restarts and no approach allowance or wait
+            // is carried into it.
             SetTimeSinceStart(0f);
+            approachAllowanceSeconds = 0f;
             if (ObserveChargeStep(MountedChargeTransactionStep.AttackStarted))
             {
                 return;

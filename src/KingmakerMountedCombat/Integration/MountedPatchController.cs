@@ -122,6 +122,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.InternalRunPrefix),
                     nameof(PatchMethods.InternalRunPostfix), nameof(PatchMethods.NativeRunHoldTranspiler));
+                // PR-1 review R1-F11: ClickUnitHandler.OnClick assigns the clicked unit as the manual target after its Run; the click is
+                // bracketed so that assignment is attributed (observation only; native behavior unchanged).
+                PatchExact(typeof(Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler), "OnClick", 0x060093ED,
+                    new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
+                    nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
                 // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
@@ -906,15 +911,38 @@ namespace KingmakerMountedCombat.Integration
                 try
                 {
                     // Review R5-F5: native's own fromQueue marks promotion of an already accepted (queued) command.
-                    var route = fromQueue ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Promotion :
-                        __instance.Contains(cmd) ? (MountedAcceptedWorkRoute?)MountedAcceptedWorkRoute.Slot :
-                        __instance.Queue.Contains(cmd) ? MountedAcceptedWorkRoute.Queue : (MountedAcceptedWorkRoute?)null;
+                    // PR-1 review R1-F11: a promotion counts only if it actually installed the command (a refused promotion did not).
+                    var route = MountedAcceptedWorkRoutes.AfterRun(fromQueue, __instance.Contains(cmd), __instance.Queue.Contains(cmd));
                     if (route.HasValue) PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, route.Value);
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Accepted pair work was not observed", error); }
                 if (cmd is UnitMoveContiniously) return;
                 try { PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
+            }
+
+            // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.
+            internal static void ClickUnitPrefix()
+            {
+                try { foreach (var combat in ClickControllers()) combat.BeginClickObservation(); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
+            }
+
+            internal static void ClickUnitPostfix(UnityEngine.GameObject gameObject)
+            {
+                try
+                {
+                    var clicked = gameObject == null ? null : gameObject.GetComponent<Kingmaker.View.UnitEntityView>()?.EntityData;
+                    foreach (var combat in ClickControllers()) combat.EndClickObservation(clicked);
+                }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
+            }
+
+            private static IEnumerable<MountedCombatController> ClickControllers()
+            {
+                var pairs = PatchBridge.Pairs;
+                if (pairs != null) { foreach (var pair in pairs) if (pair?.Combat != null) yield return pair.Combat; yield break; }
+                if (PatchBridge.Combat != null) yield return PatchBridge.Combat;
             }
 
             // Every native queue insertion (AddToQueue/AddToQueueFirst, Run's queue-instead path, custom handlers). The prefix
