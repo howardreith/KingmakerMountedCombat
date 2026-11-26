@@ -222,7 +222,7 @@ namespace KingmakerMountedCombat.Integration
                 files.WriteResult(result);
             }
 
-            public bool Close(bool claimed, string suffix, string boundIdentity) => files.Close(claimed, suffix, boundIdentity);
+            public bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null) => files.Close(claimed, suffix, boundIdentity, session);
         }
     }
 }

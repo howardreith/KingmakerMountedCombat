@@ -249,7 +249,8 @@ namespace KingmakerMountedCombat.Domain
             {
                 // PR-4 review R1-F4: only the bytes bound to this decision receive its suffix. When the claim file was replaced after
                 // the decision, Close leaves the replacement in place for its own (interrupted) disposition and archives nothing here.
-                host.Close(true, session.Suffix, session.Identity);
+                // PR-4 review R4-F2: the committed archive is kept on the session, so a retry after a failed settlement only settles.
+                host.Close(true, session.Suffix, session.Identity, session);
                 session.Advance(HorseTripClaimStage.Archived);
             }
             session.Clear();
@@ -297,6 +298,10 @@ namespace KingmakerMountedCombat.Domain
         public string Result { get; private set; }
         public string Suffix { get; private set; }
         internal bool PublicationAttempted { get; private set; }
+        // PR-4 review R4-F2: the terminal archive this claim's decision was committed to (null until committed). It belongs to this
+        // claim only: a later request, even with identical bytes, is a new claim with its own record.
+        public string CommittedArchive { get; private set; }
+        public void RecordCommittedArchive(string path) => CommittedArchive = path;
 
         // This process renamed the request to the claim and has not yet archived, returned or abandoned it.
         public bool HoldsClaim => Stage != HorseTripClaimStage.None;
@@ -340,6 +345,7 @@ namespace KingmakerMountedCombat.Domain
 
         public void Clear()
         {
+            CommittedArchive = null;
             claimText = null; bytesUnknown = false; Stage = HorseTripClaimStage.None;
             Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
         }
@@ -384,7 +390,7 @@ namespace KingmakerMountedCombat.Domain
             if (target == null) throw new ArgumentNullException(nameof(target));
             List<T> before;
             try { before = Snapshot(readFeatures()); }
-            catch (Exception unreadable) { return new HorseTripRemovalResult(HorseTripRemovalOutcome.NotAttempted, unreadable, "the features could not be read before removal: " + unreadable.Message); }
+            catch (Exception unreadable) { return new HorseTripRemovalResult(HorseTripRemovalOutcome.NotAttempted, unreadable, "the features could not be read before removal: " + MessageOf(unreadable)); }
             Exception nativeFailure = null;
             try { nativeRemove(target); }
             catch (Exception exception) { nativeFailure = exception; }
@@ -393,7 +399,7 @@ namespace KingmakerMountedCombat.Domain
             catch (Exception unreadable)
             {
                 return new HorseTripRemovalResult(HorseTripRemovalOutcome.Unreadable, nativeFailure,
-                    "the features could not be read after removal: " + unreadable.Message + Native(nativeFailure));
+                    "the features could not be read after removal: " + MessageOf(unreadable) + Native(nativeFailure));
             }
             return new HorseTripRemovalResult(Classify(before, target, after), nativeFailure,
                 "features " + before.Count + "->" + after.Count + Native(nativeFailure));
@@ -430,7 +436,15 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        private static string Native(Exception failure) => failure == null ? string.Empty : "; native removal threw " + failure.GetType().Name + ": " + failure.Message;
+        private static string Native(Exception failure) => failure == null ? string.Empty : "; native removal threw " + failure.GetType().Name + ": " + MessageOf(failure);
+
+        // PR-4 review R3-F1 (round 5): an exception's text is diagnostic only; an unreadable message (its getter throws) becomes a safe
+        // fallback, so the classified outcome always reaches the policy.
+        private static string MessageOf(Exception failure)
+        {
+            try { return failure.Message; }
+            catch (Exception) { return "<message unreadable>"; }
+        }
     }
 
     public interface IHorseTripRepairHost<TFact> where TFact : class
@@ -452,7 +466,7 @@ namespace KingmakerMountedCombat.Domain
         // Renames the claim (claimed) or the request to request + suffix. With a bound identity, only those exact claim bytes are
         // archived (PR-4 review R1-F4); false means the claim file held other bytes, which were left for their own disposition. A
         // failure leaves the claim at its name (PR-4 review R3-F2), so the next poll resumes this publication before newer work.
-        bool Close(bool claimed, string suffix, string boundIdentity);
+        bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null);
     }
 
     // The request lifecycle's files, all in the KMC user-data folder the composition root supplies (beside, never inside, the
@@ -529,36 +543,74 @@ namespace KingmakerMountedCombat.Domain
         public Action BeforePublish { get; set; }
         public Action BeforeSettle { get; set; }
 
-        public bool Close(bool claimed, string suffix, string boundIdentity)
+        public bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null)
         {
             if (!claimed || boundIdentity == null)
             {
                 File.Move(claimed ? ClaimPath : RequestPath, ArchiveTarget(suffix));
                 return true;
             }
-            // PR-4 reviews R1-F4/R3-F2: the archive is published from the verified payload itself. The claim's bytes are read once and
-            // checked against the decision's identity; only those captured bytes are written (never overwriting) under the decision's
-            // suffix, so nothing that changes the claim file afterwards can enter this archive. Until the archive exists the claim stays
-            // at its own name, so a failed publication is resumed by the next poll before any newer request is taken (and a fresh
-            // session settles it as interrupted, with no removal). Only then is the claim name settled: it is moved aside and, if it
-            // still holds the decision's bytes, deleted; other bytes (a replacement written meanwhile) go back to the claim name, or to an
-            // interrupted archive when a newer claim holds that name, and keep their own disposition.
-            var verified = File.ReadAllBytes(ClaimPath);
-            if (!string.Equals(Digest(verified), boundIdentity, StringComparison.Ordinal)) return false;
-            BeforePublish?.Invoke();
-            using (var archive = new FileStream(ArchiveTarget(suffix), FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                archive.Write(verified, 0, verified.Length);
-            BeforeSettle?.Invoke();
-            var settling = ClaimPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + ".settling";
-            File.Move(ClaimPath, settling);
-            if (string.Equals(Digest(File.ReadAllBytes(settling)), boundIdentity, StringComparison.Ordinal))
+            // PR-4 reviews R1-F4/R3-F2/R4-F1/R4-F2/R4-F3 (round 5). The claim never leaves its own name until it is retired, so it stays
+            // discoverable throughout (a retry or a fresh session finds it before any newer request).
+            //  1. Commit: unless this claim's archive was already committed (the session's record), the claim's bytes are read and
+            //     verified against the decision; the verified payload is written to a private file, flushed, and then moved to a
+            //     non-overwriting terminal name in one atomic step, so a terminal name only ever appears complete.
+            //  2. Retire: the claim is opened exclusively (no other reader, writer, rename or delete while held) and read again. Only if
+            //     it still holds the decided bytes is that exact file deleted as the handle closes. Other bytes are left at the claim
+            //     name for their own disposition; if they change between the check and the deleting open, they are first committed
+            //     durably as an interrupted archive.
+            var committed = session?.CommittedArchive;
+            if (committed == null || !File.Exists(committed))
             {
-                File.Delete(settling);
-                return true;
+                var verified = File.ReadAllBytes(ClaimPath);
+                if (!string.Equals(Digest(verified), boundIdentity, StringComparison.Ordinal)) return false;
+                BeforePublish?.Invoke();
+                committed = Commit(verified, suffix);
+                session?.RecordCommittedArchive(committed);
             }
-            try { File.Move(settling, ClaimPath); }
-            catch (IOException) when (File.Exists(ClaimPath) && File.Exists(settling)) { File.Move(settling, ArchiveTarget(HorseTripRepairPolicy.InterruptedSuffix)); }
+            BeforeSettle?.Invoke();
+            byte[] held;
+            using (var check = new FileStream(ClaimPath, FileMode.Open, FileAccess.Read, FileShare.None)) held = ReadAll(check);
+            if (!string.Equals(Digest(held), boundIdentity, StringComparison.Ordinal)) return true;   // replacement keeps its own disposition
+            BeforeRetire?.Invoke();
+            using (var retire = new FileStream(ClaimPath, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.DeleteOnClose))
+            {
+                held = ReadAll(retire);
+                if (!string.Equals(Digest(held), boundIdentity, StringComparison.Ordinal)) Commit(held, HorseTripRepairPolicy.InterruptedSuffix);
+            }
             return true;
+        }
+
+        // Test hook (PR-4 review R3-F2/R4-F1): invoked after the private payload was written and before its atomic commit.
+        public Action BeforeCommit { get; set; }
+        // Test hook (PR-4 review R4-F3): invoked between the retirement check and the deleting open.
+        public Action BeforeRetire { get; set; }
+
+        // The private payload is completed and flushed first; File.Move then publishes it under a terminal name it never overwrites.
+        private string Commit(byte[] payload, string suffix)
+        {
+            var pending = ClaimPath + "." + Guid.NewGuid().ToString("N") + ".pending";
+            try
+            {
+                using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    file.Write(payload, 0, payload.Length);
+                    file.Flush(true);
+                }
+                BeforeCommit?.Invoke();
+                var target = ArchiveTarget(suffix);
+                File.Move(pending, target);
+                return target;
+            }
+            finally
+            {
+                if (File.Exists(pending)) File.Delete(pending);
+            }
+        }
+
+        private static byte[] ReadAll(Stream stream)
+        {
+            using (var buffer = new MemoryStream()) { stream.CopyTo(buffer); return buffer.ToArray(); }
         }
 
         private static string Digest(byte[] bytes)
