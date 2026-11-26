@@ -1,0 +1,154 @@
+{
+  "B": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "H": "5b03449e5b02c5a5359f537a09e727f32aa6e0b4",
+  "M": "fb743911200f150af407198c6c28519e522ef58c",
+  "amendment_revision": 1,
+  "amendment_sha256": "c1d37362aca1706c8f63d7320af1d64fa8b2b79917b6a73f5a966e2048277e43",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 611.7,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2254592,
+        "input_tokens": 2385030,
+        "output_tokens": 22977,
+        "reasoning_output_tokens": 13902,
+        "total_tokens": 2408007
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21636-0b77-7652-ba95-c39deb38cd07",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "kingmaker-umm-0311-mission-20261123",
+    "sha256": "f7d990f396c858ad663020133baba66e0cefb57f2b8be54a26d96186f86b24d5"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-umm-0311-baseline-20261123-20261123223744-7586\\rounds\\r09\\envelope-1.json",
+  "pr": 62,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r09-review",
+  "published": [
+    {
+      "comment_id": 7183184903,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/62#issuecomment-7183184903"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r09-1f7913",
+  "response_sha256": "d80753ebd27895ef4b0fdb1a7297c80ce208e19639d66633e6748158bc465fc8",
+  "result": {
+    "candidate_commit": "5b03449e5b02c5a5359f537a09e727f32aa6e0b4",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "R8-F1 is fixed. The correction introduces a separate regression when a receipt check rounds to zero seconds. An interrupted Full run with unknown spend can then be charged zero, allowing the next run to proceed without reconciliation.\n\n## Continuation for Claude\n\nUse a positive receipt duration as the selection admission lower bound. When the only recorded duration rounds to zero, retain the selector\u2019s existing null estimate. Exercise that case through the existing interrupted-budget fixture and retain the passing 600-second and inclusive Full controls. The correction fits within the selector and its focused test. Any further gate or review remains subject to the existing allowance and round limits.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The controller\u2019s focused gate at H passed all four Fast steps in 239.6 seconds, with 1,488 component checks, 153 source checks and 65 package and reuse checks. Both production compiler-input checks passed.",
+        "The gate accepted both genuine packages and rejected extra loader, Harmony and game DLLs, the released main DLL compiled against UMM 0.33.0, and mismatched package receipts.",
+        "I verified the gate log\u2019s SHA-256 against its controller receipt and all 36 indexed evidence files against their Git blob digests. The frozen package manifests and static audits identify the same main and observer DLLs by SHA-256 and MVID.",
+        "The round-9 tier-selection log records zero-second receipt checks at lines 21 and 28. A read-only comparison of the selector expressions also produced null at bc38080d and numeric zero at H for that history."
+      ],
+      "inspected": [
+        "The mission, OWNER AMENDMENT 1, repository validation policy, prior findings ledger, full feature diff and correction since bc38080d.",
+        "Both shipping manifests and projects, compiler guards, package validators, frozen artifact records, loader profile inventory and static API audits.",
+        "The receipt timing and admission paths in Test-Tiers.ps1, their budget reconciliation consumer, and the focused fixtures and controller log."
+      ],
+      "limitations": [
+        "The controller withheld the mixed foreground transcript. Execution at H is substantiated by the controller gate. The read-only review did not execute an interrupted workflow.",
+        "Native status is NOT RUN for all four loader profiles and the combined mod stack. The guarded launcher uses the live installation, and the repository has no approved disposable game-copy harness.",
+        "The earlier harness record retains three failures also observed on its comparison baseline."
+      ],
+      "required_gaps": [
+        "Show that a zero-second receipt history leaves a first Full reuse entry\u2019s estimate null and that a subsequent admission blocks after an unmeasured interruption."
+      ],
+      "source_inspection_only": [
+        "Test-Tiers.ps1 passes the positive lower bound to both selection and step admission. The gate\u2019s 600/60 case exits at selection.",
+        "For a numeric zero, Request-KmcWorkflowAdmission persists estimatedSeconds as 0. WorkflowBudget.ps1 takes the charged-estimate-unmeasured branch for any non-null estimate. The gate did not exercise this combination."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "mission \u00a76",
+          "docs/VALIDATION-POLICY.md",
+          "OWNER AMENDMENT 1"
+        ],
+        "actual": "Line 154 replaces the null estimate with 0. The budget record stores that value, and reconciliation closes the unmeasured entry as interrupted with a zero-second charge. The next selection can start.",
+        "blocking_rationale": "The round-9 change weakens the existing unknown-spend safeguard. Zero is a valid recorded receipt duration, as the candidate\u2019s tier-selection log demonstrates.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "With no positive cost measurement and an unknown Full duration, the selection estimate stays null. An unmeasured interruption requires explicit reconciliation before the next admission.",
+        "id": "R9-F1",
+        "location": {
+          "file": "scripts/Test-Tiers.ps1",
+          "line": 154
+        },
+        "priority": "P2",
+        "requested_correction": "Only promote a positive receipt lower bound into the selection estimate. Preserve the positive bound at both admission points and the existing inclusive Full estimate.",
+        "requested_evidence": "Seed the existing disposable fixture with a zero-second reuse check and empty Full history. Capture the first Full reuse entry\u2019s estimate, simulate interruption before a measured heartbeat, and show that the next selection requires reconciliation. Retain the passing positive-duration controls.",
+        "title": "Keep a zero-second receipt check from settling an unmeasured interruption",
+        "trigger": "Fast or Candidate records a receipt check that rounds to 0.0 seconds. The first Full -SkipBuild run is admitted and its process ends before the ledger has a positive elapsed measurement."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R8-F1",
+        "rationale": "With 600 seconds of receipt history, no Full history and 60 seconds available, the gate refused selection before any scan or runner start. The plan kept the Full total unknown and the ledger acquired no Full duration. With a recorded inclusive duration of 200 seconds, the 270-second allowance admitted one scan and the 180-second allowance refused before scanning."
+      }
+    ],
+    "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r09-1f7913",
+    "round": 9,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Mounted Combat and its removal observer declare UMM 0.31.1 and compile against UnityModManager 0.31.1.0 and 0Harmony12 1.2.0.1. Static audits resolved all 42 main-mod and 20 observer member references on 0.31.1, 0.32.4, the measured owner installation at 0.33.0, and 0.33.4.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "Any further validation allowance or review round for the correction. The gate closed at 42.52 of 45.62 minutes.",
+        "Disposition of PR #62\u2019s conflict with the current main branch before integration."
+      ],
+      "scope_reviewed": "Draft PR #62 at the fixed candidate, including R8-F1 and the correction\u2019s effect on interruption accounting.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 9,
+  "validated_at": "2026-11-26T05:06:22Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}

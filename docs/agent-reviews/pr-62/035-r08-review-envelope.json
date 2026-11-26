@@ -1,0 +1,158 @@
+{
+  "B": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "H": "bc38080d5e634f43d911202b4ddf7534dbdca3e1",
+  "M": "fb743911200f150af407198c6c28519e522ef58c",
+  "amendment_revision": 1,
+  "amendment_sha256": "c1d37362aca1706c8f63d7320af1d64fa8b2b79917b6a73f5a966e2048277e43",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 539.6,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2602368,
+        "input_tokens": 2749692,
+        "output_tokens": 20766,
+        "reasoning_output_tokens": 12108,
+        "total_tokens": 2770458
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a215f4-628d-7921-807a-07ac62fc38be",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "kingmaker-umm-0311-mission-20261123",
+    "sha256": "f7d990f396c858ad663020133baba66e0cefb57f2b8be54a26d96186f86b24d5"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-umm-0311-baseline-20261123-20261123223744-7586\\rounds\\r08\\envelope-1.json",
+  "pr": 62,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r08-review",
+  "published": [
+    {
+      "comment_id": 7182111914,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/62#issuecomment-7182111914"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r08-af6281",
+  "response_sha256": "8cfe2dcba1438eed591fb8a9c3bd01c8af10f6d3b589b46a095b45aaa024b5aa",
+  "result": {
+    "candidate_commit": "bc38080d5e634f43d911202b4ddf7534dbdca3e1",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "Both round-7 findings are fixed. One budget regression blocks readiness. When Full has no timing history, the selector can start a mandatory receipt scan whose recorded duration exceeds the remaining allowance.\n\nContinuation for Claude\n\nLimit the correction to Full -SkipBuild admission. When the Full duration is unknown, use the recorded receipt duration as a lower bound for selection and step admission. Keep the Full total unknown until measured, and count an established inclusive Full duration once. Exercise the existing denied-budget fixture through Full and capture refusal before any scan or runner start. The existing focused gate, review cap and time allowance govern any further validation.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The controller receipt binds the focused gate to bc38080d. I verified the log SHA-256 against the receipt. The gate exited 0 in 259.3 seconds with 4/4 steps, 1,488 component checks, 153 source checks and 64 package and reuse checks passing.",
+        "The gate built both shipping products, accepted both genuine packages and rejected the released UMM 0.33.0 DLL under the lowered manifest, extra dependency DLLs and mismatched receipts.",
+        "I evaluated the candidate's estimate calculation and oversized-work comparisons in memory with a 600-second receipt measurement, no Full measurement and 60 seconds remaining. Selection and step estimates were both null. Neither comparison refused the work."
+      ],
+      "inspected": [
+        "The mission, OWNER AMENDMENT 1, repository validation policy, prior findings, developer report, complete feature diff and round-8 changes from 85d18da5.",
+        "The controller gate receipt and log, disposable budget fixtures, tier-selection and plan logs, and budget ledger.",
+        "Both shipping manifests, compiler guards, standalone validators, frozen package identities and static API audits. The audited DLL hashes match the package manifests at product source 11df053b."
+      ],
+      "limitations": [
+        "The foreground transcript was withheld. The controller receipt confirms the gate at H. The separate 29/29 tier-selection log belongs to the round-8 code before commit.",
+        "The Full cases used an instrumented child. The earlier broader harness record retains three failures also observed on its comparison baseline.",
+        "Native checks remain NOT RUN on all four loader profiles because Mounted lacks an approved disposable game-copy harness. The combined mod stack was also untested."
+      ],
+      "required_gaps": [
+        "R8-F1 requires a Full reuse refusal before hashing when the receipt scan is the only measured cost and exceeds the available time."
+      ],
+      "source_inspection_only": [
+        "I traced the estimate into both admission calls and checked the prior selector's known-cost calculation. The reviewer probe exercised the arithmetic and predicates only.",
+        "I inspected the installed 0.33.0 profile checks and propagation into dependency admission and result readers. The four-profile compatibility evidence covers static member resolution."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "mission \u00a76",
+          "docs/VALIDATION-POLICY.md",
+          "OWNER AMENDMENT 1"
+        ],
+        "actual": "Line 138 filters out the receipt step for every Full run. With the existing fixture-denied values of 600 seconds for the receipt and 60 seconds remaining, both admission checks receive an unknown cost. The gate exercises this fixture only through Fast.",
+        "blocking_rationale": "The round-8 change drops a known cost that the previous selector supplied to admission. It permits the Full child to begin work already estimated to exceed its allowance.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The Full total stays unknown. Its measured receipt cost supplies a lower bound, so admission refuses the run before hashing.",
+        "id": "R8-F1",
+        "location": {
+          "file": "scripts/Test-Tiers.ps1",
+          "line": 138
+        },
+        "priority": "P2",
+        "requested_correction": "Use the standalone receipt duration as the admission lower bound for Full -SkipBuild when the inclusive Full duration is unavailable. Apply it at selection and step admission without recording it as Full history.",
+        "requested_evidence": "Run the existing bounded Full fixture with a current receipt, a 600-second receipt measurement, no Full history and 60 seconds available. Show an oversized-work refusal, zero scans and zero runner starts. Retain the existing 270-second admission and 180-second refusal controls.",
+        "title": "Preserve the measured receipt cost on the first Full reuse run",
+        "trigger": "Fast or Candidate has measured the receipt scan. Full -SkipBuild is selected before any Full duration has been recorded, with less time remaining than the scan's measured cost."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R7-F1",
+        "rationale": "The gate recorded 3.4 seconds of Full work and charged the failed entry 4 seconds. A retry with 2 seconds available was refused before a second scan or start. Receipt-only refusals preserved both empty history and a seeded 600-second duration."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R7-F2",
+        "rationale": "With a 120-second receipt and a 200-second inclusive Full measurement, the plan reported 200 seconds. The 270-second allowance admitted one scan and the 180-second allowance refused before scanning. Fast and Candidate retained their separate 120-second estimate. R8-F1 concerns the distinct case with no Full measurement."
+      }
+    ],
+    "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r08-af6281",
+    "round": 8,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Mounted Combat and its removal observer declare UMM 0.31.1 and compile against UnityModManager 0.31.1.0 and Harmony12 1.2.0.1. Their packaged DLLs have static API evidence on 0.31.1, 0.32.4, the owner's 0.33.0 and 0.33.4.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "Decide whether to authorize another review round and sufficient validation time. The gate closed at 37.79 of 40.62 minutes, leaving 2.83 minutes.",
+        "Disposition of PR #62's integration with the updated main branch and any later native or human-play qualification."
+      ],
+      "scope_reviewed": "Final correction review of Mounted Combat draft PR #62 at the fixed candidate, including both pending findings and the directly affected Full admission paths.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 8,
+  "validated_at": "2026-11-26T03:53:27Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}

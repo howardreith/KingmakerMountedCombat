@@ -1,0 +1,206 @@
+{
+  "B": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "H": "1384140efa9ac9b1d8c24909c986a326694bb452",
+  "M": "fb743911200f150af407198c6c28519e522ef58c",
+  "amendment_revision": 1,
+  "amendment_sha256": "c1d37362aca1706c8f63d7320af1d64fa8b2b79917b6a73f5a966e2048277e43",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 904.8,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 4376832,
+        "input_tokens": 4544646,
+        "output_tokens": 31269,
+        "reasoning_output_tokens": 19816,
+        "total_tokens": 4575915
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21393-a1e4-7a31-9d39-27e6618e1634",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "kingmaker-umm-0311-mission-20261123",
+    "sha256": "f7d990f396c858ad663020133baba66e0cefb57f2b8be54a26d96186f86b24d5"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-umm-0311-baseline-20261123-20261123223744-7586\\rounds\\r06\\envelope-1.json",
+  "pr": 62,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r06-review",
+  "published": [
+    {
+      "comment_id": 7168713768,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/62#issuecomment-7168713768"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r06-ad4004",
+  "response_sha256": "fe5ab035c9edf735d8c21dd89dbbd6d3bb92f420f3f9306a59f8e5011e597376",
+  "result": {
+    "candidate_commit": "1384140efa9ac9b1d8c24909c986a326694bb452",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "Both shipping products pass the pinned build and package checks. Three issues block readiness. Archived observer reuse can miss an inherited MSBuild file on Windows, the existing tier-selection test replaces the receipt helper with a stub, and a first receipt refusal can create a Full-suite duration before the runner starts.\n\nContinuation for Claude\n\nUse Windows-compatible path matching for the inherited MSBuild files in frozen-source admission. Restore the real receipt helper and a current Debug receipt in the tier-selection fixture. Keep a pre-run receipt refusal chargeable while leaving Full history untouched. Verify these cases through the existing frozen-source, tier-selection and package-reuse fixtures. Keep the correction within these offline paths and preserve the single receipt scan. The ledger has 2.57 minutes remaining. Any additional allowance or review round requires owner/controller disposition.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The controller receipt binds the focused Fast gate to H. Its log digest matches. The gate passed in 214.7 seconds with 4/4 steps, 1,488 component checks, 153 source checks and 57 package and reuse checks.",
+        "The gate accepted both genuine packages and rejected extra dependencies, the released UMM 0.33.0 DLL with the lower manifest minimum, stale package receipts and changed observer hooks. Restoring the original inputs restored local reuse.",
+        "The gate recorded one scan and a two-second failed entry for a stale Full receipt. The seeded 600-second estimate survived. A later attempt with five minutes available was refused before any scan.",
+        "Read-only checks confirmed all 27 indexed evidence blobs match their published digests. The package manifests, validator outputs and static audits agree on each shipping DLL's SHA-256 and MVID.",
+        "A read-only Windows probe resolved both spellings of LoaderReferences.Final.targets. Git matched one change with the tracked spelling, zero with the case-varied spelling and one with an explicit case-insensitive pathspec."
+      ],
+      "inspected": [
+        "The mission, OWNER AMENDMENT 1, repository validation policy, current handoffs, pending findings, developer report and controller evidence.",
+        "The full M..H feature diff and the round-6 correction against e7ec0ef8, including both shipping projects, compiler guards, package validators, reuse checks and their direct consumers.",
+        "The workflow impact map, Test-TierSelection.ps1 fixture, budget history and interruption logic, and the original artifact identities used for the compatibility claims."
+      ],
+      "limitations": [
+        "The foreground transcript was withheld. The 37/0 frozen-source result is an exported log from the uncommitted round-6 code batch with a corresponding budget entry. The controller independently attests the gate on H.",
+        "Native checks and combined-stack testing were not run. The four loader rows provide static API evidence. The earlier general harness result retains its three baseline failures.",
+        "Reviewer verification was read-only. The ledger reports 28.05 of 30.62 minutes spent after the gate."
+      ],
+      "required_gaps": [
+        "Frozen observer evidence for a committed inherited hook whose Git spelling differs only in case.",
+        "A passing result from the existing tier-selection fixture with the real receipt dependency present.",
+        "A disposable-budget result showing that the first pre-run receipt refusal leaves Full duration unknown, followed by the required gate receipt for the corrected candidate within authorized limits."
+      ],
+      "source_inspection_only": [
+        "The archived-observer consequence follows from the verified Git path matching and the pathspecs at FrozenProductSource.ps1 lines 41 and 66. The committed fixture log covers canonical spellings.",
+        "The tier-selection fixture failure follows from its child-stub generator and the selector's first plan call. The candidate gate did not select that fixture.",
+        "An in-memory evaluation confirmed that the history predicate selects a write when the prior estimate is absent. The subsequent Full plan and interruption effects were traced through source."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "mission \u00a75",
+          "mission \u00a76"
+        ],
+        "actual": "FrozenProductSource.ps1 uses case-sensitive Git pathspecs for the observer's inherited files at line 66 and the shared root files at line 41. Windows resolves Directory.Build.Targets as Directory.Build.targets, while Git omits the differently spelled addition from these comparisons.",
+        "blocking_rationale": "An archived observer can remain eligible after a compiler hook changes the build inputs that its frozen DLL represents.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Every Windows spelling of an inherited hook invalidates the affected archive. A tools-only hook preserves main-only reuse.",
+        "id": "R1-F8",
+        "location": {
+          "file": "scripts/runtime/FrozenProductSource.ps1",
+          "line": 66
+        },
+        "priority": "P2",
+        "requested_correction": "Use case-insensitive exact Git pathspecs for the inherited Directory.Build.props and Directory.Build.targets names. Keep the tools paths in the observer-specific comparison.",
+        "requested_evidence": "Commit a mixed-case tools hook in the existing frozen fixture. Show observer refusal, main-only acceptance and restored observer eligibility after removal. Check the equivalent shared-root spelling at its existing boundary.",
+        "title": "Match inherited MSBuild files using Windows filename semantics",
+        "trigger": "A clean descendant adds tools/Directory.Build.Targets after the observer package is frozen."
+      },
+      {
+        "acceptance_ids": [
+          "mission \u00a76",
+          "docs/VALIDATION-POLICY.md",
+          "OWNER AMENDMENT 1"
+        ],
+        "actual": "The fixture turns every .ps1 literal in Test.ps1 into a tracing child. That includes the newly dot-sourced LoaderInputStamp.ps1. The stub writes a trace and defines none of the receipt functions. The first Candidate plan calls Test-KmcLoaderInputStamp and cannot produce its expected output.",
+        "blocking_rationale": "The repository's designated focused regression for Test-Tiers.ps1 and WorkflowBudget.ps1 can no longer exercise its plan, forwarding and budget assertions.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The fixture loads the real receipt helper, and its prepared outputs allow the existing successful selector cases to reach their tracing children.",
+        "id": "R6-F1",
+        "location": {
+          "file": "scripts/Test-TierSelection.ps1",
+          "line": 38
+        },
+        "priority": "P2",
+        "requested_correction": "Exclude the dot-sourced helper from child-stub generation, copy the real helper and prepare a current Debug receipt for the disposable outputs. Preserve the existing assertions.",
+        "requested_evidence": "Capture the result of the existing Test-TierSelection.ps1 check, including its side-effect-free plan and traced Candidate and Full cases.",
+        "title": "Restore the receipt helper in the tier-selection test fixture",
+        "trigger": "The repository's workflow-runner focused test prepares its private fixture and invokes the selector with -Plan and -SkipBuild."
+      },
+      {
+        "acceptance_ids": [
+          "mission \u00a76",
+          "docs/VALIDATION-POLICY.md",
+          "OWNER AMENDMENT 1"
+        ],
+        "actual": "The failed-step condition suppresses a write only when an established duration exists. With empty history it stores the receipt-refusal time under FULL umbrella. A later Full plan with a build reports that value as the estimate for the entire suite.",
+        "blocking_rationale": "The planner and interruption reconciliation can use a preflight duration as the cost of a Full run whose duration has never been measured.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The failed attempt consumes its elapsed time. Full-suite duration stays unknown until there is a measurement of the suite.",
+        "id": "R6-F2",
+        "location": {
+          "file": "scripts/WorkflowBudget.ps1",
+          "line": 464
+        },
+        "priority": "P2",
+        "requested_correction": "Distinguish receipt refusal before the runner from a measured Full step when updating history. Preserve entry charging and the verified behavior for an established duration.",
+        "requested_evidence": "Start the existing stale-receipt fixture with empty Full history. Show one scan, a charged failed entry, an untouched runner and a subsequent Full plan with an unknown duration. Retain the seeded 600-second case.",
+        "title": "Keep Full duration unknown after its first receipt refusal",
+        "trigger": "A budget with no Full history admits Full -SkipBuild and the receipt is rejected before the runner."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R1-F8",
+        "rationale": "The local receipt and archived comparison cover the tested canonical spellings. The same inherited Windows file still escapes the archived comparison when Git records a different capitalization."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R5-F1",
+        "rationale": "The candidate gate demonstrated that the two-second refusal preserved the established 600-second duration and that the next admission used it. R6-F2 concerns the separate first-run case with no established duration."
+      }
+    ],
+    "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r06-ad4004",
+    "round": 6,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Mounted Combat and its removal observer declare UMM 0.31.1 and compile against UnityModManager 0.31.1.0 and Harmony12 1.2.0.1. Static audits of the identified DLLs resolved their referenced loader members on 0.31.1, 0.32.4, the owner's 0.33.0 and 0.33.4.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "Disposition of draft PR #62 and any additional review or validation allowance needed for correction.",
+        "Authorization for a future native qualification path and eventual human-play acceptance."
+      ],
+      "scope_reviewed": "The final Mounted Combat checkpoint for draft PR #62 at the fixed candidate, under OWNER AMENDMENT 1.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 6,
+  "validated_at": "2026-11-25T16:54:36Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}
