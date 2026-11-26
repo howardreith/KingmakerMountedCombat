@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Kingmaker.Blueprints.Items.Weapons;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.Items.Slots;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.View.Animation;
 using Kingmaker.Visual.Animation.Actions;
@@ -14,7 +16,7 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Integration
 {
     /// <summary>
-    /// Binds the exact native Horse SpecialAttack handle for KMC telemetry. The
+    /// Binds the exact native Horse Bite SpecialAttack handle for KMC telemetry. The
     /// stock UnitAttack normally creates that handle while initializing the
     /// Horse's Bite; a narrow fallback supplies it only when stock returns no
     /// handle. This adapter changes animation presentation only; the stock
@@ -46,7 +48,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal int HandleFaultCount { get; private set; }
 
-        private object lastMissingCommand;
+        // PR-5 review R1-F7: no command is retained here; the once-per-command missing-handle report is the command's own flag.
         private bool faultReported;
 
         internal string LastHandleSource { get; private set; } = "<none>";
@@ -56,51 +58,47 @@ namespace KingmakerMountedCombat.Integration
         internal string LastActionType { get; private set; } = "<none>";
 
         // MMR-07 (review R1-F13): the decision is the production HorseStrikeHandleBinding over the real-type HandleBoundary
-        // below; this method only reports its outcome. Counters and log lines are unchanged; a later stock handle of a
-        // different action is now a reported rejection instead of an exception thrown out of the native postfix.
+        // below. PR-5 review R1-F2: building the boundary, the decision and the outcome reporting (metadata reads and logging)
+        // all run inside HorseStrikeHandleBinding.SupplyContained, and a failing fault report is absorbed there as well, so
+        // nothing reaches the native handle creation (the CreateAnimationHandleForAttack postfix and the command-start path).
         internal void SupplyExact(
             MountedPairAttackCommand command,
             AttackHandInfo attack,
             UnitEntityData horse)
         {
-            // The context test and the boundary's construction (weapon visual parameters, the manager's action set) are inside
-            // the same containment as the decision: this runs inside native handle creation, and nothing here may fault it.
-            HorseStrikeHandleBindingResult<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> result;
-            try
-            {
-                var exact = IsExactHorsePrimaryContext(command, attack, horse);
-                var manager = exact ? horse.View?.AnimationManager : null;
-                var boundary = new HandleBoundary(
-                    exact,
-                    exact ? attack.AnimationHandle : null,
-                    manager,
-                    manager != null,
-                    exact ? attack.Weapon.Blueprint.VisualParameters.SpecialAnimation : UnitAnimationSpecialAttackType.None,
-                    manager?.ActionSet.OfType<UnitAnimationActionSpecialAttack>().Where(candidate => candidate != null),
-                    handle => command.HasRecordedHorsePrimaryAnimation(handle),
-                    () => command.RecordedHorsePrimaryAnimationAction,
-                    () => command.HasAnyRecordedHorsePrimaryAnimation,
-                    (handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source),
-                    (handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action),
-                    action => CreateNativeHandle(manager, action),
-                    handle => attack.AnimationHandle = handle);
-                result = HorseStrikeHandleBinding.Bind(boundary);
-            }
-            catch (Exception exception)
-            {
-                // Presentation telemetry never faults the native strike (this runs inside native handle creation).
-                HandleFaultCount++;
-                if (!faultReported) logger.Exception("Exact KMC Horse primary animation binding failed; the native strike is left as planned", exception);
-                faultReported = true;
-                return;
-            }
+            HorseStrikeHandleBinding.SupplyContained<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack>(
+                () => CreateBoundary(command, attack, horse), result => Report(result), ReportFault);
+        }
+
+        private HandleBoundary CreateBoundary(MountedPairAttackCommand command, AttackHandInfo attack, UnitEntityData horse)
+        {
+            var exact = IsExactHorsePrimaryContext(command, attack, horse) && IsHorseBiteSlot(horse, attack);
+            var manager = exact ? horse.View?.AnimationManager : null;
+            return new HandleBoundary(
+                exact,
+                exact ? attack.AnimationHandle : null,
+                manager,
+                manager != null,
+                manager?.ActionSet.OfType<UnitAnimationActionSpecialAttack>().Where(candidate => candidate != null),
+                handle => command.HasRecordedHorsePrimaryAnimation(handle),
+                () => command.RecordedHorsePrimaryAnimationAction,
+                () => command.HasAnyRecordedHorsePrimaryAnimation,
+                (handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source),
+                (handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action),
+                action => CreateNativeHandle(manager, action),
+                handle => attack.AnimationHandle = handle,
+                () => command.HorsePrimaryMissingHandleReported,
+                () => command.MarkHorsePrimaryMissingHandleReported());
+        }
+
+        private void Report(HorseStrikeHandleBindingResult<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> result)
+        {
             switch (result.Outcome)
             {
                 case HorseStrikeHandleOutcome.MissingAfterRecorded:
                     HandleMissingAfterRecordedCount++;
-                    if (!ReferenceEquals(lastMissingCommand, command))
+                    if (result.FirstMissingReport)
                     {
-                        lastMissingCommand = command;
                         logger.Info("Horse strike planned without a native handle after an earlier recorded Bite handle: no fallback " +
                             "supplied and nothing recorded (native strike unchanged); recorded action=" + (result.Action?.name ?? "<none>") + ".");
                     }
@@ -125,22 +123,32 @@ namespace KingmakerMountedCombat.Integration
                     return;
                 case HorseStrikeHandleOutcome.RejectedStockMismatch:
                     HandleRejectCount++;
-                    logger.Error("Exact KMC Horse primary animation rejected: the stock Bite handle was not the exact native Horse SpecialAttack action.");
+                    logger.Error("Exact KMC Horse Bite animation rejected: the stock handle was not the exact native Horse Bite SpecialAttack action.");
                     return;
                 case HorseStrikeHandleOutcome.RejectedRefreshAction:
                     HandleRejectCount++;
-                    logger.Error("Exact KMC Horse primary animation rejected: a later stock handle played a different SpecialAttack action than the recorded one.");
+                    logger.Error("Exact KMC Horse Bite animation rejected: a later stock handle played a different SpecialAttack action than the recorded one.");
                     return;
                 case HorseStrikeHandleOutcome.RejectedCandidateCount:
                     HandleRejectCount++;
-                    logger.Error("Exact KMC Horse primary animation rejected: expected one native SpecialAttack action, observed " +
+                    logger.Error("Exact KMC Horse Bite animation rejected: expected one native Bite SpecialAttack action, observed " +
                         result.CandidateCount + ".");
                     return;
                 case HorseStrikeHandleOutcome.RejectedCreateFailed:
                     HandleRejectCount++;
-                    logger.Error("Exact KMC Horse primary animation rejected: native SpecialAttack handle creation returned null.");
+                    logger.Error("Exact KMC Horse Bite animation rejected: native SpecialAttack handle creation returned null.");
                     return;
             }
+        }
+
+        // Presentation telemetry never faults the native strike; the first fault is logged (a failing logger is absorbed by
+        // SupplyContained).
+        private void ReportFault(Exception exception)
+        {
+            HandleFaultCount++;
+            if (faultReported) return;
+            faultReported = true;
+            logger.Exception("Exact KMC Horse Bite animation binding failed; the native strike is left as planned", exception);
         }
 
         private void Remember(string source, UnitAnimationActionSpecialAttack action)
@@ -162,17 +170,30 @@ namespace KingmakerMountedCombat.Integration
             return handle;
         }
 
+        // PR-5 review R1-F1: whether a planned strike is the KMC Horse's Bite, proven from the Horse's own body and blueprint
+        // rather than from the planned-attack reference: the planned hand is the Horse's runtime first additional limb, the
+        // planned weapon's blueprint is the Horse blueprint's first limb (CopyBody builds bite, hoof, hoof), and that
+        // blueprint's special animation is Bite. A hoof (limb1, limb2), a hand, another weapon or an untyped weapon is not.
+        internal static bool IsHorseBiteSlot(UnitEntityData horse, AttackHandInfo attack) =>
+            IsBiteLimb(attack?.Hand, attack?.Weapon?.Blueprint, horse?.Body?.AdditionalLimbs, horse?.Blueprint?.Body?.AdditionalLimbs);
+
+        // Reference tests only (a blueprint is never a destroyed Unity object), so genuine objects are judged the same inside and
+        // outside Unity.
+        internal static bool IsBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs, BlueprintItemWeapon[] blueprintLimbs) =>
+            hand != null && !ReferenceEquals(planned, null) && runtimeLimbs != null && runtimeLimbs.Count > 0 && ReferenceEquals(runtimeLimbs[0], hand) &&
+            blueprintLimbs != null && blueprintLimbs.Length > 0 && ReferenceEquals(blueprintLimbs[0], planned) &&
+            planned.VisualParameters != null && planned.VisualParameters.SpecialAnimation == UnitAnimationSpecialAttackType.Bite;
+
         // The real-type boundary of HorseStrikeHandleBinding. Its classification members read only the native handle's Action
         // and Manager references and the action's AttackType (no Unity engine calls), so the contract
         // (scripts/Test-MountedAlpha2BiteContract.ps1) drives it with genuine Kingmaker objects. Manager liveness, the action
-        // set, handle creation and the command record are supplied by the adapter.
+        // set, handle creation, the command record and the command's missing-handle flag are supplied by the adapter.
         internal sealed class HandleBoundary : IHorseStrikeHandleBoundary<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack>
         {
             private readonly bool exact;
             private readonly UnitAnimationActionHandle current;
             private readonly object horseManager;
             private readonly bool managerAlive;
-            private readonly UnitAnimationSpecialAttackType expected;
             private readonly List<UnitAnimationActionSpecialAttack> actions;
             private readonly Func<UnitAnimationActionHandle, bool> isRecorded;
             private readonly Func<UnitAnimationActionSpecialAttack> recordedAction;
@@ -181,13 +202,14 @@ namespace KingmakerMountedCombat.Integration
             private readonly Action<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> refresh;
             private readonly Func<UnitAnimationActionSpecialAttack, UnitAnimationActionHandle> create;
             private readonly Action<UnitAnimationActionHandle> assign;
+            private readonly Func<bool> missingReported;
+            private readonly Action markMissingReported;
 
             internal HandleBoundary(
                 bool exact,
                 UnitAnimationActionHandle current,
                 object horseManager,
                 bool managerAlive,
-                UnitAnimationSpecialAttackType expected,
                 IEnumerable<UnitAnimationActionSpecialAttack> actions,
                 Func<UnitAnimationActionHandle, bool> isRecorded,
                 Func<UnitAnimationActionSpecialAttack> recordedAction,
@@ -195,13 +217,14 @@ namespace KingmakerMountedCombat.Integration
                 Action<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack, string> record,
                 Action<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> refresh,
                 Func<UnitAnimationActionSpecialAttack, UnitAnimationActionHandle> create,
-                Action<UnitAnimationActionHandle> assign)
+                Action<UnitAnimationActionHandle> assign,
+                Func<bool> missingReported,
+                Action markMissingReported)
             {
                 this.exact = exact;
                 this.current = current;
                 this.horseManager = horseManager;
                 this.managerAlive = managerAlive;
-                this.expected = expected;
                 this.actions = actions == null ? new List<UnitAnimationActionSpecialAttack>() : actions.ToList();
                 this.isRecorded = isRecorded ?? throw new ArgumentNullException(nameof(isRecorded));
                 this.recordedAction = recordedAction ?? throw new ArgumentNullException(nameof(recordedAction));
@@ -210,6 +233,8 @@ namespace KingmakerMountedCombat.Integration
                 this.refresh = refresh ?? throw new ArgumentNullException(nameof(refresh));
                 this.create = create ?? throw new ArgumentNullException(nameof(create));
                 this.assign = assign ?? throw new ArgumentNullException(nameof(assign));
+                this.missingReported = missingReported ?? throw new ArgumentNullException(nameof(missingReported));
+                this.markMissingReported = markMissingReported ?? throw new ArgumentNullException(nameof(markMissingReported));
             }
 
             public bool ExactContext => exact;
@@ -221,13 +246,14 @@ namespace KingmakerMountedCombat.Integration
                 ((AnimationActionHandle)handle).Action as UnitAnimationActionSpecialAttack;
             public bool HandleUsesHorseManager(UnitAnimationActionHandle handle) =>
                 managerAlive && !ReferenceEquals(horseManager, null) && ReferenceEquals(((AnimationActionHandle)handle).Manager, horseManager);
-            public bool ExpectedTypeIsNone => expected == UnitAnimationSpecialAttackType.None;
-            public bool MatchesExpectedType(UnitAnimationActionSpecialAttack action) => action.AttackType == expected;
+            public bool IsBiteAction(UnitAnimationActionSpecialAttack action) => action.AttackType == UnitAnimationSpecialAttackType.Bite;
             public IList<UnitAnimationActionSpecialAttack> SpecialAttackActions => actions;
             public UnitAnimationActionHandle CreateHandle(UnitAnimationActionSpecialAttack action) => create(action);
             public void AssignHandle(UnitAnimationActionHandle handle) => assign(handle);
             public void Record(UnitAnimationActionHandle handle, UnitAnimationActionSpecialAttack action, string source) => record(handle, action, source);
             public void Refresh(UnitAnimationActionHandle handle, UnitAnimationActionSpecialAttack action) => refresh(handle, action);
+            public bool MissingReported => missingReported();
+            public void MarkMissingReported() => markMissingReported();
         }
 
         private bool IsExactHorsePrimaryContext(

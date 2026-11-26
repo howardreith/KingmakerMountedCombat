@@ -184,11 +184,10 @@ namespace KingmakerMountedCombat.Integration
 
         public bool AttackAnimationInterrupted { get; set; }
 
-        // MMR-07 owner-log evidence: the native routine compresses every limb's clip into one window with one SpeedScale
-        // (UnitAttack.ConfigureAnimations), so a short bite clip in a Bite/Hoof/Hoof routine can play very fast.
-        public float AttackAnimationSpeedScale { get; set; } = float.NaN;
-
-        public int RoutineAttackCount { get; set; }
+        // MMR-07 owner-log evidence (PR-5 review R1-F4): the terminal horseBite fields, from the Bite as observed at its own strike
+        // (HorseBiteTerminal.Describe); null outside an exact KMC Horse primary command. The native routine compresses every
+        // limb's clip into one window with one SpeedScale (UnitAttack.ConfigureAnimations), which the speedScale field reports.
+        public string HorseBiteTerminal { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
@@ -811,17 +810,32 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
             }
+            // PR-5 review R1-F3: the fallible metadata reads come first; the record is then published whole or not at all.
+            var actionName = animationAction.name ?? "<unnamed>";
+            var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationAction = animationAction;
             horsePrimaryAnimationHandleSource = handleSource;
-            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
-            horsePrimaryAnimationActionType = animationAction.Type.ToString();
+            horsePrimaryAnimationActionName = actionName;
+            horsePrimaryAnimationActionType = actionType;
         }
 
         internal bool HasAnyRecordedHorsePrimaryAnimation => horsePrimaryAnimationHandle != null;
 
         // The recorded SpecialAttack action (null until a handle is recorded); a refresh must play the same action.
         internal UnitAnimationActionSpecialAttack RecordedHorsePrimaryAnimationAction => horsePrimaryAnimationAction;
+
+        // PR-5 review R1-F7: the once-per-command "planned without a handle after a recorded one" report lives on the command,
+        // so the adapter keeps no reference to a finished command.
+        internal bool HorsePrimaryMissingHandleReported { get; private set; }
+
+        internal void MarkHorsePrimaryMissingHandleReported() => HorsePrimaryMissingHandleReported = true;
+
+        // PR-5 review R1-F4: the Bite as observed at its own strike, separate from the registration above.
+        private readonly HorseBiteObservation<UnitAnimationActionHandle> horseBiteObservation = new HorseBiteObservation<UnitAnimationActionHandle>();
+
+        private bool IsExactKmcHorseCommand => action == MountedCombatActionKind.MountPrimaryNatural && actionActor == mount && mount != null &&
+            string.Equals(mount.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
 
         internal bool HasRecordedHorsePrimaryAnimation(UnitAnimationActionHandle handle)
         {
@@ -844,10 +858,13 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact stock-handle refresh.");
             }
 
+            // PR-5 review R1-F3: as Record, the metadata reads precede every write.
+            var actionName = animationAction.name ?? "<unnamed>";
+            var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationHandleSource = "stock-created";
-            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
-            horsePrimaryAnimationActionType = animationAction.Type.ToString();
+            horsePrimaryAnimationActionName = actionName;
+            horsePrimaryAnimationActionType = actionType;
         }
 
         internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)
@@ -1008,12 +1025,14 @@ namespace KingmakerMountedCombat.Integration
         // base.OnAction exactly once, so the native attack event and damage count are unchanged.
         private void ObserveHorseStrike()
         {
+            // Only the exact KMC Horse (not a Mammoth, Riding Dog or other mount's natural attack).
+            try { if (!IsExactKmcHorseCommand) return; }
+            catch (Exception) { return; }
+            var planned = PlannedAttack;
             try
             {
-                // Only the exact KMC Horse (not a Mammoth, Riding Dog or other mount's natural attack).
-                if (action != MountedCombatActionKind.MountPrimaryNatural || actionActor != mount || mount == null ||
-                    !string.Equals(mount.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal)) return;
-                var record = HorseStrikeReader.Read(new HorseStrikeSource(PlannedAttack), mount.UniqueId, GetAttackIndex() + 1,
+                // The reader marks an unreadable group itself (PR-5 review R1-F6); this guard only covers what lies outside it.
+                var record = HorseStrikeReader.Read(new HorseStrikeSource(planned, mount), mount.UniqueId, GetAttackIndex() + 1,
                     AllAttacks.Count, Target?.UniqueId);
                 TryLogInfo(record.Format());
             }
@@ -1021,14 +1040,28 @@ namespace KingmakerMountedCombat.Integration
             {
                 // Diagnostics never affect the native strike.
             }
+            try
+            {
+                // PR-5 review R1-F4: only a strike of the proven Bite limb is a Bite observation; a hoof never is.
+                horseBiteObservation.Observe(HorsePrimaryAttackAnimationAdapter.IsHorseBiteSlot(mount, planned), planned?.AnimationHandle);
+            }
+            catch (Exception)
+            {
+                // Diagnostics never affect the native strike.
+            }
         }
 
-        // The real-type source of HorseStrikeReader: the planned attack's weapon and its current native handle.
+        // The real-type source of HorseStrikeReader: the planned attack's weapon, its slot on the Horse's body and its current
+        // native handle.
         private sealed class HorseStrikeSource : IHorseStrikeSource<UnitAnimationActionHandle>
         {
             private readonly AttackHandInfo planned;
+            private readonly UnitEntityData horse;
 
-            internal HorseStrikeSource(AttackHandInfo planned) { this.planned = planned; }
+            internal HorseStrikeSource(AttackHandInfo planned, UnitEntityData horse) { this.planned = planned; this.horse = horse; }
+
+            // PR-5 review R1-F5: the planned hand resolved against the Horse's actual body slots.
+            public string Slot => HorseStrikeDiagnostic.Slot(planned?.Hand, horse?.Body?.PrimaryHand, horse?.Body?.SecondaryHand, horse?.Body?.AdditionalLimbs);
 
             public string WeaponName => planned?.Weapon?.Blueprint?.name;
             public string SpecialType
@@ -1892,9 +1925,26 @@ namespace KingmakerMountedCombat.Integration
                 AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
                 AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
                 AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted,
-                AttackAnimationSpeedScale = horsePrimaryAnimationHandle != null ? horsePrimaryAnimationHandle.SpeedScale : float.NaN,
-                RoutineAttackCount = AllAttacks?.Count ?? 0
+                HorseBiteTerminal = DescribeHorseBiteTerminal()
             };
+        }
+
+        // PR-5 review R1-F4: the terminal Bite fields from the observed Bite (its own handle, no handle, or not reached), never
+        // from a superseded registration. Null outside an exact KMC Horse primary command.
+        private string DescribeHorseBiteTerminal()
+        {
+            try
+            {
+                if (!IsExactKmcHorseCommand) return null;
+                return HorseBiteTerminal.Describe(horseBiteObservation, horsePrimaryAnimationHandle, horsePrimaryAnimationHandleSource,
+                    AllAttacks?.Count ?? 0,
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : handle.Action?.name,
+                    handle => handle.SpeedScale, handle => handle.IsActed, handle => handle.IsFinished, handle => handle.IsInterrupted);
+            }
+            catch (Exception exception)
+            {
+                return "{observed=unreadable(" + exception.GetType().Name + ")}";
+            }
         }
 
         private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)

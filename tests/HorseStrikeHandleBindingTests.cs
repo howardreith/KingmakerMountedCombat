@@ -1,27 +1,37 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Threading;
 using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
 {
     // MMR-07 (review R1-F13): the production handle binding (HorseStrikeHandleBinding, called by
-    // HorsePrimaryAttackAnimationAdapter.SupplyExact) and the production strike reader (HorseStrikeReader, called by
-    // MountedPairAttackCommand.ObserveHorseStrike), driven through fakes of their Unity boundaries. The fake command record
-    // keeps MountedPairAttackCommand's invariants (a second Record or an inexact Refresh throws), so a passing case also shows
-    // the binding never asks for one. Genuine Kingmaker handle/action objects drive the real-type boundary in
+    // HorsePrimaryAttackAnimationAdapter.SupplyExact through SupplyContained) and the production strike reader and terminal
+    // description (HorseStrikeReader, HorseBiteObservation, HorseBiteTerminal, called by MountedPairAttackCommand), driven
+    // through fakes of their Unity boundaries. The fake command record keeps MountedPairAttackCommand's invariants (a second
+    // Record or an inexact Refresh throws), so a passing case also shows the binding never asks for one. Genuine Kingmaker
+    // handle/action/slot/blueprint objects drive the real-type boundary and the Bite-limb proof in
     // scripts/Test-MountedAlpha2BiteContract.ps1. Nothing here proves what was rendered.
     internal static class HorseStrikeHandleBindingTests
     {
         public static void Register(TestRunner runner)
         {
             runner.Run("R1-F13: the exact Horse adopts the stock-created Bite handle once", StockAdoptionOnce);
-            runner.Run("R1-F13: a later stock handle of the same action refreshes the record; a different action is refused", RefreshSameActionOnly);
-            runner.Run("R1-F13: a missing stock handle gets exactly one supplied handle of the single matching action", MissingHandleSupplied);
-            runner.Run("R1-F13: zero or two matching actions, a failed creation or a foreign handle assign and record nothing", RejectionsAssignNothing);
-            runner.Run("R1-F13: a hoof strike adopts the hoof action, never the bite", HoofControl);
+            runner.Run("R1-F13: a later stock handle of the same Bite action refreshes the record; a different action is refused", RefreshSameActionOnly);
+            runner.Run("R1-F13: a missing stock handle gets exactly one supplied handle of the single Bite action", MissingHandleSupplied);
+            runner.Run("R1-F13: zero or two Bite actions, a failed creation or a foreign handle assign and record nothing", RejectionsAssignNothing);
             runner.Run("R1-F13: a non-Horse or other-actor strike is not bound", NotExactContext);
             runner.Run("R1-F13: the strike reader reports the handle bound to the planned attack (adopted, refreshed, supplied, missing, hoof)", ReaderReflectsBoundHandles);
             runner.Run("R4-F7: a strike without a handle after an earlier binding gets no fallback, no second record and no assignment", MissingAfterRecordedLeavesStrikeIntact);
+            runner.Run("PR-5 R1-F1: a hoof never populates the Bite registration or receives its fallback (with and without a stock handle, untyped weapon)", HoofNeverBindsBite);
+            runner.Run("PR-5 R1-F2: a throwing outcome report and a throwing fault report never escape; the planned slot is left as bound", ReportingContained);
+            runner.Run("PR-5 R1-F3: a record fault after assignment restores the exact prior slot and records nothing; the retry supplies once", RecordFaultLeavesNoPartialFallback);
+            runner.Run("PR-5 R1-F4: the terminal Bite fields describe the Bite observed at its strike, not a superseded registration", TerminalDescribesObservedBite);
+            runner.Run("PR-5 R1-F5: the strike line names the native slot; two hooves sharing a blueprint differ, repeated strikes of one limb agree", StrikeSlotIdentity);
+            runner.Run("PR-5 R1-F6: an unreadable playback or handle read keeps one identifiable strike line and states the gap", UnreadableObservationKeepsRecord);
+            runner.Run("PR-5 R1-F7: the missing-handle report is once per command, held by the command", MissingReportOncePerCommand);
+            runner.Run("PR-5 R1-F11: terminal and strike numbers are invariant under a decimal-comma culture", InvariantCultureFormatting);
         }
 
         internal sealed class FakeAction
@@ -34,19 +44,20 @@ namespace KingmakerMountedCombat.Tests
         {
             public FakeAction Action;
             public object Manager;
-            public bool Started, Acted, Interrupted;
+            public bool Started, Acted, Interrupted, Finished;
             public float Speed = 1f;
             public int Variant = 0, Variants = 1;
             public string Clip, State;
             public float Weight;
+            public bool ClipThrows, FactsThrow;
         }
 
-        // One planned native strike: the attack's weapon and current handle, the Horse manager and its action set, and the
-        // pair command's telemetry record.
+        // One planned native strike: whether its context is the exact Horse Bite limb (the adapter's proof), its weapon and
+        // current handle, the Horse manager and its action set, and the pair command's telemetry record and flag.
         internal sealed class Strike
         {
             public bool Exact = true;
-            public string Weapon = "Bite1d4", Expected = "Bite";
+            public string Weapon = "Bite1d4", Special = "Bite", Slot = "limb0";
             public FakeHandle Handle;
             public object Manager = new object();
             public bool ManagerAlive = true;
@@ -54,8 +65,8 @@ namespace KingmakerMountedCombat.Tests
             public FakeHandle Recorded;
             public FakeAction RecordedAction;
             public string RecordedSource;
-            public int Records, Refreshes, Creates, Assigns;
-            public bool CreateFails;
+            public int Records, Refreshes, Creates, Assigns, NonNullAssigns;
+            public bool CreateFails, RecordFailsOnce, MissingReported;
 
             public HorseStrikeHandleBindingResult<FakeHandle, FakeAction> Bind() => HorseStrikeHandleBinding.Bind(new Boundary(this));
         }
@@ -71,18 +82,19 @@ namespace KingmakerMountedCombat.Tests
             public bool HasAnyRecorded => strike.Recorded != null;
             public FakeAction StockSpecialAction(FakeHandle handle) => handle.Action;
             public bool HandleUsesHorseManager(FakeHandle handle) => strike.ManagerAlive && ReferenceEquals(handle.Manager, strike.Manager);
-            public bool ExpectedTypeIsNone => strike.Expected == "None";
-            public bool MatchesExpectedType(FakeAction action) => action.Type == strike.Expected;
+            public bool IsBiteAction(FakeAction action) => action.Type == "Bite";
             public IList<FakeAction> SpecialAttackActions => strike.ManagerAlive ? strike.Actions : new List<FakeAction>();
             public FakeHandle CreateHandle(FakeAction action)
             {
                 strike.Creates++;
                 return strike.CreateFails ? null : new FakeHandle { Action = action, Manager = strike.Manager };
             }
-            public void AssignHandle(FakeHandle handle) { strike.Assigns++; strike.Handle = handle; }
+            public void AssignHandle(FakeHandle handle) { strike.Assigns++; if (handle != null) strike.NonNullAssigns++; strike.Handle = handle; }
+            // As MountedPairAttackCommand.RecordHorsePrimaryAnimation: validation and metadata reads first, then the whole record.
             public void Record(FakeHandle handle, FakeAction action, string source)
             {
                 if (strike.Recorded != null) throw new InvalidOperationException("duplicate record");
+                if (strike.RecordFailsOnce) { strike.RecordFailsOnce = false; throw new InvalidOperationException("simulated metadata read failure"); }
                 strike.Recorded = handle; strike.RecordedAction = action; strike.RecordedSource = source; strike.Records++;
             }
             public void Refresh(FakeHandle handle, FakeAction action)
@@ -91,6 +103,8 @@ namespace KingmakerMountedCombat.Tests
                     throw new InvalidOperationException("inexact refresh");
                 strike.Recorded = handle; strike.RecordedSource = HorseStrikeHandleBinding.StockCreated; strike.Refreshes++;
             }
+            public bool MissingReported => strike.MissingReported;
+            public void MarkMissingReported() => strike.MissingReported = true;
         }
 
         private static readonly FakeAction BiteAction = new FakeAction { Name = "HorseAnimationSet_Bite", Type = "Bite" };
@@ -105,12 +119,19 @@ namespace KingmakerMountedCombat.Tests
             return strike;
         }
 
+        // A hoof strike as the adapter classifies it: its hand is limb1 or limb2, so IsHorseBiteSlot is false.
+        private static Strike HoofStrike(FakeHandle handle = null)
+        {
+            var strike = HorseStrike(handle);
+            strike.Exact = false; strike.Weapon = "Hoof1d4"; strike.Special = "Hoof"; strike.Slot = "limb1";
+            return strike;
+        }
+
         // Review R4-F7: the command already recorded a handle (adopted or supplied); native then plans a strike of the same
         // command with no handle. The fake record throws on a second Record, as MountedPairAttackCommand does, so any fallback
         // attempt would surface here as a fault.
         private static void MissingAfterRecordedLeavesStrikeIntact()
         {
-            // Adopt, then the planned handle is cleared.
             var adopted = HorseStrike(new FakeHandle { Action = BiteAction });
             TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, adopted.Bind().Outcome, "The first stock handle was not adopted.");
             var recorded = adopted.Recorded;
@@ -120,23 +141,20 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(adopted.Handle == null && adopted.Records == 1 && adopted.Creates == 0 && adopted.Assigns == 0 &&
                 ReferenceEquals(adopted.Recorded, recorded) && ReferenceEquals(missing.Action, BiteAction),
                 "A fallback was created, assigned or recorded after adoption.");
-            // Supplied, then the planned handle is cleared.
             var supplied = HorseStrike();
             TestRunner.Equal(HorseStrikeHandleOutcome.Supplied, supplied.Bind().Outcome, "The first fallback was not supplied.");
             supplied.Handle = null;
             TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, supplied.Bind().Outcome, "A missing handle after a supplied one was not reported.");
             TestRunner.True(supplied.Records == 1 && supplied.Creates == 1 && supplied.Assigns == 1 && supplied.Handle == null,
                 "A second fallback was created or assigned after a supplied handle.");
-            // A later hoof strike of the same command, planned without a handle, after a recorded bite: untouched.
+            // A later hoof strike of the same command, planned without a handle, after a recorded bite: not the Bite limb, so
+            // not exact; untouched.
             var hoof = HorseStrike(new FakeHandle { Action = BiteAction });
             hoof.Bind();
-            hoof.Expected = "Hoof"; hoof.Weapon = "Hoof1d4"; hoof.Handle = null;
-            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, hoof.Bind().Outcome, "A later hoof strike without a handle was given a fallback.");
+            hoof.Exact = false; hoof.Weapon = "Hoof1d4"; hoof.Handle = null;
+            TestRunner.Equal(HorseStrikeHandleOutcome.NotExact, hoof.Bind().Outcome, "A later hoof strike was treated as the Bite.");
             TestRunner.True(hoof.Records == 1 && hoof.Creates == 0 && hoof.Assigns == 0 && hoof.Handle == null && ReferenceEquals(hoof.RecordedAction, BiteAction),
                 "The later hoof strike changed the record or the planned attack.");
-            // Repeated native calls stay inert.
-            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, hoof.Bind().Outcome, "A repeated call changed the outcome.");
-            TestRunner.True(hoof.Records == 1 && hoof.Creates == 0 && hoof.Assigns == 0, "A repeated call registered or assigned a handle.");
         }
 
         private static void StockAdoptionOnce()
@@ -147,7 +165,6 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, first.Outcome, "The stock Bite handle was not adopted.");
             TestRunner.True(ReferenceEquals(strike.Recorded, stock) && strike.RecordedSource == HorseStrikeHandleBinding.StockCreated &&
                 ReferenceEquals(strike.Handle, stock) && strike.Assigns == 0 && strike.Creates == 0, "Adoption replaced or recreated the stock handle.");
-            // The native creation path calls the postfix again for the same planned attack: still one record.
             var again = strike.Bind();
             TestRunner.Equal(HorseStrikeHandleOutcome.AlreadyRecorded, again.Outcome, "The adopted handle was bound twice.");
             TestRunner.Equal(1, strike.Records, "The stock handle was recorded more than once.");
@@ -155,18 +172,19 @@ namespace KingmakerMountedCombat.Tests
 
         private static void RefreshSameActionOnly()
         {
+            var secondBite = new FakeAction { Name = "HorseAnimationSet_Bite2", Type = "Bite" };
             var strike = HorseStrike(new FakeHandle { Action = BiteAction });
+            strike.Actions.Add(secondBite);
             strike.Bind();
             var later = new FakeHandle { Action = BiteAction, Manager = strike.Manager };
             strike.Handle = later;
             var refreshed = strike.Bind();
             TestRunner.Equal(HorseStrikeHandleOutcome.Refreshed, refreshed.Outcome, "A later stock handle of the same action did not refresh the record.");
             TestRunner.True(ReferenceEquals(strike.Recorded, later) && strike.Records == 1 && strike.Refreshes == 1, "The refresh recorded a second handle.");
-            // A later handle that plays a different SpecialAttack action (the hoof) is refused, and the record keeps the bite.
-            strike.Expected = "Hoof";
+            strike.Handle = new FakeHandle { Action = secondBite, Manager = strike.Manager };
+            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedRefreshAction, strike.Bind().Outcome, "A refresh to a different Bite action was accepted.");
             strike.Handle = new FakeHandle { Action = HoofAction, Manager = strike.Manager };
-            var refused = strike.Bind();
-            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedRefreshAction, refused.Outcome, "A refresh to a different action was accepted.");
+            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, strike.Bind().Outcome, "A later hoof-playing handle was accepted for the Bite.");
             TestRunner.True(ReferenceEquals(strike.Recorded, later) && strike.Refreshes == 1, "A refused refresh changed the record.");
         }
 
@@ -186,10 +204,10 @@ namespace KingmakerMountedCombat.Tests
         private static void RejectionsAssignNothing()
         {
             var none = HorseStrike(); none.Actions.Clear();
-            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedCandidateCount, none.Bind().Outcome, "Zero matching actions were not refused.");
+            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedCandidateCount, none.Bind().Outcome, "Zero Bite actions were not refused.");
             var two = HorseStrike(); two.Actions.Add(new FakeAction { Name = "SecondBite", Type = "Bite" });
             var twoResult = two.Bind();
-            TestRunner.True(twoResult.Outcome == HorseStrikeHandleOutcome.RejectedCandidateCount && twoResult.CandidateCount == 2, "Two matching actions were not refused.");
+            TestRunner.True(twoResult.Outcome == HorseStrikeHandleOutcome.RejectedCandidateCount && twoResult.CandidateCount == 2, "Two Bite actions were not refused.");
             var failing = HorseStrike(); failing.CreateFails = true;
             TestRunner.Equal(HorseStrikeHandleOutcome.RejectedCreateFailed, failing.Bind().Outcome, "A failed creation was not refused.");
             var foreign = HorseStrike(new FakeHandle { Action = BiteAction }); foreign.Handle.Manager = new object();
@@ -198,23 +216,187 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, stranger.Bind().Outcome, "An action outside the Horse set was adopted.");
             var dead = HorseStrike(new FakeHandle { Action = BiteAction }); dead.ManagerAlive = false;
             TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, dead.Bind().Outcome, "A handle was adopted without a live manager.");
-            var untyped = HorseStrike(new FakeHandle { Action = BiteAction }); untyped.Expected = "None";
-            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, untyped.Bind().Outcome, "A stock handle was adopted for a weapon with no special type.");
-            foreach (var strike in new[] { none, two, failing, foreign, stranger, dead, untyped })
+            foreach (var strike in new[] { none, two, failing, foreign, stranger, dead })
                 TestRunner.True(strike.Records == 0 && strike.Assigns == 0 && strike.Refreshes == 0, "A refused binding recorded or assigned a handle.");
         }
 
-        private static void HoofControl()
+        // PR-5 review R1-F1. The adapter's context is exact only for the proven Bite limb (IsHorseBiteSlot, checked on genuine
+        // slots and blueprints by the contract); the binding additionally requires the action itself to be a Bite, with no
+        // wildcard. Before any Bite registration: a current hoof with a stock handle, a current hoof without one, an untyped
+        // weapon whose only candidate is Hoof, and a Hoof handle presented in an exact context all leave zero Bite records,
+        // creations and assignments. Positive controls: exact Bite adoption and exact Bite fallback.
+        private static void HoofNeverBindsBite()
         {
-            var stockHoof = HorseStrike(new FakeHandle { Action = HoofAction }); stockHoof.Weapon = "Hoof1d3"; stockHoof.Expected = "Hoof";
-            TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, stockHoof.Bind().Outcome, "The stock hoof handle was not adopted.");
-            TestRunner.True(ReferenceEquals(stockHoof.RecordedAction, HoofAction), "The hoof strike recorded the bite action.");
-            var bitePlayedForHoof = HorseStrike(new FakeHandle { Action = BiteAction }); bitePlayedForHoof.Expected = "Hoof";
-            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, bitePlayedForHoof.Bind().Outcome, "A bite handle was adopted for a hoof strike.");
-            var missingHoof = HorseStrike(); missingHoof.Expected = "Hoof";
-            var supplied = missingHoof.Bind();
-            TestRunner.True(supplied.Outcome == HorseStrikeHandleOutcome.Supplied && ReferenceEquals(supplied.Handle.Action, HoofAction),
-                "The missing hoof handle was not supplied from the hoof action.");
+            var hoofWithHandle = HoofStrike(new FakeHandle { Action = HoofAction });
+            var hoofWithout = HoofStrike();
+            var untypedOnlyHoof = HorseStrike(); untypedOnlyHoof.Special = "None"; untypedOnlyHoof.Actions.Clear(); untypedOnlyHoof.Actions.Add(HoofAction);
+            var hoofHandleExact = HorseStrike(new FakeHandle { Action = HoofAction });
+            TestRunner.Equal(HorseStrikeHandleOutcome.NotExact, hoofWithHandle.Bind().Outcome, "A hoof with a stock handle was bound as the Bite.");
+            TestRunner.Equal(HorseStrikeHandleOutcome.NotExact, hoofWithout.Bind().Outcome, "A hoof without a handle reached the Bite fallback.");
+            var untyped = untypedOnlyHoof.Bind();
+            TestRunner.True(untyped.Outcome == HorseStrikeHandleOutcome.RejectedCandidateCount && untyped.CandidateCount == 0,
+                "An untyped weapon with only a Hoof candidate received a Bite fallback.");
+            TestRunner.Equal(HorseStrikeHandleOutcome.RejectedStockMismatch, hoofHandleExact.Bind().Outcome, "A Hoof action was adopted as the Bite.");
+            foreach (var strike in new[] { hoofWithHandle, hoofWithout, untypedOnlyHoof, hoofHandleExact })
+                TestRunner.True(strike.Records == 0 && strike.Assigns == 0 && strike.Creates == 0 && strike.Recorded == null,
+                    "A hoof populated the Bite registration or was assigned a Bite fallback.");
+            TestRunner.True(hoofWithout.Handle == null && ReferenceEquals(hoofWithHandle.Handle.Action, HoofAction), "A hoof's own planned handle was changed.");
+            var biteAdopted = HorseStrike(new FakeHandle { Action = BiteAction });
+            var biteSupplied = HorseStrike();
+            TestRunner.True(biteAdopted.Bind().Outcome == HorseStrikeHandleOutcome.Adopted && biteSupplied.Bind().Outcome == HorseStrikeHandleOutcome.Supplied &&
+                ReferenceEquals(biteSupplied.Handle.Action, BiteAction), "The exact Bite positive controls failed.");
+        }
+
+        // PR-5 review R1-F2: SupplyExact is SupplyContained(build, report, reportFault). A throwing outcome report (logger or
+        // metadata) hands its exception to the fault report; a throwing fault report (the logger again) is absorbed; a throwing
+        // boundary construction is contained too. Each call returns normally and the planned slot keeps what the binding did.
+        private static void ReportingContained()
+        {
+            var adoption = HorseStrike(new FakeHandle { Action = BiteAction });
+            var stock = adoption.Handle;
+            Exception faulted = null;
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(() => new Boundary(adoption),
+                result => { throw new InvalidOperationException("simulated outcome logger failure"); }, exception => faulted = exception);
+            TestRunner.True(faulted is InvalidOperationException && faulted.Message.Contains("outcome logger") && ReferenceEquals(adoption.Handle, stock) &&
+                adoption.Records == 1 && adoption.Assigns == 0, "A throwing outcome report escaped or changed the planned slot.");
+            var both = HorseStrike();
+            var returned = false;
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(() => new Boundary(both),
+                result => { throw new InvalidOperationException("simulated outcome logger failure"); },
+                exception => { throw new InvalidOperationException("simulated exception logger failure"); });
+            returned = true;
+            TestRunner.True(returned && both.Records == 1 && both.Handle != null && ReferenceEquals(both.Handle, both.Recorded),
+                "A throwing fault report escaped, or the supplied handle was lost.");
+            Exception buildFault = null;
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(() => { throw new NullReferenceException("simulated visual parameters read"); },
+                result => { }, exception => buildFault = exception);
+            TestRunner.True(buildFault is NullReferenceException, "A throwing boundary construction was not contained.");
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(null, null, null);
+        }
+
+        // PR-5 review R1-F3: the fallback assigns the slot and then records; a record (or metadata) fault restores the exact prior
+        // slot (here: no handle) and leaves no registration. Inspected immediately and on retry, through the contained path.
+        private static void RecordFaultLeavesNoPartialFallback()
+        {
+            var strike = HorseStrike(); strike.RecordFailsOnce = true;
+            var faults = 0;
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(() => new Boundary(strike), result => { }, exception => faults++);
+            TestRunner.True(faults == 1 && strike.Handle == null && strike.Recorded == null && strike.RecordedSource == null && strike.Records == 0 &&
+                strike.NonNullAssigns == 1 && strike.Assigns == 2, "A record fault left an assigned fallback or a partial record.");
+            HorseStrikeHandleBindingResult<FakeHandle, FakeAction> retry = default(HorseStrikeHandleBindingResult<FakeHandle, FakeAction>);
+            HorseStrikeHandleBinding.SupplyContained<FakeHandle, FakeAction>(() => new Boundary(strike), result => retry = result, exception => faults++);
+            TestRunner.True(faults == 1 && retry.Outcome == HorseStrikeHandleOutcome.Supplied && ReferenceEquals(strike.Handle, retry.Handle) &&
+                ReferenceEquals(strike.Recorded, retry.Handle) && strike.RecordedSource == HorseStrikeHandleBinding.KmcSupplied && strike.Records == 1 &&
+                strike.NonNullAssigns == 2 && strike.Creates == 2, "The retry did not supply exactly once with the kmc-supplied source.");
+        }
+
+        private static string Terminal(HorseBiteObservation<FakeHandle> observation, Strike command, int routine = 3) =>
+            HorseBiteTerminal.Describe(observation, command.Recorded, command.RecordedSource, routine,
+                handle => handle.Action?.Name, handle => handle.Speed, handle => handle.Acted, handle => handle.Finished, handle => handle.Interrupted);
+
+        // PR-5 review R1-F4: the registration stays historical (idempotence), the observation follows the Bite at its strike.
+        private static void TerminalDescribesObservedBite()
+        {
+            // Adoption, then native replans the Bite without a handle and the Bite strikes with none.
+            var adopted = HorseStrike(new FakeHandle { Action = BiteAction, Acted = true, Finished = true, Speed = 2.4f });
+            adopted.Bind();
+            var observation = new HorseBiteObservation<FakeHandle>();
+            observation.Observe(true, adopted.Handle);
+            adopted.Handle = null;
+            TestRunner.Equal(HorseStrikeHandleOutcome.MissingAfterRecorded, adopted.Bind().Outcome, "The replanned Bite was not left as native planned it.");
+            observation.Observe(true, null);
+            var replanned = Terminal(observation, adopted);
+            TestRunner.True(replanned == "{observed=no-handle,routineAttacks=3}", "A handle-less replanned Bite was described with the superseded handle: " + replanned);
+            // A valid Bite, then a handle-less hoof: the hoof is not a Bite observation.
+            var valid = HorseStrike(new FakeHandle { Action = BiteAction, Started = true, Acted = true, Finished = true, Speed = 2.4f });
+            valid.Bind();
+            var second = new HorseBiteObservation<FakeHandle>();
+            second.Observe(true, valid.Handle);
+            second.Observe(false, null);
+            var withHoof = Terminal(second, valid);
+            TestRunner.True(withHoof == "{observed=handle,action=HorseAnimationSet_Bite,source=stock-created,speedScale=2.4,routineAttacks=3,acted=True,finished=True,interrupted=False}",
+                "A valid Bite followed by a handle-less hoof was misdescribed: " + withHoof);
+            // An exact Horse command with no observed Bite (ended before its strike), after a registration: not-reached.
+            var notReached = Terminal(new HorseBiteObservation<FakeHandle>(), valid);
+            TestRunner.True(notReached == "{observed=not-reached,routineAttacks=3}", "An unobserved Bite was described from the registration: " + notReached);
+            // A Bite observed with a handle that was never registered (refused binding) states its own facts and source=unrecorded.
+            var refused = HorseStrike(new FakeHandle { Action = BiteAction, Acted = true }); refused.Handle.Manager = new object();
+            refused.Bind();
+            var third = new HorseBiteObservation<FakeHandle>();
+            third.Observe(true, refused.Handle);
+            TestRunner.True(Terminal(third, refused).Contains("source=unrecorded") && Terminal(third, refused).Contains("acted=True"),
+                "An unregistered observed Bite handle was not stated as unrecorded.");
+            var failing = new HorseBiteObservation<FakeHandle>();
+            failing.Observe(true, valid.Handle);
+            var unreadable = HorseBiteTerminal.Describe(failing, valid.Recorded, valid.RecordedSource, 3, handle => { throw new InvalidOperationException("x"); },
+                handle => 1f, handle => true, handle => true, handle => false);
+            TestRunner.True(unreadable.Contains("facts=unreadable(InvalidOperationException)") && unreadable.Contains("source=stock-created"),
+                "An unreadable observed handle was not stated as unreadable: " + unreadable);
+        }
+
+        // PR-5 review R1-F5: HorseStrikeDiagnostic.Slot resolves the planned hand by reference against the Horse's body.
+        private static void StrikeSlotIdentity()
+        {
+            object primary = new object(), secondary = new object(), bite = new object(), hoofLeft = new object(), hoofRight = new object();
+            var limbs = new List<object> { bite, hoofLeft, hoofRight };
+            TestRunner.Equal("limb0", HorseStrikeDiagnostic.Slot(bite, primary, secondary, limbs), "The Bite limb was not identified.");
+            TestRunner.True(HorseStrikeDiagnostic.Slot(hoofLeft, primary, secondary, limbs) == "limb1" && HorseStrikeDiagnostic.Slot(hoofRight, primary, secondary, limbs) == "limb2",
+                "Two hooves sharing one blueprint were not distinguished by slot.");
+            TestRunner.True(HorseStrikeDiagnostic.Slot(hoofLeft, primary, secondary, limbs) == HorseStrikeDiagnostic.Slot(hoofLeft, primary, secondary, limbs),
+                "Repeated strikes from one limb resolved to different slots.");
+            TestRunner.True(HorseStrikeDiagnostic.Slot(primary, primary, secondary, limbs) == "primary" && HorseStrikeDiagnostic.Slot(secondary, primary, secondary, limbs) == "secondary" &&
+                HorseStrikeDiagnostic.Slot(new object(), primary, secondary, limbs) == "unresolved" && HorseStrikeDiagnostic.Slot(null, primary, secondary, limbs) == "none",
+                "Hands, a foreign slot or a missing hand were misidentified.");
+            var first = HorseStrike(new FakeHandle { Action = HoofAction, Started = true }); first.Slot = "limb1"; first.Special = "Hoof"; first.Weapon = "Hoof1d4";
+            var repeat = Read(first, 3);
+            var other = HorseStrike(new FakeHandle { Action = HoofAction, Started = true }); other.Slot = "limb2"; other.Special = "Hoof"; other.Weapon = "Hoof1d4";
+            TestRunner.True(Read(first, 2).Format().Contains("index=2/3; slot=limb1") && repeat.Format().Contains("index=3/3; slot=limb1") &&
+                Read(other, 3).Format().Contains("slot=limb2"), "The strike line did not keep the slot separate from the routine ordinal.");
+        }
+
+        // PR-5 review R1-F6: a throwing clip/weight getter or handle fact read marks only that group.
+        private static void UnreadableObservationKeepsRecord()
+        {
+            var strike = HorseStrike(new FakeHandle { Action = BiteAction, Started = true, Acted = true, Speed = 2.4f, ClipThrows = true });
+            strike.Bind();
+            var line = Read(strike).Format();
+            TestRunner.True(line.StartsWith("Horse strike: horse=horse-1; index=1/3; slot=limb0; weapon=Bite1d4; special=Bite; handle=started,acted; action=HorseAnimationSet_Bite; speedScale=2.4") &&
+                line.Contains("playback=unreadable(InvalidOperationException)") && !line.Contains("activeClip=<none>"),
+                "An unreadable playback read erased the strike or read as an absent clip: " + line);
+            var facts = HorseStrike(new FakeHandle { Action = BiteAction, FactsThrow = true });
+            var factsLine = Read(facts).Format();
+            TestRunner.True(factsLine.Contains("weapon=Bite1d4") && factsLine.Contains("handle=present,facts-unreadable(InvalidOperationException)"),
+                "An unreadable handle fact erased the strike or read as handle=none: " + factsLine);
+            var absent = Read(HorseStrike()).Format();
+            TestRunner.True(absent.Contains("handle=none") && !absent.Contains("unreadable"), "A positively absent handle was reported as unreadable.");
+        }
+
+        // PR-5 review R1-F7: the report-once flag is the command's (the fake Strike plays the command): repeated callbacks of one
+        // command report once; a later command reports on its own. The adapter keeps no command reference (contract check).
+        private static void MissingReportOncePerCommand()
+        {
+            var command = HorseStrike(new FakeHandle { Action = BiteAction });
+            command.Bind(); command.Handle = null;
+            var first = command.Bind(); var second = command.Bind(); var third = command.Bind();
+            TestRunner.True(first.FirstMissingReport && !second.FirstMissingReport && !third.FirstMissingReport && command.MissingReported,
+                "Repeated missing-handle callbacks of one command were not reported exactly once.");
+            var later = HorseStrike(); later.Bind(); later.Handle = null;
+            TestRunner.True(later.Bind().FirstMissingReport, "A subsequent command did not report independently.");
+        }
+
+        private static void InvariantCultureFormatting()
+        {
+            var saved = Thread.CurrentThread.CurrentCulture;
+            try
+            {
+                Thread.CurrentThread.CurrentCulture = new CultureInfo("de-DE");
+                var terminal = HorseStrikeDiagnostic.FormatTerminalBite(HorseBiteObservationKind.Handle, "HorseAnimationSet_Bite", "stock-created", 2.4f, 1234, true, false, false);
+                var strike = HorseStrike(new FakeHandle { Action = BiteAction, Speed = 2.4f, Weight = 0.5f, Clip = "BiteAttack" });
+                var line = Read(strike).Format();
+                TestRunner.True(terminal.Contains("speedScale=2.4,") && terminal.Contains("routineAttacks=1234,") && !terminal.Contains("2,4") &&
+                    line.Contains("speedScale=2.4;") && line.Contains("clipWeight=0.5;"), "A decimal-comma culture changed the diagnostic numbers: " + terminal + " / " + line);
+            }
+            finally { Thread.CurrentThread.CurrentCulture = saved; }
         }
 
         private static void NotExactContext()
@@ -232,16 +414,17 @@ namespace KingmakerMountedCombat.Tests
             private readonly Strike strike;
             public Source(Strike strike) { this.strike = strike; }
             public string WeaponName => strike.Weapon;
-            public string SpecialType => strike.Expected;
+            public string SpecialType => strike.Special;
+            public string Slot => strike.Slot;
             public FakeHandle Handle => strike.Handle;
-            public string ActionName(FakeHandle handle) => handle.Action?.Name;
+            public string ActionName(FakeHandle handle) => handle.FactsThrow ? throw new InvalidOperationException("simulated handle read") : handle.Action?.Name;
             public bool IsStarted(FakeHandle handle) => handle.Started;
             public bool IsActed(FakeHandle handle) => handle.Acted;
             public bool IsInterrupted(FakeHandle handle) => handle.Interrupted;
             public float SpeedScale(FakeHandle handle) => handle.Speed;
             public int Variant(FakeHandle handle) => handle.Variant;
             public int VariantsCount(FakeHandle handle) => handle.Variants;
-            public string ActiveClip(FakeHandle handle) => handle.Clip;
+            public string ActiveClip(FakeHandle handle) => handle.ClipThrows ? throw new InvalidOperationException("simulated invalidated clip") : handle.Clip;
             public float ActiveWeight(FakeHandle handle) => handle.Weight;
             public string ActiveState(FakeHandle handle) => handle.State;
         }
@@ -272,12 +455,13 @@ namespace KingmakerMountedCombat.Tests
             var suppliedRecord = Read(fallback);
             TestRunner.True(ReferenceEquals(suppliedRecord.HandleIdentity, supplied.Handle) && suppliedRecord.Format().Contains("handle=not-started,not-acted"),
                 "The record did not reflect the supplied handle.");
-            var hoof = HorseStrike(new FakeHandle { Action = HoofAction, Started = true, Acted = true, Clip = "Left_Hoof_Attack", Weight = 1f, State = "Playing" });
-            hoof.Weapon = "Hoof1d3"; hoof.Expected = "Hoof";
-            hoof.Bind();
+            // A hoof is described by the reader (never bound as the Bite).
+            var hoof = HoofStrike(new FakeHandle { Action = HoofAction, Started = true, Acted = true, Clip = "Left_Hoof_Attack", Weight = 1f, State = "Playing" });
+            TestRunner.Equal(HorseStrikeHandleOutcome.NotExact, hoof.Bind().Outcome, "The hoof was bound as the Bite.");
             var hoofRecord = Read(hoof, 2);
             TestRunner.True(hoofRecord.Format().Contains("special=Hoof") && hoofRecord.Format().Contains("activeClip=Left_Hoof_Attack") &&
-                hoofRecord.Format().Contains("index=2/3") && hoofRecord.Action == "HorseAnimationSet_Hoof", "The hoof control was not distinguishable.");
+                hoofRecord.Format().Contains("index=2/3") && hoofRecord.Format().Contains("slot=limb1") && hoofRecord.Action == "HorseAnimationSet_Hoof",
+                "The hoof control was not distinguishable.");
         }
     }
 }

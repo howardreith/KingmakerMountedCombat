@@ -26,8 +26,9 @@ namespace KingmakerMountedCombat.Domain
         where THandle : class
         where TAction : class
     {
-        // The exact KMC Horse primary context (pair mounted, live MountPrimaryNatural command on the exact Horse, the planned
-        // attack and weapon of that command). Decided by the adapter before any handle is read.
+        // The exact KMC Horse primary context AND the proven Bite limb (PR-5 review R1-F1): pair mounted, live
+        // MountPrimaryNatural command on the exact Horse, and the planned hand is the Horse's own Bite limb slot carrying the
+        // Horse blueprint's Bite weapon. A hoof strike is never exact. Decided by the adapter before any handle is read.
         bool ExactContext { get; }
 
         // The planned attack's current native handle (null when native created none).
@@ -44,17 +45,24 @@ namespace KingmakerMountedCombat.Domain
         // The handle was created by the Horse's own live animation manager.
         bool HandleUsesHorseManager(THandle handle);
 
-        // The weapon's expected special animation type, and whether an action plays it.
-        bool ExpectedTypeIsNone { get; }
-        bool MatchesExpectedType(TAction action);
+        // PR-5 review R1-F1: the action itself plays the Bite (its own attack type), whatever the planned weapon reports; there
+        // is no wildcard for an untyped weapon.
+        bool IsBiteAction(TAction action);
 
         // The Horse animation manager's SpecialAttack actions (empty without a live manager).
         IList<TAction> SpecialAttackActions { get; }
 
         THandle CreateHandle(TAction action);
+        // Also used to restore the exact prior slot when the record fails after assignment (PR-5 review R1-F3).
         void AssignHandle(THandle handle);
+        // Validates and reads everything it needs before publishing anything: it either records completely or throws with
+        // nothing recorded (PR-5 review R1-F3).
         void Record(THandle handle, TAction action, string source);
         void Refresh(THandle handle, TAction action);
+
+        // PR-5 review R1-F7: the once-per-command missing-handle report, held by the command itself.
+        bool MissingReported { get; }
+        void MarkMissingReported();
     }
 
     public struct HorseStrikeHandleBindingResult<THandle, TAction>
@@ -65,14 +73,16 @@ namespace KingmakerMountedCombat.Domain
         public THandle Handle;
         public TAction Action;
         public int CandidateCount;
+        // MissingAfterRecorded only: this is the command's first such strike (report it once).
+        public bool FirstMissingReport;
     }
 
-    // Adopt the stock-created native SpecialAttack handle of the exact KMC Horse primary strike, refresh the record to a later
-    // stock handle of the same action, or (only when native created none) supply exactly one handle of the single matching
-    // SpecialAttack action. A handle is recorded at most once; anything inexact is rejected and nothing is assigned. Once a
-    // handle is recorded for the command, a later strike without a handle is never given a fallback (no creation, assignment
-    // or second record): the binding cannot attribute a new handle to that record, so native's strike stays intact. This
-    // decides presentation telemetry only: the native UnitAttack keeps execution, rules, timing and damage.
+    // Adopt the stock-created native SpecialAttack handle of the exact KMC Horse Bite strike, refresh the record to a later
+    // stock handle of the same Bite action, or (only when native created none) supply exactly one handle of the single Bite
+    // action. A handle is recorded at most once; anything inexact is rejected and nothing is assigned. Once a handle is
+    // recorded for the command, a later strike without a handle is never given a fallback (no creation, assignment or second
+    // record): the binding cannot attribute a new handle to that record, so native's strike stays intact. This decides
+    // presentation telemetry only: the native UnitAttack keeps execution, rules, timing and damage.
     public static class HorseStrikeHandleBinding
     {
         public const string StockCreated = "stock-created";
@@ -96,8 +106,8 @@ namespace KingmakerMountedCombat.Domain
                 }
                 var stock = boundary.StockSpecialAction(current);
                 result.Action = stock;
-                if (!boundary.HandleUsesHorseManager(current) || stock == null || boundary.ExpectedTypeIsNone ||
-                    !boundary.MatchesExpectedType(stock) || !Contains(boundary.SpecialAttackActions, stock))
+                if (!boundary.HandleUsesHorseManager(current) || stock == null || !boundary.IsBiteAction(stock) ||
+                    !Contains(boundary.SpecialAttackActions, stock))
                 {
                     result.Outcome = HorseStrikeHandleOutcome.RejectedStockMismatch;
                     return result;
@@ -123,6 +133,8 @@ namespace KingmakerMountedCombat.Domain
             {
                 result.Outcome = HorseStrikeHandleOutcome.MissingAfterRecorded;
                 result.Action = boundary.RecordedAction;
+                result.FirstMissingReport = !boundary.MissingReported;
+                if (result.FirstMissingReport) boundary.MarkMissingReported();
                 return result;
             }
             TAction only = null;
@@ -132,7 +144,7 @@ namespace KingmakerMountedCombat.Domain
             {
                 foreach (var candidate in actions)
                 {
-                    if (candidate == null || !boundary.ExpectedTypeIsNone && !boundary.MatchesExpectedType(candidate)) continue;
+                    if (candidate == null || !boundary.IsBiteAction(candidate)) continue;
                     count++;
                     only = candidate;
                 }
@@ -151,10 +163,36 @@ namespace KingmakerMountedCombat.Domain
                 return result;
             }
             result.Handle = handle;
+            var prior = current;
             boundary.AssignHandle(handle);
-            boundary.Record(handle, only, KmcSupplied);
+            try { boundary.Record(handle, only, KmcSupplied); }
+            catch (Exception)
+            {
+                // PR-5 review R1-F3: the record failed after the slot was assigned: the exact prior slot is restored, so a failed
+                // binding leaves the planned attack as native planned it and no registration names the handle. (A failure of
+                // the restore itself cannot be repaired here; the original failure is what is reported.)
+                try { boundary.AssignHandle(prior); }
+                catch (Exception) { }
+                throw;
+            }
             result.Outcome = HorseStrikeHandleOutcome.Supplied;
             return result;
+        }
+
+        // PR-5 review R1-F2: the whole callback, building the boundary, the decision and the outcome reporting, runs inside one
+        // containment; a failure is handed to reportFault, and a failure of reportFault itself (for example the logger) is
+        // absorbed too. Nothing reaches the native handle creation that calls this.
+        public static void SupplyContained<THandle, TAction>(Func<IHorseStrikeHandleBoundary<THandle, TAction>> build,
+            Action<HorseStrikeHandleBindingResult<THandle, TAction>> report, Action<Exception> reportFault)
+            where THandle : class
+            where TAction : class
+        {
+            try { report(Bind(build())); }
+            catch (Exception exception)
+            {
+                try { reportFault(exception); }
+                catch (Exception) { }
+            }
         }
 
         private static bool Contains<TAction>(IList<TAction> actions, TAction action) where TAction : class
@@ -167,11 +205,13 @@ namespace KingmakerMountedCombat.Domain
     }
 
     // The planned-strike facts the Horse strike line reports, read through a boundary over the native planned attack and its
-    // handle (production: MountedPairAttackCommand.HorseStrikeSource). Read only; null-safe at every step.
+    // handle (production: MountedPairAttackCommand.HorseStrikeSource). Read only.
     public interface IHorseStrikeSource<THandle> where THandle : class
     {
         string WeaponName { get; }
         string SpecialType { get; }
+        // PR-5 review R1-F5: the planned hand resolved against the Horse's body (HorseStrikeDiagnostic.Slot).
+        string Slot { get; }
         THandle Handle { get; }
         string ActionName(THandle handle);
         bool IsStarted(THandle handle);
@@ -187,45 +227,66 @@ namespace KingmakerMountedCombat.Domain
 
     public struct HorseStrikeRecord
     {
-        public string Horse, Weapon, Special, Action, ActiveClip, AnimationState, Target;
+        public string Horse, Weapon, Special, Slot, Action, ActiveClip, AnimationState, Target;
         public int Index, Count, Variant, Variants;
         public bool HasHandle, Started, Acted, Interrupted;
         public float SpeedScale, ClipWeight;
         public object HandleIdentity;
+        // PR-5 review R1-F6: the exception type of a group that could not be read (null when read).
+        public string WeaponUnreadable, HandleFactsUnreadable, PlaybackUnreadable;
 
-        public string Format() => HorseStrikeDiagnostic.Format(Horse, Index, Count, Weapon, Special, HasHandle, Action, Started, Acted,
-            Interrupted, SpeedScale, Variant, Variants, ActiveClip, ClipWeight, AnimationState, Target);
+        public string Format() => HorseStrikeDiagnostic.Format(this);
     }
 
     public static class HorseStrikeReader
     {
+        // PR-5 review R1-F6: each group (weapon, slot, handle facts, playback) is read on its own; a failing read marks only
+        // that group unreadable, so a recognized strike always yields one line with the facts that were available.
         public static HorseStrikeRecord Read<THandle>(IHorseStrikeSource<THandle> source, string horse, int index, int count, string target)
             where THandle : class
         {
             if (source == null) throw new ArgumentNullException(nameof(source));
-            var record = new HorseStrikeRecord
+            var record = new HorseStrikeRecord { Horse = horse, Index = index, Count = count, Target = target };
+            try { record.Weapon = source.WeaponName; record.Special = source.SpecialType; }
+            catch (Exception exception) { record.Weapon = null; record.Special = null; record.WeaponUnreadable = HorseStrikeDiagnostic.Reason(exception); }
+            try { record.Slot = source.Slot; }
+            catch (Exception exception) { record.Slot = "unreadable(" + HorseStrikeDiagnostic.Reason(exception) + ")"; }
+            THandle handle;
+            try { handle = source.Handle; }
+            catch (Exception exception)
             {
-                Horse = horse,
-                Index = index,
-                Count = count,
-                Target = target,
-                Weapon = source.WeaponName,
-                Special = source.SpecialType
-            };
-            var handle = source.Handle;
+                record.HandleFactsUnreadable = HorseStrikeDiagnostic.Reason(exception);
+                return record;
+            }
             if (handle == null) return record;
             record.HasHandle = true;
             record.HandleIdentity = handle;
-            record.Action = source.ActionName(handle);
-            record.Started = source.IsStarted(handle);
-            record.Acted = source.IsActed(handle);
-            record.Interrupted = source.IsInterrupted(handle);
-            record.SpeedScale = source.SpeedScale(handle);
-            record.Variant = source.Variant(handle);
-            record.Variants = source.VariantsCount(handle);
-            record.ActiveClip = source.ActiveClip(handle);
-            record.ClipWeight = source.ActiveWeight(handle);
-            record.AnimationState = source.ActiveState(handle);
+            try
+            {
+                record.Action = source.ActionName(handle);
+                record.Started = source.IsStarted(handle);
+                record.Acted = source.IsActed(handle);
+                record.Interrupted = source.IsInterrupted(handle);
+                record.SpeedScale = source.SpeedScale(handle);
+                record.Variant = source.Variant(handle);
+                record.Variants = source.VariantsCount(handle);
+            }
+            catch (Exception exception)
+            {
+                record.HandleFactsUnreadable = HorseStrikeDiagnostic.Reason(exception);
+                return record;
+            }
+            try
+            {
+                record.ActiveClip = source.ActiveClip(handle);
+                record.ClipWeight = source.ActiveWeight(handle);
+                record.AnimationState = source.ActiveState(handle);
+            }
+            catch (Exception exception)
+            {
+                record.ActiveClip = null; record.ClipWeight = 0f; record.AnimationState = null;
+                record.PlaybackUnreadable = HorseStrikeDiagnostic.Reason(exception);
+            }
             return record;
         }
     }
