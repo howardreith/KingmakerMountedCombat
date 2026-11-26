@@ -87,6 +87,7 @@ $members=[ordered]@{
  'CONTROLLER_PROPOSAL'=(Extract $controller 'private void ObserveAutomaticProposal(UnitAttack proposal, bool ownerIsRider, bool turnBased)')
  'CONTROLLER_TIE'=(Extract $controller 'private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)')
  'CONTROLLER_ADMIT_AUTOMATIC'=(Extract $controller 'internal bool AdmitQueuedAutomaticRun(MountedPairSingleAttack command)')
+ 'CONTROLLER_NATIVE_ADMISSION_LOST'=(Extract $controller 'private bool AutomaticTargetLeftNativeAdmission(UnitEntityData rider, UnitEntityData target)')
  'CONTROLLER_END_QUEUED'=(Extract $controller 'private void EndQueuedCommand(MountedPairSingleAttack command, string reason)')
  'CONTROLLER_CAPTURE_CONTEXT'=(Extract $controller 'private MountedCombatActionContext CaptureContext(')
  'CONTROLLER_IN_COMBAT'=(Extract $controller 'private bool IsPairInCombat()')

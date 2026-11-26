@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using Kingmaker.Controllers.Brain;
 using Kingmaker.Controllers.Brain.Blueprints;
+using Kingmaker.Designers;
 using Kingmaker.EntitySystem.Entities;
 
 namespace KingmakerMountedCombat.Integration
@@ -33,7 +34,14 @@ namespace KingmakerMountedCombat.Integration
             // unit's AiMovementForbidden, or the candidate in AIData.UnreachableUnits), so no line-of-sight probe native would not make.
             public float ActionRangeWithCorpulence;
             public bool InLos;
+            // The proposal action's own range (BlueprintAiAction.GetRange), kept for the retained order's later recheck (R9-F1).
+            public float ActionRange;
         }
+
+        // PR-1 review R9-F1: native's line-of-sight test (GameHelper.CheckLOS(UnitEntityData, UnitEntityData), 0x06008555, the test
+        // TargetInfo.InLos caches) for a retained automatic order's drive-time recheck of IsTargetValid's restricted rule.
+        internal static bool NativeLos(UnitEntityData unit, UnitEntityData target) =>
+            unit != null && target != null && GameHelper.CheckLOS(unit, target);
 
         // The same live list, as native ranked it, for the pair's equal-rank tie-break (review R1-F11), with the native admission facts for
         // the proposal's own AI action (BlueprintAiAction.GetRange reads only the deciding unit: BlueprintAiAttack 0x06009437). Null when
@@ -54,11 +62,13 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (info?.Unit == null) continue;
                     var sightRead = unit.AiMovementForbidden || unreachable != null && unreachable.Contains(info.Unit);
+                    var reach = range + unitBody + (info.Unit.View != null ? info.Unit.View.Corpulence : 0f);
+                    // PR-1 review R9-F4: IsTargetValid tests range before sight, so a candidate already beyond its action range is not
+                    // sight-tested.
                     result.Add(new Candidate
                     {
-                        Unit = info.Unit, Weight = info.Weight, Distance = info.Distance,
-                        ActionRangeWithCorpulence = range + unitBody + (info.Unit.View != null ? info.Unit.View.Corpulence : 0f),
-                        InLos = sightRead && info.InLos(context)
+                        Unit = info.Unit, Weight = info.Weight, Distance = info.Distance, ActionRangeWithCorpulence = reach, ActionRange = range,
+                        InLos = sightRead && info.Distance <= reach && info.InLos(context)
                     });
                 }
                 return result;

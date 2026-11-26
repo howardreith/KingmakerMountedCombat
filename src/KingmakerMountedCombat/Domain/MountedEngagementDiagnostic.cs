@@ -109,6 +109,8 @@ namespace KingmakerMountedCombat.Domain
         public float Weight;
         public float Distance;
         public bool Eligible;
+        // PR-1 review R9-F2: the rider's AIData.DislikedTarget (native NotImpatientConsideration scores it 0.5, never 0).
+        public bool Disliked;
     }
 
     // MMR-04 (review R1-F11): native's TargetInfo.Sort orders by weight only and List.Sort is unstable, so candidates with the
@@ -132,12 +134,23 @@ namespace KingmakerMountedCombat.Domain
             if (!found || ReferenceEquals(currentOrderTarget, proposed)) return proposed;
             // PR-1 review R7-F1: the proposal is the distance to beat only when it is itself eligible; an ineligible proposal yields to the
             // nearest eligible equal-ranked candidate, however far (if none is eligible the proposal is returned and refused as before).
+            // PR-1 review R9-F2: the dislike preference applies after admission. A disliked candidate is passed over only while a
+            // comparable (equal-ranked) candidate that is not disliked also passes native and mounted admission; otherwise it is a legal
+            // choice like any other (native scores it 0.5, not 0).
+            var proposedDisliked = false;
+            var legalNotDisliked = false;
+            foreach (var candidate in ranked)
+            {
+                if (candidate.Unit == null || !SameRank(candidate.Weight, weight, currentOrderTarget)) continue;
+                if (ReferenceEquals(candidate.Unit, proposed)) proposedDisliked = candidate.Disliked;
+                if (candidate.Eligible && !candidate.Disliked) legalNotDisliked = true;
+            }
             var best = proposed;
-            var bestDistance = proposedEligible ? proposedDistance : float.PositiveInfinity;
+            var bestDistance = proposedEligible && !(proposedDisliked && legalNotDisliked) ? proposedDistance : float.PositiveInfinity;
             foreach (var candidate in ranked)
             {
                 if (candidate.Unit == null || !SameRank(candidate.Weight, weight, currentOrderTarget) || ReferenceEquals(candidate.Unit, proposed) ||
-                    !candidate.Eligible) continue;
+                    !candidate.Eligible || candidate.Disliked && legalNotDisliked) continue;
                 if (currentOrderTarget != null && ReferenceEquals(candidate.Unit, currentOrderTarget)) return currentOrderTarget;
                 if (candidate.Distance < bestDistance) { best = candidate.Unit; bestDistance = candidate.Distance; }
             }

@@ -307,4 +307,9 @@ $retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]
 Check ($null -ne $recordInvalid -and (Calls $retireInvalid $recordInvalid) -eq 1 -and (FirstOffset $retireInvalid $recordInvalid) -lt (FirstOffset $retireInvalid $retireWrapper) -and
     (Calls (@(Method $pair 'TryEndExpectedTargetInvalidation')[0]) (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1 -and (Calls $recordInvalid (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1) 'PR-1 R6-F1: controller-first loss records the wrapper''s own target-invalidation cause and reason (shared with its own observation) before retiring it'
 Check ((Calls (@(Method $controller 'ResolveEqualRankTie')[0]) (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R6-F2: under restricted travel the tie-break admits a melee candidate only through the stationary mounted-strike admission'
+$admissionLost = @(Method $controller 'AutomaticTargetLeftNativeAdmission')[0]
+$nativeLos = @(Method $rankingReader 'NativeLos')[0]
+$checkLos = $game.GetType('Kingmaker.Designers.GameHelper', $true).GetMethod('CheckLOS', [Type[]]@($game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true), $game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true)))
+Check ($checkLos.MetadataToken -eq 0x06008555 -and (Calls $nativeLos $checkLos) -eq 1 -and (Calls $admissionLost $nativeLos) -eq 1 -and (Calls $admissionLost $aiForbidden) -eq 1 -and
+    (Calls $tryRetire $admissionLost) -eq 1) 'PR-1 R9-F1: a retained automatic order rechecks native IsTargetValid''s restricted rule (held rider or unreachable target: action range with both bodies and GameHelper.CheckLOS 0x06008555) in the shared retirement before any dispatch or approach'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

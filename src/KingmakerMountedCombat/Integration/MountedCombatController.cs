@@ -1458,6 +1458,7 @@ namespace KingmakerMountedCombat.Integration
             // PR-1 review R1-F9: a retained automatic intent on a target no longer perceived cannot refuse this proposal.
             if (relationship.State == RelationshipState.Mounted) RetireAutomaticIntentIfUnperceived();
             AutomaticProposalCount++;
+            proposalNativeActionRange = float.NaN;
             // A move that arrived this frame holds the pair before this proposal is read, whichever controller ran first.
             ObservePlayerMoveOutcome();
             var rider = relationship.Rider;
@@ -1534,6 +1535,7 @@ namespace KingmakerMountedCombat.Integration
             // PR-1 review R1-F11: an automatic order inherits no ownership of an existing selection.
             riderSelection.Release();
             mountSelection.Release();
+            automaticNativeActionRange = proposalNativeActionRange;
             stockIntent.Begin(target, null, false, IsPairInCombat(), rider, mount, rider.GetFirstWeapon(), mount.GetFirstWeapon(),
                 (int)ResolveRiderPrimaryAction(), true);
             retainedOrder.Begin(stockIntent.Generation, true, ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderRanged);
@@ -1550,6 +1552,23 @@ namespace KingmakerMountedCombat.Integration
         internal string LastAutomaticProposalRanking { get; private set; }
         internal long AutomaticTieBreakCount { get; private set; }
         internal string LastAutomaticTieBreak { get; private set; }
+
+        // PR-1 review R9-F1: the proposal action's native range read with the brain's ranking (NaN when unread), kept by the automatic order
+        // it starts so the order's later drive can recheck IsTargetValid's restricted rule against the target where it is then.
+        private float proposalNativeActionRange = float.NaN;
+        private float automaticNativeActionRange = float.NaN;
+
+        // Native BlueprintAiAction.IsTargetValid (0x0600942A) for the retained automatic order's target now: restricted (the rider's
+        // AiMovementForbidden, or the target in AIData.UnreachableUnits), it is valid only within the action's range with both bodies
+        // (TargetInfo.Distance is Unit.DistanceTo) and in native line of sight. Unknown range (no ranking read) never retires.
+        private bool AutomaticTargetLeftNativeAdmission(UnitEntityData rider, UnitEntityData target)
+        {
+            if (rider == null || target == null || float.IsNaN(automaticNativeActionRange)) return false;
+            var unreachable = rider.CombatState?.AIData?.UnreachableUnits;
+            if (!rider.AiMovementForbidden && (unreachable == null || !unreachable.Contains(target))) return false;
+            var reach = automaticNativeActionRange + (rider.View != null ? rider.View.Corpulence : 0f) + (target.View != null ? target.View.Corpulence : 0f);
+            return !(rider.DistanceTo(target) <= reach && NativeBrainRankingReader.NativeLos(rider, target));
+        }
 
         private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)
         {
@@ -1573,10 +1592,12 @@ namespace KingmakerMountedCombat.Integration
                 var nativeAdmissionRestricted = rider.AiMovementForbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit);
                 var nativeValid = !nativeAdmissionRestricted || candidate.Distance <= candidate.ActionRangeWithCorpulence && candidate.InLos;
                 var eligible = unit != null && state != null && state.IsConscious && !state.IsDead && rider.CanAttack(unit) &&
-                    (ReferenceEquals(unit, proposed) || rider.CombatState?.AIData?.DislikedTarget != unit) &&
                     nativeValid &&
                     (!(forbidden && melee) || StationaryStrikeAdmissible(unit));
-                ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible });
+                // PR-1 review R9-F2: dislike is a preference applied by the tie-break after admission, not an admission rule.
+                ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible,
+                    Disliked = unit != null && ReferenceEquals(rider.CombatState?.AIData?.DislikedTarget, unit) });
+                if (float.IsNaN(proposalNativeActionRange)) proposalNativeActionRange = candidate.ActionRange;
             }
             return NativeAttackTieBreak.Choose(ranked, proposed,
                 HasStockAttackIntent && stockIntent.Automatic ? stockIntentTarget : null,
@@ -1775,6 +1796,12 @@ namespace KingmakerMountedCombat.Integration
                 !movementForbidden || StockIntentStrikeAdmissibleNow(),
                 MountedRetainedOrderLedger.NewerPlayerWork(stockIntent.Automatic,
                     stockIntent.Automatic && HasRiderPlayerOperation(rider, mount), retainedOrder.Superseded(stockIntent.Generation)));
+            // PR-1 review R9-F1: a retained real-time automatic order whose target-specific native restriction no longer holds (marked
+            // unreachable or the rider held, and now outside the action's range or sight) is released before any dispatch or approach,
+            // so a fresh proposal can follow; a released strike keeps native's completion.
+            if (reason == null && stockIntent.Automatic && !turnBased && !(stockIntentCommand != null && stockIntentCommand.StrikeReleased) &&
+                AutomaticTargetLeftNativeAdmission(rider, stockIntentTarget))
+                reason = "automatic target outside native admission";
             if (reason == null) return false;
             var automatic = stockIntent.Automatic;
             var command = stockIntentCommand;
