@@ -1,0 +1,3 @@
+PASS horse native-controls UX validator binds physical targeting animation pose and cleanup
+TOTAL PASS=1 FAIL=0
+METERED PR-5 r7 Test-Harness -Only complete reader 4.3 s | get mounted-alpha2-melee-pose-20261124: spent 146.08 of 210 min; remaining 63.92 min; entries 223 (running 0, interrupted 0, unreconciled 0) 

@@ -824,7 +824,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
             }
             // PR-5 review R1-F3: the fallible metadata reads come first; the record is then published whole or not at all.
-            var actionName = animationAction.name ?? "<unnamed>";
+            var actionName = HorseAnimationActionMetadata.Name(animationAction) ?? "<unnamed>";
             var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationAction = animationAction;
@@ -872,7 +872,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             // PR-5 review R1-F3: as Record, the metadata reads precede every write.
-            var actionName = animationAction.name ?? "<unnamed>";
+            var actionName = HorseAnimationActionMetadata.Name(animationAction) ?? "<unnamed>";
             var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationHandleSource = "stock-created";
@@ -1078,7 +1078,7 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
             public UnitAnimationActionHandle Handle => planned?.AnimationHandle;
-            public string ActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
+            public string ActionName(UnitAnimationActionHandle handle) => HorseAnimationActionMetadata.Name(handle.Action);
             public bool IsStarted(UnitAnimationActionHandle handle) => handle.IsStarted;
             public bool IsActed(UnitAnimationActionHandle handle) => handle.IsActed;
             public bool IsInterrupted(UnitAnimationActionHandle handle) => handle.IsInterrupted;
@@ -1948,7 +1948,7 @@ namespace KingmakerMountedCombat.Integration
         // The native action-name read of an observed handle that is not the registered one, kept in its own method so the terminal
         // descriptions read it only for such a handle (the registered handle's name was captured when it was recorded).
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        private static string NativeActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
+        private static string NativeActionName(UnitAnimationActionHandle handle) => HorseAnimationActionMetadata.Name(handle.Action);
 
         private HorseBitePlayback DescribeHorseBitePlayback()
         {

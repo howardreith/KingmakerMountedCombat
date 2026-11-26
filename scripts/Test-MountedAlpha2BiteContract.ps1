@@ -337,13 +337,19 @@ $recordIl = $recordMethod.GetMethodBody().GetILAsByteArray(); $nameAt = -1; $fir
 $recordFieldNames = @('horsePrimaryAnimationHandle', 'horsePrimaryAnimationAction', 'horsePrimaryAnimationHandleSource', 'horsePrimaryAnimationActionName', 'horsePrimaryAnimationActionType')
 for ($i = 0; $i -le $recordIl.Length - 5; $i++) {
     if ($recordIl[$i] -eq 0x28 -or $recordIl[$i] -eq 0x6F) { try { $m = $recordMethod.Module.ResolveMethod([BitConverter]::ToInt32($recordIl, $i + 1)) } catch { continue }
-        if ($nameAt -lt 0 -and $m.DeclaringType.FullName -ceq 'UnityEngine.Object' -and $m.Name -notmatch '^op_') { if ($m.Name -ceq 'get_name') { $nameAt = $i } else { $nameAt = -2 } } }
+        # PR-5 round 7: the name is read through the one metadata boundary (HorseAnimationActionMetadata.Name, whose engine read is
+        # UnityEngine.Object.get_name); any other engine call before it fails the order check.
+        if ($nameAt -lt 0 -and $m.DeclaringType.FullName -ceq 'KingmakerMountedCombat.Integration.HorseAnimationActionMetadata' -and $m.Name -ceq 'Name') { $nameAt = $i }
+        elseif ($nameAt -lt 0 -and $m.DeclaringType.FullName -ceq 'UnityEngine.Object' -and $m.Name -notmatch '^op_') { $nameAt = -2 } }
     elseif ($recordIl[$i] -eq 0x7D) { try { $f = $recordMethod.Module.ResolveField([BitConverter]::ToInt32($recordIl, $i + 1)) } catch { continue }; if ($recordFieldNames -contains $f.Name -and $i -lt $firstWrite) { $firstWrite = $i } }
 }
 $atNameRead = $null -ne $inner -and $inner -is [Security.SecurityException] -and $inner.Message -match 'ECall' -and $nameAt -ge 0 -and $nameAt -lt $firstWrite
 $recordFields = $recordFieldNames | ForEach-Object { $commandType.GetField($_, $any).GetValue($recordCommand) }
-Write-Host ('  R2-F5 metadata fault: precondition passed=' + $passesPrecondition + '; fault=' + $(if ($inner) { $inner.GetType().FullName + ': ' + $inner.Message } else { '<none>' }) + '; first engine call=get_name at IL ' + $nameAt + '; first record write at IL ' + $firstWrite)
-Check ($passesPrecondition -and $atNameRead -and @($recordFields | Where-Object { $null -ne $_ }).Count -eq 0) 'PR-5 R1-F3/R2-F5: past the production precondition (a live-pointer action), the metadata read (UnityEngine.Object.name) fails and RecordHorsePrimaryAnimation publishes no handle, action, source, name or type'
+Write-Host ('  R2-F5 metadata fault: precondition passed=' + $passesPrecondition + '; fault=' + $(if ($inner) { $inner.GetType().FullName + ': ' + $inner.Message } else { '<none>' }) + '; first metadata read (boundary) at IL ' + $nameAt + '; first record write at IL ' + $firstWrite)
+$metaEngineName = (KmcType 'KingmakerMountedCombat.Integration.HorseAnimationActionMetadata').GetField('EngineName', $any).GetValue($null)
+$engineReadIl = $metaEngineName.Method.GetMethodBody().GetILAsByteArray(); $engineReadsName = $false
+for ($i = 0; $i -le $engineReadIl.Length - 5; $i++) { if ($engineReadIl[$i] -eq 0x6F -or $engineReadIl[$i] -eq 0x28) { try { $m = $metaEngineName.Method.Module.ResolveMethod([BitConverter]::ToInt32($engineReadIl, $i + 1)) } catch { continue }; if ($m.DeclaringType.FullName -ceq 'UnityEngine.Object' -and $m.Name -ceq 'get_name') { $engineReadsName = $true } } }
+Check ($passesPrecondition -and $atNameRead -and $engineReadsName -and @($recordFields | Where-Object { $null -ne $_ }).Count -eq 0) 'PR-5 R1-F3/R2-F5: past the production precondition (a live-pointer action), the metadata read (HorseAnimationActionMetadata.Name, the engine''s UnityEngine.Object.name) fails and RecordHorsePrimaryAnimation publishes no handle, action, source, name or type'
 # PR-5 reviews R2-F3/R1-F4: both terminal outcomes come from HorseTerminalOutcome.Compose, which attaches the Bite disposition and
 # the observed playback projection (AttachHorseBite); DescribeOutcome no longer sets them from the registration; the scenario's
 # playback checks judge the observed projection through HorseBiteTerminal.PlaybackAccepted.
@@ -538,40 +544,240 @@ Check ($finalization['successful registration'] -ceq ($untaggedGuid + '|Bite|') 
     $finalization['late contract-check failure'] -like '|Unavailable|*' -and $afterRollback -ceq '|Unavailable' -and $registerCalls.Count -eq 1 -and $publishInComplete.Count -eq 1 -and
     $publishInRegister.Count -eq 0) 'PR-5 R4-F3: the production finalization step publishes the captured untagged Bite identity only after a successful selection transaction and contract check (read back from the service: Bite); a late selection or contract-check failure leaves no identity (Unavailable); rollback withdraws a published one'
 
-# R4-F2: a KMC-supplied Bite is observed at its strike, the registration then refreshes to a different stock handle of the same
-# action, and the command terminates before another Bite acts. The production ReportTerminalOnce output passes through the compiled
-# schema-8 writer (CaptureMountedOutcome) and, with the animation snapshot of that registration, through the production schema-8
-# reader clause (taken from scripts/runtime/RuntimeHarness.Common.ps1); a historical positive (equal sources) still passes and an
-# unregistered observation (unrecorded) is still rejected.
+# ---- PR-5 rounds 6-7 (R4-F2, R5-F1, R6-F1, R6-F2): the schema-8 reader and one connected producer-to-reader positive --------------
+# The reader functions are the production ones: scripts/runtime/RuntimeHarness.Common.ps1 is dot-sourced whole (raw counter validation
+# ConvertTo-KmcHandleCount, per-command binding Test-KmcHorseSchema8Bindings, the source transitions Test-KmcHorseHandleTransition and the
+# complete reader Assert-KmcHorseNativeControlsUxEvidence) inside a child scope, so its helpers never replace this script's own.
+& {
+. $commonPath
+. (Join-Path $repoRoot 'scripts\HorseNativeControlsUxFixture.ps1')
 $capture = $engine.GetMethod('CaptureMountedOutcome', $any)
-$suppliedHandle = New-Handle $bite $manager; $refreshedStock = New-Handle $bite $manager
-$refreshed = Deliver $horseUnitGuid $suppliedHandle 'kmc-supplied' $refreshedStock $false
-$historicalOutcome = Deliver $horseUnitGuid $registeredHandle 'stock-created' $registeredHandle $false
-$unrecordedOutcome = Deliver $horseUnitGuid $suppliedHandle 'unrecorded' $refreshedStock $false
 function Wire($o) { $j = $capture.Invoke($null, [object[]]@($o, $true)); $j.ToString() | ConvertFrom-Json }
-function Snapshot([string]$Last, [int]$Created, [int]$Adopted) { [pscustomobject][ordered]@{ delegatedLocomotionRestoreCount = 0; lastDelegatedLocomotionSource = 'none'; lastDelegatedLocomotionSpeed = 0;
+function Snapshot([string]$Last, $Created, $Adopted) { [pscustomobject][ordered]@{ delegatedLocomotionRestoreCount = 0; lastDelegatedLocomotionSource = 'none'; lastDelegatedLocomotionSpeed = 0;
     horsePrimaryHandleCreateCount = $Created; horsePrimaryHandleAdoptCount = $Adopted; horsePrimaryHandleRejectCount = 0; lastHorsePrimaryHandleSource = $Last;
     lastHorsePrimaryActionName = 'HorseAnimationSet_Bite'; lastHorsePrimaryActionType = 'SpecialAttack' } }
 $schema8 = [regex]::Match($commonText, "(?s)if \(\[string\]\`$o\.mountedTurnHorseOutcome\.attackAnimationHandleSource -cnotin .*?\) \{\s*throw 'PASS Horse native animation did not prove")
 $schema8Clause = $schema8.Value.Substring(4, $schema8.Value.LastIndexOf(') {') - 4)
-$transitionFn = @($commonAst.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Test-KmcHorseHandleTransition' }, $true))[0]
-. ([scriptblock]::Create($transitionFn.Extent.Text))
 $schema8Rejects = [scriptblock]::Create('param($o) (' + $schema8Clause + ')')
-function Schema8($Outcome, $Snapshot) { [pscustomobject]@{ mountedTurnHorseOutcome = $Outcome; mountedHorseOutcome = $Outcome; mountedTurnHorseAnimation = $Snapshot[0]; mountedHorseAnimation = $Snapshot[1] } }
-$refreshedWire = Wire $refreshed[0]
-$refreshedVerdict = & $schema8Rejects (Schema8 $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 2 0)))
-$historicalWire = Wire $historicalOutcome[0]
-$historicalVerdict = & $schema8Rejects (Schema8 $historicalWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 0 2)))
-$unrecordedVerdict = & $schema8Rejects (Schema8 (Wire $unrecordedOutcome[0]) @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 2 0)))
-# PR-5 review R5-F1: a stock adoption that became a supply, and a claimed supply with zero creations for the command, are rejected.
-$stockToSupplied = & $schema8Rejects (Schema8 $historicalWire @((Snapshot 'kmc-supplied' 0 1), (Snapshot 'kmc-supplied' 0 2)))
-$zeroCreates = & $schema8Rejects (Schema8 $refreshedWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 0 2)))
-$rtZeroCreates = & $schema8Rejects (Schema8 $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 1 1)))
-Write-Host ('  R4-F2: refreshed outcome source=' + $refreshedWire.attackAnimationHandleSource + ' registration=' + $refreshed[0].AttackAnimationRegisteredSource + ' rejected=' + $refreshedVerdict + ' | historical rejected=' + $historicalVerdict + ' | unrecorded rejected=' + $unrecordedVerdict)
-Write-Host ('  R5-F1: stock-to-supplied rejected=' + $stockToSupplied + ' zero-creates rejected=' + $zeroCreates + ' RT zero-creates (cumulative difference) rejected=' + $rtZeroCreates + ' refreshed playback accepted offline=' + (Accepted $refreshed[0]) + ' (' + $refreshed[0].AttackAnimationFactsUnreadable + ')')
-Check ($stockToSupplied -and $zeroCreates -and $rtZeroCreates) 'PR-5 R5-F1: the schema-8 source pair must be a permitted transition for the command''s own counts: stock-to-supplied and a claimed supply with zero creations (TB, and RT by cumulative difference) are rejected'
-Check ($schema8.Success -and $refreshedWire.attackAnimationHandleSource -ceq 'kmc-supplied' -and $refreshed[0].AttackAnimationRegisteredSource -ceq 'stock-created' -and
-    -not $refreshedVerdict -and -not $historicalVerdict -and $unrecordedVerdict) 'PR-5 R4-F2: the schema-8 reader credits the KMC-supplied Bite observed at its strike after the registration refreshed to a stock handle (writer output through the production reader); a historical positive passes and an unrecorded observation is rejected'
+function Schema8($Tb, $Rt, $Snapshot) { [pscustomobject]@{ mountedTurnHorseOutcome = $Tb; mountedHorseOutcome = $Rt; mountedTurnHorseAnimation = $Snapshot[0]; mountedHorseAnimation = $Snapshot[1] } }
+
+# The reader rows (writer output of genuine delivered outcomes through the production schema-8 clause). R4-F2/R5-F1 (round 6): a refresh
+# after the strike passes; a historical adoption passes; unrecorded, stock-to-supplied and claimed supplies without a creation fail.
+$suppliedHandle = New-Handle $bite $manager; $refreshedStock = New-Handle $bite $manager
+$refreshed = Deliver $horseUnitGuid $suppliedHandle 'kmc-supplied' $refreshedStock $false
+$historicalOutcome = Deliver $horseUnitGuid $registeredHandle 'stock-created' $registeredHandle $false
+$unrecordedOutcome = Deliver $horseUnitGuid $suppliedHandle 'unrecorded' $refreshedStock $false
+$refreshedWire = Wire $refreshed[0]; $historicalWire = Wire $historicalOutcome[0]; $unrecordedWire = Wire $unrecordedOutcome[0]
+$rows = [ordered]@{
+    'refresh after strike: supply kmc/stock (1,0)->(2,0)'          = @($false, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 2 0))))
+    'historical adoption stock/stock (0,1)->(0,2)'                 = @($false, (Schema8 $historicalWire $historicalWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 0 2))))
+    'unrecorded observation'                                       = @($true, (Schema8 $unrecordedWire $unrecordedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 2 0))))
+    'stock-to-supplied for an adoption'                            = @($true, (Schema8 $historicalWire $historicalWire @((Snapshot 'kmc-supplied' 0 1), (Snapshot 'kmc-supplied' 0 2))))
+    'supplied observation with adoption counts'                    = @($true, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 0 2))))
+    'RT supplied observation, RT adoption by difference (1,0)->(1,1)' = @($true, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 1 1))))
+    # R6-F1 (round 7): an initial supply whose same-action stock refresh came before the strike: observed and latest stock.
+    'refresh before strike: supply stock/stock (1,0)->(2,0)'      = @($false, (Schema8 $historicalWire $historicalWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 2 0))))
+    'observed stock then supplied registration (1,0)->(2,0)'      = @($true, (Schema8 $historicalWire $historicalWire @((Snapshot 'kmc-supplied' 1 0), (Snapshot 'kmc-supplied' 2 0))))
+    # R6-F2 (round 7): per-command components; the valid mixed sequence; decreasing sequences with right totals; malformed counters.
+    'mixed: TB adoption then RT supply (0,1)->(1,1)'              = @($false, (Schema8 $historicalWire $refreshedWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 1 1))))
+    'decreasing (0,1)->(2,0)'                                      = @($true, (Schema8 $historicalWire $refreshedWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 2 0))))
+    'decreasing (1,0)->(0,2)'                                      = @($true, (Schema8 $refreshedWire $historicalWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 0 2))))
+    'fractional TB (0.5,0.5)'                                      = @($true, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' 0.5 0.5), (Snapshot 'stock-created' 2 0))))
+    'fractional RT (1.5,0.5)'                                      = @($true, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 1.5 0.5))))
+    'string counter'                                               = @($true, (Schema8 $refreshedWire $refreshedWire @((Snapshot 'stock-created' '1' 0), (Snapshot 'stock-created' 2 0))))
+    'negative counter'                                             = @($true, (Schema8 $historicalWire $refreshedWire @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' -1 3))))
+}
+$rowsOk = $schema8.Success
+foreach ($name in $rows.Keys) {
+    $expectRejected = $rows[$name][0]; $rejected = [bool](& $schema8Rejects $rows[$name][1])
+    Write-Host ('  schema-8 row ' + $name + ': rejected=' + $rejected + ' (expected ' + $expectRejected + ')')
+    if ($rejected -ne $expectRejected) { $rowsOk = $false }
+}
+Check ($rowsOk -and $refreshedWire.attackAnimationHandleSource -ceq 'kmc-supplied' -and $refreshed[0].AttackAnimationRegisteredSource -ceq 'stock-created') 'PR-5 R5-F1/R6-F1/R6-F2: the production schema-8 clause validates each raw counter, requires each command''s pair to be exactly (1,0) or (0,1) (RT by component-wise cumulative difference) and judges the source pair by the initial binding: supply refreshed after or before the strike and the mixed (0,1)->(1,1) sequence pass; adoption with a supplied source, decreasing sequences, fractional, string and negative counters, unrecorded and stock-then-supplied fail'
+
+# ---- R4-F2 (round 7): one connected positive ----------------------------------------------------------------------------------------
+# Both sequences run through production binding, observation and projection on genuine Kingmaker objects:
+#   binding     HorseStrikeHandleBinding.SupplyContained over the adapter's HandleBoundary, whose record, refresh, recorded-handle and
+#               missing-report operations are the genuine command's own members and whose assign is the genuine AttackHandInfo setter
+#               (the delegates HorsePrimaryAttackAnimationAdapter.CreateBoundary passes); the adapter's own Report counts the outcome;
+#   observation the command's own ObserveHorseStrike on a genuine planned attack (the Bite limb of a genuine Horse body);
+#   projection  the command's own ReportTerminalOnce; then the compiled writer CaptureMountedOutcome and the production snapshot
+#               MountedAnimationAdapter.CaptureSnapshot serialized with the engine's JSON settings.
+# Substituted engine boundaries only: the native handle creation (a genuine UnitAnimationActionHandle of the same action) and the Unity
+# asset-name read (HorseAnimationActionMetadata.EngineName). The readable, successful outcome (one child start, PlaybackAccepted) is
+# required before serialization. Its Horse fields and counts replace those of the existing complete fixture
+# (scripts/HorseNativeControlsUxFixture.ps1, shared with Test-Harness.ps1); the complete reader then judges the artifact.
+$adapterType = KmcType 'KingmakerMountedCombat.Integration.HorsePrimaryAttackAnimationAdapter'
+$animationAdapterType = KmcType 'KingmakerMountedCombat.Integration.MountedAnimationAdapter'
+$ummLoggerType = KmcType 'KingmakerMountedCombat.Logging.UmmLogger'
+$ummCtor = @($ummLoggerType.GetConstructors($any))[0]
+$modLoggerType = $ummCtor.GetParameters()[0].ParameterType
+function New-KmcLogger { $ummCtor.Invoke([object[]]@($modLoggerType.GetConstructor([Type[]]@([string])).Invoke([object[]]@('kmc-bite-contract')))) }
+$metaType = KmcType 'KingmakerMountedCombat.Integration.HorseAnimationActionMetadata'
+$engineNameField = $metaType.GetField('EngineName', $any)
+$engineNameOriginal = $engineNameField.GetValue($null)
+# The connected run's Horse actions are live engine objects for Unity's equality (a nonzero cached native pointer, as in the R2-F5 case),
+# so the production null precondition of RecordHorsePrimaryAnimation passes as it does in the engine.
+$connectedBite = New-Action 'Bite'; $connectedHoof = New-Action 'Hoof'
+foreach ($liveAction in @($connectedBite, $connectedHoof)) { $unityBase.GetField('m_CachedPtr', [Reflection.BindingFlags]'Instance,NonPublic').SetValue($liveAction, [IntPtr]4243) }
+$substituteName = As-Delegate { param($action) if ([object]::ReferenceEquals($action, $connectedBite)) { 'HorseAnimationSet_Bite' } elseif ([object]::ReferenceEquals($action, $connectedHoof)) { 'HorseAnimationSet_Hoof' } else { throw 'unexpected action' } } $engineNameField.FieldType
+$unitBodyType = GameType 'Kingmaker.Items.UnitBody'
+$bpBodyType = GameType 'Kingmaker.Blueprints.BlueprintUnit+UnitBody'
+$itemWeaponType = GameType 'Kingmaker.Items.ItemEntityWeapon'
+$itemEntityType = GameType 'Kingmaker.Items.ItemEntity'
+$itemSlotType = GameType 'Kingmaker.Items.Slots.ItemSlot'
+$attackInfoType = GameType 'Kingmaker.UnitLogic.Commands.AttackHandInfo'
+$unitCommandType = GameType 'Kingmaker.UnitLogic.Commands.Base.UnitCommand'
+$resultType = GameType 'Kingmaker.UnitLogic.Commands.Base.UnitCommand+ResultType'
+$actionKindType = KmcType 'KingmakerMountedCombat.Domain.MountedCombatActionKind'
+$boundaryInterface = (KmcType 'KingmakerMountedCombat.Domain.IHorseStrikeHandleBoundary`2').MakeGenericType($handleType, $actionType)
+$supplyContained = $bindingType.GetMethod('SupplyContained').MakeGenericMethod($handleType, $actionType)
+$resultReportType = [Action`1].MakeGenericType((KmcType 'KingmakerMountedCombat.Domain.HorseStrikeHandleBindingResult`2').MakeGenericType($handleType, $actionType))
+$observeStrike = $commandType.GetMethod('ObserveHorseStrike', $any)
+$engineSerializer = $jObjectHost = $null
+$engineSettings = $engine.GetField('JsonSettings', $any).GetValue($null)
+$jObjectType = $engineSettings.GetType().Assembly.GetType('Newtonsoft.Json.Linq.JObject', $true)
+$engineSerializer = $jObjectType.Assembly.GetType('Newtonsoft.Json.JsonSerializer').GetMethod('Create', [Type[]]@($engineSettings.GetType())).Invoke($null, [object[]]@($engineSettings))
+function Bound([Type]$DelegateType, $Target, [string]$Name, [switch]$Getter, [switch]$Setter) {
+    $type = $Target.GetType()
+    $method = if ($Getter) { $type.GetProperty($Name, $any).GetGetMethod($true) } elseif ($Setter) { $type.GetProperty($Name, $any).GetSetMethod($true) } else { $type.GetMethod($Name, $any) }
+    [Delegate]::CreateDelegate($DelegateType, $Target, $method)
+}
+function New-ConnectedHorse {
+    $bp = New-Native $unitBlueprintType; SetField $bp $scriptableType 'm_AssetGuid' $horseUnitGuid
+    $bpBody = New-Native $bpBodyType; SetField $bpBody $bpBodyType 'AdditionalLimbs' $blueprintLimbs; SetField $bp $unitBlueprintType 'Body' $bpBody
+    $slot = New-Native $slotType
+    $item = New-Native $itemWeaponType; SetField $item $itemEntityType 'm_Blueprint' $biteWeapon
+    SetField $slot $itemSlotType 'm_Item' $item; SetField $slot $itemSlotType 'm_Active' $true
+    $limbs = [Activator]::CreateInstance([Collections.Generic.List`1].MakeGenericType($slotType)); $limbs.Add($slot); $limbs.Add((New-Native $slotType)); $limbs.Add((New-Native $slotType))
+    $body = New-Native $unitBodyType; SetField $body $unitBodyType 'm_AdditionalLimbs' $limbs
+    $d = New-Native $descriptorType; SetField $d $descriptorType '<Blueprint>k__BackingField' $bp; SetField $d $descriptorType '<Body>k__BackingField' $body
+    $u = New-Native $entityType; SetField $u $entityType '<Descriptor>k__BackingField' $d; SetField $u $entityBase '<UniqueId>k__BackingField' 'horse-1'
+    @{ Horse = $u; BiteSlot = $slot }
+}
+function New-ConnectedCommand($Pair) {
+    $c = New-Native $commandType
+    SetField $c $commandType 'action' ([Enum]::Parse($actionKindType, 'MountPrimaryNatural'))
+    SetField $c $commandType 'mount' $Pair.Horse; SetField $c $commandType 'actionActor' $Pair.Horse
+    SetField $c $commandType 'logger' (New-KmcLogger)
+    SetField $c $commandType 'horseBiteObservation' ([Activator]::CreateInstance($observationType))
+    $planned = New-Native $attackInfoType; SetField $planned $attackInfoType 'Hand' $Pair.BiteSlot
+    $attacks = [Activator]::CreateInstance([Collections.Generic.List`1].MakeGenericType($attackInfoType)); $attacks.Add($planned)
+    SetField $c $commandType 'm_AllAttacks' $attacks
+    $t = New-Native $transactionType
+    $armed = $t.Arm([Enum]::Parse($actionKindType, 'MountPrimaryNatural')); $accepted = $t.AcceptTarget('kobold-1', $false); $started = $t.TryStartSingleAttack('kobold-1')
+    SetField $c $commandType 'transaction' $t; SetField $c $commandType 'attackTarget' (New-Unit 'target-guid' 'kobold-1')
+    SetField $c $commandType 'continuationTargetIds' (New-Object 'System.Collections.Generic.List[string]'); SetField $c $commandType 'repathObservations' (New-Object 'System.Collections.Generic.List[string]')
+    $script:connectedDelivered = New-Object System.Collections.ArrayList
+    SetField $c $commandType 'terminal' (As-Delegate { param($cmd, $o) [void]$script:connectedDelivered.Add($o) } $terminalType)
+    @{ Command = $c; Planned = $planned; Transaction = $t; TransactionReady = ($armed -and $accepted -and $started) }
+}
+# One native handle-creation call for the planned Bite (CreateAnimationHandleForAttack's postfix runs SupplyExact): the production binding.
+function Invoke-ConnectedBinding($Adapter, $Run) {
+    $c = $Run.Command; $planned = $Run.Planned
+    $actions = [Activator]::CreateInstance($listType); $actions.Add($connectedBite); $actions.Add($connectedHoof)
+    $boundary = $boundaryCtor.Invoke([object[]]@(
+        $true, $planned.AnimationHandle, $manager, $true, $actions,
+        (Bound $funcHandleBool $c 'HasRecordedHorsePrimaryAnimation'),
+        (Bound $funcAction $c 'RecordedHorsePrimaryAnimationAction' -Getter),
+        (Bound ([Func[bool]]) $c 'HasAnyRecordedHorsePrimaryAnimation' -Getter),
+        (Bound $recordType $c 'RecordHorsePrimaryAnimation'),
+        (Bound $refreshType $c 'RefreshStockCreatedHorsePrimaryAnimation'),
+        (As-Delegate { param($a) New-Handle $a $manager } $createType),
+        (Bound $assignType $planned 'AnimationHandle' -Setter),
+        (Bound ([Func[bool]]) $c 'HorsePrimaryMissingHandleReported' -Getter),
+        (Bound ([Action]) $c 'MarkHorsePrimaryMissingHandleReported')))
+    $script:connectedBoundary = $boundary
+    $build = As-Delegate { $script:connectedBoundary } ([Func`1].MakeGenericType($boundaryInterface))
+    [void]$supplyContained.Invoke($null, [object[]]@($build, (Bound $resultReportType $Adapter 'Report'), (Bound ([Action[Exception]]) $Adapter 'ReportFault')))
+}
+# A later native handle creation for the same Bite action: a stock handle, reference-distinct, then the binding (a refresh).
+function Invoke-ConnectedStockRefresh($Adapter, $Run) { $Run.Planned.AnimationHandle = (New-Handle $connectedBite $manager); Invoke-ConnectedBinding $Adapter $Run }
+function Invoke-ConnectedObservation($Run) { [void]$observeStrike.Invoke($Run.Command, $null) }
+# The native playback state of the observed handle (acted and finished, not interrupted), then the command's completion and terminal.
+function Complete-Connected($Run, [switch]$RestoreEngineName) {
+    $observed = $Run.Command.GetType().GetField('horseBiteObservation', $any).GetValue($Run.Command).Handle
+    if ($null -ne $observed) { SetField $observed $baseHandleType '<IsActed>k__BackingField' $true; SetField $observed $baseHandleType '<IsFinished>k__BackingField' $true }
+    [void]$Run.Transaction.Complete('kobold-1')
+    SetField $Run.Command $unitCommandType '<Result>k__BackingField' ([Enum]::Parse($resultType, 'Success'))
+    if ($RestoreEngineName) { $engineNameField.SetValue($null, $engineNameOriginal) }
+    [void]$reportTerminal.Invoke($Run.Command, $null)
+    $outcome = @($script:connectedDelivered.ToArray())
+    if ($RestoreEngineName) { $engineNameField.SetValue($null, $substituteName) }
+    , $outcome
+}
+function Invoke-ConnectedSequence($Adapter, [string]$Order, [switch]$Adopt, [switch]$UnreadableAtTerminal) {
+    $run = New-ConnectedCommand (New-ConnectedHorse)
+    if ($Adopt) { $run.Planned.AnimationHandle = (New-Handle $connectedBite $manager) }   # native created the stock Bite handle itself
+    Invoke-ConnectedBinding $Adapter $run
+    if ($Order -ceq 'supply-observe-refresh') { Invoke-ConnectedObservation $run; Invoke-ConnectedStockRefresh $Adapter $run }
+    elseif ($Order -ceq 'supply-refresh-observe') { Invoke-ConnectedStockRefresh $Adapter $run; Invoke-ConnectedObservation $run }
+    else { Invoke-ConnectedObservation $run }
+    $delivered = Complete-Connected $run -RestoreEngineName:$UnreadableAtTerminal
+    $snapshotAdapter = New-Native $animationAdapterType; SetField $snapshotAdapter $animationAdapterType 'horsePrimaryAttackAnimation' $Adapter
+    $snapshot = $animationAdapterType.GetMethod('CaptureSnapshot', $any).Invoke($snapshotAdapter, $null)
+    $snapshotWire = ($jObjectType.GetMethod('FromObject', [Type[]]@([object], $engineSerializer.GetType())).Invoke($null, [object[]]@($snapshot, $engineSerializer))).ToString() | ConvertFrom-Json
+    [pscustomobject]@{ Order = $Order; Run = $run; Outcome = $(if ($delivered.Count -eq 1) { $delivered[0] } else { $null }); Delivered = $delivered.Count; Snapshot = $snapshotWire }
+}
+function Readable($r) { $o = $r.Outcome; $null -ne $o -and $r.Delivered -eq 1 -and $o.Result -ceq 'Success' -and $o.ChildAttackStartCount -eq 1 -and $null -eq $o.AttackAnimationFactsUnreadable -and (Accepted $o) }
+$outcomeKeys = @('result','childAttackStartCount','attackAnimationHandleCreated','attackAnimationHandleSource','attackAnimationActionName','attackAnimationActionType','attackAnimationActed','attackAnimationFinished','attackAnimationInterrupted')
+$snapshotKeys = @('horsePrimaryHandleCreateCount','horsePrimaryHandleAdoptCount','horsePrimaryHandleRejectCount','lastHorsePrimaryHandleSource','lastHorsePrimaryActionName','lastHorsePrimaryActionType')
+function Test-ConnectedArtifact($Tb, $Rt, [string]$Label) {
+    $root = Join-Path $repoRoot ('obj\bite-contract-connected-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        $fixture = New-KmcHorseNativeControlsUxFixture -EvidenceRoot $root -ProductVersion ([string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion))
+        $fixtureAccepted = Test-KmcHorseNativeControlsUxFixture $fixture
+        $obs = $fixture.Artifact.observations
+        $tbWire = Wire $Tb.Outcome; $rtWire = Wire $Rt.Outcome
+        foreach ($k in $outcomeKeys) { $obs.mountedTurnHorseOutcome[$k] = $tbWire.$k; $obs.mountedHorseOutcome[$k] = $rtWire.$k }
+        foreach ($k in $snapshotKeys) { $obs.mountedTurnHorseAnimation[$k] = $Tb.Snapshot.$k; $obs.mountedHorseAnimation[$k] = $Rt.Snapshot.$k }
+        Update-KmcHorseNativeControlsUxFixture $fixture
+        $accepted = Test-KmcHorseNativeControlsUxFixture $fixture
+        $reason = $null; if (-not $accepted) { try { Assert-KmcHorseNativeControlsUxEvidence -Request $fixture.Request -Manifest $fixture.Manifest -Status PASS -SubscenarioResults @($fixture.Subresult) } catch { $reason = $_.Exception.Message } }
+        Write-Host ('  R4-F2 connected ' + $Label + ': TB ' + $Tb.Order + ' source=' + $tbWire.attackAnimationHandleSource + ' counts=(' + $obs.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount + ',' + $obs.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount + ') latest=' + $obs.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource +
+            ' | RT ' + $Rt.Order + ' source=' + $rtWire.attackAnimationHandleSource + ' cumulative=(' + $obs.mountedHorseAnimation.horsePrimaryHandleCreateCount + ',' + $obs.mountedHorseAnimation.horsePrimaryHandleAdoptCount + ') latest=' + $obs.mountedHorseAnimation.lastHorsePrimaryHandleSource +
+            ' | fixture alone accepted=' + $fixtureAccepted + ' complete reader accepted=' + $accepted + $(if ($reason) { ' (' + $reason + ')' } else { '' }))
+        $fixtureAccepted -and $accepted
+    }
+    finally { if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force } }
+}
+$identityBefore = $biteProperty.GetValue($null, $null)
+try {
+    [void]$biteSetter.Invoke($null, [object[]]@($registeredBiteGuid))
+    $engineNameField.SetValue($null, $substituteName)
+    # TB = supply -> observe -> refresh, RT = supply -> refresh -> observe (one pair-scoped adapter: RT counts are cumulative).
+    $adapterA = New-Native $adapterType; SetField $adapterA $adapterType 'logger' (New-KmcLogger)
+    $tbA = Invoke-ConnectedSequence $adapterA 'supply-observe-refresh'; $rtA = Invoke-ConnectedSequence $adapterA 'supply-refresh-observe'
+    # The swapped positions.
+    $adapterB = New-Native $adapterType; SetField $adapterB $adapterType 'logger' (New-KmcLogger)
+    $tbB = Invoke-ConnectedSequence $adapterB 'supply-refresh-observe'; $rtB = Invoke-ConnectedSequence $adapterB 'supply-observe-refresh'
+    # Ordinary adoption for TB, then a supply for RT: the valid mixed cumulative sequence (0,1) -> (1,1), through the producer.
+    $adapterC = New-Native $adapterType; SetField $adapterC $adapterType 'logger' (New-KmcLogger)
+    $tbC = Invoke-ConnectedSequence $adapterC 'adopt-observe' -Adopt; $rtC = Invoke-ConnectedSequence $adapterC 'supply-observe-refresh'
+    # Negative control: the observed (reference-distinct) handle's name read left to the engine at the terminal stays unreadable.
+    $adapterD = New-Native $adapterType; SetField $adapterD $adapterType 'logger' (New-KmcLogger)
+    $unreadableRun = Invoke-ConnectedSequence $adapterD 'supply-observe-refresh' -UnreadableAtTerminal
+}
+finally { $engineNameField.SetValue($null, $engineNameOriginal); [void]$biteSetter.Invoke($null, [object[]]@($identityBefore)) }
+foreach ($r in @($tbA, $rtA, $tbB, $rtB, $tbC, $rtC, $unreadableRun)) {
+    $o = $r.Outcome
+    Write-Host ('  R4-F2 producer ' + $r.Order + ': delivered=' + $r.Delivered + ' result=' + $o.Result + ' childStarts=' + $o.ChildAttackStartCount + ' observed=' + $o.AttackAnimationObservation + ' source=' + $o.AttackAnimationHandleSource +
+        ' registered=' + $o.AttackAnimationRegisteredSource + ' action=' + $o.AttackAnimationActionName + ' factsUnreadable=' + $o.AttackAnimationFactsUnreadable + ' playbackAccepted=' + (Accepted $o) +
+        ' | counts create/adopt/refresh=' + $r.Snapshot.horsePrimaryHandleCreateCount + '/' + $r.Snapshot.horsePrimaryHandleAdoptCount + ' latest=' + $r.Snapshot.lastHorsePrimaryHandleSource + ' transactionReady=' + $r.Run.TransactionReady)
+}
+$producerOk = (Readable $tbA) -and (Readable $rtA) -and (Readable $tbB) -and (Readable $rtB) -and (Readable $tbC) -and (Readable $rtC) -and
+    $tbA.Outcome.AttackAnimationHandleSource -ceq 'kmc-supplied' -and $tbA.Outcome.AttackAnimationRegisteredSource -ceq 'stock-created' -and
+    $rtA.Outcome.AttackAnimationHandleSource -ceq 'stock-created' -and $rtA.Outcome.AttackAnimationRegisteredSource -ceq 'stock-created' -and
+    $tbC.Outcome.AttackAnimationHandleSource -ceq 'stock-created' -and $tbA.Snapshot.horsePrimaryHandleCreateCount -eq 1 -and $tbA.Snapshot.horsePrimaryHandleAdoptCount -eq 0 -and
+    $rtA.Snapshot.horsePrimaryHandleCreateCount -eq 2 -and $rtA.Snapshot.horsePrimaryHandleAdoptCount -eq 0 -and $tbC.Snapshot.horsePrimaryHandleAdoptCount -eq 1 -and
+    $rtC.Snapshot.horsePrimaryHandleCreateCount -eq 1 -and $rtC.Snapshot.horsePrimaryHandleAdoptCount -eq 1
+Check $producerOk 'PR-5 R4-F2: through production binding, strike observation and terminal projection on genuine objects, supply -> observe -> same-action stock refresh and supply -> stock refresh -> observe each yield a readable successful Horse outcome (one child start, PlaybackAccepted) with the source captured at the strike, and the adapter''s own counts (TB (1,0), RT cumulative (2,0); adoption (0,1) then supply (1,1))'
+Check ((-not (Readable $unreadableRun)) -and -not [string]::IsNullOrEmpty($unreadableRun.Outcome.AttackAnimationFactsUnreadable) -and -not (Accepted $unreadableRun.Outcome)) 'PR-5 R4-F2 negative control: with the engine''s own name read at the terminal, the reference-distinct observed handle is unreadable and production playback acceptance rejects it'
+$connectedA = Test-ConnectedArtifact $tbA $rtA 'TB supply-observe-refresh, RT supply-refresh-observe'
+$connectedB = Test-ConnectedArtifact $tbB $rtB 'TB supply-refresh-observe, RT supply-observe-refresh'
+$connectedC = Test-ConnectedArtifact $tbC $rtC 'TB adoption, RT supply (cumulative (0,1) -> (1,1))'
+Check ($connectedA -and $connectedB -and $connectedC) 'PR-5 R4-F2/R6-F1: the serialized producer outcomes and adapter counts (compiled writer, production snapshot writer), placed in the existing complete native-controls fixture, are accepted by Assert-KmcHorseNativeControlsUxEvidence for both refresh orders in both TB and RT positions and for adoption then supply'
+}
 
 # R3-F2: a serialized current outcome (the production ReportTerminalOnce outcome through the tranche's own JSON settings) passes the
 # Mount Primary reader; removing the observed source, or the readability field, separately makes it fail; the explicit unrecorded

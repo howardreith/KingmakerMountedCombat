@@ -8794,13 +8794,46 @@ function Assert-KmcMountPreambleEvidence {
         throw 'Narrow Mount preamble evidence changed while being validated.'
     }
 }
-# PR-5 review R5-F1: the permitted Horse primary handle transitions for one command. Observed is the handle seen at the strike, Last
-# the latest registration; Created/Adopted are that command's own creations and adoptions. A stock adoption can only stay stock; a
-# supplied Bite (refreshed to stock or not) needs a supply by that command.
-function Test-KmcHorseHandleTransition([string]$Observed, [string]$Last, [long]$Created, [long]$Adopted) {
+# PR-5 round 7 (R6-F2): a raw handle counter the schema-8 reader consumes, validated before any numeric conversion: an integral JSON
+# number (an integer type as the serializer wrote it), not negative. Anything else (a string, a boolean, a fractional or floating
+# value, a negative count, a missing value) is $null, which every caller rejects.
+function ConvertTo-KmcHandleCount($Value) {
+    if ($null -eq $Value) { return $null }
+    if (-not ($Value -is [int] -or $Value -is [long] -or $Value -is [int16] -or $Value -is [byte] -or $Value -is [sbyte] -or $Value -is [uint16] -or $Value -is [uint32])) { return $null }
+    $count = [long]$Value
+    if ($count -lt 0) { return $null }
+    return $count
+}
+
+# PR-5 rounds 6-7 (R5-F1, R6-F1, R6-F2): one command's Horse Bite binding. Its own (created, adopted) pair must be exactly (1,0), an
+# initial KMC supply, or (0,1), an initial stock adoption (a correct total does not establish valid components). The source observed
+# at the strike and the latest registration are then judged by that initial binding:
+#   supply   kmc-supplied/kmc-supplied accept; kmc-supplied/stock-created accept (refresh after the strike);
+#            stock-created/stock-created accept (same-action stock refresh before the strike); stock-created/kmc-supplied reject
+#   adoption stock-created/stock-created accept; every other combination reject
+# Unregistered (unrecorded) and unknown sources are rejected.
+function Test-KmcHorseHandleTransition([string]$Observed, [string]$Last, $Created, $Adopted) {
+    if ($null -eq $Created -or $null -eq $Adopted) { return $false }
     if ($Observed -cnotin @('stock-created','kmc-supplied') -or $Last -cnotin @('stock-created','kmc-supplied')) { return $false }
-    if ($Observed -ceq 'stock-created') { return $Last -ceq 'stock-created' -and $Adopted -ge 1 }
-    return $Created -ge 1
+    if ($Created -eq 1 -and $Adopted -eq 0) { return -not ($Observed -ceq 'stock-created' -and $Last -ceq 'kmc-supplied') }
+    if ($Created -eq 0 -and $Adopted -eq 1) { return $Observed -ceq 'stock-created' -and $Last -ceq 'stock-created' }
+    return $false
+}
+
+# PR-5 round 7 (R6-F2): the TB and RT Horse primary bindings of a schema-8 native-controls artifact. Every raw counter is validated
+# first (ConvertTo-KmcHandleCount) and both rejection counters must be zero. TB is judged on the TB snapshot's own pair; RT on the
+# component-wise difference of the cumulative RT and TB snapshots (an invalid decrease gives a negative component, which no binding
+# admits).
+function Test-KmcHorseSchema8Bindings($Observations) {
+    $tb = $Observations.mountedTurnHorseAnimation; $rt = $Observations.mountedHorseAnimation
+    $tbCreated = ConvertTo-KmcHandleCount $tb.horsePrimaryHandleCreateCount; $tbAdopted = ConvertTo-KmcHandleCount $tb.horsePrimaryHandleAdoptCount
+    $tbRejected = ConvertTo-KmcHandleCount $tb.horsePrimaryHandleRejectCount
+    $rtCreated = ConvertTo-KmcHandleCount $rt.horsePrimaryHandleCreateCount; $rtAdopted = ConvertTo-KmcHandleCount $rt.horsePrimaryHandleAdoptCount
+    $rtRejected = ConvertTo-KmcHandleCount $rt.horsePrimaryHandleRejectCount
+    if ($null -eq $tbCreated -or $null -eq $tbAdopted -or $null -eq $tbRejected -or $null -eq $rtCreated -or $null -eq $rtAdopted -or $null -eq $rtRejected) { return $false }
+    if ($tbRejected -ne 0 -or $rtRejected -ne 0) { return $false }
+    return (Test-KmcHorseHandleTransition ([string]$Observations.mountedTurnHorseOutcome.attackAnimationHandleSource) ([string]$tb.lastHorsePrimaryHandleSource) $tbCreated $tbAdopted) -and
+        (Test-KmcHorseHandleTransition ([string]$Observations.mountedHorseOutcome.attackAnimationHandleSource) ([string]$rt.lastHorsePrimaryHandleSource) ($rtCreated - $tbCreated) ($rtAdopted - $tbAdopted))
 }
 
 function Assert-KmcHorseNativeControlsUxEvidence {
@@ -9073,18 +9106,11 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             Assert-KmcExactProperties $o.mountedHorseAnimation $animationNames 'Horse native controls mountedHorseAnimation'
             if ([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
                 [string]$o.mountedHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
-                [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount +
-                    [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount -ne 1 -or
-                [long]$o.mountedHorseAnimation.horsePrimaryHandleCreateCount +
-                    [long]$o.mountedHorseAnimation.horsePrimaryHandleAdoptCount -ne 2 -or
-                [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
-                [long]$o.mountedHorseAnimation.horsePrimaryHandleRejectCount -ne 0 -or
-                # PR-5 reviews R4-F2/R5-F1: the outcome's source is the handle observed at its own strike, the snapshot's the latest
-                # registration (a legitimate refresh, KMC-supplied then the stock handle of the same action, changes it after the
-                # strike). The pair must be a permitted transition for that command's own counts: TB from its snapshot, RT from the
-                # difference of the cumulative RT and TB snapshots.
-                -not (Test-KmcHorseHandleTransition ([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource) ([string]$o.mountedTurnHorseAnimation.lastHorsePrimaryHandleSource) ([long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount) ([long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount)) -or
-                -not (Test-KmcHorseHandleTransition ([string]$o.mountedHorseOutcome.attackAnimationHandleSource) ([string]$o.mountedHorseAnimation.lastHorsePrimaryHandleSource) ([long]$o.mountedHorseAnimation.horsePrimaryHandleCreateCount - [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleCreateCount) ([long]$o.mountedHorseAnimation.horsePrimaryHandleAdoptCount - [long]$o.mountedTurnHorseAnimation.horsePrimaryHandleAdoptCount))) {
+                # PR-5 reviews R4-F2/R5-F1/R6-F1/R6-F2: the outcome's source is the handle observed at its own strike, the snapshot's the latest
+                # registration. Each command's raw counters are validated first; its (created, adopted) pair must be exactly one initial
+                # supply or one initial adoption (TB from its snapshot, RT from the difference of the cumulative RT and TB snapshots), with
+                # zero rejections; the source pair is then judged by that initial binding (Test-KmcHorseSchema8Bindings).
+                -not (Test-KmcHorseSchema8Bindings $o)) {
                 throw 'PASS Horse native animation did not prove one exact TB and one exact RT stock-adopted or KMC-supplied handle.'
             }
         }

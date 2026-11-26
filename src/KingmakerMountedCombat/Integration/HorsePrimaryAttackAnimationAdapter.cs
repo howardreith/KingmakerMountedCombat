@@ -100,7 +100,7 @@ namespace KingmakerMountedCombat.Integration
                     if (result.FirstMissingReport)
                     {
                         logger.Info("Horse strike planned without a native handle after an earlier recorded Bite handle: no fallback " +
-                            "supplied and nothing recorded (native strike unchanged); recorded action=" + (result.Action?.name ?? "<none>") + ".");
+                            "supplied and nothing recorded (native strike unchanged); recorded action=" + (HorseAnimationActionMetadata.Name(result.Action) ?? "<none>") + ".");
                     }
                     return;
                 case HorseStrikeHandleOutcome.Adopted:
@@ -154,7 +154,7 @@ namespace KingmakerMountedCombat.Integration
         private void Remember(string source, UnitAnimationActionSpecialAttack action)
         {
             LastHandleSource = source;
-            LastActionName = action.name ?? "<unnamed>";
+            LastActionName = HorseAnimationActionMetadata.Name(action) ?? "<unnamed>";
             LastActionType = action.Type.ToString();
         }
 
