@@ -33,6 +33,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R1-F2: a native removal that takes a neighbour and throws before any check is terminal (no Applied, no second removal after reload); an exact removal that throws is applied", NativeBoundaryRemoval);
             runner.Run("PR-4 R2-F1: a native removal that returns with nothing changed keeps the request; the retry removes once; a newer request supersedes it unchanged", UnchangedRemovalRetries);
             runner.Run("PR-4 R1-F4: a claim replaced during publication never receives the decided suffix; each result names its own horse; one removal", ReplacedDuringPublication);
+            runner.Run("PR-4 R3-F1: a failing removal diagnostic after an exact removal keeps the applied decision and archive; a reloaded fact is preserved", DiagnosticFailureAfterRemoval);
+            runner.Run("PR-4 R3-F2: a failed final archive write is resumed before a newer request; a fresh session settles it as interrupted", FinalPublicationFailureResumes);
+            runner.Run("PR-4 R1-F4: bytes changed after verification never enter the decision's archive and keep their own disposition", ChangedAfterVerification);
         }
 
         private sealed class Fact
@@ -103,6 +106,9 @@ namespace KingmakerMountedCombat.Tests
             // Which horse each removal touched, in order (the integration logs the same horse ID at its removal).
             public readonly List<string> RemovedFrom = new List<string>();
             public bool FailRemovalBefore, FailRemovalAfter, FailClaim, FailResultWrite, FailClose;
+            // PR-4 review R3-F1: the removal report throws (as a display-name read or logger fault would in the integration).
+            public bool FailReport;
+            public int ReportCalls;
             // PR-4 reviews R1-F2/R2-F1, all at the simulated native boundary (inside NativeRemove, before any classification): the
             // next read of the collection after the native call throws; the native call also takes a neighbouring fact (and then
             // throws when FailRemovalAfter is also set); the native call returns normally having changed nothing.
@@ -140,6 +146,12 @@ namespace KingmakerMountedCombat.Tests
             // Like the integration host: the production HorseTripRemoval.RemoveExactly over this horse's live collection and the
             // simulated native removal; the policy receives its classified outcome.
             public HorseTripRemovalResult RemoveExactly(Fact fact) => HorseTripRemoval.RemoveExactly(fact, ReadFeatures, NativeRemove);
+
+            public void ReportRemoval(string horseId, HorseTripRemovalResult removal)
+            {
+                ReportCalls++;
+                if (FailReport) { FailReport = false; throw new InvalidOperationException("simulated removal diagnostic failure"); }
+            }
 
             private IEnumerable<Fact> ReadFeatures()
             {
@@ -696,6 +708,96 @@ namespace KingmakerMountedCombat.Tests
                     Archive(folders, Request) == forB && folders.Result().Contains("Superseded"), "R2-F1: a newer request was not preserved over the no-change claim.");
                 TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 1 && host.RemovedFrom.SequenceEqual(new[] { "horse-B" }) &&
                     Candidates(a).Count == 1 && Candidates(b).Count == 0, "R2-F1: the newer request was not processed on its own.");
+            }
+        }
+
+        // PR-4 review R3-F1: the removal's diagnostic report throws after an exact removal (message construction, display-name read or
+        // logger). The classified outcome already reached the policy, so the decision is applied and archived; after a reload of the
+        // same horse ID with one candidate, nothing is removed again and the reloaded fact is preserved.
+        private static void DiagnosticFailureAfterRemoval()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A");
+                host.Loaded.Add(a);
+                host.FailReport = true;
+                folders.Request(forA);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 1 && host.ReportCalls == 1 &&
+                    folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)) && Archive(folders, Applied) == forA && folders.Result().Contains("Applied") &&
+                    !session.HoldsClaim, "R3-F1: a failing removal report changed the applied decision or its archive.");
+                var reloaded = LegacyHorse("horse-A");
+                host.Loaded.Clear(); host.Loaded.Add(reloaded);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.NoRequest && Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.NoRequest &&
+                    host.Removals == 1 && host.NativeCalls == 1 && Candidates(reloaded).Count == 1 && folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)),
+                    "R3-F1: after the reload the fact was removed again or the archive changed.");
+            }
+        }
+
+        // PR-4 review R3-F2: the actual final archive write fails after the decision (a directory occupies the archive name). The claim
+        // stays discoverable at its own name: a newer request written meanwhile waits; once the obstruction is gone the original bytes
+        // reach the applied archive before the newer request runs. A fresh session meeting the same state settles it as interrupted
+        // with no further removal.
+        private static void FinalPublicationFailureResumes()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B");
+                host.Loaded.Add(a); host.Loaded.Add(b);
+                var obstruction = Path.Combine(folders.UserData, Applied);
+                folders.Request(forA);
+                host.files.BeforePublish = () => { host.files.BeforePublish = null; Directory.CreateDirectory(obstruction); };
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && session.HoldsClaim && File.Exists(Path.Combine(folders.UserData, Claimed)) &&
+                    folders.Result().Contains("Applied"), "R3-F2: the failed archive write lost the claim or its decision.");
+                folders.Request(forB);
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && File.Exists(Path.Combine(folders.UserData, Claimed)) &&
+                    Archive(folders, Request) == forB && Candidates(b).Count == 1, "R3-F2: a newer request ran while the original archive was pending.");
+                Directory.Delete(obstruction);
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedApplied && Archive(folders, Applied) == forA && host.Removals == 1 &&
+                    Archive(folders, Request) == forB && !File.Exists(Path.Combine(folders.UserData, Claimed)), "R3-F2: the original bytes did not reach the applied archive first.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 2 && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-B" }),
+                    "R3-F2: the waiting newer request was not processed after the original archive completed.");
+            }
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var obstruction = Path.Combine(folders.UserData, Applied);
+                folders.Request(forA);
+                host.files.BeforePublish = () => { host.files.BeforePublish = null; Directory.CreateDirectory(obstruction); };
+                TestRunner.True(Throws(() => Run(host, new HorseTripRepairSession())) && host.Removals == 1 && File.Exists(Path.Combine(folders.UserData, Claimed)),
+                    "R3-F2 fresh session: the staged state was not left discoverable.");
+                var reloaded = LegacyHorse("horse-A"); host.Loaded.Clear(); host.Loaded.Add(reloaded);
+                TestRunner.True(Run(host, new HorseTripRepairSession()) == HorseTripRepairDecision.Interrupted && host.Removals == 1 && host.NativeCalls == 1 &&
+                    Candidates(reloaded).Count == 1 && Archive(folders, Interrupted) == forA && !File.Exists(Path.Combine(folders.UserData, Claimed)),
+                    "R3-F2 fresh session: the stranded claim was not settled conservatively, or a removal ran.");
+            }
+        }
+
+        // PR-4 review R1-F4: the claim file changes after its bytes were verified and before terminal publication. The archive holds
+        // exactly the verified bytes (A's request); the replacement (B's) never acquires A's applied suffix, keeps its own disposition
+        // (interrupted on the next poll), and only A's removal ran.
+        private static void ChangedAfterVerification()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            foreach (var moment in new[] { "before publication", "before the claim name is settled" })
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B");
+                host.Loaded.Add(a); host.Loaded.Add(b);
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                folders.Request(forA);
+                Action replace = () => File.WriteAllText(claimPath, forB);
+                if (moment == "before publication") host.files.BeforePublish = () => { host.files.BeforePublish = null; replace(); };
+                else host.files.BeforeSettle = () => { host.files.BeforeSettle = null; replace(); };
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 1 && Archive(folders, Applied) == forA &&
+                    Archive(folders, Claimed) == forB, "R1-F4 (" + moment + "): the archive did not hold the verified bytes, or the replacement was lost.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Interrupted && host.Removals == 1 && host.RemovedFrom.SequenceEqual(new[] { "horse-A" }) &&
+                    Candidates(b).Count == 1 && Archive(folders, Interrupted) == forB && Archive(folders, Applied) == forA &&
+                    !Directory.GetFiles(folders.UserData).Any(path => path.EndsWith(HorseTripRepairPolicy.AppliedSuffix, StringComparison.Ordinal) && File.ReadAllText(path) == forB),
+                    "R1-F4 (" + moment + "): B's bytes acquired A's applied suffix or lost their own disposition.");
             }
         }
 

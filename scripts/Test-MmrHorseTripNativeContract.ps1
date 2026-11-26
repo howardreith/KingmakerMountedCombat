@@ -223,6 +223,19 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
     }
 }
 Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.NativeRemove') ('the only fact removal in the Horse service is the owner-request host''s native boundary, classified by HorseTripRemoval.RemoveExactly (' + ($removers -join ', ') + ')')
+# PR-4 review R3-F1: the production removal wrapper returns its classification with no diagnostic in between; the report (display
+# name and logger) is a separate host method, which the policy calls inside its own containment after the classification returned.
+function CalleeNames([Reflection.MethodBase]$Method) {
+    $names = New-Object 'System.Collections.Generic.List[string]'; $il = $Method.GetMethodBody().GetILAsByteArray()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { $c = $Method.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)); $names.Add($c.DeclaringType.Name + '.' + $c.Name) } catch { } } }
+    , $names
+}
+$fileHost = @($service.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'TripRepairFileHost' })[0]
+$wrapperCalls = CalleeNames ($fileHost.GetMethod('RemoveExactly', $any)); $reportCalls = CalleeNames ($fileHost.GetMethod('ReportRemoval', $any))
+$processDecide = @((KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy').GetMethods($any) | Where-Object { $_.Name -ceq 'DecideClaimed' })[0]
+$decideClauses = @($processDecide.GetMethodBody().ExceptionHandlingClauses | Where-Object { $_.Flags -eq 'Clause' })
+Check (@($wrapperCalls | Where-Object { $_ -like '*.Info' -or $_ -like '*.get_CharacterName' }).Count -eq 0 -and @($wrapperCalls | Where-Object { $_ -ceq 'HorseTripRemoval.RemoveExactly' }).Count -eq 1 -and
+    @($reportCalls | Where-Object { $_ -like '*.Info' }).Count -eq 1 -and $decideClauses.Count -ge 1) ('PR-4 R3-F1: TripRepairFileHost.RemoveExactly returns HorseTripRemoval''s classification with no logger or display-name read; ReportRemoval holds the diagnostic, called by the policy inside a catch (' + ($wrapperCalls -join ',') + ')')
 $policy = KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy'
 Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('FolderName').GetRawConstantValue() -ceq 'KingmakerMountedCombat' -and $null -eq $policy.GetField('CandidateReportFileName')) 'the owner-facing request file and user-data folder names; no candidate report file (candidates are logged only)'
 # Review R4-F6: no file is written into the Mods tree. The request lives in <persistence data parent>/KingmakerMountedCombat (the composition

@@ -178,6 +178,10 @@ namespace KingmakerMountedCombat.Domain
                     // PR-4 reviews R1-F2/R2-F1: one classified removal (HorseTripRemoval.RemoveExactly): the horse's feature identities are
                     // captured before the native removal and the collection is classified after it, on a normal return and on an exception.
                     var removal = host.RemoveExactly(candidates[0]);
+                    // PR-4 review R3-F1: the classification is back in the policy before any fallible diagnostic; the removal report
+                    // (message construction, display-name read, logger) runs contained, so it can never leave the claim undecided.
+                    try { host.ReportRemoval(horseId, removal); }
+                    catch (Exception) { }
                     switch (removal.Outcome)
                     {
                         case HorseTripRemovalOutcome.Removed:
@@ -439,12 +443,15 @@ namespace KingmakerMountedCombat.Domain
         // PR-4 reviews R1-F2/R2-F1: removes this one instance through HorseTripRemoval.RemoveExactly and reports its classified
         // outcome; the integration counts an application only for Removed.
         HorseTripRemovalResult RemoveExactly(TFact fact);
+        // PR-4 review R3-F1: the removal's diagnostic report, called by the policy after the classified outcome returned, contained.
+        void ReportRemoval(string horseId, HorseTripRemovalResult removal);
         void Claim();
         // Returns the claim to the request name; false (claim kept) when a newer request exists.
         bool ReleaseClaim();
         void WriteResult(string result);
         // Renames the claim (claimed) or the request to request + suffix. With a bound identity, only those exact claim bytes are
-        // archived (PR-4 review R1-F4); false means the claim file held other bytes, which were left for their own disposition.
+        // archived (PR-4 review R1-F4); false means the claim file held other bytes, which were left for their own disposition. A
+        // failure leaves the claim at its name (PR-4 review R3-F2), so the next poll resumes this publication before newer work.
         bool Close(bool claimed, string suffix, string boundIdentity);
     }
 
@@ -517,8 +524,10 @@ namespace KingmakerMountedCombat.Domain
         public void WriteResult(string result) =>
             File.WriteAllText(ResultPath, DateTime.UtcNow.ToString("u", CultureInfo.InvariantCulture) + "\r\n" + result + "\r\n");
 
-        // Test hook (PR-4 review R1-F4): invoked after a bound claim was moved to its staging name and before its bytes are verified.
-        public Action BeforeCloseVerify { get; set; }
+        // Test hooks (PR-4 reviews R1-F4/R3-F2): BeforePublish runs after the claim's bytes were read and verified and before the
+        // archive is written; BeforeSettle after the archive was written and before the claim name is settled. Unset in production.
+        public Action BeforePublish { get; set; }
+        public Action BeforeSettle { get; set; }
 
         public bool Close(bool claimed, string suffix, string boundIdentity)
         {
@@ -527,24 +536,35 @@ namespace KingmakerMountedCombat.Domain
                 File.Move(claimed ? ClaimPath : RequestPath, ArchiveTarget(suffix));
                 return true;
             }
-            // PR-4 review R1-F4: the claim is first moved atomically to a staging name of its own (whatever bytes occupy the claim name
-            // now), then those staged bytes are verified against the decision's identity; only a match receives the decision's suffix.
-            // Other bytes go back to the claim name (or, if a newer claim already holds it, to an interrupted archive), so they keep
-            // their own conservative disposition and are never archived under this decision.
-            var staging = ClaimPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + ".closing";
-            File.Move(ClaimPath, staging);
-            BeforeCloseVerify?.Invoke();
-            string identity;
-            using (var sha = System.Security.Cryptography.SHA256.Create())
-                identity = BitConverter.ToString(sha.ComputeHash(File.ReadAllBytes(staging))).Replace("-", string.Empty);
-            if (string.Equals(identity, boundIdentity, StringComparison.Ordinal))
+            // PR-4 reviews R1-F4/R3-F2: the archive is published from the verified payload itself. The claim's bytes are read once and
+            // checked against the decision's identity; only those captured bytes are written (never overwriting) under the decision's
+            // suffix, so nothing that changes the claim file afterwards can enter this archive. Until the archive exists the claim stays
+            // at its own name, so a failed publication is resumed by the next poll before any newer request is taken (and a fresh
+            // session settles it as interrupted, with no removal). Only then is the claim name settled: it is moved aside and, if it
+            // still holds the decision's bytes, deleted; other bytes (a replacement written meanwhile) go back to the claim name, or to an
+            // interrupted archive when a newer claim holds that name, and keep their own disposition.
+            var verified = File.ReadAllBytes(ClaimPath);
+            if (!string.Equals(Digest(verified), boundIdentity, StringComparison.Ordinal)) return false;
+            BeforePublish?.Invoke();
+            using (var archive = new FileStream(ArchiveTarget(suffix), FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                archive.Write(verified, 0, verified.Length);
+            BeforeSettle?.Invoke();
+            var settling = ClaimPath + "." + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture) + ".settling";
+            File.Move(ClaimPath, settling);
+            if (string.Equals(Digest(File.ReadAllBytes(settling)), boundIdentity, StringComparison.Ordinal))
             {
-                File.Move(staging, ArchiveTarget(suffix));
+                File.Delete(settling);
                 return true;
             }
-            try { File.Move(staging, ClaimPath); }
-            catch (IOException) when (File.Exists(ClaimPath) && File.Exists(staging)) { File.Move(staging, ArchiveTarget(HorseTripRepairPolicy.InterruptedSuffix)); }
-            return false;
+            try { File.Move(settling, ClaimPath); }
+            catch (IOException) when (File.Exists(ClaimPath) && File.Exists(settling)) { File.Move(settling, ArchiveTarget(HorseTripRepairPolicy.InterruptedSuffix)); }
+            return true;
+        }
+
+        private static string Digest(byte[] bytes)
+        {
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty);
         }
 
         private string ArchiveTarget(string suffix)

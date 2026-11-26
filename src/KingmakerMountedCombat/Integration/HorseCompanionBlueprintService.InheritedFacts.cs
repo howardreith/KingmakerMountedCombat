@@ -198,14 +198,19 @@ namespace KingmakerMountedCombat.Integration
             private void NativeRemove(Feature fact) => horse.Descriptor.Progression.Features.RemoveFact(fact);
 
             // Removes this one instance and classifies the result; an application is counted only for an exact removal.
+            // PR-4 review R3-F1: returns the classification with no fallible diagnostic in between; the report is separate.
             public HorseTripRemovalResult RemoveExactly(Feature fact)
             {
                 var removal = HorseTripRemoval.RemoveExactly(fact, ReadFeatures, NativeRemove);
                 if (removal.Outcome == HorseTripRemovalOutcome.Removed) owner.TripRepairAppliedCount++;
-                owner.logger.Info("KMC Horse Trip repair removal (MMR-06): horse=" + horse?.UniqueId + "; name=" + horse?.CharacterName +
-                    "; outcome=" + removal.Outcome + "; " + removal.Detail + ".");
                 return removal;
             }
+
+            // Called by the policy after the classified outcome returned, inside its containment (a display-name read or logger fault
+            // cannot change the decision).
+            public void ReportRemoval(string horseId, HorseTripRemovalResult removal) =>
+                owner.logger.Info("KMC Horse Trip repair removal (MMR-06): horse=" + horse?.UniqueId + "; name=" + horse?.CharacterName +
+                    "; outcome=" + removal.Outcome + "; " + removal.Detail + ".");
 
             public void Claim() => files.Claim();
 
