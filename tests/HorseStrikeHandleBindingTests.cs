@@ -32,6 +32,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-5 R1-F6: an unreadable playback or handle read keeps one identifiable strike line and states the gap", UnreadableObservationKeepsRecord);
             runner.Run("PR-5 R1-F7: the missing-handle report is once per command, held by the command", MissingReportOncePerCommand);
             runner.Run("PR-5 R1-F11: terminal and strike numbers are invariant under a decimal-comma culture", InvariantCultureFormatting);
+            runner.Run("PR-5 R2-F2: a failing plan, limb or handle read after an observed Bite never escapes; one line names the Horse; the observation is explicitly unreadable", ObservationStepContainsFailures);
+            runner.Run("PR-5 R2-F4: a failing variant-count read keeps the readable handle facts and the BiteAttack playback in the one strike line", HandleMetadataFaultKeepsPlayback);
+            runner.Run("PR-5 R2-F3: the minimal terminal outcome carries the observed Bite disposition (one callback); detailed and non-Horse controls", MinimalTerminalKeepsBite);
+            runner.Run("PR-5 R1-F4: the structured playback projection follows the observed Bite; a handle-less Bite after adoption is rejected; Bite then hoof is accepted", StructuredPlaybackFollowsObservation);
         }
 
         internal sealed class FakeAction
@@ -49,7 +53,7 @@ namespace KingmakerMountedCombat.Tests
             public int Variant = 0, Variants = 1;
             public string Clip, State;
             public float Weight;
-            public bool ClipThrows, FactsThrow;
+            public bool ClipThrows, FactsThrow, VariantsThrow;
         }
 
         // One planned native strike: whether its context is the exact Horse Bite limb (the adapter's proof), its weapon and
@@ -355,6 +359,138 @@ namespace KingmakerMountedCombat.Tests
         }
 
         // PR-5 review R1-F6: a throwing clip/weight getter or handle fact read marks only that group.
+        // PR-5 review R2-F2: the contained observation step (the command's ObserveHorseStrike runs only this, then base.OnAction).
+        // A failing plan read and a failing limb read after an earlier observed Bite: no exception escapes, exactly one strike line
+        // names the Horse, and the observation becomes an explicit unreadable disposition (the stale Bite never stands for it).
+        private static void ObservationStepContainsFailures()
+        {
+            foreach (var failAt in new[] { "plan", "limb", "handle" })
+            {
+                var observation = new HorseBiteObservation<FakeHandle>();
+                var earlier = new FakeHandle { Action = BiteAction, Acted = true };
+                HorseStrikeObservationStep.Observe<object, FakeHandle>(observation, () => new object(), plan => true, plan => earlier,
+                    plan => "Horse strike: horse=horse-1; index=1/3; slot=limb0.", () => "horse-1", line => { });
+                TestRunner.True(observation.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(observation.Handle, earlier),
+                    "The earlier Bite was not observed (" + failAt + ").");
+                var lines = new List<string>();
+                var delegated = 0;
+                Exception escaped = null;
+                try
+                {
+                    HorseStrikeObservationStep.Observe<object, FakeHandle>(observation,
+                        () => { if (failAt == "plan") throw new InvalidOperationException("simulated planned-attack read"); return new object(); },
+                        plan => { if (failAt == "limb") throw new NullReferenceException("simulated limb read"); return true; },
+                        plan => { if (failAt == "handle") throw new InvalidOperationException("simulated handle read"); return null; },
+                        plan => "Horse strike: horse=horse-1; index=2/3; slot=limb0.", () => "horse-1", lines.Add);
+                    delegated++;   // the command's base.OnAction follows the step (OnAction: ObserveHorseStrike, then base.OnAction)
+                }
+                catch (Exception exception) { escaped = exception; }
+                var terminal = HorseBiteTerminal.Describe(observation, earlier, HorseStrikeHandleBinding.StockCreated, 3,
+                    handle => handle.Action?.Name, handle => handle.Speed, handle => handle.Acted, handle => handle.Finished, handle => handle.Interrupted);
+                TestRunner.True(escaped == null && delegated == 1 && lines.Count == 1 && lines[0].Contains("horse=horse-1") &&
+                    lines[0].Contains("biteObservation=unreadable(" + failAt + ":") && observation.Kind == HorseBiteObservationKind.Unreadable &&
+                    observation.Handle == null && terminal.StartsWith("{observed=unreadable(" + failAt + ":", StringComparison.Ordinal) && !terminal.Contains("observed=handle"),
+                    "R2-F2 (" + failAt + "): the failure escaped, was not stated once for the Horse, or left the stale Bite: " + escaped + " | " +
+                    string.Join(" || ", lines.ToArray()) + " | " + terminal);
+            }
+            // The strike line itself failing: the observation still records, and one fallback line names the Horse.
+            var observed = new HorseBiteObservation<FakeHandle>(); var lineOut = new List<string>(); var handleNow = new FakeHandle { Action = BiteAction };
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(observed, () => new object(), plan => true, plan => handleNow,
+                plan => { throw new InvalidOperationException("simulated reader fault"); }, () => "horse-1", lineOut.Add);
+            TestRunner.True(observed.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(observed.Handle, handleNow) && lineOut.Count == 1 &&
+                lineOut[0].StartsWith("Horse strike: horse=horse-1", StringComparison.Ordinal), "A failing strike line suppressed the observation or its line.");
+            // Control: a readable hoof after a Bite leaves the Bite observation (a hoof never changes it).
+            var bitten = new HorseBiteObservation<FakeHandle>(); var biteHandle = new FakeHandle { Action = BiteAction };
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => true, plan => biteHandle, plan => "l", () => "horse-1", line => { });
+            HorseStrikeObservationStep.Observe<object, FakeHandle>(bitten, () => new object(), plan => false, plan => new FakeHandle { Action = HoofAction }, plan => "l", () => "horse-1", line => { });
+            TestRunner.True(bitten.Kind == HorseBiteObservationKind.Handle && ReferenceEquals(bitten.Handle, biteHandle) && bitten.BiteStrikes == 1,
+                "A hoof strike changed the Bite observation.");
+        }
+
+        // PR-5 review R2-F4: a handle whose variant-count getter throws keeps its readable action and speed, and its separately
+        // readable BiteAttack clip, weight and state, in the single strike line, naming the failed read.
+        private static void HandleMetadataFaultKeepsPlayback()
+        {
+            var strike = HorseStrike(new FakeHandle { Action = BiteAction, Started = true, Acted = true, Speed = 2.4f, Variant = 1, VariantsThrow = true,
+                Clip = "BiteAttack", Weight = 0.8f, State = "Playing" });
+            strike.Bind();
+            var line = Read(strike).Format();
+            TestRunner.True(line.Contains("handle=started,acted,facts-unreadable(variants:InvalidOperationException)") &&
+                line.Contains("action=HorseAnimationSet_Bite") && line.Contains("speedScale=2.4") && line.Contains("variant=1/unreadable") &&
+                line.Contains("activeClip=BiteAttack") && line.Contains("clipWeight=0.8") && line.Contains("animationState=Playing") &&
+                line.Split(new[] { "Horse strike:" }, StringSplitOptions.None).Length == 2,
+                "R2-F4: a handle metadata fault suppressed readable facts or playback: " + line);
+        }
+
+        private sealed class TerminalOutcome { public string Detail; public string Bite; public int Attached; }
+
+        // PR-5 review R2-F3: the production composer: an unrelated detailed-outcome read fails after a known Bite observation;
+        // the one terminal callback receives the minimal outcome carrying that disposition. A non-Horse command attaches null.
+        private static void MinimalTerminalKeepsBite()
+        {
+            var observation = new HorseBiteObservation<FakeHandle>();
+            var handle = new FakeHandle { Action = BiteAction, Acted = true, Finished = true };
+            observation.Observe(true, handle);
+            var callbacks = new List<TerminalOutcome>();
+            Func<HorseBiteObservation<FakeHandle>, string> describe = obs => HorseBiteTerminal.Describe(obs, handle, HorseStrikeHandleBinding.StockCreated, 3,
+                h => h.Action?.Name, h => h.Speed, h => h.Acted, h => h.Finished, h => h.Interrupted);
+            Exception logged = null;
+            callbacks.Add(HorseTerminalOutcome.Compose<TerminalOutcome>(
+                () => { throw new NullReferenceException("simulated unrelated detailed read (target despawned)"); },
+                exception => { logged = exception; return new TerminalOutcome { Detail = "minimal" }; },
+                outcome => { outcome.Attached++; outcome.Bite = describe(observation); }));
+            TestRunner.True(callbacks.Count == 1 && callbacks[0].Detail == "minimal" && callbacks[0].Attached == 1 && logged is NullReferenceException &&
+                callbacks[0].Bite != null && callbacks[0].Bite.StartsWith("{observed=handle,action=HorseAnimationSet_Bite,source=stock-created", StringComparison.Ordinal),
+                "R2-F3: the minimal terminal outcome lost the Bite disposition: " + callbacks[0].Bite);
+            var detailed = HorseTerminalOutcome.Compose<TerminalOutcome>(() => new TerminalOutcome { Detail = "detailed" }, exception => null,
+                outcome => { outcome.Attached++; outcome.Bite = describe(observation); });
+            var nonHorse = HorseTerminalOutcome.Compose<TerminalOutcome>(() => { throw new InvalidOperationException("x"); }, exception => new TerminalOutcome { Detail = "minimal" },
+                outcome => { outcome.Attached++; outcome.Bite = null; });
+            var failingAttach = HorseTerminalOutcome.Compose<TerminalOutcome>(() => new TerminalOutcome { Detail = "detailed" }, exception => null,
+                outcome => { throw new InvalidOperationException("simulated attach fault"); });
+            TestRunner.True(detailed.Detail == "detailed" && detailed.Attached == 1 && detailed.Bite == callbacks[0].Bite && nonHorse.Bite == null && nonHorse.Attached == 1 &&
+                failingAttach.Detail == "detailed", "R2-F3: the detailed path, the non-Horse control or a failing attachment misbehaved.");
+        }
+
+        private static HorseBitePlayback Playback(HorseBiteObservation<FakeHandle> observation, Strike command) =>
+            HorseBiteTerminal.Project(observation, command.Recorded, command.RecordedSource, h => h.Action?.Name, h => h.Action?.Type,
+                h => h.Acted, h => h.Finished, h => h.Interrupted);
+
+        // PR-5 review R1-F4: the structured playback projection agrees with the observed strike. After stock adoption, a Bite that
+        // strikes without a handle: the formatted line, the projection and the scenario playback check all say no handle, while
+        // the registration stays visible as historical. Control: a positive observed Bite followed by a hoof is accepted.
+        private static void StructuredPlaybackFollowsObservation()
+        {
+            var stock = new FakeHandle { Action = BiteAction, Started = true, Acted = true, Finished = true };
+            var command = HorseStrike(stock);
+            TestRunner.Equal(HorseStrikeHandleOutcome.Adopted, command.Bind().Outcome, "The stock handle was not adopted.");
+            var observation = new HorseBiteObservation<FakeHandle>();
+            observation.Observe(true, null);
+            var negative = Playback(observation, command);
+            var line = Terminal(observation, command);
+            TestRunner.True(line.StartsWith("{observed=no-handle", StringComparison.Ordinal) && negative.Observation == "no-handle" && !negative.HandleObserved &&
+                negative.Source == null && !negative.Acted && negative.RegisteredHandle && negative.RegisteredSource == HorseStrikeHandleBinding.StockCreated &&
+                !HorseBiteTerminal.PlaybackAccepted(negative) && !HorseBiteTerminal.PlaybackAccepted(negative.HandleObserved, negative.Source, negative.Interrupted),
+                "R1-F4: a handle-less Bite after adoption produced positive structured playback evidence.");
+            // A different handle observed than the registered one: its own facts, source unrecorded, rejected.
+            var other = new FakeHandle { Action = BiteAction, Acted = true };
+            var differs = new HorseBiteObservation<FakeHandle>(); differs.Observe(true, other);
+            var differing = Playback(differs, command);
+            TestRunner.True(differing.HandleObserved && differing.Source == HorseBiteTerminal.Unrecorded && !HorseBiteTerminal.PlaybackAccepted(differing),
+                "R1-F4: an unregistered observed handle was accepted as exact playback.");
+            // Control: the registered Bite observed at its strike, then a hoof.
+            var positive = new HorseBiteObservation<FakeHandle>(); positive.Observe(true, stock); positive.Observe(false, new FakeHandle { Action = HoofAction });
+            var accepted = Playback(positive, command);
+            TestRunner.True(accepted.Observation == "handle" && accepted.HandleObserved && accepted.Source == HorseStrikeHandleBinding.StockCreated &&
+                accepted.ActionName == "HorseAnimationSet_Bite" && accepted.Acted && accepted.Finished && HorseBiteTerminal.PlaybackAccepted(accepted) &&
+                Terminal(positive, command).StartsWith("{observed=handle,action=HorseAnimationSet_Bite,source=stock-created", StringComparison.Ordinal),
+                "R1-F4 control: an observed registered Bite followed by a hoof was not accepted.");
+            // Unreadable and not-reached project as rejected, with the reason stated.
+            var unreadable = new HorseBiteObservation<FakeHandle>(); unreadable.ObserveUnreadable("plan:InvalidOperationException");
+            TestRunner.True(Playback(unreadable, command).Observation == "unreadable(plan:InvalidOperationException)" && !HorseBiteTerminal.PlaybackAccepted(Playback(unreadable, command)) &&
+                Playback(new HorseBiteObservation<FakeHandle>(), command).Observation == "not-reached", "R1-F4: unreadable or unreached Bites were not stated.");
+        }
+
         private static void UnreadableObservationKeepsRecord()
         {
             var strike = HorseStrike(new FakeHandle { Action = BiteAction, Started = true, Acted = true, Speed = 2.4f, ClipThrows = true });
@@ -365,7 +501,7 @@ namespace KingmakerMountedCombat.Tests
                 "An unreadable playback read erased the strike or read as an absent clip: " + line);
             var facts = HorseStrike(new FakeHandle { Action = BiteAction, FactsThrow = true });
             var factsLine = Read(facts).Format();
-            TestRunner.True(factsLine.Contains("weapon=Bite1d4") && factsLine.Contains("handle=present,facts-unreadable(InvalidOperationException)"),
+            TestRunner.True(factsLine.Contains("weapon=Bite1d4") && factsLine.Contains("facts-unreadable(action:InvalidOperationException)") && factsLine.Contains("action=unreadable"),
                 "An unreadable handle fact erased the strike or read as handle=none: " + factsLine);
             var absent = Read(HorseStrike()).Format();
             TestRunner.True(absent.Contains("handle=none") && !absent.Contains("unreadable"), "A positively absent handle was reported as unreadable.");
@@ -423,7 +559,7 @@ namespace KingmakerMountedCombat.Tests
             public bool IsInterrupted(FakeHandle handle) => handle.Interrupted;
             public float SpeedScale(FakeHandle handle) => handle.Speed;
             public int Variant(FakeHandle handle) => handle.Variant;
-            public int VariantsCount(FakeHandle handle) => handle.Variants;
+            public int VariantsCount(FakeHandle handle) => handle.VariantsThrow ? throw new InvalidOperationException("simulated variant-count read") : handle.Variants;
             public string ActiveClip(FakeHandle handle) => handle.ClipThrows ? throw new InvalidOperationException("simulated invalidated clip") : handle.Clip;
             public float ActiveWeight(FakeHandle handle) => handle.Weight;
             public string ActiveState(FakeHandle handle) => handle.State;

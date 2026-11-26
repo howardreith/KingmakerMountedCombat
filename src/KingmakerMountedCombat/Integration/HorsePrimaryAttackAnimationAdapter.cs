@@ -170,19 +170,21 @@ namespace KingmakerMountedCombat.Integration
             return handle;
         }
 
-        // PR-5 review R1-F1: whether a planned strike is the KMC Horse's Bite, proven from the Horse's own body and blueprint
-        // rather than from the planned-attack reference: the planned hand is the Horse's runtime first additional limb, the
-        // planned weapon's blueprint is the Horse blueprint's first limb (CopyBody builds bite, hoof, hoof), and that
-        // blueprint's special animation is Bite. A hoof (limb1, limb2), a hand, another weapon or an untyped weapon is not.
+        // PR-5 reviews R1-F1/R2-F1: whether a planned strike is the KMC Horse's Bite, proven by the registered weapon's identity
+        // and its actual slot, never by its presentation tag: the unit's blueprint is the exact KMC Horse blueprint, whose first
+        // limb HorseCompanionBlueprintService registered as the stock Bite1d4 and verified by GUID (CopyBody builds bite, hoof,
+        // hoof); the planned weapon is that registered blueprint and the planned hand is the Horse's runtime first additional
+        // limb. A hoof (limb1, limb2), a hand, a foreign weapon or an unrelated untyped weapon is not. A registered Bite whose
+        // visual SpecialAnimation is None is still the Bite.
         internal static bool IsHorseBiteSlot(UnitEntityData horse, AttackHandInfo attack) =>
+            string.Equals(horse?.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal) &&
             IsBiteLimb(attack?.Hand, attack?.Weapon?.Blueprint, horse?.Body?.AdditionalLimbs, horse?.Blueprint?.Body?.AdditionalLimbs);
 
         // Reference tests only (a blueprint is never a destroyed Unity object), so genuine objects are judged the same inside and
-        // outside Unity.
+        // outside Unity. blueprintLimbs is the registered Horse body's limbs.
         internal static bool IsBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs, BlueprintItemWeapon[] blueprintLimbs) =>
             hand != null && !ReferenceEquals(planned, null) && runtimeLimbs != null && runtimeLimbs.Count > 0 && ReferenceEquals(runtimeLimbs[0], hand) &&
-            blueprintLimbs != null && blueprintLimbs.Length > 0 && ReferenceEquals(blueprintLimbs[0], planned) &&
-            planned.VisualParameters != null && planned.VisualParameters.SpecialAnimation == UnitAnimationSpecialAttackType.Bite;
+            blueprintLimbs != null && blueprintLimbs.Length > 0 && ReferenceEquals(blueprintLimbs[0], planned);
 
         // The real-type boundary of HorseStrikeHandleBinding. Its classification members read only the native handle's Action
         // and Manager references and the action's AttackType (no Unity engine calls), so the contract

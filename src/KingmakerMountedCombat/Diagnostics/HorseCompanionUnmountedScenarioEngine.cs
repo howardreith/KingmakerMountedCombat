@@ -2652,9 +2652,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.AttackRuleCount == 1 && ruleProbe.AttackRollCount == 1 &&
                     ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
                     ruleProbe.TotalDamage > 0 && !horse.HasStandardAction() &&
-                    mountedTurnHorseOutcome.AttackAnimationHandleCreated &&
-                    IsExactHorsePrimaryAnimationSource(mountedTurnHorseOutcome.AttackAnimationHandleSource) &&
-                    !mountedTurnHorseOutcome.AttackAnimationInterrupted &&
+                    // PR-5 review R1-F4: judged on the Bite handle observed at its strike, never on the registration alone.
+                    HorseBiteTerminal.PlaybackAccepted(mountedTurnHorseOutcome.AttackAnimationHandleCreated,
+                        mountedTurnHorseOutcome.AttackAnimationHandleSource, mountedTurnHorseOutcome.AttackAnimationInterrupted) &&
                     animationSnapshot.HorsePrimaryHandleCreateCount +
                         animationSnapshot.HorsePrimaryHandleAdoptCount == 1 &&
                     animationSnapshot.HorsePrimaryHandleRejectCount == 0,
@@ -2828,9 +2828,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.DamageRuleCount == 1 && ruleProbe.UnexpectedPairAttackCount == 0 &&
                     ruleProbe.TotalDamage > 0 &&
                     (!IncludesNativeControlsUx ||
-                     (mountedHorseOutcome.AttackAnimationHandleCreated &&
-                      IsExactHorsePrimaryAnimationSource(mountedHorseOutcome.AttackAnimationHandleSource) &&
-                      !mountedHorseOutcome.AttackAnimationInterrupted &&
+                     (HorseBiteTerminal.PlaybackAccepted(mountedHorseOutcome.AttackAnimationHandleCreated,
+                          mountedHorseOutcome.AttackAnimationHandleSource, mountedHorseOutcome.AttackAnimationInterrupted) &&
                       mountedHorseAnimationSnapshot.HorsePrimaryHandleCreateCount +
                           mountedHorseAnimationSnapshot.HorsePrimaryHandleAdoptCount == 2 &&
                       mountedHorseAnimationSnapshot.HorsePrimaryHandleRejectCount == 0)),
@@ -3096,8 +3095,11 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             if (includeAnimation)
             {
+                result["attackAnimationObservation"] = outcome.AttackAnimationObservation;
                 result["attackAnimationHandleCreated"] = outcome.AttackAnimationHandleCreated;
                 result["attackAnimationHandleSource"] = outcome.AttackAnimationHandleSource;
+                result["attackAnimationHandleRegistered"] = outcome.AttackAnimationHandleRegistered;
+                result["attackAnimationRegisteredSource"] = outcome.AttackAnimationRegisteredSource;
                 result["attackAnimationActionName"] = outcome.AttackAnimationActionName;
                 result["attackAnimationActionType"] = outcome.AttackAnimationActionType;
                 result["attackAnimationActed"] = outcome.AttackAnimationActed;
@@ -3105,12 +3107,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 result["attackAnimationInterrupted"] = outcome.AttackAnimationInterrupted;
             }
             return result;
-        }
-
-        private static bool IsExactHorsePrimaryAnimationSource(string source)
-        {
-            return string.Equals(source, "stock-created", StringComparison.Ordinal) ||
-                string.Equals(source, "kmc-supplied", StringComparison.Ordinal);
         }
 
         private void AwaitDeath()

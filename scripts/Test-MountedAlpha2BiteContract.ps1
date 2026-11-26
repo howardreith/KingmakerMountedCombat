@@ -169,10 +169,29 @@ $blueprintLimbs = [Array]::CreateInstance($weaponType, 3); $blueprintLimbs.SetVa
 $untypedLimbs = [Array]::CreateInstance($weaponType, 3); $untypedLimbs.SetValue($untypedWeapon, 0); $untypedLimbs.SetValue($hoofWeapon, 1); $untypedLimbs.SetValue($hoofWeapon, 2)
 $isBiteLimb = (KmcType 'KingmakerMountedCombat.Integration.HorsePrimaryAttackAnimationAdapter').GetMethod('IsBiteLimb', $any)
 function BiteLimb($Hand, $Weapon, $Limbs, $BlueprintLimbs) { [bool]$isBiteLimb.Invoke($null, [object[]]@($Hand, $Weapon, $Limbs, $BlueprintLimbs)) }
-Check ((BiteLimb $biteSlot $biteWeapon $runtimeLimbs $blueprintLimbs) -and -not (BiteLimb $hoofSlotA $hoofWeapon $runtimeLimbs $blueprintLimbs) -and
+# PR-5 review R2-F1: the registered Bite weapon (the registered Horse body's first limb) is the Bite in its actual first-limb
+# slot whatever its visual tag; an unrelated untyped weapon is not.
+$untaggedBite = New-Weapon 'None'
+$registeredUntagged = [Array]::CreateInstance($weaponType, 3); $registeredUntagged.SetValue($untaggedBite, 0); $registeredUntagged.SetValue($hoofWeapon, 1); $registeredUntagged.SetValue($hoofWeapon, 2)
+Check ((BiteLimb $biteSlot $biteWeapon $runtimeLimbs $blueprintLimbs) -and (BiteLimb $biteSlot $untaggedBite $runtimeLimbs $registeredUntagged) -and
+    -not (BiteLimb $hoofSlotA $hoofWeapon $runtimeLimbs $blueprintLimbs) -and
     -not (BiteLimb $hoofSlotB $hoofWeapon $runtimeLimbs $blueprintLimbs) -and -not (BiteLimb $biteSlot $hoofWeapon $runtimeLimbs $blueprintLimbs) -and
-    -not (BiteLimb $biteSlot $untypedWeapon $runtimeLimbs $untypedLimbs) -and -not (BiteLimb (New-Native $slotType) $biteWeapon $runtimeLimbs $blueprintLimbs) -and
-    -not (BiteLimb $null $biteWeapon $runtimeLimbs $blueprintLimbs) -and -not (BiteLimb $biteSlot $biteWeapon $null $blueprintLimbs)) 'PR-5 R1-F1: only the Horse''s first limb slot carrying the blueprint''s first limb with a Bite special animation is the Bite (hooves in limb1/limb2, a hoof weapon in limb0, an untyped weapon, a foreign slot, a missing hand or body are not)'
+    -not (BiteLimb $biteSlot $untypedWeapon $runtimeLimbs $blueprintLimbs) -and -not (BiteLimb (New-Native $slotType) $biteWeapon $runtimeLimbs $blueprintLimbs) -and
+    -not (BiteLimb $null $biteWeapon $runtimeLimbs $blueprintLimbs) -and -not (BiteLimb $biteSlot $biteWeapon $null $blueprintLimbs)) 'PR-5 R1-F1/R2-F1: the Bite is the registered Horse body''s first-limb weapon in the Horse''s first runtime limb slot, also with SpecialAnimation None; hooves in limb1/limb2, a hoof weapon in limb0, an unrelated untyped weapon, a foreign slot and missing parts are not'
+# The fallback chain for the untagged registered Bite: exact from the production proof, no stock handle, one genuine Bite action:
+# one supply and a Bite observation. Hoof-only candidates and an unrelated untyped weapon: zero writes.
+$untaggedStrike = New-Strike $null $manager $true $horseActions (BiteLimb $biteSlot $untaggedBite $runtimeLimbs $registeredUntagged)
+$hoofOnly = New-Strike $null $manager $true @($hoof) (BiteLimb $biteSlot $untaggedBite $runtimeLimbs $registeredUntagged)
+$unrelated = New-Strike $null $manager $true $horseActions (BiteLimb $biteSlot $untypedWeapon $runtimeLimbs $registeredUntagged)
+$observationType = (KmcType 'KingmakerMountedCombat.Domain.HorseBiteObservation`1').MakeGenericType($handleType)
+$untaggedObservation = [Activator]::CreateInstance($observationType)
+$untaggedOutcome = Bind-Strike $untaggedStrike
+[void]$observationType.GetMethod('Observe').Invoke($untaggedObservation, [object[]]@((BiteLimb $biteSlot $untaggedBite $runtimeLimbs $registeredUntagged), $untaggedStrike.Current))
+Check ($untaggedOutcome -ceq 'Supplied' -and $untaggedStrike.Creates -eq 1 -and $untaggedStrike.Assigns -eq 1 -and $untaggedStrike.Records -eq 1 -and
+    [object]::ReferenceEquals($untaggedStrike.Current.Action, $bite) -and $untaggedObservation.Kind.ToString() -ceq 'Handle' -and
+    [object]::ReferenceEquals($untaggedObservation.Handle, $untaggedStrike.Current)) 'PR-5 R2-F1: the registered Bite with SpecialAnimation None, no stock handle and one genuine Bite action gets exactly one supplied handle and a Bite observation'
+Check ((Bind-Strike $hoofOnly) -ceq 'RejectedCandidateCount' -and $hoofOnly.LastResult.CandidateCount -eq 0 -and (Bind-Strike $unrelated) -ceq 'NotExact' -and
+    @($hoofOnly, $unrelated | Where-Object { $_.Records -ne 0 -or $_.Assigns -ne 0 -or $_.Creates -ne 0 }).Count -eq 0) 'PR-5 R2-F1: only a Hoof candidate, or an unrelated untyped weapon in the Bite slot, writes nothing'
 
 # ---- 2. The strike reader's real-type source on a genuine handle ---------------------------------------------------
 $sourceType = KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackCommand+HorseStrikeSource'
@@ -195,7 +214,7 @@ function Calls([Type]$Type, [string]$Method, [Reflection.MethodBase]$Target, [sw
     for ($i = 0; $i -lt $types.Count; $i++) { foreach ($n in $types[$i].GetNestedTypes($any)) { $types.Add($n) } }
     foreach ($t in $types) {
         foreach ($m in $t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) {
-            if ($Method -and $t -eq $Type -and $m.Name -cne $Method) { continue }
+            if ($Method -and $t -eq $Type -and $m.Name -cne $Method -and -not $m.Name.Contains('<' + $Method + '>')) { continue }
             if ($Method -and $t -ne $Type -and -not $m.Name.Contains('<' + $Method + '>')) { continue }
             $body = $m.GetMethodBody(); if ($null -eq $body) { continue }
             $il = $body.GetILAsByteArray()
@@ -265,19 +284,64 @@ Check ($null -ne $onAction -and $null -ne $baseOnAction -and $unitAttack.IsAssig
 Check ((Calls $command 'OnAction' $observe -Count) -eq 1) 'OnAction calls ObserveHorseStrike exactly once'
 Check ((Calls $command 'OnAction' $baseOnAction -Count) -eq 1) 'OnAction calls its base OnAction exactly once (native attack event and damage count unchanged)'
 Check (Calls $command 'ObserveHorseStrike' ($kmc.GetType('KingmakerMountedCombat.Domain.HorseStrikeReader', $true).GetMethod('Read'))) 'ObserveHorseStrike reads through HorseStrikeReader'
+# PR-5 review R2-F2: the plan read, the limb proof and the strike line run only inside the contained HorseStrikeObservationStep
+# (lambdas it invokes inside its own guards); ObserveHorseStrike itself never reads PlannedAttack, and OnAction has no handler that
+# could swallow a native failure: its base.OnAction call is unguarded and single.
+$step = (KmcType 'KingmakerMountedCombat.Domain.HorseStrikeObservationStep').GetMethod('Observe')
+$plannedGetter = $unitAttack.GetProperty('PlannedAttack', $any).GetGetMethod($true)
+$exactOnly = { param($Name, $Target) $n = 0; $il = $command.GetMethod($Name, $any + [Reflection.BindingFlags]::DeclaredOnly).GetMethodBody().GetILAsByteArray()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { $r = $command.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }; if ($r -is [Reflection.MethodInfo] -and $r.IsGenericMethod) { $r = $r.GetGenericMethodDefinition() }; if ($r -eq $Target) { $n++ } } }; $n }
+Check ((& $exactOnly 'ObserveHorseStrike' $step) -eq 1 -and (& $exactOnly 'ObserveHorseStrike' $plannedGetter) -eq 0 -and (Calls $command 'ObserveHorseStrike' $plannedGetter) -and
+    $onAction.GetMethodBody().ExceptionHandlingClauses.Count -eq 0) 'PR-5 R2-F2: ObserveHorseStrike hands the plan read, limb proof and strike line to HorseStrikeObservationStep.Observe (one call) and never reads PlannedAttack itself; OnAction swallows nothing'
 # PR-5 review R1-F4: the strike observation uses the same Bite-limb proof, and the terminal fields come from it.
 $isBiteSlot = $adapter.GetMethod('IsHorseBiteSlot', $any)
-$observed = $false
-$observeIl = $observe.GetMethodBody().GetILAsByteArray()
-for ($i = 0; $i -le $observeIl.Length - 5; $i++) { if ($observeIl[$i] -eq 0x6F -or $observeIl[$i] -eq 0x28) { try { $m = $observe.Module.ResolveMethod([BitConverter]::ToInt32($observeIl, $i + 1)) } catch { continue }; if ($m.Name -ceq 'Observe' -and $m.DeclaringType.IsGenericType -and $m.DeclaringType.GetGenericTypeDefinition().Name -ceq 'HorseBiteObservation`1') { $observed = $true } } }
-Check ((Calls $command 'ObserveHorseStrike' $isBiteSlot) -and $observed) 'PR-5 R1-F4: ObserveHorseStrike records a Bite observation only through IsHorseBiteSlot (a hoof never is one)'
+$observed = $false; $observedUnreadable = $false
+$stepIl = $step.GetMethodBody().GetILAsByteArray()
+for ($i = 0; $i -le $stepIl.Length - 5; $i++) { if ($stepIl[$i] -eq 0x6F -or $stepIl[$i] -eq 0x28) { try { $m = $step.Module.ResolveMethod([BitConverter]::ToInt32($stepIl, $i + 1), $null, $step.GetGenericArguments()) } catch { continue }
+    if ($m.DeclaringType.IsGenericType -and $m.DeclaringType.GetGenericTypeDefinition().Name -ceq 'HorseBiteObservation`1') { if ($m.Name -ceq 'Observe') { $observed = $true } elseif ($m.Name -ceq 'ObserveUnreadable') { $observedUnreadable = $true } } } }
+$observed = $observed -and $observedUnreadable
+Check ((Calls $command 'ObserveHorseStrike' $isBiteSlot) -and $observed) 'PR-5 R1-F4/R2-F2: ObserveHorseStrike classifies through IsHorseBiteSlot (a hoof never is a Bite) and its observation step records Observe or ObserveUnreadable'
 Check (Calls $command 'DescribeHorseBiteTerminal' ($kmc.GetType('KingmakerMountedCombat.Domain.HorseBiteTerminal', $true).GetMethod('Describe'))) 'PR-5 R1-F4: the terminal horseBite fields come from HorseBiteTerminal.Describe over the observation'
 # PR-5 review R1-F3: the command's record publishes nothing when a metadata read fails. Outside Unity the genuine action's
 # name getter cannot run, which is exactly such a failure.
+# PR-5 review R2-F5: the action gets a nonzero cached native pointer, so Unity's equality reads it as live and the production
+# precondition (animationAction == null) passes; the first metadata read (UnityEngine.Object.name) then fails outside the engine.
+# The check asserts that the fault came from that read, not from the precondition, and that nothing was published.
 $recordCommand = New-Native $commandType
 SetField $recordCommand $commandType 'action' ([Enum]::Parse((KmcType 'KingmakerMountedCombat.Domain.MountedCombatActionKind'), 'MountPrimaryNatural'))
+$liveBite = New-Action 'Bite'
+$unityBase = $actionType; while ($unityBase.FullName -ne 'UnityEngine.Object') { $unityBase = $unityBase.BaseType }
+$unityBase.GetField('m_CachedPtr', [Reflection.BindingFlags]'Instance,NonPublic').SetValue($liveBite, [IntPtr]4242)
+$unityEquality = $unityBase.GetMethod('op_Equality', [Reflection.BindingFlags]'Static,Public')
+$passesPrecondition = -not [bool]$unityEquality.Invoke($null, [object[]]@($liveBite, $null))
 $recordFault = $null
-try { [void]$commandType.GetMethod('RecordHorsePrimaryAnimation', $any).Invoke($recordCommand, [object[]]@((New-Handle $bite $manager), $bite, 'kmc-supplied')) } catch { $recordFault = $_ }
-$recordFields = @('horsePrimaryAnimationHandle', 'horsePrimaryAnimationAction', 'horsePrimaryAnimationHandleSource', 'horsePrimaryAnimationActionName') | ForEach-Object { $commandType.GetField($_, $any).GetValue($recordCommand) }
-Check ($null -ne $recordFault -and @($recordFields | Where-Object { $null -ne $_ }).Count -eq 0) 'PR-5 R1-F3: a failing metadata read inside RecordHorsePrimaryAnimation leaves no handle, action, source or name recorded'
+try { [void]$commandType.GetMethod('RecordHorsePrimaryAnimation', $any).Invoke($recordCommand, [object[]]@((New-Handle $liveBite $manager), $liveBite, 'kmc-supplied')) } catch { $recordFault = $_.Exception }
+$inner = $recordFault; while ($null -ne $inner -and $null -ne $inner.InnerException -and ($inner -is [Reflection.TargetInvocationException] -or $inner -is [Management.Automation.MethodInvocationException])) { $inner = $inner.InnerException }
+# The fault is Unity's unavailable internal call (SecurityException, ECall), raised at the first engine call after the
+# precondition; in the compiled method that call is UnityEngine.Object.get_name and it precedes every record write, so moving a
+# write ahead of it publishes a field before the fault (the field check below then fails).
+$recordMethod = $commandType.GetMethod('RecordHorsePrimaryAnimation', $any)
+$recordIl = $recordMethod.GetMethodBody().GetILAsByteArray(); $nameAt = -1; $firstWrite = [int]::MaxValue
+$recordFieldNames = @('horsePrimaryAnimationHandle', 'horsePrimaryAnimationAction', 'horsePrimaryAnimationHandleSource', 'horsePrimaryAnimationActionName', 'horsePrimaryAnimationActionType')
+for ($i = 0; $i -le $recordIl.Length - 5; $i++) {
+    if ($recordIl[$i] -eq 0x28 -or $recordIl[$i] -eq 0x6F) { try { $m = $recordMethod.Module.ResolveMethod([BitConverter]::ToInt32($recordIl, $i + 1)) } catch { continue }
+        if ($nameAt -lt 0 -and $m.DeclaringType.FullName -ceq 'UnityEngine.Object' -and $m.Name -notmatch '^op_') { if ($m.Name -ceq 'get_name') { $nameAt = $i } else { $nameAt = -2 } } }
+    elseif ($recordIl[$i] -eq 0x7D) { try { $f = $recordMethod.Module.ResolveField([BitConverter]::ToInt32($recordIl, $i + 1)) } catch { continue }; if ($recordFieldNames -contains $f.Name -and $i -lt $firstWrite) { $firstWrite = $i } }
+}
+$atNameRead = $null -ne $inner -and $inner -is [Security.SecurityException] -and $inner.Message -match 'ECall' -and $nameAt -ge 0 -and $nameAt -lt $firstWrite
+$recordFields = $recordFieldNames | ForEach-Object { $commandType.GetField($_, $any).GetValue($recordCommand) }
+Write-Host ('  R2-F5 metadata fault: precondition passed=' + $passesPrecondition + '; fault=' + $(if ($inner) { $inner.GetType().FullName + ': ' + $inner.Message } else { '<none>' }) + '; first engine call=get_name at IL ' + $nameAt + '; first record write at IL ' + $firstWrite)
+Check ($passesPrecondition -and $atNameRead -and @($recordFields | Where-Object { $null -ne $_ }).Count -eq 0) 'PR-5 R1-F3/R2-F5: past the production precondition (a live-pointer action), the metadata read (UnityEngine.Object.name) fails and RecordHorsePrimaryAnimation publishes no handle, action, source, name or type'
+# PR-5 reviews R2-F3/R1-F4: both terminal outcomes come from HorseTerminalOutcome.Compose, which attaches the Bite disposition and
+# the observed playback projection (AttachHorseBite); DescribeOutcome no longer sets them from the registration; the scenario's
+# playback checks judge the observed projection through HorseBiteTerminal.PlaybackAccepted.
+$compose = (KmcType 'KingmakerMountedCombat.Domain.HorseTerminalOutcome').GetMethod('Compose')
+$project = (KmcType 'KingmakerMountedCombat.Domain.HorseBiteTerminal').GetMethod('Project')
+$outcomeType = KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackOutcome'
+$setBite = $outcomeType.GetProperty('HorseBiteTerminal').GetSetMethod(); $setCreated = $outcomeType.GetProperty('AttackAnimationHandleCreated').GetSetMethod()
+$engine = KmcType 'KingmakerMountedCombat.Diagnostics.HorseCompanionUnmountedScenarioEngine'
+$accepted = (KmcType 'KingmakerMountedCombat.Domain.HorseBiteTerminal').GetMethod('PlaybackAccepted', [Type[]]@([bool], [string], [bool]))
+Check ((& $exactOnly 'ReportTerminalOnce' $compose) -eq 1 -and (Calls $command 'AttachHorseBite' $setBite) -and (Calls $command 'AttachHorseBite' $setCreated) -and
+    (Calls $command 'DescribeHorseBitePlayback' $project) -and -not (Calls $command 'DescribeOutcome' $setBite) -and -not (Calls $command 'DescribeOutcome' $setCreated) -and
+    (Calls $engine $null $accepted -Count) -ge 2 -and $null -eq $engine.GetMethod('IsExactHorsePrimaryAnimationSource', $any)) 'PR-5 R2-F3/R1-F4: one composer attaches the Bite disposition and observed playback to the detailed and the minimal outcome; the scenario playback checks use HorseBiteTerminal.PlaybackAccepted on it'
 Write-Host ('Mounted alpha 2 bite contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

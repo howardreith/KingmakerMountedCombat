@@ -261,21 +261,26 @@ namespace KingmakerMountedCombat.Domain
             if (handle == null) return record;
             record.HasHandle = true;
             record.HandleIdentity = handle;
-            try
+            // PR-5 review R2-F4: each handle fact on its own; a failing one is listed ("name:Type") and the rest, and the
+            // independent playback reads below, still run.
+            string failures = null;
+            T Fact<T>(string name, Func<T> read)
             {
-                record.Action = source.ActionName(handle);
-                record.Started = source.IsStarted(handle);
-                record.Acted = source.IsActed(handle);
-                record.Interrupted = source.IsInterrupted(handle);
-                record.SpeedScale = source.SpeedScale(handle);
-                record.Variant = source.Variant(handle);
-                record.Variants = source.VariantsCount(handle);
+                try { return read(); }
+                catch (Exception exception)
+                {
+                    failures = (failures == null ? string.Empty : failures + ",") + name + ":" + HorseStrikeDiagnostic.Reason(exception);
+                    return default(T);
+                }
             }
-            catch (Exception exception)
-            {
-                record.HandleFactsUnreadable = HorseStrikeDiagnostic.Reason(exception);
-                return record;
-            }
+            record.Action = Fact("action", () => source.ActionName(handle));
+            record.Started = Fact("started", () => source.IsStarted(handle));
+            record.Acted = Fact("acted", () => source.IsActed(handle));
+            record.Interrupted = Fact("interrupted", () => source.IsInterrupted(handle));
+            record.SpeedScale = Fact("speedScale", () => source.SpeedScale(handle));
+            record.Variant = Fact("variant", () => source.Variant(handle));
+            record.Variants = Fact("variants", () => source.VariantsCount(handle));
+            record.HandleFactsUnreadable = failures;
             try
             {
                 record.ActiveClip = source.ActiveClip(handle);
