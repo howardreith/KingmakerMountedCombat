@@ -1149,12 +1149,26 @@ namespace KingmakerMountedCombat.Integration
         // an actor that was selected at the click can have been assigned by it.
         // PR-1 review R1-F11 (round 6): a simulated click (prediction or pointer simulation) runs no player assignment and is not bracketed;
         // an unhandled click assigned nothing.
+        // PR-1 review R1-F11 (round 7): installed ClickUnitHandler.OnClick (0x060093ED, IL_01D3..IL_036F) visits each selected unit and
+        // either skips it (IL_0207 to MoveNext) or calls unit.Commands.Run(command) (IL_0341) and then assigns
+        // unit.CombatState.ManualTarget = clicked (IL_0363). Selection and the handled result therefore do not prove a write to this
+        // actor; the click's own Run for this actor does. The UnitCommands.Run prefix reports each Run (ObserveClickRun) while the
+        // bracket is open, and only an actor so reported received the click's assignment.
         internal void BeginClickObservation(IEnumerable<UnitEntityData> selected, bool simulated)
         {
             if (disposed || simulated) { activeClick = -1; return; }
             activeClick = ++clickSerial;
-            riderCommandedByClick = selected != null && relationship.Rider != null && selected.Contains(relationship.Rider);
-            mountCommandedByClick = selected != null && relationship.Mount != null && selected.Contains(relationship.Mount);
+            riderCommandedByClick = false;
+            mountCommandedByClick = false;
+        }
+
+        // Called by the UnitCommands.Run prefix for every Run on this pair's actors; inside an open click bracket it records that the
+        // click's loop reached this actor's Run, which the installed handler follows with the actor's ManualTarget assignment.
+        internal void ObserveClickRun(UnitCommands commands)
+        {
+            if (disposed || activeClick < 0 || commands == null) return;
+            if (relationship.Rider != null && ReferenceEquals(relationship.Rider.Commands, commands)) riderCommandedByClick = true;
+            if (relationship.Mount != null && ReferenceEquals(relationship.Mount.Commands, commands)) mountCommandedByClick = true;
         }
 
         internal void EndClickObservation(UnitEntityData clicked, bool handled)
@@ -1261,10 +1275,14 @@ namespace KingmakerMountedCombat.Integration
 
         // PR-1 reviews R3-F1, R5-F1: an observed target invalidation retires the generation and its exact wrapper, installed or queued,
         // even if the target's eligibility later returns; a strike already delivered keeps its native terminal handling.
+        // PR-1 review R6-F1: an unreleased wrapper stopped here records the same cause (TargetInvalid) and bounded target reason it records
+        // when it observes the loss first (MountedPairAttackCommand.RecordTargetInvalidation; the first recorded cause stands), so
+        // controller-first and wrapper-first loss end alike. A delivered strike is left to its native terminal handling.
         private void RetireOrderOnTargetInvalidation()
         {
             const string reason = "target invalidation; native child owns terminal outcome";
             var command = stockIntentCommand;
+            if (command != null && !command.IsFinished && !command.StrikeReleased) command.RecordTargetInvalidation();
             ClearStockAttackIntent(reason, true);
             RetireOrderWrapper(command, reason);
         }
@@ -1539,6 +1557,9 @@ namespace KingmakerMountedCombat.Integration
             var candidates = NativeBrainRankingReader.Candidates(rider);
             if (candidates == null) return null;
             var forbidden = AutomaticMovementForbidden(rider);
+            // PR-1 review R6-F2: under restricted travel a melee candidate counts only if the pair can perform the stationary mounted
+            // strike against it (StationaryStrikeAdmissible: mount origin, planned weapon, command sight); cached sight is not enough.
+            var melee = ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderMelee;
             var ranked = new List<NativeRankedCandidate>();
             foreach (var candidate in candidates)
             {
@@ -1546,7 +1567,8 @@ namespace KingmakerMountedCombat.Integration
                 var state = unit?.Descriptor?.State;
                 var eligible = unit != null && state != null && state.IsConscious && !state.IsDead && rider.CanAttack(unit) &&
                     rider.CombatState?.AIData?.DislikedTarget != unit &&
-                    (!(forbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit)) || rider.HasLOS(unit));
+                    (!(forbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit)) ||
+                     (forbidden && melee ? StationaryStrikeAdmissible(unit) : rider.HasLOS(unit)));
                 ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible });
             }
             return NativeAttackTieBreak.Choose(ranked, proposed,

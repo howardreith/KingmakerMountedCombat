@@ -233,7 +233,12 @@ Check ((Calls (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0]) (@(Met
     (Calls (@(Method $controller 'StationaryStrikeAdmissible')[0]) (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1) 'PR-1 R5-F3: restricted automatic proposals and no-wrapper retirement use the planned mounted melee strike''s stationary admission'
 Check ((Calls (@(Method $controller 'TryRetireStockIntent')[0]) (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0])) -eq 1 -and (Calls (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0]) (@(Method $pair 'StrikeAdmissibleNow')[0])) -eq 1) 'PR-1 R4-F3: restricted automatic movement retires only a strike that is not admissible from the current position'
 $describe = @(Method $pair 'DescribeOutcome')[0]
-Check ((Calls $describe (@(Method $pair 'DescribeStandardCharge')[0])) -eq 2 -and (Calls (@(Method $pair 'DescribeStandardCharge')[0]) $released) -eq 2) 'PR-1 R4-F6: the outcome attributes a Standard charge only to a delivered strike (a force-finish spends nothing)'
+# PR-1 review R4-F6 (round 7): the actor and both charge flags are assigned once, on the outcome actually delivered (detailed or fallback):
+# ReportTerminalOnce calls AttachActorCharges once, which takes them from DescribeStandardCharge (charged only for a released strike);
+# DescribeOutcome itself no longer assigns the charge flags.
+$attach = @(Method $pair 'AttachActorCharges')[0]
+Check ($null -ne $attach -and (Calls (@(Method $pair 'ReportTerminalOnce')[0]) $attach) -eq 1 -and (Calls $attach (@(Method $pair 'DescribeStandardCharge')[0])) -eq 1 -and
+    (Calls $describe (@(Method $pair 'DescribeStandardCharge')[0])) -eq 0 -and (Calls (@(Method $pair 'DescribeStandardCharge')[0]) $released) -eq 2) 'PR-1 R4-F6: the delivered outcome (detailed or fallback) carries the actor and a Standard charge only for a delivered strike (a force-finish spends nothing), assigned once by AttachActorCharges'
 Check (@(Refs (@(Method $patches 'ClickUnitPrefix')[0]) | Where-Object { $null -ne $_.Member -and ($_.Member.Name -ceq 'get_SelectedUnits' -or $_.Member.Name -ceq 'SelectedUnits') }).Count -eq 1 -and (Calls (@(Method $patches 'ClickUnitPrefix')[0]) (@(Method $controller 'BeginClickObservation')[0])) -eq 1 -and
     @(Refs (@(Method $patches 'ClickUnitPrefix')[0]) | Where-Object { $null -ne $_.Member -and ($_.Member.Name -ceq 'get_SimulatingClick' -or $_.Member.Name -ceq 'SimulatingClick') }).Count -eq 1 -and
     @((@(Method $patches 'ClickUnitPrefix')[0]).GetParameters() | Where-Object { $_.Name -ceq 'simulate' }).Count -eq 1 -and @((@(Method $patches 'ClickUnitPostfix')[0]).GetParameters() | Where-Object { $_.Name -ceq '__result' }).Count -eq 1) 'PR-1 R1-F11: the click bracket records the commanded actors and skips simulated (prediction) and unhandled clicks'
@@ -262,4 +267,15 @@ Check ((Calls $pairOnTick $hold) -eq 1 -and (FirstOffset $pairOnTick $hold) -lt 
 $tickApproach = @(Method $pair 'TickApproach')[0]
 Check ((FirstOffset $tickApproach (@(Method $pair 'EndIfMovementForbiddenAtApproach')[0])) -gt (FirstOffset $tickApproach (@(Method $singleType 'EvaluateCurrentNativeAdmission')[0]))) 'PR-1 R3-F3: movement revocation is applied only after the current strike admission is evaluated'
 Check ((Calls (@(Method $pair 'TryRiderSightGoal')[0]) (@(Method $pair 'NearFailedSightGoal')[0])) -eq 1 -and (Calls $tickApproach ($pair.GetField('failedSightGoals', $any))) -ge 1 -and (Calls (@(Method $pair 'NewApproachMove')[0]) ($pair.GetField('currentSightGoal', $any))) -ge 1) 'PR-1 R1-F7: sight goals needing no movement are skipped; a goal reached without admission is excluded with bounded alternatives'
+# PR-1 round 7 (R1-F11, R6-F1, R6-F2): compiled wiring of the source corrections.
+$observeRun = @(Method $controller 'ObserveClickRun')[0]
+$beginClick = @(Method $controller 'BeginClickObservation')[0]
+$enumerableContains = @(Refs $beginClick | Where-Object { $null -ne $_.Member -and $_.Member.Name -ceq 'Contains' })
+Check ($null -ne $observeRun -and (Calls (@(Method $patches 'UnitCommandRunPrefix')[0]) $observeRun) -eq 1 -and $enumerableContains.Count -eq 0) 'PR-1 R1-F11: the UnitCommands.Run prefix reports each Run to ObserveClickRun; the click bracket no longer infers a write from selection'
+$retireInvalid = @(Method $controller 'RetireOrderOnTargetInvalidation')[0]
+$recordInvalid = @(Method $pair 'RecordTargetInvalidation')[0]
+$retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]
+Check ($null -ne $recordInvalid -and (Calls $retireInvalid $recordInvalid) -eq 1 -and (FirstOffset $retireInvalid $recordInvalid) -lt (FirstOffset $retireInvalid $retireWrapper) -and
+    (Calls (@(Method $pair 'TryEndExpectedTargetInvalidation')[0]) (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1 -and (Calls $recordInvalid (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1) 'PR-1 R6-F1: controller-first loss records the wrapper''s own target-invalidation cause and reason (shared with its own observation) before retiring it'
+Check ((Calls (@(Method $controller 'ResolveEqualRankTie')[0]) (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R6-F2: under restricted travel the tie-break admits a melee candidate only through the stationary mounted-strike admission'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

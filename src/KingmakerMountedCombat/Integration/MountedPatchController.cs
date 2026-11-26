@@ -1259,6 +1259,9 @@ namespace KingmakerMountedCombat.Integration
                 // Bind a same-frame native hostile click to the exact command its own Run carries,
                 // before any refusal below, so no later command can borrow or erase that click.
                 PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
+                // PR-1 review R1-F11 (round 7): inside a click bracket, the click's own Run for this pair's actor (installed OnClick
+                // assigns that actor's ManualTarget right after it); a skipped actor has no Run.
+                PatchBridge.CombatFor(__instance)?.ObserveClickRun(__instance);
                 if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
                 // While an owned archive worker can still commit, no unit -- owned pair
                 // or not -- may run or queue a command: the worker is serializing the

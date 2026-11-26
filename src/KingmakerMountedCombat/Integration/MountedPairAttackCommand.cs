@@ -686,6 +686,14 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // PR-1 review R4-F3: the order's strike admission from the current position (the controller's restricted-movement retirement).
+        internal void AttachActorCharges(MountedPairAttackOutcome outcome)
+        {
+            var charge = DescribeStandardCharge();
+            outcome.ActorId = charge.ActorId;
+            outcome.RiderStandardCharged = charge.RiderStandardCharged;
+            outcome.ActionStandardCharged = charge.ActionStandardCharged;
+        }
+
         internal MountedStandardCharge DescribeStandardCharge() => new MountedStandardCharge
         {
             ActorId = actionActor?.UniqueId,
@@ -1347,6 +1355,28 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // PR-1 review R6-F1: the bounded reason this command states for its target's loss, shared by its own observation and the
+        // controller's retirement of it.
+        private string TargetInvalidationReason()
+        {
+            var targetState = attackTarget?.Descriptor?.State;
+            var inState = attackTarget != null && attackTarget.IsInState;
+            var hostile = inState && actionActor.IsEnemy(attackTarget);
+            return !inState ? "target despawned" : !hostile ? "target hostility changed" :
+                targetState == null ? "target state unavailable" :
+                targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
+                "target became unconscious" : "target no longer attackable";
+        }
+
+        // PR-1 review R6-F1: the controller observed the loss first; record exactly what this command records when it observes it.
+        internal void RecordTargetInvalidation()
+        {
+            if (IsFinished) return;
+            var reason = TargetInvalidationReason();
+            transaction?.Cancel("Expected target invalidation: " + reason);   // refused once terminal
+            RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
+        }
+
         private bool TryEndExpectedTargetInvalidation()
         {
             var targetState = attackTarget?.Descriptor?.State;
@@ -1368,10 +1398,7 @@ namespace KingmakerMountedCombat.Integration
             var continuations = transaction.ContinuationTargetCount;
             TryContinueRoutineOnNextTarget();
             if (transaction.ContinuationTargetCount != continuations) return false;
-            var reason = !inState ? "target despawned" : !hostile ? "target hostility changed" :
-                targetState == null ? "target state unavailable" :
-                targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
-                "target became unconscious" : "target no longer attackable";
+            var reason = TargetInvalidationReason();
             transaction.Cancel("Expected target invalidation: " + reason);
             RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
             Interrupt();
@@ -2213,6 +2240,9 @@ namespace KingmakerMountedCombat.Integration
             // run twice. The controller's handler settles ownership, retirement and the outcome before anything fallible and
             // contains every diagnostic, so nothing is expected to escape; anything unexpected is contained here, and the
             // controller's finished-command sweep still owns the finished command.
+            // PR-1 review R4-F6: the actor and its Standard charges are assigned to the outcome actually delivered, on both paths.
+            try { AttachActorCharges(outcome); }
+            catch (Exception exception) { TryLogException("Mounted pair terminal attribution", exception); }
             terminalReported = true;
             try { terminal(this, outcome); }
             catch (Exception exception) { TryLogException("Mounted pair terminal handler", exception); }
@@ -2256,8 +2286,7 @@ namespace KingmakerMountedCombat.Integration
                 RepathObservations = string.Join(" | ", repathObservations.ToArray()),
                 // PR-1 review R4-F6: native spends the Standard at the first native act (OnAction); a force-finish marks IsActed
                 // without it and spends nothing (DescribeStandardCharge).
-                RiderStandardCharged = DescribeStandardCharge().RiderStandardCharged,
-                ActionStandardCharged = DescribeStandardCharge().ActionStandardCharged,
+
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
                 AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId,
                 AttackWeaponIsNatural = retainedAttackWeaponIsNatural,

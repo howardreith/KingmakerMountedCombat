@@ -85,7 +85,10 @@ namespace TurnBased.Controllers
 
     public sealed class TurnController
     {
+        public enum TurnStatus { Preparing, Acting, Ended }
         public Kingmaker.EntitySystem.Entities.UnitEntityData Unit;
+        public TurnStatus Status = TurnStatus.Preparing;
+        public bool IsActing;
     }
 }
 
@@ -96,7 +99,13 @@ namespace Kingmaker
         public static Game Instance = new Game();
         public TimeControllerFacade TimeController = new TimeControllerFacade();
         public TurnBasedCombatControllerFacade TurnBasedCombatController = new TurnBasedCombatControllerFacade();
+        // Native Game.CurrentMode (its name is what MountedGameModePolicy reads) and Player.IsInCombat.
+        public GameModeFacade CurrentMode = new GameModeFacade("Default");
+        public PlayerFacade Player = new PlayerFacade();
     }
+
+    public sealed class GameModeFacade { private readonly string name; public GameModeFacade(string name) { this.name = name; } public override string ToString() => name; }
+    public sealed class PlayerFacade { public bool IsInCombat = true; }
 
     public sealed class TimeControllerFacade { public TimeSpan GameTime; }
 
@@ -138,9 +147,28 @@ namespace Kingmaker.EntitySystem.Entities
         public bool IsUnconscious => !IsConscious;
     }
 
-    public sealed class UnitDescriptor { public UnitState State = new UnitState(); }
+    public sealed class UnitDescriptor
+    {
+        public UnitState State = new UnitState();
+        public UnitEntityData Pet;
+        public MasterReference Master = new MasterReference();
+    }
+    public sealed class MasterReference { public UnitEntityData Value; }
 
-    public sealed class UnitCombatState { public UnitEntityData ManualTarget; }
+    // Native UnitCombatState: ManualTarget, the cooldowns and the brain's AI data (disliked and unreachable targets).
+    public sealed class UnitCombatState
+    {
+        public UnitEntityData ManualTarget;
+        public CooldownFacade Cooldown = new CooldownFacade();
+        public AiDataFacade AIData = new AiDataFacade();
+    }
+    public sealed class CooldownFacade { public float StandardAction, MoveAction; }
+    public sealed class AiDataFacade { public UnitEntityData DislikedTarget; public readonly HashSet<UnitEntityData> UnreachableUnits = new HashSet<UnitEntityData>(); }
+    // Native UnitGroup.Memory: the units the group perceives (null Perceives: everything in the world is perceived).
+    public sealed class GroupFacade { public MemoryFacade Memory = new MemoryFacade(); }
+    public sealed class MemoryFacade { public Func<UnitEntityData, bool> Perceives; public bool Contains(UnitEntityData unit) => Perceives == null || Perceives(unit); }
+    public sealed class WeaponBlueprintFacade { public bool IsRanged, IsNatural; public string AssetGuid = "weapon"; }
+    public sealed class ItemWeaponFacade { public WeaponBlueprintFacade Blueprint = new WeaponBlueprintFacade(); }
 
     public sealed class UnitEntityData
     {
@@ -159,6 +187,16 @@ namespace Kingmaker.EntitySystem.Entities
         public UnitCombatState CombatState = new UnitCombatState();
         public bool HoldState;
         public bool IsDirectlyControllable = true, IsAIEnabled = true, IsBrainActive = true;
+        // PR-1 round 7 engine reads: combat and visibility flags, polymorph, perception, first weapon, the brain's cached sight
+        // (native UnitEntityData.HasLOS, which can admit a target that direct command sight rejects), the native attack plan size.
+        public bool IsInCombat = true, IsVisibleForPlayer = true;
+        public object GetActivePolymorph() => null;
+        public GroupFacade Group = new GroupFacade();
+        public ItemWeaponFacade FirstWeapon = new ItemWeaponFacade();
+        public ItemWeaponFacade GetFirstWeapon() => FirstWeapon;
+        public Func<UnitEntityData, bool> CachedSight;
+        public bool HasLOS(UnitEntityData unit) => CachedSight == null || CachedSight(unit);
+        public int AttackCount = 1;
         // Native Standard availability (spent at the first native act of an attack, UnitActionController.UpdateCooldowns).
         public bool HasStandard = true;
         public bool HasStandardAction() => HasStandard;
@@ -200,7 +238,7 @@ namespace Kingmaker.UnitLogic.Commands.Base
         public virtual void Init(UnitEntityData executor) { Executor = executor; }
         public virtual bool CanMoveAfterStart => false;
         public virtual bool MarkManualTarget => false;
-        public object AiAction;
+        public AiActionFacade AiAction;
         // Native UnitCommand.IsMoveUnit (set by TickApproaching while the command approaches).
         public bool IsMoveUnit;
         public virtual UnitEntityData TargetUnit => null;
@@ -223,7 +261,7 @@ namespace Kingmaker.UnitLogic.Commands.Base
             TimeSinceStart += 0.1f;
             OnTick();
             if (IsFinished) return;
-            if (ActEventDue && !IsActed)
+            if (ActEventDue && (!IsActed || RepeatActAllowed))
             {
                 ActEventDue = false;
                 var result = OnAction();
@@ -235,6 +273,7 @@ namespace Kingmaker.UnitLogic.Commands.Base
         // Native UnitCommand.ForceFinishForTurnBased -> ForceFinish: IsActed set without OnAction, the result, then OnEnded.
         public void ForceFinishForTurnBased(ResultType result) { if (!IsFinished) { IsActed = true; Result = result; OnEnded(); } }
         protected virtual ResultType OnAction() => ResultType.None;
+        public virtual bool RepeatActAllowed => false;
         public void Interrupt(bool raiseEvent = true) { if (Result != ResultType.Interrupt && !IsFinished) { Result = ResultType.Interrupt; OnEnded(raiseEvent); } }
         public void ForceFinish(ResultType result) { if (!IsFinished) { Result = result; OnEnded(); } }
         public void FinishSuccess() { if (!IsFinished) { Result = ResultType.Success; OnEnded(); } }
@@ -251,7 +290,10 @@ namespace Kingmaker.UnitLogic.Commands
     using Kingmaker.EntitySystem.Entities;
     using Kingmaker.UnitLogic.Commands.Base;
 
-    public sealed class AttackHandInfo { public float WeaponRange; }
+    // Native BlueprintAiAction (the brain's action that proposed this command).
+    public sealed class AiActionFacade { public string AssetGuid = "ai-attack"; }
+
+    public sealed class AttackHandInfo { public float WeaponRange; public Kingmaker.EntitySystem.Entities.ItemWeaponFacade Weapon; }
 
     public class UnitAttack : UnitCommand
     {
@@ -265,13 +307,19 @@ namespace Kingmaker.UnitLogic.Commands
         public bool IsCharge;
         public object LastAttackRule;
         public List<AttackHandInfo> AllAttacks = new List<AttackHandInfo>();
-        public AttackHandInfo PlannedAttack => AllAttacks.Count == 0 ? null : AllAttacks[0];
-        public int GetAttackIndex() => 0;
-        // Native UnitAttack.Init: the attack plan, then the native approach radius.
+        // Native m_AttackIndex: the next attack of the plan; PlannedAttack is AllAttacks[m_AttackIndex] (installed UnitAttack).
+        private int m_AttackIndex;
+        public AttackHandInfo PlannedAttack => m_AttackIndex < AllAttacks.Count ? AllAttacks[m_AttackIndex] : null;
+        public int GetAttackIndex() => m_AttackIndex;
+        // The targets each delivered attack struck, in order (the attack rule's target).
+        public readonly List<UnitEntityData> StruckTargets = new List<UnitEntityData>();
+        // Native UnitAttack.Init: the attack plan (its executor's attacks this round), then the native approach radius.
         public override void Init(UnitEntityData executor)
         {
             base.Init(executor);
-            AllAttacks = new List<AttackHandInfo> { new AttackHandInfo { WeaponRange = executor.WeaponRange } };
+            AllAttacks = new List<AttackHandInfo>();
+            for (var i = 0; i < Math.Max(1, executor.AttackCount); i++)
+                AllAttacks.Add(new AttackHandInfo { WeaponRange = executor.WeaponRange, Weapon = executor.FirstWeapon });
             ApproachRadius = executor.View.Corpulence + Target.View.Corpulence + executor.WeaponRange;
         }
         // Native UnitAttack.OnStart: the attack (release) begins; counted as the single native attack start.
@@ -280,13 +328,23 @@ namespace Kingmaker.UnitLogic.Commands
         public override bool MarkManualTarget => true;
         // Native UnitAttack.OnAction: the attack rule is triggered (delivery).
         public static int NativeAttackRules;
+        // Installed UnitAttack.OnAction (0x06002681): unless the target is dead, trigger the planned attack's rule; advance m_AttackIndex;
+        // return None while attacks remain (the routine continues to its next act), Success after the last.
         protected override ResultType OnAction()
         {
-            NativeAttackRules++; LastAttackRule = new object();
-            int count; acts.TryGetValue(Executor, out count); acts[Executor] = count + 1;
-            Executor.HasStandard = false;   // the native cooldown write at the first act
-            return ResultType.None;
+            if (!Target.Descriptor.State.IsDead)
+            {
+                NativeAttackRules++; LastAttackRule = new object(); StruckTargets.Add(Target);
+                int count; acts.TryGetValue(Executor, out count); acts[Executor] = count + 1;
+                if (Executor.HasStandard) StandardSpends++;
+                Executor.HasStandard = false;   // the native cooldown write at the first act
+            }
+            m_AttackIndex++;
+            return m_AttackIndex < AllAttacks.Count ? ResultType.None : ResultType.Success;
         }
+        public static int StandardSpends;
+        // A routine with attacks remaining acts again (native: the next attack's animation act).
+        public override bool RepeatActAllowed => m_AttackIndex > 0 && m_AttackIndex < AllAttacks.Count;
         private static readonly Dictionary<UnitEntityData, int> acts = new Dictionary<UnitEntityData, int>();
         public static int Acts(UnitEntityData unit) { int count; return unit != null && acts.TryGetValue(unit, out count) ? count : 0; }
         public static void ResetActs() => acts.Clear();
@@ -422,6 +480,7 @@ namespace KingmakerMountedCombat.Logging
 
 namespace KingmakerMountedCombat.Integration
 {
+    using System.Reflection;
     using Kingmaker.EntitySystem.Entities;
     using Kingmaker.UnitLogic.Commands;
     using Kingmaker.UnitLogic.Commands.Base;
@@ -479,6 +538,23 @@ namespace KingmakerMountedCombat.Integration
         /* ADMIT_EXPLICIT_PROMOTION */
     }
 
+
+    // Native NativeSingleAttackWeaponResolver: the mount's primary natural attack (the Horse Bite in its first additional limb).
+    internal sealed class NativeSingleAttackWeaponSelection
+    {
+        public NativeSingleAttackSlotKind Kind = NativeSingleAttackSlotKind.AdditionalLimb;
+        public int AdditionalLimbIndex;
+        public Kingmaker.EntitySystem.Entities.ItemWeaponFacade Weapon = new Kingmaker.EntitySystem.Entities.ItemWeaponFacade { Blueprint = new Kingmaker.EntitySystem.Entities.WeaponBlueprintFacade { IsNatural = true } };
+    }
+    internal static class NativeSingleAttackWeaponResolver { public static NativeSingleAttackWeaponSelection Resolve(UnitEntityData mount) => mount == null ? null : new NativeSingleAttackWeaponSelection(); }
+    internal sealed class SupportedMountedProfile { public string Id = "horse"; }
+    internal static class SupportedMountedProfiles { public static SupportedMountedProfile Resolve(UnitEntityData rider, UnitEntityData mount) => rider != null && mount != null ? new SupportedMountedProfile() : null; }
+    internal static class MountedNativeRunScope { internal static bool EndedInsideReplacingRun(Kingmaker.UnitLogic.Commands.UnitCommands container, UnitCommand ended) => false; }
+    internal sealed class HorsePrimaryAttackAnimationAdapter { }
+    internal sealed class UnitAnimationActionHandle { public bool IsActed, IsFinished, IsInterrupted; }
+
+    /* OUTCOME_CLASS */
+    /* CLICK_RESULT_ENUM */
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
     {
@@ -548,6 +624,8 @@ namespace KingmakerMountedCombat.Integration
         {
             this.rider = rider; this.mount = mount; attackTarget = target; this.action = action; this.logger = logger;
             this.allowApproach = allowApproach;
+            initialTargetId = target?.UniqueId;
+            terminal = (command, outcome) => command.Deliver(outcome, null);
             actionActor = action == MountedCombatActionKind.MountPrimaryNatural ? mount : rider;
             ApproachRadius = InfiniteRange; MaxApproachRadius = InfiniteRange; NeedLoS = false; CreatedByPlayer = true;
             if (!transaction.Arm(action)) throw new InvalidOperationException("arm");
@@ -582,7 +660,48 @@ namespace KingmakerMountedCombat.Integration
         private bool ForeignPathActive() => false;
         private bool IsNativeRangedTailTermination() => false;
         internal Action<MountedPairAttackCommand> TerminalCallback;
-        private void ReportTerminalOnce() { TerminalReports++; TerminalCallback?.Invoke(this); }
+        // PR-1 round 7: the production ReportTerminalOnce (spliced) delivers the production outcome (DescribeOutcome, or its fallback)
+        // through this terminal: by default the legacy hook; the controller's production HandleCommandTerminal for a wrapper made by
+        // TryExecuteAction. DeliveredOutcome is the outcome actually delivered.
+        private bool terminalReported;
+        private Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
+        internal MountedPairAttackOutcome DeliveredOutcome;
+        private void Deliver(MountedPairAttackOutcome outcome, Action<MountedPairAttackCommand, MountedPairAttackOutcome> next)
+        {
+            DeliveredOutcome = outcome; TerminalReports++;
+            if (next != null) next(this, outcome); else TerminalCallback?.Invoke(this);
+        }
+        // Production constructor shape (TryExecuteAction): the relationship, the resolved mount primary and the terminal handler.
+        internal MountedPairAttackCommand(Harness.HarnessRelationship relationship, UnitEntityData rider, UnitEntityData mount, UnitEntityData target,
+            MountedCombatActionKind action, NativeSingleAttackWeaponSelection expectedMountPrimary, HorsePrimaryAttackAnimationAdapter animation,
+            IModLogger logger, Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal, bool allowApproach, bool explicitRequest)
+            : this(rider, mount, target, action, logger, allowApproach)
+        {
+            this.expectedMountPrimary = expectedMountPrimary;
+            this.terminal = (command, outcome) => command.Deliver(outcome, terminal);
+        }
+        // Binds a harness-built wrapper to the controller's production terminal handler.
+        internal void BindTerminal(Action<MountedPairAttackCommand, MountedPairAttackOutcome> handler) { terminal = (command, outcome) => command.Deliver(outcome, handler); }
+        // Diagnostic fields the production DescribeOutcome copies (native capture paths not modelled here leave their defaults).
+        private UnitAnimationActionHandle horsePrimaryAnimationHandle;
+        private string horsePrimaryAnimationHandleSource, horsePrimaryAnimationActionName, horsePrimaryAnimationActionType;
+        private MountedNativeTerminalBranch nativeTerminalBranch;
+        private MountedActorCapabilityBlock nativeTerminalBlock;
+        private bool wrapperCommandRetainedThroughoutApproach = true, riderStockAgentSuppressedThroughoutApproach = true, poseHealthyThroughoutApproach = true,
+            mountStockAgentAuthoritativeThroughoutApproach = true, delegatedMoveDrivenByRiderTurnAdapter;
+        private string retainedAttackWeaponTypeBlueprintId, retainedAttackWeaponBlueprintId, reloadStateBefore, ammunitionStateBefore, preStartInterruptBoundary;
+        private bool retainedAttackWeaponIsRanged, retainedAttackWeaponIsNatural;
+        private string initialTargetId;
+        private int delegatedMoveProgressObservationCount, approachObservationCount;
+        private readonly List<string> continuationTargetIds = new List<string>();
+        private NativeSingleAttackWeaponSelection expectedMountPrimary;
+        /* COMMAND_OPTIONAL_RANGED */
+        /* COMMAND_ADMIT_UNCONSCIOUS */
+        /* COMMAND_RECORD_NATIVE_TERMINAL */
+        /* COMMAND_REPORT_TERMINAL */
+        /* COMMAND_DESCRIBE_OUTCOME */
+        /* COMMAND_TARGET_REASON */
+        /* COMMAND_RECORD_TARGET_INVALIDATION */
         private void TryContinueRoutineOnNextTarget() { }
         private void CreateAndValidateChildAttack() { ChildCreations++; }
         private void TryLogInfo(string line) { try { logger.Info(line); } catch (Exception) { } }
@@ -640,6 +759,7 @@ namespace Harness
     internal sealed class HarnessRuntime
     {
         public UnitEntityData Mount; public int MoveInterrupts;
+        public bool PoseHealthy = true; public string MountProfileId = "horse"; public string MountDisplayName = "Horse";
         public void CancelMountMovement()
         {
             if (Mount == null) return;
@@ -650,14 +770,52 @@ namespace Harness
     {
         public RelationshipState State = RelationshipState.Mounted; public UnitEntityData Rider, Mount; public long MountedPairGeneration = 1;
         public readonly HarnessRuntime Runtime = new HarnessRuntime();
+        public bool IsExactCapturedView(UnitEntityData unit) => unit != null;
     }
     internal sealed class MountedDoorOccupancySettlement { public void Cancel(string reason) { } }
+    // Native capability reads (production NativeActorCapability.Read builds MountedActorCapabilityFacts from the unit's state).
     internal static class NativeActorCapability
     {
-        internal sealed class Capability { public bool CanNotAttack; }
-        public static Capability Read(UnitEntityData unit) => new Capability { CanNotAttack = unit != null && !unit.Descriptor.State.CanAct };
+        public static MountedActorCapabilityFacts Read(UnitEntityData unit) =>
+            unit == null ? new MountedActorCapabilityFacts() : new MountedActorCapabilityFacts { Known = true, CantAct = !unit.Descriptor.State.CanAct, CanNotAttack = !unit.Descriptor.State.CanAct };
+        // A native read inside the terminal description that fails for these units (the fallback outcome path).
+        public static Func<UnitEntityData, bool> DescribeFaults;
+        public static string Describe(UnitEntityData unit, object command)
+        {
+            if (unit != null && DescribeFaults != null && DescribeFaults(unit)) throw new InvalidOperationException("simulated native capability read failure");
+            return unit == null ? "<none>" : "canAct=" + unit.Descriptor.State.CanAct;
+        }
     }
-    internal sealed class HarnessScheduler { public int ExternalInterrupts; public void ObserveExternalInterrupt(MountedPairAttackCommand command, string reason) { ExternalInterrupts++; } }
+    // Native SelectionManager.Instance.SelectedUnits.
+    internal sealed class SelectionManager { public static SelectionManager Instance = new SelectionManager(); public List<UnitEntityData> SelectedUnits = new List<UnitEntityData>(); }
+    // Native brain ranking (production NativeBrainRankingReader reads the rider brain's live candidate list as native ranked it).
+    internal static class NativeBrainRankingReader
+    {
+        internal struct Candidate { public UnitEntityData Unit; public float Weight; public float Distance; }
+        public static List<Candidate> Ranked;
+        internal static List<Candidate> Candidates(UnitEntityData unit) => Ranked;
+        internal static string Describe(UnitEntityData rider, UnitEntityData proposed) => "harness-ranking;proposed=" + proposed?.UniqueId;
+    }
+    internal sealed class HarnessEngagement
+    {
+        public int Proposals, Dispatches;
+        public void ObserveProposal(double now, string nativeProposed, string selected, string ranking, bool admitted, long generation, string refusal) { Proposals++; }
+        public void ObserveDispatch(long generation) { Dispatches++; }
+    }
+    internal sealed class HarnessOwnership { public void Retire() { } }
+    internal sealed class HarnessChargeOwner { public MountedPairAttackCommand Command; public HarnessOwnership Ownership = new HarnessOwnership(); }
+    internal sealed class HarnessScheduler
+    {
+        public int ExternalInterrupts, Registrations, TerminalObservations;
+        public void ObserveExternalInterrupt(MountedPairAttackCommand command, string reason) { ExternalInterrupts++; }
+        // The paired scheduler's lease applies to legacy turn-based Mount Primary only (not exercised here).
+        public bool RequiresLease(MountedCombatActionKind action) => false;
+        public bool TryRegister(MountedPairAttackCommand command, out string reason) { reason = null; Registrations++; return true; }
+        public bool ConfirmAdmission(MountedPairAttackCommand command, out string reason) { reason = null; return true; }
+        public void AbandonRegistration(MountedPairAttackCommand command, string reason) { }
+        public void ObserveTerminal(MountedPairAttackCommand command, string result, string reason) { TerminalObservations++; }
+        public bool CanRegisterCurrentPair(out string reason) { reason = null; return true; }
+    }
 
     internal sealed class MountedCombatController
     {
@@ -686,13 +844,55 @@ namespace Harness
 
         // ---- round 6: the full cancellation, the drive's dispatch operation, the stationary admission; their native-facing stubs ----
         internal sealed class HarnessGuard { public void Clear() { } }
-        internal sealed class HarnessSettings { public bool UseLegacyUnifiedTurn; public bool EnablePairedActivation = true; }
-        internal sealed class HarnessUnifiedTurn { public UnitEntityData Unaddressable; public bool CanAddressActor(UnitEntityData actor, TurnBased.Controllers.TurnController turn) => actor != Unaddressable; }
-        internal sealed class HarnessAvailability { public bool IsAllowed; }
+        internal sealed class HarnessSettings { public bool UseLegacyUnifiedTurn; public bool EnablePairedActivation = true; public bool UsePairedTurnControls = true; public bool EnableUnsafeMovementExperiment = true; }
+        internal sealed class HarnessUnifiedTurn
+        {
+            public UnitEntityData Unaddressable;
+            public bool CanAddressActor(UnitEntityData actor, TurnBased.Controllers.TurnController turn) => actor != Unaddressable && (turn == null || turn.Unit == null || true);
+            public void RememberPairedMovementInput() { }
+        }
+        internal sealed class HarnessAvailability { public bool IsAllowed; public string Feedback; }
         private readonly HarnessGuard overlayWorldInputGuard = new HarnessGuard();
         private readonly HarnessSettings settings = new HarnessSettings();
         internal readonly HarnessUnifiedTurn unifiedTurn = new HarnessUnifiedTurn();
-        private object chargeOwner;
+        private HarnessChargeOwner chargeOwner;
+        // ---- round 7: the production drive's and proposal's controller state, counters and native-facing stubs ----
+        private const string AutomaticInputSurface = "automatic-native-target";
+        internal MountedCombatRejectionCode[] LastRejectionCodes { get; private set; }
+        internal MountedPairAttackOutcome LastOutcome { get; private set; }
+        internal readonly HarnessEngagement engagement = new HarnessEngagement();
+        private TurnBased.Controllers.TurnController stockIntentTurn => stockIntent.Turn;
+        internal void Drive() => TryDriveStockAttackIntent();
+        internal void Propose(UnitAttack proposal, bool turnBased) => ObserveAutomaticProposal(proposal, true, turnBased);
+        internal Action<MountedPairAttackCommand, MountedPairAttackOutcome> ProductionTerminal => HandleCommandTerminal;
+        internal UnitEntityData IntentTarget => stockIntentTarget;
+        private UnitEntityData automaticApproachFailedTarget;
+        private readonly HorsePrimaryAttackAnimationAdapter horsePrimaryAttackAnimation = new HorsePrimaryAttackAnimationAdapter();
+        private bool HasFaultedChargeCleanupOwner => false;
+        private bool HasActiveGroundMovement => false;
+        private bool riderTurnGroundMoveAdmissionPending;
+        private bool HasMountOperationBesidesAttack(UnitEntityData mount) => false;
+        private void ObservePlayerMoveOutcome() { }
+        private void CancelPendingDoorSettlement(string reason) { }
+        private void ReleaseChargeManualTarget(HarnessChargeOwner owner) { }
+        internal long AutomaticProposalCount { get; private set; }
+        internal long AutomaticTieBreakCount { get; private set; }
+        internal long AutomaticRefusedCount { get; private set; }
+        internal long AutomaticContinuedCount { get; private set; }
+        internal long AutomaticAdmittedCount { get; private set; }
+        internal long AutomaticDispatchCount { get; private set; }
+        internal long StockAttackRiderDispatchCount { get; private set; }
+        internal long StockAttackMountDispatchCount { get; private set; }
+        internal long StockAttackDuplicateDispatchCount { get; private set; }
+        internal long StockAttackDispatchBeforeReadinessCount { get; private set; }
+        internal string LastAutomaticTieBreak { get; private set; }
+        internal string LastAutomaticRefusal { get; private set; }
+        internal string LastAutomaticProposalRanking { get; private set; }
+        /* CONTROLLER_CAPTURE_CONTEXT */
+        /* CONTROLLER_IN_COMBAT */
+        /* CONTROLLER_TRY_CONTAIN */
+        /* CONTROLLER_CANCEL */
+        /* CONTROLLER_UNPERCEIVED */
         private string ChargeCleanupStatus => "none";
         private MountedDoorInteractionCommand activeDoorInteraction;
         private MountedDoorOccupancySettlement pendingDoorSettlement;
@@ -726,6 +926,14 @@ namespace Harness
         /* CONTROLLER_IF_INVALID */
         /* CONTROLLER_PLAN_DISPATCH */
         /* CONTROLLER_STATIONARY */
+        // ---- round 7: the production terminal handler, drive, submission, automatic proposal and tie-break ----
+        /* CONTROLLER_HANDLE_TERMINAL */
+        /* CONTROLLER_DESCRIBE_FAILURE */
+        /* CONTROLLER_DESCRIBE_UNEXECUTED */
+        /* CONTROLLER_DRIVE */
+        /* CONTROLLER_EXECUTE */
+        /* CONTROLLER_PROPOSAL */
+        /* CONTROLLER_TIE */
 
         // ---- round 5: terminal settlement, cancellation and retirement entry points; the warning boundary ----
         internal string LastFeedback;
@@ -782,7 +990,9 @@ namespace Harness
         // ---- harness entry points: the same calls the production drive makes ----
         internal void BeginOrder(UnitEntityData target, bool automatic)
         {
-            stockIntent.Begin(target, null, false, true, relationship.Rider, relationship.Mount, null, null, 0, automatic);
+            // PR-1 round 7 (R4-F5): bound to the fixture's current turn in turn-based combat, as the production route binds it.
+            stockIntent.Begin(target, TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ? Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn : null,
+                false, true, relationship.Rider, relationship.Mount, null, null, 0, automatic);
             retainedOrder.Begin(stockIntent.Generation, automatic, true);
         }
         // TryExecuteAction's acceptance of the order's wrapper (dispatch): the wrapper is the order's own, carries the supersession
@@ -847,12 +1057,17 @@ namespace Harness
             UnitCommands.PromotionPrefix = null; UnitCommands.RunPostfix = null; UnitCommands.QueuePostfix = null;
             UnitCommands.ResetCounters();
             UnitAttack.ResetActs();
+            UnitAttack.StandardSpends = 0;
+            Harness.NativeBrainRankingReader.Ranked = null;
+            Harness.SelectionManager.Instance = new Harness.SelectionManager();
             var world = new World();
-            world.Rider = new UnitEntityData("rider") { Position = horse, WeaponRange = 1.5f };
+            // Native-shaped attack plans (UnitAttack.Init): two attacks each, so a delivered routine continues to its next act.
+            world.Rider = new UnitEntityData("rider") { Position = horse, WeaponRange = 1.5f, AttackCount = 2 };
             world.Rider.View.Corpulence = 0.4f;
-            world.Horse = new UnitEntityData("horse") { Position = horse, WeaponRange = 1.0f };
+            world.Horse = new UnitEntityData("horse") { Position = horse, WeaponRange = 1.0f, AttackCount = 2 };
             world.Horse.View.Corpulence = 0.9f;
             world.Horse.View.AgentASP = new Kingmaker.View.UnitMovementAgent { Unit = world.Horse, Route = (from, to) => new List<Vector3> { from, to } };
+            world.Rider.Descriptor.Pet = world.Horse; world.Horse.Descriptor.Master.Value = world.Rider;   // the native pet/master link
             world.Target = new UnitEntityData("hostile-1") { Position = target };
             world.Target.View.Corpulence = 0.5f;
             Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = new TurnBased.Controllers.TurnController { Unit = world.Rider };
@@ -1455,6 +1670,7 @@ namespace Harness
                 else if (kase == "click issuing the pair's own order")
                 {
                     controller.BeginClickObservation(new[] { world.Rider }, false);
+                    controller.ObserveClickRun(world.Rider.Commands);       // the click's Run of the rider (UnitCommands.Run prefix)
                     controller.Own(world.Rider, world.Target, controller.Generation);
                     world.Rider.CombatState.ManualTarget = world.Target;   // ClickUnitHandler.OnClick's own post-Run assignment
                     controller.EndClickObservation(world.Target, true);
@@ -1475,6 +1691,7 @@ namespace Harness
                     if (kase == "native click after Run")
                     {
                         controller.BeginClickObservation(new[] { world.Rider }, false);
+                        controller.ObserveClickRun(world.Rider.Commands);   // the click's Run of the rider (UnitCommands.Run prefix)
                         world.Rider.Commands.Run(new HarnessPlayerCommand(world.Target, UnitCommand.CommandType.Move) { WritesNoTarget = true });
                         world.Rider.CombatState.ManualTarget = world.Target;
                         controller.EndClickObservation(world.Target, true);
@@ -1759,6 +1976,8 @@ namespace Harness
                 controller.BeginOrder(world.Target, false);
                 controller.Own(world.Rider, world.Target, controller.Generation);
                 controller.BeginClickObservation(riderCommanded ? new[] { world.Rider } : new[] { companion }, false);
+                // The installed loop: Run the unit's command (observed by the production Run prefix), then assign its ManualTarget.
+                controller.ObserveClickRun(riderCommanded ? world.Rider.Commands : companion.Commands);
                 if (riderCommanded) world.Rider.CombatState.ManualTarget = world.Target; else companion.CombatState.ManualTarget = world.Target;
                 controller.EndClickObservation(world.Target, true);
                 controller.Clear("order retired");
@@ -2072,14 +2291,21 @@ namespace Harness
         // R1-F11 (round 6): simulated and unhandled clicks assign nothing; a genuine same-target rider assignment does.
         private static void Round6ClickAttribution()
         {
-            foreach (var kase in new[] { "simulated click", "unhandled click", "genuine same-target rider click" })
+            // PR-1 round 7: the installed loop (ClickUnitHandler.OnClick IL_01D3..IL_036F) per selected unit either skips it, or Runs its
+            // command and then assigns its ManualTarget; the production Run prefix reports each Run inside the bracket (ObserveClickRun).
+            foreach (var kase in new[] { "simulated click", "unhandled click", "genuine same-target rider click", "handled click that skips the selected rider" })
             {
                 var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
                 var controller = Controller5(world);
                 controller.BeginOrder(world.Target, false);
                 controller.Own(world.Rider, world.Target, controller.Generation);
+                world.Rider.CombatState.ManualTarget = world.Target;   // the order's own write: the rider already targets T
                 controller.BeginClickObservation(new[] { world.Rider }, kase == "simulated click");
-                world.Rider.CombatState.ManualTarget = world.Target;
+                if (kase != "handled click that skips the selected rider")
+                {
+                    controller.ObserveClickRun(world.Rider.Commands);
+                    world.Rider.CombatState.ManualTarget = world.Target;
+                }
                 controller.EndClickObservation(world.Target, kase != "unhandled click");
                 controller.Clear("order retired");
                 var selection = world.Rider.CombatState.ManualTarget;
@@ -2119,6 +2345,280 @@ namespace Harness
             }
         }
 
+        // ---- PR-1 round 7: production decisions from their real entry points ----
+        // The drive is production TryDriveStockAttackIntent -> PlanStockDispatch -> TryExecuteAction (CaptureContext and the production
+        // evaluator; the wrapper is built and Run there and its terminal is production HandleCommandTerminal). Terminals are the
+        // production ReportTerminalOnce over the production DescribeOutcome (or its fallback). Native facts come from the engine model.
+        private static MountedCombatController Controller7(World world, bool turnBased)
+        {
+            var controller = Controller5(world);
+            if (turnBased) Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = new TurnBased.Controllers.TurnController { Unit = world.Rider, Status = TurnBased.Controllers.TurnController.TurnStatus.Preparing };
+            return controller;
+        }
+
+        private static long Dispatches(MountedCombatController controller) => controller.StockAttackRiderDispatchCount + controller.StockAttackMountDispatchCount;
+
+        // R4-F1: a legal two-attack horse routine on A. After its first delivery the rider replaces the order (production CancelCore and a new
+        // order on B); the horse's remaining attack is delivered on A by the native routine, whose production OnEnded completes the
+        // transaction (index == plan); one Standard spent; then the production drive dispatches once for valid B, zero for invalid B.
+        // Control: a hard cancellation ends the routine after one delivery.
+        private static void Round7RemainingRoutine()
+        {
+            foreach (var kase in new[] { "valid replacement B", "invalid replacement B", "hard cancellation" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.BeginOrder(world.Target, false);
+                var horse = Wrapper(world, controller, MountedCombatActionKind.MountPrimaryNatural);
+                horse.BindTerminal(controller.ProductionTerminal);
+                Deliver(world, horse, world.Horse);
+                var firstDelivered = horse.StruckTargets.Count == 1 && !horse.IsFinished && horse.GetAttackIndex() == 1 && horse.AllAttacks.Count == 2;
+                var interrupts = controller.ExternalInterruptCount; var moveInterrupts = controller.MoveInterrupts;
+                if (kase == "hard cancellation")
+                {
+                    controller.HardCancel("dismount");
+                    Check(firstDelivered && horse.IsFinished && horse.StruckTargets.Count == 1 && horse.Transaction.State != MountedCombatTransactionState.Completed,
+                        "PR-1 R4-F1 hard-cancellation control: a dismount ends the routine after its first delivery (no second attack, transaction not completed)");
+                    continue;
+                }
+                var targetB = new UnitEntityData("hostile-2") { Position = new Vector3(0f, 0f, 1.5f) };
+                if (kase == "invalid replacement B") targetB.IsInState = false;
+                controller.FullCancel("new stock hostile attack", true);
+                controller.BeginOrder(targetB, false);
+                var dispatchesBefore = Dispatches(controller);
+                controller.Drive();   // the horse still owns its Standard command: nothing dispatches yet
+                var waitingDispatches = Dispatches(controller) - dispatchesBefore;
+                horse.ActEventDue = true;
+                NativeTick(world, world.Horse);   // the native routine's second act
+                var outcome = horse.DeliveredOutcome;
+                var spends = UnitAttack.StandardSpends;
+                controller.Drive();
+                var next = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                var dispatched = Dispatches(controller) - dispatchesBefore;
+                var common = firstDelivered && waitingDispatches == 0 && horse.StruckTargets.Count == 2 && horse.StruckTargets.TrueForAll(t => t == world.Target) &&
+                    horse.IsFinished && horse.Result == UnitCommand.ResultType.Success && horse.Transaction.State == MountedCombatTransactionState.Completed &&
+                    outcome != null && outcome.TransactionCompleted && spends == 1 && controller.ExternalInterruptCount == interrupts && controller.MoveInterrupts == moveInterrupts;
+                Console.WriteLine("  R4-F1 " + kase + ": struck=" + horse.StruckTargets.Count + " index=" + horse.GetAttackIndex() + "/" + horse.AllAttacks.Count +
+                    " transaction=" + horse.Transaction.State + " delivered.completed=" + outcome?.TransactionCompleted + " spends=" + spends + " dispatched=" + dispatched +
+                    " next=" + (next == null ? "<none>" : next.TargetUnit?.UniqueId) + " feedback=" + controller.LastFeedback);
+                if (kase == "valid replacement B")
+                    Check(common && dispatched == 1 && next != null && next.TargetUnit == targetB,
+                        "PR-1 R4-F1 valid B: the horse's remaining attack lands on A through the native routine, its transaction completes (production OnEnded), one Standard spent, then one dispatch for B");
+                else
+                    Check(common && dispatched == 0 && !controller.HasStockAttackIntent,
+                        "PR-1 R4-F1 invalid B: the horse's routine completes on A as above, then the production drive retires B with zero dispatches");
+            }
+        }
+
+        // R4-F6: the outcome actually delivered to the controller's production HandleCommandTerminal (production ReportTerminalOnce), for the
+        // detailed description and its fallback (a native read inside DescribeOutcome fails): ActorId and both charge flags against the
+        // observed native acts and the actor's Standard.
+        private static void Round7DeliveredOutcome()
+        {
+            foreach (var fallback in new[] { false, true })
+            foreach (var kase in new[] { "unstarted rider force-finish", "delivered rider attack", "delivered horse attack" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, true);
+                var controller = Controller7(world, true);
+                var horseStrike = kase == "delivered horse attack";
+                var actor = horseStrike ? world.Horse : world.Rider;
+                controller.BeginOrder(world.Target, false);
+                if (horseStrike) world.Rider.HasStandard = false;   // the rider has spent its Standard: the production plan offers the horse
+                controller.Drive();
+                var wrapper = actor.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R4-F6 " + kase + ": the production drive dispatched no wrapper to " + actor.UniqueId + " (" + controller.LastFeedback + ")"); continue; }
+                Harness.NativeActorCapability.DescribeFaults = fallback ? (Func<UnitEntityData, bool>)(unit => unit == actor) : null;
+                if (kase == "unstarted rider force-finish") wrapper.ForceFinishForTurnBased(UnitCommand.ResultType.Success);
+                else if (!fallback) { Deliver(world, wrapper, actor); wrapper.ActEventDue = true; NativeTick(world, actor); }   // the whole routine, completed
+                else { Deliver(world, wrapper, actor); wrapper.Interrupt(); }   // delivered once, then interrupted: DescribeOutcome reads native capability
+                Harness.NativeActorCapability.DescribeFaults = null;
+                var delivered = wrapper.DeliveredOutcome;
+                var acted = UnitAttack.Acts(actor) > 0;
+                var spent = !actor.HasStandard;
+                var fallbackTaken = delivered != null && delivered.TargetId == null;
+                Console.WriteLine("  R4-F6 " + kase + (fallback ? " (fallback)" : " (detailed)") + ": delivered actor=" + delivered?.ActorId + " riderCharged=" + delivered?.RiderStandardCharged +
+                    " actionCharged=" + delivered?.ActionStandardCharged + " acts=" + UnitAttack.Acts(actor) + " standardSpent=" + spent + " fallbackTaken=" + fallbackTaken + " reports=" + wrapper.TerminalReports);
+                Check(delivered != null && ReferenceEquals(delivered, controller.LastOutcome) && wrapper.TerminalReports == 1 && fallbackTaken == fallback &&
+                    delivered.ActorId == actor.UniqueId && delivered.ActionStandardCharged == acted && delivered.ActionStandardCharged == spent &&
+                    delivered.RiderStandardCharged == (acted && !horseStrike),
+                    "PR-1 R4-F6 " + kase + " (" + (fallback ? "fallback" : "detailed") + " outcome): the delivered outcome names the actor and its charges match the observed acts and Standard");
+            }
+        }
+
+        // R4-F5: turn-based orders bound to the fixture turn. A rider terminal (force-finish before start, or an interrupted first windup)
+        // goes through production ReportTerminalOnce/HandleCommandTerminal; the unspent rider recovers; the next production drive submits
+        // (or finally refuses) from the current paired activation: eligible horse, spent horse, ended horse; delivered and retired controls.
+        private static void Round7TerminalToDispatch()
+        {
+            var terminals = new[] { "force-finish before start", "interrupted first windup", "delivered control", "retired control" };
+            foreach (var terminal in terminals)
+            foreach (var horseState in new[] { "eligible horse", "spent horse", "ended horse" })
+            {
+                if ((terminal == "delivered control" || terminal == "retired control") && horseState != "eligible horse") continue;
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, true);
+                var controller = Controller7(world, true);
+                if (horseState == "spent horse") world.Horse.HasStandard = false;
+                if (horseState == "ended horse") controller.unifiedTurn.Unaddressable = world.Horse;
+                controller.BeginOrder(world.Target, false);
+                controller.Drive();
+                var rider = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (rider == null) { Check(false, "PR-1 R4-F5 " + terminal + "/" + horseState + ": no rider dispatch (" + controller.LastFeedback + ")"); continue; }
+                var riderDispatches = controller.StockAttackRiderDispatchCount;
+                // The installed engine's branches for an actor that cannot act (UnitActionController / UnitCommand.Tick), each recorded by the
+                // production transpiled hook (RecordNativeTerminal) just before native ends the command.
+                if (terminal == "force-finish before start")
+                {
+                    world.Rider.Descriptor.State.CanAct = false;
+                    rider.RecordNativeTerminal(MountedNativeTerminalBranch.TurnBasedCannotAct, MountedActorCapabilityBlock.CantAct);
+                    rider.ForceFinishForTurnBased(UnitCommand.ResultType.Success);
+                }
+                else if (terminal == "interrupted first windup")
+                {
+                    NativeTick(world, world.Rider);
+                    world.Rider.Descriptor.State.CanAct = false;
+                    rider.RecordNativeTerminal(MountedNativeTerminalBranch.RunningCannotAct, MountedActorCapabilityBlock.CantAct);
+                    rider.Interrupt();
+                }
+                else if (terminal == "delivered control") { Deliver(world, rider, world.Rider); rider.ActEventDue = true; NativeTick(world, world.Rider); }
+                else controller.FullCancel("dismount", false);
+                world.Rider.Descriptor.State.CanAct = true;   // the unspent rider recovers before the next drive
+                var warningsBefore = controller.Warnings.Count;
+                controller.Drive();
+                var horse = world.Horse.Commands.Standard as MountedPairAttackCommand;
+                if (horse != null && horseState == "eligible horse") { Deliver(world, horse, world.Horse); horse.ActEventDue = true; NativeTick(world, world.Horse); }
+                var routine = world.Horse.AttackCount;   // a full native routine delivers its whole plan
+                var riderActs = UnitAttack.Acts(world.Rider); var horseActs = UnitAttack.Acts(world.Horse);
+                var warnings = controller.Warnings.Count - warningsBefore;
+                var delivered = rider.DeliveredOutcome;
+                Console.WriteLine("  R4-F5 " + terminal + " / " + horseState + ": riderTerminal=" + delivered?.Result + "/" + delivered?.EndCause + " riderSubmissions=" + riderDispatches +
+                    " horseSubmissions=" + controller.StockAttackMountDispatchCount + " riderActs=" + riderActs + " horseActs=" + horseActs + " warnings=" + warnings +
+                    " feedback=" + controller.LastFeedback + " intent=" + controller.HasStockAttackIntent);
+                if (terminal == "retired control")
+                    Check(controller.StockAttackMountDispatchCount == 0 && horseActs == 0 && riderActs == 0 && !controller.HasStockAttackIntent,
+                        "PR-1 R4-F5 retired control: a hard cancellation before delivery submits nothing further (horse submissions 0, deliveries 0)");
+                else if (terminal == "delivered control")
+                    Check(riderActs == world.Rider.AttackCount && controller.StockAttackMountDispatchCount == 1 && horseActs == routine && warnings == 0,
+                        "PR-1 R4-F5 delivered control: the delivered rider's terminal is followed by one horse submission and one horse delivery, no warning");
+                else if (horseState == "eligible horse")
+                    Check(riderActs == 0 && controller.StockAttackMountDispatchCount == 1 && horseActs == routine && warnings == 0 && delivered != null && !delivered.RiderStandardCharged &&
+                        delivered.NativeTerminalBranch != MountedNativeTerminalBranch.None,
+                        "PR-1 R4-F5 " + terminal + " / eligible horse: the unspent rider is not charged; the production drive submits the horse once and it delivers once; no warning");
+                else
+                    Check(riderActs == 0 && controller.StockAttackMountDispatchCount == 0 && horseActs == 0 && warnings == 1 && !controller.HasStockAttackIntent,
+                        "PR-1 R4-F5 " + terminal + " / " + horseState + ": no horse submission or delivery; the production refusal is presented once as a warning and the order ends");
+            }
+        }
+
+        // R5-F3: travel-restricted automatic proposals start at the production decision (ObserveAutomaticProposal), with no order supplied. The
+        // rider's Standard is unavailable for the first drive (no wrapper may strike), then readiness returns and the first act follows.
+        private static void Round7RestrictedProposal()
+        {
+            foreach (var distance in new[] { 2.6f, 3.2f })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(distance, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = true;
+                // Neither actor's Standard is available yet (both cooldowns pending): no strike may land before readiness.
+                world.Rider.HasStandard = false; world.Horse.HasStandard = false;
+                world.Ready[world.Rider] = false; world.Ready[world.Horse] = false;
+                var before = world.Horse.Position;
+                controller.Propose(new UnitAttack(world.Target) { AiAction = new Kingmaker.UnitLogic.Commands.AiActionFacade(), CreatedByPlayer = false }, false);
+                var admitted = controller.AutomaticAdmittedCount == 1; var refused = controller.AutomaticRefusedCount == 1;
+                Console.WriteLine("  R5-F3 trace after proposal: " + controller.LastStockAttackObservation + " feedback=" + controller.LastFeedback);
+                var actsBeforeReadiness = 0;
+                for (var tick = 0; tick < 3; tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); controller.Drive(); actsBeforeReadiness += UnitAttack.Acts(world.Rider); }
+                var retained = controller.HasStockAttackIntent;
+                world.Rider.HasStandard = true; world.Ready[world.Rider] = true;
+                world.Horse.HasStandard = true; world.Ready[world.Horse] = true;
+                for (var tick = 0; tick < 6 && UnitAttack.Acts(world.Rider) == 0; tick++)
+                {
+                    controller.Drive();
+                    var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                    if (wrapper != null && wrapper.IsStarted && !wrapper.IsActed) wrapper.ActEventDue = true;
+                    NativeTick(world, world.Rider); NativeTick(world, world.Horse);
+                }
+                var travelled = Kingmaker.Utility.GeometryUtils.MechanicsDistance(before, world.Horse.Position);
+                Console.WriteLine("  R5-F3 " + distance + " m: admitted=" + admitted + " refused=" + refused + " (" + controller.LastAutomaticRefusal + ") retained=" + retained +
+                    " actsBeforeReadiness=" + actsBeforeReadiness + " acts=" + UnitAttack.Acts(world.Rider) + " travelled=" + travelled);
+                if (distance < 3f)
+                    Check(admitted && !refused && retained && actsBeforeReadiness == 0 && UnitAttack.Acts(world.Rider) == 1 && travelled < 0.0001f,
+                        "PR-1 R5-F3 2.6 m: the production proposal decision accepts; the order is retained through unavailability; no travel; one stationary delivery after readiness");
+                else
+                    Check(!admitted && refused && !controller.HasStockAttackIntent && UnitAttack.Acts(world.Rider) == 0 && travelled < 0.0001f,
+                        "PR-1 R5-F3 3.2 m: the production proposal decision refuses; no travel and no delivery");
+            }
+        }
+
+        // R6-F2: two equal-ranked perceived targets under restricted travel. The nearer one has the brain's cached sight but blocked command
+        // sight; the farther, native-proposed one has clear command sight: the farther is kept and struck. With both clear, the nearer wins.
+        private static void Round7TieBreak()
+        {
+            foreach (var nearerBlocked in new[] { true, false })
+            {
+                var proposedPosition = new Vector3(2.2f, 0f, 0f);
+                var nearerPosition = new Vector3(0f, 0f, 1.6f);
+                Func<Vector3, Vector3, bool> blocker = (from, to) => nearerBlocked && Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, nearerPosition) < 0.3f;
+                var world = NewWorld(new Vector3(0f, 0f, 0f), proposedPosition, blocker, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = true;
+                var nearer = new UnitEntityData("hostile-near") { Position = nearerPosition };
+                world.Rider.CachedSight = unit => true;   // the brain's cached sight admits both
+                Harness.NativeBrainRankingReader.Ranked = new List<Harness.NativeBrainRankingReader.Candidate>
+                {
+                    new Harness.NativeBrainRankingReader.Candidate { Unit = nearer, Weight = 0f, Distance = world.Horse.DistanceTo(nearer) },
+                    new Harness.NativeBrainRankingReader.Candidate { Unit = world.Target, Weight = 0f, Distance = world.Horse.DistanceTo(world.Target) }
+                };
+                controller.Propose(new UnitAttack(world.Target) { AiAction = new Kingmaker.UnitLogic.Commands.AiActionFacade(), CreatedByPlayer = false }, false);
+                var selected = controller.IntentTarget;
+                for (var tick = 0; tick < 6 && UnitAttack.NativeAttackRules == 0; tick++)
+                {
+                    controller.Drive();
+                    var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                    if (wrapper != null && wrapper.IsStarted && !wrapper.IsActed) wrapper.ActEventDue = true;
+                    NativeTick(world, world.Rider); NativeTick(world, world.Horse);
+                }
+                var struck = (world.Rider.Commands.Standard as MountedPairAttackCommand)?.StruckTargets;
+                Console.WriteLine("  R6-F2 nearerBlocked=" + nearerBlocked + ": selected=" + selected?.UniqueId + " tieBreaks=" + controller.AutomaticTieBreakCount +
+                    " struck=" + (struck == null ? "<none>" : string.Join(",", struck.ConvertAll(u => u.UniqueId).ToArray())) + " refusal=" + controller.LastAutomaticRefusal);
+                if (nearerBlocked)
+                    Check(selected == world.Target && controller.AutomaticTieBreakCount == 0 && struck != null && struck.Count == 1 && struck[0] == world.Target,
+                        "PR-1 R6-F2 nearer candidate with cached sight but blocked command sight: the legal native proposal is kept and struck once from where the pair stands");
+                else
+                    Check(selected == nearer && controller.AutomaticTieBreakCount == 1 && struck != null && struck.Count == 1 && struck[0] == nearer,
+                        "PR-1 R6-F2 control, both clear: the nearer equal-ranked candidate is selected and struck once");
+            }
+        }
+
+        // R6-F1: an unreleased waiting wrapper loses its target before delivery; the controller observes it first (production drive), or the
+        // wrapper does (its own tick). Both record the same cause, terminal reason and rejection code, with no spending and no movement.
+        private static void Round7InvalidationParity()
+        {
+            var results = new Dictionary<string, string>();
+            foreach (var first in new[] { "controller first", "wrapper first" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                world.Ready[world.Rider] = false;   // installed and waiting in its native slot, not yet started
+                controller.BeginOrder(world.Target, false);
+                controller.Drive();
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R6-F1 " + first + ": no wrapper (" + controller.LastFeedback + ")"); continue; }
+                NativeTick(world, world.Rider);
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends;
+                world.Target.IsInState = false;   // the target despawns
+                if (first == "controller first") controller.Drive(); else { world.Ready[world.Rider] = true; NativeTick(world, world.Rider); }
+                var outcome = wrapper.DeliveredOutcome;
+                var codes = controller.LastRejectionCodes == null ? "<none>" : string.Join(",", Array.ConvertAll(controller.LastRejectionCodes, c => c.ToString()));
+                results[first] = outcome == null ? "<no outcome>" : outcome.EndCause + "|" + outcome.TerminalReason + "|" + codes;
+                Console.WriteLine("  R6-F1 " + first + ": cause|reason|codes=" + results[first] + " moves=" + (UnitCommands.MoveSubmissions - moves) + " spends=" + (UnitAttack.StandardSpends - spends));
+                Check(outcome != null && wrapper.IsFinished && outcome.EndCause == MountedAttackEndCause.TargetInvalid && outcome.TerminalReason == "Expected target invalidation: target despawned" &&
+                    UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && UnitAttack.Acts(world.Rider) == 0,
+                    "PR-1 R6-F1 " + first + ": target loss before delivery records TargetInvalid with the target reason; no spending, no movement");
+            }
+            Check(results.Count == 2 && results["controller first"] == results["wrapper first"],
+                "PR-1 R6-F1 controller-first and wrapper-first target loss emit the same cause, terminal reason and rejection code");
+        }
+
         private static int Main()
         {
             try { R3F1(); } catch (Exception exception) { Check(false, "R3-F1 threw " + exception); }
@@ -2143,6 +2643,12 @@ namespace Harness
             try { Round6Invalidation(); } catch (Exception exception) { Check(false, "PR-1 round 6 invalidation threw " + exception); }
             try { Round6ClickAttribution(); } catch (Exception exception) { Check(false, "PR-1 round 6 click attribution threw " + exception); }
             try { Round6StationaryAutomatic(); } catch (Exception exception) { Check(false, "PR-1 round 6 stationary automatic threw " + exception); }
+            try { Round7RemainingRoutine(); } catch (Exception exception) { Check(false, "PR-1 round 7 remaining routine threw " + exception); }
+            try { Round7DeliveredOutcome(); } catch (Exception exception) { Check(false, "PR-1 round 7 delivered outcome threw " + exception); }
+            try { Round7TerminalToDispatch(); } catch (Exception exception) { Check(false, "PR-1 round 7 terminal to dispatch threw " + exception); }
+            try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }
+            try { Round7TieBreak(); } catch (Exception exception) { Check(false, "PR-1 round 7 tie-break threw " + exception); }
+            try { Round7InvalidationParity(); } catch (Exception exception) { Check(false, "PR-1 round 7 invalidation parity threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }
