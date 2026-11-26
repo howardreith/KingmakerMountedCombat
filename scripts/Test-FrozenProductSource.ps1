@@ -177,9 +177,10 @@ Check 'observer-only change keeps main-only reuse' {
 WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
 Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Restore observer') | Out-Null
-# The MSBuild files the observer inherits from tools/ are observer inputs: committing either one rejects the archived
-# observer and keeps main-only reuse; removing it again restores the observer.
-foreach($inherited in @('tools/Directory.Build.targets','tools/Directory.Build.props')) {
+# The MSBuild files the observer inherits from tools/ are observer inputs, matched with Windows filename semantics:
+# committing either one (also with a mixed-case name) rejects the archived observer and keeps main-only reuse; removing
+# it again restores the observer.
+foreach($inherited in @('tools/Directory.Build.targets','tools/Directory.Build.props','tools/directory.BUILD.Targets')) {
     WriteUtf8 (Join-Path $repo $inherited) '<Project><Target Name="KmcTestObserverHook" BeforeTargets="CoreCompile" /></Project>'
     Invoke-TestGit @('add',$inherited) | Out-Null
     Invoke-TestGit @('commit','--quiet','-m',('Observer inherited '+$inherited)) | Out-Null
@@ -197,6 +198,17 @@ $observerArguments.Context=Get-KmcFrozenProductSource @pins
 Check 'archived observer accepted again after the inherited files are removed' {
     $actual=Assert-KmcFrozenProductManifest @observerArguments
     if($actual.source -cne $commit) { throw 'Observer admission lost the frozen source.' }
+}
+# The shared repository-root inherited file with a mixed-case name is a production input at the shared boundary.
+WriteUtf8 (Join-Path $repo 'directory.BUILD.Props') '<Project><PropertyGroup><CheckForOverflowUnderflow>true</CheckForOverflowUnderflow></PropertyGroup></Project>'
+Invoke-TestGit @('add','directory.BUILD.Props') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Mixed-case root Directory.Build.props') | Out-Null
+Refuses 'committed mixed-case root Directory.Build.props requires another candidate' {Get-KmcFrozenProductSource @pins} 'new product candidate'
+Invoke-TestGit @('rm','--quiet','directory.BUILD.Props') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Remove mixed-case root Directory.Build.props') | Out-Null
+Check 'frozen product reusable again after the mixed-case root file is removed' {
+    $actual=Get-KmcFrozenProductSource @pins
+    if($actual.source -cne $commit) { throw 'Removing the root file lost the frozen product identity.' }
 }
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class ChangedProduct {}'
 Invoke-TestGit @('add','src/Product.cs') | Out-Null

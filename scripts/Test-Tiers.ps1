@@ -207,7 +207,11 @@ function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
     $sw.Stop()
     $script:results += [pscustomobject]@{ step = $Name; pass = $ok; seconds = [Math]::Round($sw.Elapsed.TotalSeconds, 1); detail = $detail }
     Write-Host (('{0,-4} {1} ({2}s){3}' -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $Name, [Math]::Round($sw.Elapsed.TotalSeconds, 1), $(if ($ok) { '' } else { ': ' + $detail })))
-    try { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission -StepName $Name -StepSeconds $sw.Elapsed.TotalSeconds -Failed:(-not $ok) } catch { Write-Warning ('Workflow budget heartbeat failed: ' + $_.Exception.Message) }
+    # The Full umbrella's duration is recorded only after it succeeds: a refused or failed Full attempt (for example a
+    # stale receipt refused before the runner) heartbeats and is charged through its entry, and leaves Full history
+    # as it was (an established duration, or unknown).
+    $recordDuration = $ok -or $Name -notlike 'FULL umbrella*'
+    try { if ($recordDuration) { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission -StepName $Name -StepSeconds $sw.Elapsed.TotalSeconds } else { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission } } catch { Write-Warning ('Workflow budget heartbeat failed: ' + $_.Exception.Message) }
     if (-not $ok) { throw ('Tier step failed: ' + $Name) }
 }
 # Children run as separate processes whose output is relayed when they end; while they run

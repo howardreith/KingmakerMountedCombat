@@ -30,14 +30,15 @@ try {
     $env:KMC_WORKFLOW_TEST_CLOCK_FILE = $clock
     $budgetRoot = Use-BudgetRoot 'budgets'
     Set-Clock '2026-10-29T12:00:00Z'
-    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','Reconcile-WorkflowBudget.ps1','workflow-impact-map.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
+    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','Reconcile-WorkflowBudget.ps1','workflow-impact-map.json','LoaderInputStamp.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
     # Discover the actual umbrella's children rather than a claimed plan.
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $scripts 'Test.ps1'), [ref]$tokens, [ref]$errors)
     if ($errors.Count -ne 0) { throw 'Umbrella parse failed.' }
     $children = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -like '*.ps1' }, $true) | ForEach-Object { $_.Value })
     $children += @('Validate-Source.ps1','Test-SelectedFixture.ps1','chunk7\Test-SelectedNested.ps1','Test-AdvanceClock.ps1','Test-Marker.ps1')
-    foreach ($name in @($children | Select-Object -Unique)) {
+    # The dot-sourced receipt helper is the real one (copied above), not a tracing child.
+    foreach ($name in @($children | Select-Object -Unique | Where-Object { $_ -ne 'LoaderInputStamp.ps1' })) {
         $path = Join-Path $scripts $name
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
         @'
@@ -67,6 +68,19 @@ public static class TierFixture {
   }
 }
 '@
+    # Output placeholders for the Debug outputs reused with -SkipBuild (the stub runner above is the component runner) and a
+    # current Debug receipt written by the real receipt functions. The boundary is an empty Git repository so the
+    # receipt's file listing runs as in a checkout.
+    & git init --quiet $boundary
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the fixture repository.' }
+    foreach ($output in @('bin/Debug/KingmakerMountedCombat.dll', 'bin/Observer/Debug/KmcRemovalObserver.dll')) {
+        $outputPath = Join-Path $boundary $output
+        New-Item -ItemType Directory -Path (Split-Path -Parent $outputPath) -Force | Out-Null
+        [IO.File]::WriteAllText($outputPath, 'tier-selection placeholder ' + $output)
+    }
+    . (Join-Path $scripts 'LoaderInputStamp.ps1')
+    Write-KmcLoaderInputStamp $boundary 'Debug'
+    if ((Test-KmcLoaderInputStamp $boundary 'Debug') -cne 'current') { throw 'The fixture Debug receipt is not current.' }
     $selector = Join-Path $scripts 'Test-Tiers.ps1'
     $reconcile = Join-Path $scripts 'Reconcile-WorkflowBudget.ps1'
     $passed = 0
