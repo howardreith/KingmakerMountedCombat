@@ -1634,14 +1634,17 @@ namespace KingmakerMountedCombat.Integration
 
         // Retires the current automatic order when the decision says it is no longer admitted; returns true then. observer: the command
         // asking (null for the controller's own boundaries). Bound to the exact order: a command that is not the current automatic order's
-        // own never inspects, retires or cleans up anything (a successor's work is untouched); a released strike keeps native completion.
-        // Retirement takes the one order path for each cause, so the order's own command and carrier are ended once, by the controller.
+        // own never inspects, retires or cleans up anything (a successor's work is untouched). Retirement takes the one order path for each
+        // cause, so the order's own command and carrier are ended once, by the controller.
+        // PR-1 round 13 (R12-F1): once the order's strike was released (delivered), the controller's boundaries still retire the generation, so
+        // the repeating order ends; RetireOrderWrapper leaves the live wrapper to native completion (its remaining routine acts and terminal),
+        // and no admission-loss cause is written onto it. A released command never asks itself.
         private bool RetireAutomaticOrderIfNotAdmitted(MountedPairAttackCommand observer)
         {
             if (!HasStockAttackIntent || !stockIntent.Automatic) return false;
             var command = stockIntentCommand;
             if (observer != null && (!ReferenceEquals(observer, command) || !ReferenceEquals(observer.TargetUnit, stockIntentTarget))) return false;
-            if (command != null && command.StrikeReleased) return false;
+            if (observer != null && observer.StrikeReleased) return false;
             string boundaryReason;
             var admission = DecideAutomaticOrderAdmission(command, out boundaryReason);
             if (admission == MountedAutomaticOrderAdmission.Admitted) return false;
@@ -1665,7 +1668,7 @@ namespace KingmakerMountedCombat.Integration
             var unperceived = admission == MountedAutomaticOrderAdmission.TargetUnperceived;
             var reason = unperceived ? "automatic target left perception" : "automatic target outside native admission";
             LastAutomaticRetirement = reason;
-            if (command != null && !command.IsFinished)
+            if (command != null && !command.IsFinished && !command.StrikeReleased)
                 command.RecordAutomaticAdmissionLoss(reason, unperceived ? "Automatic target left the rider group's perception."
                     : "Automatic target left native admission (outside the action's current range or sight).");
             ClearStockAttackIntent(reason, true);
@@ -2035,7 +2038,9 @@ namespace KingmakerMountedCombat.Integration
 
             var rider = relationship.Rider;
             var mount = relationship.Mount;
-            if (relationship.State == RelationshipState.Mounted && TryRetireStockIntent(rider, mount, turnBased))
+            // PR-1 round 13 (R12-F4): an automatic order was decided at the top of this drive (RetireAutomaticOrderIfNotAdmitted); only an
+            // explicit order's retirement rule remains to apply here, so the stationary strike probe is built once per drive.
+            if (relationship.State == RelationshipState.Mounted && !stockIntent.Automatic && TryRetireStockIntent(rider, mount, turnBased))
             {
                 return;
             }

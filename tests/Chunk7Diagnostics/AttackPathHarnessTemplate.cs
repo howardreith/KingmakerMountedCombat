@@ -985,12 +985,16 @@ namespace Harness
         internal readonly List<string> Warnings = new List<string>();
         internal long RiderSpecificTerminalCount, PendingRefusalPresentedCount, StockAttackUnexecutedRetirementCount, AutomaticRetiredCount;
         internal string LastAutomaticRetirement;
-        internal bool MovementForbidden;
+        // PR-1 round 13 (R12-F2): pair movement is decided by the production AutomaticMovementForbidden (spliced) from the simulated units: the
+        // rider's AiMovementForbidden, a completed player move, the mount's CanMove and the mount's HoldState through MountedHoldProvenance.
+        // A fixture that wants restricted pair travel holds the horse (the player's Hold on the mount).
+        private readonly MountedHoldProvenance mountHold = new MountedHoldProvenance();
+        internal bool MovementForbidden { get { return relationship.Mount != null && relationship.Mount.HoldState; } set { if (relationship.Mount != null) relationship.Mount.HoldState = value; } }
         private readonly MountedAutomaticAttackGate automaticGate = new MountedAutomaticAttackGate();
         // The player-facing warning (production: EventBus IWarningNotificationUIHandler.HandleWarning(LastFeedback)), captured here.
         private void ShowStockFeedback() => Warnings.Add(LastFeedback);
         private void TryLog(Func<string> line) { }
-        private bool AutomaticMovementForbidden(UnitEntityData rider) => MovementForbidden;
+        /* CONTROLLER_MOVEMENT_FORBIDDEN */
         private bool HasRiderPlayerOperation(UnitEntityData rider, UnitEntityData mount) => false;
         private bool IsTargetInRiderReach(UnitEntityData target) => false;
         internal void CancelForNewOrder() => RetireOrderForCancel("new stock hostile attack", true);
@@ -3130,9 +3134,8 @@ namespace Harness
                     Check(!staleRetired && !endedByOwnTick && ownTickMoves >= 1 && controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 0,
                         "PR-1 R10-F1 control: an unrestricted target that moved away is approached normally (pre-start move submitted, order kept)");
                 else
-                    Check(released && controller.AutomaticAdmissionRetiredCount == 0 && controller.LastAutomaticRetirement != "automatic target outside native admission" &&
-                        cause != MountedAttackEndCause.Cancelled,
-                        "PR-1 R10-F1 control: an already released strike keeps native completion; the admission decision does not retire it");
+                    Check(released && cause != MountedAttackEndCause.Cancelled && !controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 1,
+                        "PR-1 R10-F1/R12-F1 control: an already released strike keeps native completion (no admission-loss cause written on it) while the controller releases its generation");
             }
         }
 
@@ -3278,8 +3281,8 @@ namespace Harness
             {
                 var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.2f, 0f, 0f), null, false);
                 var controller = Controller7(world, false);
-                controller.MovementForbidden = true;   // production AutomaticMovementForbidden: the player's Hold on the mount
-                world.Rider.AiMovementForbidden = false;
+                world.Horse.HoldState = true;   // the player's Hold on the horse only; production AutomaticMovementForbidden reads it
+                world.Rider.AiMovementForbidden = false;   // the rider stays mobile; neither target is marked unreachable
                 var b = new UnitEntityData("hostile-b") { Position = new Vector3(0f, 0f, 1.6f) };
                 world.Rider.CachedSight = unit => true;
                 world.Rider.HasStandard = false; world.Horse.HasStandard = false;   // both Standards cooling: no wrapper yet
@@ -3294,17 +3297,22 @@ namespace Harness
                 var accepted = controller.AutomaticAdmittedCount == admittedBefore + 1;
                 var after = controller.IntentTarget; var retirement = controller.LastAutomaticRetirement;
                 var bWork = PairWrapperOn(world, b) != null;
+                var preReadinessSpends = UnitAttack.StandardSpends - spends;
+                var forbiddenByHorseHold = controller.MovementForbidden && !world.Rider.AiMovementForbidden && world.Rider.CombatState.AIData.UnreachableUnits.Count == 0;
                 world.Rider.HasStandard = true; world.Horse.HasStandard = true;
                 DriveToStrike(world, controller, 12);
-                Console.WriteLine("  R12 mount-only Hold (" + (bLeaves ? "B leaves stationary reach" : "control: B in reach") + "): selected=" + selected?.UniqueId + " accepted=" + accepted +
+                var deliveries = UnitAttack.NativeAttackRules;
+                Console.WriteLine("  R12 mount-only Hold (" + (bLeaves ? "B leaves stationary reach" : "control: B in reach") + "): horseHold=" + world.Horse.HoldState + " forbiddenByHorseHold=" + forbiddenByHorseHold +
+                    " preReadinessSpends=" + preReadinessSpends + " deliveries=" + deliveries + " selected=" + selected?.UniqueId + " accepted=" + accepted +
                     " intent=" + after?.UniqueId + " retirement=" + retirement + " bWork=" + bWork + " moves=" + (UnitCommands.MoveSubmissions - moves) +
                     " displaced=" + !world.Horse.Position.Equals(horseBefore) + " struck=" + Struck(world));
                 if (bLeaves)
-                    Check(selected == b && accepted && after == world.Target && retirement == "hold out of reach" && !bWork && UnitCommands.MoveSubmissions == moves &&
-                        world.Horse.Position.Equals(horseBefore) && Struck(world) == world.Target.UniqueId,
+                    Check(forbiddenByHorseHold && preReadinessSpends == 0 && selected == b && accepted && after == world.Target && retirement == "hold out of reach" && !bWork &&
+                        UnitCommands.MoveSubmissions == moves && world.Horse.Position.Equals(horseBefore) && Struck(world) == world.Target.UniqueId && deliveries == 1,
                         "PR-1 R11-F2 a mount-only Hold: retained B outside stationary reach cannot veto in-reach A; A's proposal is accepted before the drive and A is struck without travel; B gets no movement or spending");
                 else
-                    Check(selected == b && !accepted && after == b && Struck(world) == b.UniqueId && UnitCommands.MoveSubmissions == moves,
+                    Check(forbiddenByHorseHold && preReadinessSpends == 0 && selected == b && !accepted && after == b && Struck(world) == b.UniqueId && deliveries == 1 &&
+                        UnitCommands.MoveSubmissions == moves,
                         "PR-1 R11-F2 control: retained B still inside stationary reach keeps its order and is struck without travel");
             }
         }
@@ -3338,6 +3346,89 @@ namespace Harness
                     Check(!wrapper.IsFinished && UnitCommands.MoveSubmissions > moves && controller.HasStockAttackIntent,
                         "PR-1 R11-F3 " + kase + ": the order advances normally (a pre-start move is submitted)");
             }
+        }
+
+
+        // PR-1 round 13 (R12-F1): an automatic two-attack routine delivers its first act; the rider's AI is switched off and the controller drives
+        // once: the generation is released while the wrapper keeps running. AI is re-enabled before the remaining act, which completes normally
+        // with one Standard spent; drives with an eligible horse then dispatch nothing until a fresh proposal.
+        private static void Round13AiOffAfterDelivery()
+        {
+            var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+            var controller = Controller7(world, false);
+            Harness.NativeBrainRankingReader.Ranked = null;
+            controller.Propose(Proposal(world.Target), false);
+            var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+            if (wrapper == null) { Check(false, "PR-1 R12-F1: no wrapper (" + controller.LastFeedback + ")"); return; }
+            wrapper.BindTerminal(controller.ProductionTerminal);
+            Deliver(world, wrapper, world.Rider);
+            var firstDelivered = wrapper.StruckTargets.Count == 1 && !wrapper.IsFinished && wrapper.StrikeReleased;
+            world.Rider.IsAIEnabled = false;
+            var dispatchesBefore = Dispatches(controller);
+            controller.Drive();
+            var released = !controller.HasStockAttackIntent; var running = !wrapper.IsFinished; var retirement = controller.LastAutomaticRetirement;
+            world.Rider.IsAIEnabled = true;
+            wrapper.ActEventDue = true;
+            NativeTick(world, world.Rider);   // the native routine's remaining act
+            var completed = wrapper.IsFinished && wrapper.Result == UnitCommand.ResultType.Success && wrapper.StruckTargets.Count == 2 &&
+                wrapper.Transaction.State == MountedCombatTransactionState.Completed;
+            var spends = UnitAttack.StandardSpends;
+            world.Horse.HasStandard = true;
+            for (var tick = 0; tick < 3; tick++) { controller.Drive(); NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+            var newDispatches = Dispatches(controller) - dispatchesBefore;
+            Harness.NativeBrainRankingReader.Ranked = null;
+            controller.Propose(Proposal(world.Target), false);
+            var fresh = controller.HasStockAttackIntent;
+            Console.WriteLine("  R13 AI off after delivery: firstDelivered=" + firstDelivered + " released=" + released + " running=" + running + " retirement=" + retirement +
+                " completed=" + completed + " struck=" + wrapper.StruckTargets.Count + " spends=" + spends + " newDispatches=" + newDispatches + " freshProposalAdmitted=" + fresh);
+            Check(firstDelivered && released && running && retirement == "ai off" && completed && spends == 1 && newDispatches == 0 && fresh,
+                "PR-1 R12-F1 AI off after the first delivery: the drive releases the repeating generation while the delivered routine runs on to native completion (one Standard); no further dispatch until a fresh proposal");
+        }
+
+        // PR-1 round 13 (R12-F3): an automatic order is approaching with a live carrier; the player holds the horse (the target is outside
+        // stationary reach). Controller first (drive) and wrapper first (its own approach tick) record the same retirement once, release the exact
+        // carrier and deliver nothing.
+        private static void Round13HeldDuringApproach()
+        {
+            var results = new List<string>();
+            foreach (var first in new[] { "controller first", "wrapper first" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                Harness.NativeBrainRankingReader.Ranked = null;
+                controller.Propose(Proposal(world.Target), false);
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R12-F3 " + first + ": no wrapper"); continue; }
+                for (var tick = 0; tick < 3 && (wrapper.DelegatedMove == null || !wrapper.IsStarted); tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                var carrier = wrapper.DelegatedMove;
+                var live = carrier != null && !carrier.IsFinished;
+                world.Horse.HoldState = true;   // the player's Hold on the horse
+                if (first == "controller first") controller.Drive(); else NativeTick(world, world.Rider);
+                var line = controller.LastAutomaticRetirement + "|" + controller.AutomaticAdmissionRetiredCount;
+                results.Add(line);
+                Console.WriteLine("  R13 held during approach (" + first + "): liveCarrier=" + live + " retirement|count=" + line + " carrierFinished=" + (carrier != null && carrier.IsFinished) +
+                    " wrapperFinished=" + wrapper.IsFinished + " delivered=" + UnitAttack.NativeAttackRules);
+                Check(live && line == "hold out of reach|1" && carrier.IsFinished && wrapper.IsFinished && UnitAttack.NativeAttackRules == 0,
+                    "PR-1 R12-F3 " + first + ": a horse Hold during a live automatic approach retires the order once as hold out of reach, releases the exact carrier, no delivery");
+            }
+        }
+
+        // PR-1 round 13 (R12-F4): a held, cooling stationary order is driven once: the stationary strike probe is built once in that drive; the same
+        // target is retained, nothing moves or is spent.
+        private static void Round13OneProbePerDrive()
+        {
+            var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+            var controller = Controller7(world, false);
+            world.Horse.HoldState = true;
+            world.Rider.HasStandard = false; world.Horse.HasStandard = false;
+            Harness.NativeBrainRankingReader.Ranked = null;
+            controller.Propose(Proposal(world.Target), false);
+            var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends; var probes = controller.PlannedStrikeProbeCount;
+            controller.Drive();
+            var delta = controller.PlannedStrikeProbeCount - probes;
+            Console.WriteLine("  R13 probes per held cooling drive: " + delta + " intent=" + controller.IntentTarget?.UniqueId + " moves=" + (UnitCommands.MoveSubmissions - moves) + " spends=" + (UnitAttack.StandardSpends - spends));
+            Check(delta == 1 && controller.IntentTarget == world.Target && UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends,
+                "PR-1 R12-F4 one held cooling drive builds the stationary strike probe once and retains the target with zero movement or spending");
         }
 
         private static void Record(World world, MountedCombatController controller, MountedPairAttackCommand wrapper, string label, string expected, long moves, long spends)
@@ -3403,6 +3494,9 @@ namespace Harness
             try { Round12AiOffBeforeDelivery(); } catch (Exception exception) { Check(false, "PR-1 round 12 AI off threw " + exception); }
             try { Round12MountOnlyHold(); } catch (Exception exception) { Check(false, "PR-1 round 12 mount-only Hold threw " + exception); }
             try { Round12MissingMemory(); } catch (Exception exception) { Check(false, "PR-1 round 12 missing memory threw " + exception); }
+            try { Round13AiOffAfterDelivery(); } catch (Exception exception) { Check(false, "PR-1 round 13 AI off after delivery threw " + exception); }
+            try { Round13HeldDuringApproach(); } catch (Exception exception) { Check(false, "PR-1 round 13 held during approach threw " + exception); }
+            try { Round13OneProbePerDrive(); } catch (Exception exception) { Check(false, "PR-1 round 13 one probe per drive threw " + exception); }
             try { Round7DeliveredOutcome(); } catch (Exception exception) { Check(false, "PR-1 round 7 delivered outcome threw " + exception); }
             try { Round7TerminalToDispatch(); } catch (Exception exception) { Check(false, "PR-1 round 7 terminal to dispatch threw " + exception); }
             try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }

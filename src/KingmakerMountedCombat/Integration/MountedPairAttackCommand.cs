@@ -1255,8 +1255,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     StopNativePreStartApproach();
                     // PR-1 review R1-F4: the current movement permission is rechecked BEFORE a live carrier is adopted or a new
-                    // one admitted; ending here releases the exact owned approach (successors keep theirs).
-                    if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
+                    // one admitted; ending here releases the exact owned approach (successors keep theirs). PR-1 round 13 (R12-F3): an
+                    // automatic order's own decision answers first (its movement boundary included), then the generic restriction.
+                    if (!chargeMode && (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach())) return;
                     // PR-1 review R4-F4: and the generation's supersession.
                     if (!chargeMode && EndIfSupersededBeforeDelivery()) return;
                     var commands = mount.Commands;
@@ -1547,7 +1548,7 @@ namespace KingmakerMountedCombat.Integration
                 StartChildAttack();
                 return;
             }
-            if (EndIfMovementForbiddenAtApproach()) return;
+            if (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach()) return;
             if (!DelegatedCarrierAdmissible()) return;
             carrierDeferred = false;
             // PR-1 review R2-F3: legal movement starts from the target's current position.
@@ -1569,7 +1570,9 @@ namespace KingmakerMountedCombat.Integration
             ObserveNativeAdmission(nativeAdmission);
             // PR-1 review R3-F3: revoked movement cancels only an approach that still needs movement; a strike admissible from the
             // current position releases the exact carrier below and starts (the out-of-range case still ends here).
-            if (nativeAdmission != MountedPairNativeAdmissionState.Admitted && !chargeMode && EndIfMovementForbiddenAtApproach()) return;
+            // PR-1 round 13 (R12-F3): an automatic order's own decision answers first, so its retirement records its reason once.
+            if (nativeAdmission != MountedPairNativeAdmissionState.Admitted && !chargeMode &&
+                (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach())) return;
             if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
                 // Review R4-F2: perception is rechecked before arrival commits the strike.

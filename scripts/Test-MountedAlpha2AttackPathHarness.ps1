@@ -88,6 +88,7 @@ $members=[ordered]@{
  'CONTROLLER_TIE'=(Extract $controller 'private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)')
  'CONTROLLER_ADMIT_AUTOMATIC'=(Extract $controller 'internal bool AdmitQueuedAutomaticRun(MountedPairSingleAttack command)')
  'CONTROLLER_ADMISSION_DECISION'=(ExtractRegion $controller '        // ---- PR-1 round 11 (R10-F1..F4): one current admission decision' '        // ---- end of the automatic-order admission decision ----')
+ 'CONTROLLER_MOVEMENT_FORBIDDEN'=(Extract $controller 'private bool AutomaticMovementForbidden(UnitEntityData rider)')
  'CONTROLLER_END_QUEUED'=(Extract $controller 'private void EndQueuedCommand(MountedPairSingleAttack command, string reason)')
  'CONTROLLER_CAPTURE_CONTEXT'=(Extract $controller 'private MountedCombatActionContext CaptureContext(')
  'CONTROLLER_IN_COMBAT'=(Extract $controller 'private bool IsPairInCombat()')
