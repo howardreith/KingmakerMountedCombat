@@ -154,6 +154,15 @@ namespace KingmakerMountedCombat.Domain
         public bool MountReachProbed;
     }
 
+    // PR-1 review R4-F6: the Standard expenditure a terminal outcome attributes: only a delivered strike (the wrapper's own native act)
+    // spends; a force-finish marks IsActed without an act and spends nothing.
+    public struct MountedStandardCharge
+    {
+        public string ActorId;
+        public bool RiderStandardCharged;
+        public bool ActionStandardCharged;
+    }
+
     public static class MountedDispatchPlanner
     {
         public static MountedDispatchPlan Plan(MountedDispatchFacts facts)

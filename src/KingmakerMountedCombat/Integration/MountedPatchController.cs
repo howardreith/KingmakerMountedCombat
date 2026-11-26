@@ -929,22 +929,23 @@ namespace KingmakerMountedCombat.Integration
             }
 
             // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.
-            internal static void ClickUnitPrefix()
+            internal static void ClickUnitPrefix(bool simulate)
             {
                 try
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
-                    foreach (var combat in ClickControllers()) combat.BeginClickObservation(selected);
+                    var simulated = simulate || PointerController.SimulatingClick;
+                    foreach (var combat in ClickControllers()) combat.BeginClickObservation(selected, simulated);
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
             }
 
-            internal static void ClickUnitPostfix(UnityEngine.GameObject gameObject)
+            internal static void ClickUnitPostfix(UnityEngine.GameObject gameObject, bool __result)
             {
                 try
                 {
                     var clicked = gameObject == null ? null : gameObject.GetComponent<Kingmaker.View.UnitEntityView>()?.EntityData;
-                    foreach (var combat in ClickControllers()) combat.EndClickObservation(clicked);
+                    foreach (var combat in ClickControllers()) combat.EndClickObservation(clicked, __result);
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
             }

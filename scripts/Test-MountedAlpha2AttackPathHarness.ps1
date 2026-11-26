@@ -68,6 +68,11 @@ $members=[ordered]@{
  'CONTROLLER_TRY_RETIRE'=(Extract $controller 'private bool TryRetireStockIntent(UnitEntityData rider, UnitEntityData mount, bool turnBased)')
  'CONTROLLER_STRIKE_ADMISSIBLE'=(ExtractExpression $controller 'private bool StockIntentStrikeAdmissibleNow() =>')
  'ADMIT_EXPLICIT_PROMOTION'=(Extract $patch 'internal static bool AdmitExplicitPromotion(MountedPairSingleAttack command, MountedCombatController owner)')
+ 'CONTROLLER_CANCEL_CORE'=(Extract $controller 'private void CancelCore(string reason, bool ordinaryRetarget)')
+ 'CONTROLLER_MOUNT_LEFT'=(ExtractExpression $controller 'private bool MountCommandLeftToNative() =>')
+ 'CONTROLLER_IF_INVALID'=(Extract $controller 'private bool RetireOrderIfTargetInvalid(bool targetValid)')
+ 'CONTROLLER_PLAN_DISPATCH'=(Extract $controller 'private MountedDispatchPlan PlanStockDispatch(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, bool turnBased, bool targetValid,')
+ 'CONTROLLER_STATIONARY'=(ExtractExpression $controller 'private bool StationaryStrikeAdmissible(UnitEntityData target) =>')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

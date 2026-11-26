@@ -82,3 +82,18 @@ current; retirement of G ends every unreleased wrapper of G but leaves a release
   strike not admissible from the current position; an admissible ordinary strike settles an already interrupted exact carrier; no
   carrier is issued, adopted or replaced once the unreleased generation is superseded.
 - **Spending (R4-F6).** The outcome attributes a Standard charge only to a delivered strike.
+
+## Round 6 additions (review of 390f1093)
+
+- **Full retargeting path (R4-F1).** `CancelCore` keeps a delivered mount command out of `CancelMountMovement` on ordinary retargeting
+  (native `InterruptMove` interrupts `IsMoveUnit` commands, a flag native `TickApproaching` sets on an approaching attack); hard
+  boundaries keep the mount-wide interrupt.
+- **Observed invalidation (R5-F1, R5-F2).** `RetireOrderIfTargetInvalid` scopes invalidation to the order's own generation, also while an
+  earlier generation's delivered command is active; `RetireOrderOnTargetInvalidation` retires the exact installed or queued wrapper (a
+  delivered strike stays native's).
+- **Drive dispatch operation (R4-F5).** `PlanStockDispatch` (current generation, eligibility with the rider-ended latch, the real-time early
+  striker, the production plan) is what the drive calls and what the harness executes for every terminal control.
+- **Click attribution (R1-F11).** Simulated (prediction/pointer simulation) and unhandled clicks are not observed as assignments.
+- **Stationary automatic melee (R5-F3).** Before a wrapper exists, restricted automatic proposals and retirement use the planned mounted
+  melee strike's admission (`StationaryStrikeAdmissible`); ranged keeps the rider reach rule.
+- **Spending (R4-F6).** `DescribeStandardCharge` is the attribution `DescribeOutcome` emits; the harness captures it at terminal reporting.

@@ -686,6 +686,13 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // PR-1 review R4-F3: the order's strike admission from the current position (the controller's restricted-movement retirement).
+        internal MountedStandardCharge DescribeStandardCharge() => new MountedStandardCharge
+        {
+            ActorId = actionActor?.UniqueId,
+            RiderStandardCharged = StrikeReleased && actionActor == rider,
+            ActionStandardCharged = StrikeReleased
+        };
+
         internal bool StrikeAdmissibleNow() =>
             !IsFinished && (IsStarted ? childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted : PreStartStrikeAdmissible());
 
@@ -2248,9 +2255,9 @@ namespace KingmakerMountedCombat.Integration
                 ContinuationTargetIds = string.Join(",", continuationTargetIds.ToArray()),
                 RepathObservations = string.Join(" | ", repathObservations.ToArray()),
                 // PR-1 review R4-F6: native spends the Standard at the first native act (OnAction); a force-finish marks IsActed
-                // without it and spends nothing.
-                RiderStandardCharged = StrikeReleased && actionActor == rider,
-                ActionStandardCharged = StrikeReleased,
+                // without it and spends nothing (DescribeStandardCharge).
+                RiderStandardCharged = DescribeStandardCharge().RiderStandardCharged,
+                ActionStandardCharged = DescribeStandardCharge().ActionStandardCharged,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
                 AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId,
                 AttackWeaponIsNatural = retainedAttackWeaponIsNatural,

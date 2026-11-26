@@ -1147,19 +1147,21 @@ namespace KingmakerMountedCombat.Integration
         // own assignment to any other order's selection is the player's newest selection.
         // PR-1 review R1-F11 (round 5): the handler assigns the clicked unit to the units the click commands (the selection), so only
         // an actor that was selected at the click can have been assigned by it.
-        internal void BeginClickObservation(IEnumerable<UnitEntityData> selected)
+        // PR-1 review R1-F11 (round 6): a simulated click (prediction or pointer simulation) runs no player assignment and is not bracketed;
+        // an unhandled click assigned nothing.
+        internal void BeginClickObservation(IEnumerable<UnitEntityData> selected, bool simulated)
         {
-            if (disposed) return;
+            if (disposed || simulated) { activeClick = -1; return; }
             activeClick = ++clickSerial;
             riderCommandedByClick = selected != null && relationship.Rider != null && selected.Contains(relationship.Rider);
             mountCommandedByClick = selected != null && relationship.Mount != null && selected.Contains(relationship.Mount);
         }
 
-        internal void EndClickObservation(UnitEntityData clicked)
+        internal void EndClickObservation(UnitEntityData clicked, bool handled)
         {
             var serial = activeClick;
             activeClick = -1;
-            if (disposed || serial < 0 || clicked == null) return;
+            if (disposed || serial < 0 || clicked == null || !handled) return;
             riderSelection.ObserveClickAssignment(serial, relationship.Rider?.CombatState?.ManualTarget, clicked, riderCommandedByClick);
             mountSelection.ObserveClickAssignment(serial, relationship.Mount?.CombatState?.ManualTarget, clicked, mountCommandedByClick);
         }
@@ -1230,9 +1232,15 @@ namespace KingmakerMountedCombat.Integration
             settlement?.Cancel(reason);
             CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
-            relationship.Runtime.CancelMountMovement();
+            // PR-1 review R4-F1: CancelMountMovement interrupts the mount's IsMoveUnit commands, and native TickApproaching sets that
+            // flag on a horse Standard attack that approached. On ordinary retargeting a delivered mount command stays native's (the
+            // retired order's own movement was released with its wrappers); every hard boundary keeps the mount-wide interrupt.
+            if (!(ordinaryRetarget && MountCommandLeftToNative())) relationship.Runtime.CancelMountMovement();
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
+
+        private bool MountCommandLeftToNative() => activeCommand != null && !activeCommand.IsFinished && activeCommand.StrikeReleased &&
+            ReferenceEquals(activeCommand.ActionActor, relationship.Mount);
 
         // PR-1 reviews R3-F1, R4-F1: the order part of a cancellation. The exact wrappers (the active one and the order's own, which may
         // be queue-only) are retained before the intent is cleared and retired through RetireOrderWrapper: a queue-only wrapper is
@@ -1251,15 +1259,23 @@ namespace KingmakerMountedCombat.Integration
             if (orderCommand != null && !ReferenceEquals(orderCommand, command)) RetireOrderWrapper(orderCommand, reason, !ordinaryRetarget);
         }
 
-        // PR-1 review R3-F1: target invalidation retires the generation; an installed wrapper meets the invalid target itself (its
-        // terminal stays native's), a queue-only wrapper of that generation is removed and refused at promotion.
+        // PR-1 reviews R3-F1, R5-F1: an observed target invalidation retires the generation and its exact wrapper, installed or queued,
+        // even if the target's eligibility later returns; a strike already delivered keeps its native terminal handling.
         private void RetireOrderOnTargetInvalidation()
         {
             const string reason = "target invalidation; native child owns terminal outcome";
             var command = stockIntentCommand;
             ClearStockAttackIntent(reason, true);
-            var commands = command?.Executor?.Commands;
-            if (command != null && !command.IsStarted && commands != null && !commands.Contains(command)) RetireOrderWrapper(command, reason);
+            RetireOrderWrapper(command, reason);
+        }
+
+        // PR-1 review R5-F2: invalidation is scoped to the order's own generation, also while an earlier generation's delivered command
+        // still occupies the active slot (that command completes against its own target).
+        private bool RetireOrderIfTargetInvalid(bool targetValid)
+        {
+            if (targetValid || !HasActiveCommand && (stockIntentCommand == null || stockIntentCommand.IsFinished)) return false;
+            RetireOrderOnTargetInvalidation();
+            return true;
         }
 
         public bool TryRouteMountedStockAttack(UnitCommands commands, UnitCommand command)
@@ -1461,7 +1477,7 @@ namespace KingmakerMountedCombat.Integration
                 RiderBrainActive = rider != null && rider.IsBrainActive,
                 StopSuppressed = automaticGate.IsSuppressed(relationship.MountedPairGeneration),
                 MovementForbidden = movementForbidden,
-                TargetInRiderReach = !movementForbidden || IsTargetInRiderReach(target),
+                TargetInRiderReach = !movementForbidden || StationaryStrikeAdmissible(target),
                 TargetValid = UnifiedMountedStockAttackPolicy.IsValidTarget(
                     target != null,
                     target != null && target.IsInState,
@@ -1761,7 +1777,13 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private bool StockIntentStrikeAdmissibleNow() =>
-            stockIntentCommand != null && !stockIntentCommand.IsFinished ? stockIntentCommand.StrikeAdmissibleNow() : IsTargetInRiderReach(stockIntentTarget);
+            stockIntentCommand != null && !stockIntentCommand.IsFinished ? stockIntentCommand.StrikeAdmissibleNow() : StationaryStrikeAdmissible(stockIntentTarget);
+
+        // PR-1 review R5-F3: before a wrapper exists, a melee order's stationary admission is the planned mounted melee strike (mount origin,
+        // planned weapon, command sight), not the rider-only reach shortcut; ranged orders keep their rider reach rule.
+        private bool StationaryStrikeAdmissible(UnitEntityData target) =>
+            ResolveRiderPrimaryAction() == MountedCombatActionKind.RiderRanged ? IsTargetInRiderReach(target)
+                : PlannedStrikeAdmissibleNow(MountedCombatActionKind.RiderMelee, target);
 
         private bool RetainedOrderSuperseded() => HasStockAttackIntent && retainedOrder.IsCurrent(stockIntent.Generation) &&
             retainedOrder.Superseded(stockIntent.Generation) && (stockIntentCommand == null || !stockIntentCommand.StrikeReleased);
@@ -1886,13 +1908,9 @@ namespace KingmakerMountedCombat.Integration
                     targetState.IsDead, targetState.IsFinallyDead, stockIntent.TargetUnconsciousWhenOrdered),
                 principal != null && principal.IsEnemy(target),
                 principal != null && principal.CanAttack(target));
-            if (!targetValid && HasActiveCommand && ReferenceEquals(activeCommand, stockIntentCommand))
-            {
-                // Retire repetition now; the owned child's actual terminal lifecycle decides
-                // success versus expected invalidation. Released projectiles and native AoOs survive.
-                RetireOrderOnTargetInvalidation();
-                return;
-            }
+            // Retire repetition now; the owned child's actual terminal lifecycle decides success versus expected invalidation. Released
+            // projectiles and native AoOs survive.
+            if (RetireOrderIfTargetInvalid(targetValid)) return;
             // A paused click records intent without dispatching, spending or changing selection.
             // Admission is not a gameplay tick. Native commands accept orders in ordinary Pause;
             // only the native controller may start/tick the current actor after it can advance.
@@ -1911,63 +1929,9 @@ namespace KingmakerMountedCombat.Integration
             // versa. The horse joins a rider's ordinary order only for the attack kind the order was ACCEPTED with
             // (MountedRetainedOrderLedger, fixed at Begin) and only while no newer player work was accepted into either actor's
             // container for this order; the order's own wrapper and exact delegated moves (repaths included) never count.
-            var orderGeneration = stockIntent.Generation;
-            var meleeOrder = retainedOrder.IsCurrent(orderGeneration) ? retainedOrder.Melee : !ranged;
-            var dispatchTurn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
-            var riderEligible = turnBased
-                ? !retainedOrder.RiderEnded(orderGeneration) &&
-                    EvaluateStockActor(riderAction == MountedCombatActionKind.RiderRanged ? MountedCombatActionKind.RiderRanged : MountedCombatActionKind.RiderMelee, target).IsAllowed
-                : rider != null && rider.HasStandardAction();
-            var mountEligible = turnBased
-                ? EvaluateStockActor(MountedCombatActionKind.MountPrimaryNatural, target).IsAllowed
-                : mount != null && mount.HasStandardAction();
-            // MMR-05 (review R3-F1). Real time, neither actor strike-ready, an out-of-reach melee order whose movement is lawful:
-            // the rider's order is dispatched now and waits in its native slot exactly as an unmounted UnitAttack does (native
-            // ShouldStartCommand keeps preparation, the initiative wait, cooldown and busy hands); its own pre-start approach
-            // moves the mount meanwhile. Nothing readies, refunds or spends an action.
-            // Reviews R5-F6, R5-F9: the early striker is the order's own actor under the existing order rules (a rider order is the
-            // rider's, an explicit horse order the horse's); temporary start readiness never converts it into the other actor's
-            // attack. The planned-strike probe runs only for an actual early-dispatch decision (no active command, nobody ready).
-            var earlyStriker = MountedEarlyStriker.None;
-            if (!turnBased && rider != null && mount != null && meleeOrder && !HasActiveCommand && !riderEligible && !mountEligible &&
-                !stationary && mount.Descriptor.State.CanMove)
-            {
-                earlyStriker = MountedPreStartApproachPolicy.SelectStriker(stockIntent.MountActor,
-                    riderAction == MountedCombatActionKind.RiderMelee && !rider.IsStandardActionRestricted() && rider.Descriptor.State.CanAct &&
-                        !NativeActorCapability.Read(rider).CanNotAttack,
-                    !mount.IsStandardActionRestricted() && mount.Descriptor.State.CanAct && !NativeActorCapability.Read(mount).CanNotAttack);
-            }
-            var earlyAction = earlyStriker == MountedEarlyStriker.Mount ? MountedCombatActionKind.MountPrimaryNatural : MountedCombatActionKind.RiderMelee;
-            var dispatchBeforeReadiness = earlyStriker != MountedEarlyStriker.None &&
-                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(true, true, false, PlannedStrikeAdmissibleNow(earlyAction, target),
-                    riderEligible, mountEligible);
-            if (dispatchBeforeReadiness)
-            {
-                if (earlyStriker == MountedEarlyStriker.Mount) mountEligible = true; else riderEligible = true;
-            }
-            // PR-1 reviews R3-F4, R3-F5: one production plan decides the next dispatch, the acting actor and its approach authority;
-            // the horse strike-plan probe runs only when a horse dispatch can follow from it.
-            var plan = MountedDispatchPlanner.Plan(new MountedDispatchFacts
-            {
-                ExactPair = relationship.State == RelationshipState.Mounted && rider != null && mount != null,
-                TargetValid = targetValid,
-                PairCommandActive = HasActiveCommand,
-                TurnBased = turnBased,
-                RiderEligible = riderEligible,
-                MountEligible = mountEligible,
-                Ranged = ranged,
-                Stationary = stationary,
-                MountAlreadyInRange = IsMountAlreadyInPrimaryRange(target),
-                ExplicitMountOrder = stockIntent.MountActor,
-                LegacyUnifiedTurn = settings.UseLegacyUnifiedTurn,
-                PairedActivation = settings.EnablePairedActivation,
-                Automatic = stockIntent.Automatic,
-                MountAddressable = turnBased && mount != null && unifiedTurn.CanAddressActor(mount, dispatchTurn),
-                MeleeOrder = meleeOrder,
-                Superseded = retainedOrder.Superseded(orderGeneration),
-                PreferMount = stockIntent.PreferMount,
-                MountInReach = () => FollowThroughStrikeAdmissibleNow(target)
-            });
+            MountedCombatActionKind earlyAction;
+            bool dispatchBeforeReadiness;
+            var plan = PlanStockDispatch(rider, mount, target, turnBased, targetValid, riderAction, ranged, stationary, out earlyAction, out dispatchBeforeReadiness);
             var decision = plan.Decision;
 
             if (decision == MountedStockAttackDecision.Wait)
@@ -2069,6 +2033,75 @@ namespace KingmakerMountedCombat.Integration
                 ";target=" + target.UniqueId +
                 ";riderStandard=" + rider.CombatState.Cooldown.StandardAction.ToString("R") +
                 ";mountStandard=" + mount.CombatState.Cooldown.StandardAction.ToString("R");
+        }
+
+        // PR-1 review R4-F5: the dispatch part of TryDriveStockAttackIntent, one production operation shared with the attack-path harness:
+        // the current generation, each actor's eligibility (a rider attempt that ended for its own capability is never redispatched, even
+        // with its Standard unspent and its capability recovered), the real-time early striker, and the production plan.
+        private MountedDispatchPlan PlanStockDispatch(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, bool turnBased, bool targetValid,
+            MountedCombatActionKind riderAction, bool ranged, bool stationary, out MountedCombatActionKind earlyAction, out bool dispatchBeforeReadiness)
+        {
+            earlyAction = MountedCombatActionKind.RiderMelee;
+            dispatchBeforeReadiness = false;
+            if (!HasStockAttackIntent || target == null) return new MountedDispatchPlan { Decision = MountedStockAttackDecision.Wait };
+            var orderGeneration = stockIntent.Generation;
+            var meleeOrder = retainedOrder.IsCurrent(orderGeneration) ? retainedOrder.Melee : !ranged;
+            var dispatchTurn = turnBased ? Game.Instance?.TurnBasedCombatController?.CurrentTurn : null;
+            var riderEligible = turnBased
+                ? !retainedOrder.RiderEnded(orderGeneration) &&
+                    EvaluateStockActor(riderAction == MountedCombatActionKind.RiderRanged ? MountedCombatActionKind.RiderRanged : MountedCombatActionKind.RiderMelee, target).IsAllowed
+                : rider != null && rider.HasStandardAction();
+            var mountEligible = turnBased
+                ? EvaluateStockActor(MountedCombatActionKind.MountPrimaryNatural, target).IsAllowed
+                : mount != null && mount.HasStandardAction();
+            // MMR-05 (review R3-F1). Real time, neither actor strike-ready, an out-of-reach melee order whose movement is lawful:
+            // the rider's order is dispatched now and waits in its native slot exactly as an unmounted UnitAttack does (native
+            // ShouldStartCommand keeps preparation, the initiative wait, cooldown and busy hands); its own pre-start approach
+            // moves the mount meanwhile. Nothing readies, refunds or spends an action.
+            // Reviews R5-F6, R5-F9: the early striker is the order's own actor under the existing order rules (a rider order is the
+            // rider's, an explicit horse order the horse's); temporary start readiness never converts it into the other actor's
+            // attack. The planned-strike probe runs only for an actual early-dispatch decision (no active command, nobody ready).
+            var earlyStriker = MountedEarlyStriker.None;
+            if (!turnBased && rider != null && mount != null && meleeOrder && !HasActiveCommand && !riderEligible && !mountEligible &&
+                !stationary && mount.Descriptor.State.CanMove)
+            {
+                earlyStriker = MountedPreStartApproachPolicy.SelectStriker(stockIntent.MountActor,
+                    riderAction == MountedCombatActionKind.RiderMelee && !rider.IsStandardActionRestricted() && rider.Descriptor.State.CanAct &&
+                        !NativeActorCapability.Read(rider).CanNotAttack,
+                    !mount.IsStandardActionRestricted() && mount.Descriptor.State.CanAct && !NativeActorCapability.Read(mount).CanNotAttack);
+            }
+            earlyAction = earlyStriker == MountedEarlyStriker.Mount ? MountedCombatActionKind.MountPrimaryNatural : MountedCombatActionKind.RiderMelee;
+            dispatchBeforeReadiness = earlyStriker != MountedEarlyStriker.None &&
+                MountedPreStartApproachPolicy.DispatchBeforeStrikeReadiness(true, true, false, PlannedStrikeAdmissibleNow(earlyAction, target),
+                    riderEligible, mountEligible);
+            if (dispatchBeforeReadiness)
+            {
+                if (earlyStriker == MountedEarlyStriker.Mount) mountEligible = true; else riderEligible = true;
+            }
+            // PR-1 reviews R3-F4, R3-F5: one production plan decides the next dispatch, the acting actor and its approach authority;
+            // the horse strike-plan probe runs only when a horse dispatch can follow from it.
+            var plan = MountedDispatchPlanner.Plan(new MountedDispatchFacts
+            {
+                ExactPair = relationship.State == RelationshipState.Mounted && rider != null && mount != null,
+                TargetValid = targetValid,
+                PairCommandActive = HasActiveCommand,
+                TurnBased = turnBased,
+                RiderEligible = riderEligible,
+                MountEligible = mountEligible,
+                Ranged = ranged,
+                Stationary = stationary,
+                MountAlreadyInRange = IsMountAlreadyInPrimaryRange(target),
+                ExplicitMountOrder = stockIntent.MountActor,
+                LegacyUnifiedTurn = settings.UseLegacyUnifiedTurn,
+                PairedActivation = settings.EnablePairedActivation,
+                Automatic = stockIntent.Automatic,
+                MountAddressable = turnBased && mount != null && unifiedTurn.CanAddressActor(mount, dispatchTurn),
+                MeleeOrder = meleeOrder,
+                Superseded = retainedOrder.Superseded(orderGeneration),
+                PreferMount = stockIntent.PreferMount,
+                MountInReach = () => FollowThroughStrikeAdmissibleNow(target)
+            });
+            return plan;
         }
 
         internal long StockAttackDispatchBeforeReadinessCount { get; private set; }
