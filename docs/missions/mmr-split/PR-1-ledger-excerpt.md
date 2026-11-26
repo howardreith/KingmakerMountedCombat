@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T05:21:49+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T05:52:15+00:00.
 
 ```json
 {"branch": "codex/mmr-attack-orders", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "extraction_commit": "95c26e59", "extraction_proof": "build clean; components 1539/0; Validate-Source 153/0; orders native contract 4/0; lifecycle contract 49/0; attack-path harness 16/0 (metered rerun after removing a PR-2 helper); whole-file identity of 6 owned files with 46444b30; shared-file residuals only PR-2/PR-5 pieces", "initial_push": "audited ordinary push (AGENTS.md; no project helper on main); receipt push-audits/codex_mmr-attack-orders-95c26e59-2026-11-25T153350+0000.json", "kind": "enrollment", "max_rounds": 3, "mission": "docs/missions/mmr-split/PR-1-attack-orders.md", "mission_commit": "f29a45e3", "pr": "PR-1", "pr_number": 65, "prev_sha256": "4ecc6180bebafa14b800701c0c0b66d2a6a255353a0ce6f517bb10c37081dd8a", "program_rounds": {"cap": 22, "child_allocated_so_far": 3, "spent_before": 7}, "seq": 7, "target": "main", "utc": "2026-11-25T15:34:13+00:00"}
@@ -59,8 +59,18 @@ SHA-256 `c64519c4e64866e42ef975a92e4534e3249c0800dfbc7cd1b6e456465863c0bf`
 ```
 SHA-256 `e20446dd89e3e1e109b5bca68fc23b1e63cf9ad07d71400053b11214dbba47fa`
 
+```json
+{"candidate": "390f1093c6cd8f4fd5984eec93e29e338b6a4749", "child_rounds": "5 of 6 used", "decision": "changes_required", "kind": "review_result", "open_findings": ["R1-F11", "R4-F1", "R4-F5", "R4-F6", "R5-F1", "R5-F2", "R5-F3"], "pr": "PR-1", "prev_sha256": "e20446dd89e3e1e109b5bca68fc23b1e63cf9ad07d71400053b11214dbba47fa", "program_rounds": "16 of 25 lifetime (9 of 18 allocated child reviews)", "round": 5, "seq": 32, "utc": "2026-11-26T05:52:14+00:00", "verified_fixed": ["R3-F1", "R2-F4", "R3-F4", "R3-F5", "R4-F2", "R4-F3", "R4-F4"]}
+```
+SHA-256 `3764c18c855df1c30c53761a682e6596d783e6f682eda4bf2bbc1614b8d8edec`
+
+```json
+{"applicable_limits": "owner instruction 2026-11-26 (seq 14): PR-1 ceiling 6 (round 6 is the last), validation 150 min, program 18 allocated child reviews / 25 lifetime", "budget": "budget record read at 2026-11-26T05:51:59Z (before this entry): spent 92.77 of 150 min, remaining 57.23, 102 entries, 0 running/interrupted/unreconciled; the round-6 gate follows", "candidate": "the commit on codex/mmr-attack-orders whose parent is c8b91abf and which regenerates docs/missions/mmr-split/PR-1-ledger-excerpt.md with this entry", "child_rounds": "5 of 6 used", "kind": "pre_review_check", "pr": "PR-1", "prev_sha256": "3764c18c855df1c30c53761a682e6596d783e6f682eda4bf2bbc1614b8d8edec", "program_rounds": "16 of 25 lifetime (9 of 18 allocated child reviews)", "round": 6, "seq": 33, "utc": "2026-11-26T05:52:14+00:00"}
+```
+SHA-256 `706579f5612d27e4cee4f19b8866f2b1ca47bd351d216ffe9486aa22ee4ac0f4`
+
 Controller facts for cross-checking: the r01 request comment on PR #65 was created 2026-11-25T15:35:59Z (after seq 8);
 the r02 request followed gate receipt gate-focused-49b1c7b94e9a-d43d449b6c4-af2513083e1-20261125T164039504028Z (after seq 11).
 Seq 14 is the owner decision of 2026-11-26 (verbatim text committed as docs/missions/mmr-split/owner-authorization-2026-11-26.md):
 PR-1 ceiling 3 -> 6, validation 90 -> 150 minutes, program 18 allocated child reviews / 25 lifetime. Seq 28 records the resume
-by the supported controller operation with that ceiling; seq 30 is the round-4 result; the last entry is the round-5 check for the candidate adding this version.
+by the supported controller operation with that ceiling; seq 30 is the round-4 result, seq 31 the round-5 check, seq 32 the round-5 result; the last entry is the round-6 check for the candidate adding this version.
