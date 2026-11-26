@@ -25,7 +25,9 @@ PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#
     receipt-refused code (51417): that Full attempt is charged to its budget entry and leaves the recorded Full-suite
     duration as it was (established, or unknown). A Full run whose work started records its measured duration whether
     it passes or fails. In the Full plan and estimate the receipt check is a visible prerequisite timed within the
-    umbrella, so its standalone duration is not added; Fast and Candidate keep their separately timed receipt step. `-Plan` reports the receipt state, read-only, on
+    umbrella, so its standalone duration is not added; Fast and Candidate keep their separately timed receipt step. Before any
+    Full duration is recorded, a Full -SkipBuild run uses the recorded receipt-check duration as an admission lower bound
+    (selection and the Full step), while the plan's total stays unknown and no Full history is written. `-Plan` reports the receipt state, read-only, on
     both the reuse-check line and the artifact line.
 - `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
   profile (`umm-0.33.0`) is the installed loader before any admission, compares the installed UnityModManager and
@@ -73,7 +75,9 @@ included a commit). The four gate entries, including the failed round-4 gate, ar
 the round-5 evidence is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r5.json`; the round-4 copy keeps its
 original identity.
 
-**Offline checks.** Round 8 (counted in the budget): `Test-TierSelection` 29/0 and a plan-only `Test-Tiers` probe;
+**Offline checks.** Round 9 (counted in the budget): an R8-F1 reproduction (plans for the four estimate cases and one
+admission-refused run against temporary budgets) and `Test-TierSelection` 29/0; the receipt lower-bound case runs in the
+controller gate. Round 8 (counted in the budget): `Test-TierSelection` 29/0 and a plan-only `Test-Tiers` probe;
 the Full outcome and estimate cases run in the controller gate. Round 7 (counted in the budget): `Test-FrozenProductSource` 41/0 (a committed mixed-case
 `tools/directory.BUILD.Targets` rejects the archived observer and keeps main-only reuse; a mixed-case root
 `directory.BUILD.Props` requires another candidate) and `Test-TierSelection` 29/0 (the real receipt helper with a

@@ -105,6 +105,14 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 9 (2026-11-26, scope freeze)
+
+- **Receipt lower bound for a first Full reuse run.** When a Full `-SkipBuild` run has no inclusive Full duration recorded
+  but the receipt check has one, `Test-Tiers.ps1` uses that duration as a lower bound for selection admission and for the
+  FULL umbrella step's admission. The plan's total estimate stays unknown (the Full line shows the bound) and nothing is
+  recorded as Full history. With an inclusive Full duration it is counted once as before; with neither, the unknown-
+  estimate policy is unchanged; Full with a build, Fast and Candidate are unchanged. The Full outcome handling is untouched.
+
 ## Review round 8 (2026-11-26, scope freeze)
 
 - **Full outcome and timing.** `Test.ps1 -SkipBuild` exits with a dedicated code (51417, `$KmcReceiptRefusedExitCode` in
