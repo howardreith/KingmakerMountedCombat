@@ -1,0 +1,3 @@
+PASS horse native-controls UX repairs are exact-pair scoped and preserve historical schema
+TOTAL PASS=1 FAIL=0
+METERED Test-Harness.ps1 -Only R3-F6 legacy Horse case, rerun (PR-5 r5) 6.2 s | get mounted-alpha2-melee-pose-20261124: spent 128.94 of 150 min; remaining 21.05 min; entries 192 (running 0, interrupted 0, unreconciled 0) 

@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unconscious despawn and hostility changes cancel without inventing success", ExpectedTargetInvalidation);
             runner.Run("animated saddle follows absolute displacement without drift or mechanics writes", AnimatedSaddleFollows);
             runner.Run("animated saddle restores its lease and recalibrates for replacement views", AnimatedSaddleCleanup);
+            runner.Run("R1-F13/R2-F4 (formatter only): the Horse strike line states handle and active-clip facts literally", HorseStrikeLines);
             runner.Run("mounted stock attack requires an exact frame-bounded native request", RequiresExactNativeRequest);
             runner.Run("a refused AI proposal neither erases nor borrows a pending player click", ProposalCannotEraseOrBorrowClick);
             runner.Run("restored rider Standard debt routes the stock click to the ready mount first", RestoredDebtRoutesMountFirst);
@@ -423,6 +424,29 @@ namespace KingmakerMountedCombat.Tests
                 var repeat = saddle.Project(sample);
                 TestRunner.True((repeat - projected).Magnitude < 0.00001f, "Repeated phase accumulated translation.");
             }
+        }
+
+        private static HorseStrikeRecord StrikeLine(int index, string slot, string weapon, string special, bool hasHandle, string action, bool started,
+            bool acted, bool interrupted, float speed, int variant, int variants, string clip, float weight, string state) =>
+            new HorseStrikeRecord { Horse = "horse-1", Index = index, Count = 3, Slot = slot, Weapon = weapon, Special = special, HasHandle = hasHandle,
+                Action = action, Started = started, Acted = acted, Interrupted = interrupted, SpeedScale = speed, Variant = variant, Variants = variants,
+                ActiveClip = clip, ClipWeight = weight, AnimationState = state, Target = "kobold" };
+
+        private static void HorseStrikeLines()
+        {
+            var bite = StrikeLine(1, "limb0", "Bite1d4", "Bite", true, "HorseAnimationSet_Bite", true, true, false, 2.4f, 0, 1,
+                "BiteAttack", 0.8f, "Playing").Format();
+            TestRunner.True(bite.Contains("horse=horse-1") && bite.Contains("handle=started,acted") && bite.Contains("action=HorseAnimationSet_Bite") &&
+                bite.Contains("speedScale=2.4") && bite.Contains("activeClip=BiteAttack") && bite.Contains("clipWeight=0.8") &&
+                bite.Contains("animationState=Playing") && bite.Contains("index=1/3") && !bite.Contains("playback"), "A stock Bite handle was not stated literally: " + bite);
+            var missing = StrikeLine(1, "limb0", "Bite1d4", "Bite", false, null, false, false, false, 0f, 0, 0, null, 0f, null).Format();
+            TestRunner.True(missing.Contains("handle=none") && !missing.Contains("activeClip"), "A missing Bite handle was not identifiable: " + missing);
+            TestRunner.Equal("started,not-acted", HorseStrikeDiagnostic.HandleState(true, true, false, false), "An unacted handle was misstated.");
+            TestRunner.Equal("started,acted,interrupted", HorseStrikeDiagnostic.HandleState(true, true, true, true), "An interrupted handle was misstated.");
+            var hoof = StrikeLine(2, "limb1", "Hoof1d4", "Hoof", true, "HorseAnimationSet_Hoof", true, true, false, 2.4f, 1, 2,
+                "Left_Hoof_Attack", 1f, "Playing").Format();
+            TestRunner.True(hoof.Contains("special=Hoof") && hoof.Contains("activeClip=Left_Hoof_Attack") && hoof.Contains("index=2/3") && hoof.Contains("slot=limb1"),
+                "The hoof control was not distinguishable: " + hoof);
         }
 
         private static void AnimatedSaddleCleanup()

@@ -170,7 +170,20 @@ namespace KingmakerMountedCombat.Integration
 
         public float TargetDisplacementAtAttackStart { get; set; }
 
+        // PR-5 review R1-F4: the AttackAnimation* playback fields describe the Bite handle observed at its own strike
+        // (HorseBiteTerminal.Project), not the command's earlier registration; AttackAnimationObservation states what was
+        // observed and the registration stays available, separately, in AttackAnimationHandleRegistered/RegisteredSource.
         public bool AttackAnimationHandleCreated { get; set; }
+
+        public string AttackAnimationObservation { get; set; }
+
+        // PR-5 review R3-F3: the exception type of an observed handle fact that could not be read at the terminal (null when read);
+        // the scenario checks reject the playback when set (HorseBiteTerminal.PlaybackAccepted).
+        public string AttackAnimationFactsUnreadable { get; set; }
+
+        public bool AttackAnimationHandleRegistered { get; set; }
+
+        public string AttackAnimationRegisteredSource { get; set; }
 
         public string AttackAnimationHandleSource { get; set; }
 
@@ -183,6 +196,11 @@ namespace KingmakerMountedCombat.Integration
         public bool AttackAnimationFinished { get; set; }
 
         public bool AttackAnimationInterrupted { get; set; }
+
+        // MMR-07 owner-log evidence (PR-5 review R1-F4): the terminal horseBite fields, from the Bite as observed at its own strike
+        // (HorseBiteTerminal.Describe); null outside an exact KMC Horse primary command. The native routine compresses every
+        // limb's clip into one window with one SpeedScale (UnitAttack.ConfigureAnimations), which the speedScale field reports.
+        public string HorseBiteTerminal { get; set; }
     }
 
     internal sealed class MountedPairAttackCommand : MountedPairSingleAttack
@@ -805,14 +823,32 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact or duplicate handle.");
             }
+            // PR-5 review R1-F3: the fallible metadata reads come first; the record is then published whole or not at all.
+            var actionName = animationAction.name ?? "<unnamed>";
+            var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationAction = animationAction;
             horsePrimaryAnimationHandleSource = handleSource;
-            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
-            horsePrimaryAnimationActionType = animationAction.Type.ToString();
+            horsePrimaryAnimationActionName = actionName;
+            horsePrimaryAnimationActionType = actionType;
         }
 
         internal bool HasAnyRecordedHorsePrimaryAnimation => horsePrimaryAnimationHandle != null;
+
+        // The recorded SpecialAttack action (null until a handle is recorded); a refresh must play the same action.
+        internal UnitAnimationActionSpecialAttack RecordedHorsePrimaryAnimationAction => horsePrimaryAnimationAction;
+
+        // PR-5 review R1-F7: the once-per-command "planned without a handle after a recorded one" report lives on the command,
+        // so the adapter keeps no reference to a finished command.
+        internal bool HorsePrimaryMissingHandleReported { get; private set; }
+
+        internal void MarkHorsePrimaryMissingHandleReported() => HorsePrimaryMissingHandleReported = true;
+
+        // PR-5 review R1-F4: the Bite as observed at its own strike, separate from the registration above.
+        private readonly HorseBiteObservation<UnitAnimationActionHandle> horseBiteObservation = new HorseBiteObservation<UnitAnimationActionHandle>();
+
+        private bool IsExactKmcHorseCommand => action == MountedCombatActionKind.MountPrimaryNatural && actionActor == mount && mount != null &&
+            string.Equals(mount.Blueprint?.AssetGuid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal);
 
         internal bool HasRecordedHorsePrimaryAnimation(UnitAnimationActionHandle handle)
         {
@@ -835,10 +871,13 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Horse primary animation telemetry rejected a nonexact stock-handle refresh.");
             }
 
+            // PR-5 review R1-F3: as Record, the metadata reads precede every write.
+            var actionName = animationAction.name ?? "<unnamed>";
+            var actionType = animationAction.Type.ToString();
             horsePrimaryAnimationHandle = handle;
             horsePrimaryAnimationHandleSource = "stock-created";
-            horsePrimaryAnimationActionName = animationAction.name ?? "<unnamed>";
-            horsePrimaryAnimationActionType = animationAction.Type.ToString();
+            horsePrimaryAnimationActionName = actionName;
+            horsePrimaryAnimationActionType = actionType;
         }
 
         internal bool HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)
@@ -988,7 +1027,67 @@ namespace KingmakerMountedCombat.Integration
 
         protected override ResultType OnAction()
         {
+            ObserveHorseStrike();
             return base.OnAction();
+        }
+
+        // MMR-07 owner-log evidence (review R1-F13), one line per native strike of the exact KMC Horse, read at its own act
+        // event before native triggers the attack rule. The facts come from the production reader (HorseStrikeReader) over the
+        // planned attack and the handle bound to it (HorseStrikeSource below): limb index, weapon, special animation type,
+        // handle facts stated literally, and the active AnimationBase's clip, weight and state. Read only: OnAction still calls
+        // base.OnAction exactly once, so the native attack event and damage count are unchanged.
+        private void ObserveHorseStrike()
+        {
+            // Only the exact KMC Horse (not a Mammoth, Riding Dog or other mount's natural attack).
+            try { if (!IsExactKmcHorseCommand) return; }
+            catch (Exception) { return; }
+            // PR-5 review R2-F2: plan acquisition, limb classification, the handle read and the strike line all run inside the
+            // total HorseStrikeObservationStep, which never throws; OnAction's single base.OnAction delegation always follows.
+            // A failed read is an explicit unreadable observation (replacing any earlier Bite) with one identifiable line.
+            HorseStrikeObservationStep.Observe(horseBiteObservation,
+                () => PlannedAttack,
+                planned => HorsePrimaryAttackAnimationAdapter.ClassifyHorseStrike(mount, planned),
+                planned => planned?.AnimationHandle,
+                // PR-5 review R3-F4: the source is captured with the observed handle at its strike.
+                handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationHandleSource : HorseBiteTerminal.Unrecorded,
+                planned => HorseStrikeReader.Read(new HorseStrikeSource(planned, mount), mount.UniqueId, GetAttackIndex() + 1,
+                    AllAttacks.Count, Target?.UniqueId).Format(),
+                () => mount?.UniqueId,
+                TryLogInfo);
+        }
+
+        // The real-type source of HorseStrikeReader: the planned attack's weapon, its slot on the Horse's body and its current
+        // native handle.
+        private sealed class HorseStrikeSource : IHorseStrikeSource<UnitAnimationActionHandle>
+        {
+            private readonly AttackHandInfo planned;
+            private readonly UnitEntityData horse;
+
+            internal HorseStrikeSource(AttackHandInfo planned, UnitEntityData horse) { this.planned = planned; this.horse = horse; }
+
+            // PR-5 review R1-F5: the planned hand resolved against the Horse's actual body slots.
+            public string Slot => HorseStrikeDiagnostic.Slot(planned?.Hand, horse?.Body?.PrimaryHand, horse?.Body?.SecondaryHand, horse?.Body?.AdditionalLimbs);
+
+            public string WeaponName => planned?.Weapon?.Blueprint?.name;
+            public string SpecialType
+            {
+                get
+                {
+                    var weapon = planned?.Weapon?.Blueprint;
+                    return weapon?.VisualParameters == null ? null : weapon.VisualParameters.SpecialAnimation.ToString();
+                }
+            }
+            public UnitAnimationActionHandle Handle => planned?.AnimationHandle;
+            public string ActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
+            public bool IsStarted(UnitAnimationActionHandle handle) => handle.IsStarted;
+            public bool IsActed(UnitAnimationActionHandle handle) => handle.IsActed;
+            public bool IsInterrupted(UnitAnimationActionHandle handle) => handle.IsInterrupted;
+            public float SpeedScale(UnitAnimationActionHandle handle) => handle.SpeedScale;
+            public int Variant(UnitAnimationActionHandle handle) => handle.Variant;
+            public int VariantsCount(UnitAnimationActionHandle handle) => handle.VariantsCount;
+            public string ActiveClip(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.GetActiveClip()?.name;
+            public float ActiveWeight(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.GetWeight() ?? 0f;
+            public string ActiveState(UnitAnimationActionHandle handle) => handle.ActiveAnimation?.State.ToString();
         }
 
         protected override void OnEnded(bool raiseEvent = true)
@@ -1689,12 +1788,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 TryLogException("Mounted pair terminal capability reading", exception);
             }
-            MountedPairAttackOutcome outcome;
-            try { outcome = DescribeOutcome(capabilityBlock, actorName); }
-            catch (Exception exception)
+            // PR-5 review R2-F3: the detailed or the minimal outcome, then the Bite disposition and its observed playback attached on
+            // the common path (HorseTerminalOutcome.Compose), so both carry it.
+            var outcome = HorseTerminalOutcome.Compose(() => DescribeOutcome(capabilityBlock, actorName), exception =>
             {
                 TryLogException("Mounted pair terminal description", exception);
-                outcome = new MountedPairAttackOutcome
+                return new MountedPairAttackOutcome
                 {
                     Action = action,
                     TransactionState = transaction?.State.ToString(),
@@ -1712,7 +1811,7 @@ namespace KingmakerMountedCombat.Integration
                     DelegatedMoveStartCount = delegatedMoveStartCount,
                     TerminalReason = transaction?.TerminalReason
                 };
-            }
+            }, AttachHorseBite);
             // Review of fa533e97 (R20): delivery is marked once and never retried, because a partly applied handler must not
             // run twice. The controller's handler settles ownership, retirement and the outcome before anything fallible and
             // contains every diagnostic, so nothing is expected to escape; anything unexpected is contained here, and the
@@ -1824,14 +1923,66 @@ namespace KingmakerMountedCombat.Integration
                 RiderDisplacementAtAttackStart = riderDisplacementAtAttackStart,
                 MountDisplacementAtAttackStart = mountDisplacementAtAttackStart,
                 TargetDisplacementAtAttackStart = targetDisplacementAtAttackStart,
-                AttackAnimationHandleCreated = horsePrimaryAnimationHandle != null,
-                AttackAnimationHandleSource = horsePrimaryAnimationHandleSource,
-                AttackAnimationActionName = horsePrimaryAnimationActionName,
-                AttackAnimationActionType = horsePrimaryAnimationActionType,
-                AttackAnimationActed = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsActed,
-                AttackAnimationFinished = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsFinished,
-                AttackAnimationInterrupted = horsePrimaryAnimationHandle != null && horsePrimaryAnimationHandle.IsInterrupted
             };
+        }
+
+        // PR-5 reviews R1-F4/R2-F3: on both terminal paths. The text fields and the structured playback come from the same Bite
+        // observation; the registration is reported separately. Each part is contained.
+        private void AttachHorseBite(MountedPairAttackOutcome outcome)
+        {
+            outcome.HorseBiteTerminal = DescribeHorseBiteTerminal();
+            var playback = DescribeHorseBitePlayback();
+            outcome.AttackAnimationObservation = playback.Observation;
+            outcome.AttackAnimationHandleRegistered = playback.RegisteredHandle;
+            outcome.AttackAnimationRegisteredSource = playback.RegisteredSource;
+            outcome.AttackAnimationHandleCreated = playback.HandleObserved;
+            outcome.AttackAnimationHandleSource = playback.Source;
+            outcome.AttackAnimationActionName = playback.ActionName;
+            outcome.AttackAnimationActionType = playback.ActionType;
+            outcome.AttackAnimationActed = playback.Acted;
+            outcome.AttackAnimationFinished = playback.Finished;
+            outcome.AttackAnimationInterrupted = playback.Interrupted;
+            outcome.AttackAnimationFactsUnreadable = playback.FactsUnreadable;
+        }
+
+        // The native action-name read of an observed handle that is not the registered one, kept in its own method so the terminal
+        // descriptions read it only for such a handle (the registered handle's name was captured when it was recorded).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static string NativeActionName(UnitAnimationActionHandle handle) => handle.Action?.name;
+
+        private HorseBitePlayback DescribeHorseBitePlayback()
+        {
+            try
+            {
+                if (!IsExactKmcHorseCommand)
+                    return new HorseBitePlayback { RegisteredHandle = horsePrimaryAnimationHandle != null, RegisteredSource = horsePrimaryAnimationHandleSource };
+                return HorseBiteTerminal.Project(horseBiteObservation, horsePrimaryAnimationHandle, horsePrimaryAnimationHandleSource,
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : NativeActionName(handle),
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionType : (handle.Action as UnitAnimationAction)?.Type.ToString(),
+                    handle => handle.IsActed, handle => handle.IsFinished, handle => handle.IsInterrupted);
+            }
+            catch (Exception exception)
+            {
+                return new HorseBitePlayback { Observation = "unreadable(" + exception.GetType().Name + ")" };
+            }
+        }
+
+        // PR-5 review R1-F4: the terminal Bite fields from the observed Bite (its own handle, no handle, or not reached), never
+        // from a superseded registration. Null outside an exact KMC Horse primary command.
+        private string DescribeHorseBiteTerminal()
+        {
+            try
+            {
+                if (!IsExactKmcHorseCommand) return null;
+                return HorseBiteTerminal.Describe(horseBiteObservation, horsePrimaryAnimationHandle, horsePrimaryAnimationHandleSource,
+                    AllAttacks?.Count ?? 0,
+                    handle => ReferenceEquals(handle, horsePrimaryAnimationHandle) ? horsePrimaryAnimationActionName : NativeActionName(handle),
+                    handle => handle.SpeedScale, handle => handle.IsActed, handle => handle.IsFinished, handle => handle.IsInterrupted);
+            }
+            catch (Exception exception)
+            {
+                return "{observed=unreadable(" + exception.GetType().Name + ")}";
+            }
         }
 
         private void ObserveNativeAdmission(MountedPairNativeAdmissionState state)

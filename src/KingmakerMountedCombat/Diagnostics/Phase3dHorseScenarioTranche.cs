@@ -3091,8 +3091,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ruleProbe.PairDamageRuleCount <= 1 && outcome.ChildAttackStartCount == 1 &&
                     outcome.NativeAttackRuleObserved && outcome.ActionStandardCharged &&
                     !outcome.RiderStandardCharged && outcome.AttackWeaponIsNatural &&
-                    outcome.AttackAnimationHandleCreated && outcome.AttackAnimationActed &&
-                    outcome.AttackAnimationFinished && !outcome.AttackAnimationInterrupted &&
+                    // PR-5 review R3-F2: the observed handle with an exact source and readable facts, not only a boolean.
+                    HorseBiteTerminal.PlaybackAccepted(outcome.AttackAnimationHandleCreated, outcome.AttackAnimationHandleSource,
+                        outcome.AttackAnimationInterrupted, outcome.AttackAnimationFactsUnreadable) && outcome.AttackAnimationActed &&
+                    outcome.AttackAnimationFinished &&
                     schedulerLifecycleExact && unifiedLifecycleExact,
                 "Explicit Mount Primary completed one exact Horse-owned scheduler lease, attack, animation, rule chain, and Standard charge while the rider remained the native turn principal.",
                 evidence);

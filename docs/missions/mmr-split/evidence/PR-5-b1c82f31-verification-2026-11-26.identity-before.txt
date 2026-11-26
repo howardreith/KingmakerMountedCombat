@@ -1,0 +1,7 @@
+started_utc=2026-11-26T13:01:05Z
+worktree=C:/Dev/KingmakerMountedCombatLab/worktrees/mmr-horse-bite-b1c82f31-verify
+head=b1c82f31b47dc96d93d556bc152970f4f634f17d
+tree=2eabcd4993e363c4226dd36461379d55c7f6982b
+status_before_begin
+status_before_end
+command=scripts/Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseBiteFocused.ps1 (Release) KMC_WORKFLOW_BUDGET_ID=mounted-alpha2-melee-pose-20261124

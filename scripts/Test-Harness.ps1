@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param()
+# PR-5 review R4-F1: -Only runs exactly one named case (invocation-scoped; see scripts/HarnessDispatch.ps1). Without it every case runs.
+param([string]$Only)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'HarnessDispatch.ps1')
+Initialize-HarnessSelection $Only
 
 $repoRoot = Get-KmcRepositoryRoot
 $currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
@@ -33,19 +36,6 @@ function New-TestChildEntryPreamble([string]$Scenario,[string]$RunId) {
         actors=[ordered]@{rider=(& $actor 'rider' 101);mount=(& $actor 'horse' 102)}
         party=[ordered]@{playerInCombat=$false;members=6;membersInCombat=0;idle=$true;memberIds=@('rider','horse','a','b','c','d')}
         turnBased=$false;currentTurnActor=$null;paused=$false
-    }
-}
-
-function Invoke-HarnessTest {
-    param([string]$Name, [scriptblock]$Body)
-    try {
-        & $Body
-        $script:passed++
-        Write-Host "PASS $Name"
-    }
-    catch {
-        $script:failed++
-        Write-Host "FAIL $Name`: $($_.Exception.Message)"
     }
 }
 
@@ -10501,6 +10491,21 @@ try {
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $nativeControlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+        # PR-5 review R3-F6 (round 5): the exact-action, ownership and idempotence rules are judged by behavior, not spelling: the
+        # compiled HorseStrikeHandleBinding decision on genuine Kingmaker handle/action/manager objects (the production-backed cases of
+        # scripts/Test-MountedAlpha2BiteContract.ps1, run here on the built product). Two eligible Bite actions write nothing, a repeated
+        # handle is registered once, and a handle of another animation manager is refused.
+        $bindingContract = Join-Path $PSScriptRoot 'Test-MountedAlpha2BiteContract.ps1'
+        # A PowerShell 7 parent's module path breaks a Windows PowerShell child's autoload (as in the focused wrappers).
+        $savedModulePath = $env:PSModulePath; $env:PSModulePath = $null
+        try { $bindingLines = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bindingContract 2>&1 | ForEach-Object { [string]$_ }); $bindingExit = $LASTEXITCODE }
+        finally { $env:PSModulePath = $savedModulePath }
+        foreach ($required in @('PASS two Bite actions: the fallback assigns nothing', 'PASS the same genuine handle is recorded exactly once',
+                'PASS a genuine handle from another animation manager is refused')) {
+            Assert-Test ($bindingExit -eq 0 -and @($bindingLines | Where-Object { $_ -ceq $required }).Count -eq 1) `
+                ('Horse primary binding behavior not established by the compiled decision (exit ' + $bindingExit + '): ' + $required)
+        }
+
         $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
         $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
@@ -10524,8 +10529,7 @@ try {
             $horsePrimaryAnimationSource.Contains('command.Action == MountedCombatActionKind.MountPrimaryNatural') -and
             $horsePrimaryAnimationSource.Contains('HorseCompanionBlueprintService.UnitGuid') -and
             $horsePrimaryAnimationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
-            $horsePrimaryAnimationSource.Contains('if (actions.Length != 1)') -and
-            $horsePrimaryAnimationSource.Contains('attack.AnimationHandle = handle;') -and
+            $horsePrimaryAnimationSource.Contains('handle => attack.AnimationHandle = handle') -and
             $projectSource.Contains('Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs"') -and
             -not $animationSource.Contains('catch') -and
             -not $horsePrimaryAnimationSource.Contains('catch')) `
@@ -10538,12 +10542,8 @@ try {
             $directAnimationIndex -gt $childInitIndex -and
             $childValidationIndex -gt $directAnimationIndex -and
             $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
-            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse))') -and
-            $horsePrimaryAnimationSource.Contains('command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle)') -and
-            $horsePrimaryAnimationSource.Contains('if (command.HasAnyRecordedHorsePrimaryAnimation)') -and
-            $horsePrimaryAnimationSource.Contains('command.RefreshStockCreatedHorsePrimaryAnimation(attack.AnimationHandle, stockAction);') -and
+            $horsePrimaryAnimationSource.Contains('var exact = IsExactHorsePrimaryContext(command, attack, horse) && IsHorseBiteSlot(horse, attack);') -and
             $horsePrimaryAnimationSource.Contains('HandleRefreshCount++;') -and
-            $horsePrimaryAnimationSource.Contains('command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");') -and
             $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;') -and
             $attackCommandSource.Contains('!ReferenceEquals(horsePrimaryAnimationAction, animationAction)') -and
             $attackCommandSource.Contains('horsePrimaryAnimationHandleSource = "stock-created";')) `
@@ -13228,6 +13228,8 @@ finally {
     }
 }
 
+$selectionFailure = Get-HarnessSelectionFailure
+if ($null -ne $selectionFailure) { $failed++; Write-Host "FAIL harness selection: $selectionFailure" }
 Write-Host "TOTAL PASS=$passed FAIL=$failed"
-if ($failed -ne 0) { exit 1 }
+if ($failed -ne 0 -or $passed -eq 0) { exit 1 }
 

@@ -2324,6 +2324,9 @@ namespace KingmakerMountedCombat.Integration
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
                 "; transaction=" + (outcome.TransactionState ?? "<none>") +
                 "; terminal=" + terminal +
+                // PR-5 review R1-F4/R1-F11: present for every exact KMC Horse primary command (observed=handle|no-handle|not-reached),
+                // formatted with the invariant culture.
+                (outcome.HorseBiteTerminal != null ? "; horseBite=" + outcome.HorseBiteTerminal : string.Empty) +
                 "; feedback=" + LastFeedback);
             if (!stockIntentOwned || MountedAttackTerminalPolicy.RetainsIntent(terminal))
             {
