@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T14:25:06+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T14:55:35+00:00.
 
 ```json
 {"branch": "codex/mmr-attack-orders", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "extraction_commit": "95c26e59", "extraction_proof": "build clean; components 1539/0; Validate-Source 153/0; orders native contract 4/0; lifecycle contract 49/0; attack-path harness 16/0 (metered rerun after removing a PR-2 helper); whole-file identity of 6 owned files with 46444b30; shared-file residuals only PR-2/PR-5 pieces", "initial_push": "audited ordinary push (AGENTS.md; no project helper on main); receipt push-audits/codex_mmr-attack-orders-95c26e59-2026-11-25T153350+0000.json", "kind": "enrollment", "max_rounds": 3, "mission": "docs/missions/mmr-split/PR-1-attack-orders.md", "mission_commit": "f29a45e3", "pr": "PR-1", "pr_number": 65, "prev_sha256": "4ecc6180bebafa14b800701c0c0b66d2a6a255353a0ce6f517bb10c37081dd8a", "program_rounds": {"cap": 22, "child_allocated_so_far": 3, "spent_before": 7}, "seq": 7, "target": "main", "utc": "2026-11-25T15:34:13+00:00"}
@@ -94,6 +94,16 @@ SHA-256 `a82bcb4ff55d5bfe7a427a8dbd8122b87f4691e6e2a3856da82891f167bd5423`
 ```
 SHA-256 `e657e17eb099c4af400f8d0d2efc185bcf03f874222e35bdf231ab27225667d3`
 
+```json
+{"budget": "budget record read at 2026-11-26T14:45:30Z: budget mounted-alpha2-melee-pose-20261124: spent 118.6 of 150 min; remaining 31.4 min; entries 160 (running 0, interrupted 0, unreconciled 0)", "candidate": "7c6ec09036cc68efca48baf77238ac5c5028dab5", "controller_status": "ACTIVE (7 of 8)", "decision": "changes_required", "kind": "review_result", "note": "the decomposition approval's stop rule (a carried finding rejected in two consecutive child rounds) is read against the later owner extension 2026-11-26b, which authorized rounds 7-8 for these carried findings and kept the controller's no-progress handling; the controller left the enrollment ACTIVE, so round 8 is used and the reading is reported to the owner", "open_blocking": ["R1-F11", "R4-F1", "R4-F5", "R6-F1", "R7-F1", "R7-F2"], "open_optional": ["R7-F3"], "pr": "PR-1", "prev_sha256": "e657e17eb099c4af400f8d0d2efc185bcf03f874222e35bdf231ab27225667d3", "program_rounds": "25 of 33 lifetime (18 of 26 allocated child reviews)", "resolved": ["R4-F6", "R5-F3", "R6-F2"], "round": 7, "seq": 61, "utc": "2026-11-26T14:45:30+00:00"}
+```
+SHA-256 `6f7663730fc96ef6dd0a34cb3fd86a93c9dedfe2d72f3b2f8f4b53068632795c`
+
+```json
+{"budget": "budget record read at 2026-11-26T14:55:34Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 120.82 of 150 min; remaining 29.18 min; entries 167 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-attack-orders that regenerates docs/missions/mmr-split/PR-1-ledger-excerpt.md with this entry", "child_rounds": "7 of 8 used (round 8 is the last)", "kind": "pre_review_check", "pr": "PR-1", "prev_sha256": "6f7663730fc96ef6dd0a34cb3fd86a93c9dedfe2d72f3b2f8f4b53068632795c", "program_rounds": "25 of 33 lifetime (18 of 26 allocated child reviews)", "round": 8, "seq": 62, "utc": "2026-11-26T14:55:34+00:00"}
+```
+SHA-256 `bcb5141b48512f1a7477e007f4358c4c1ef482405eecc9cf1dd0d4d53f45b638`
+
 Controller facts for cross-checking: the r01 request comment on PR #65 was created 2026-11-25T15:35:59Z (after seq 8);
 the r02 request followed gate receipt gate-focused-49b1c7b94e9a-d43d449b6c4-af2513083e1-20261125T164039504028Z (after seq 11).
 Seq 14 is the owner decision of 2026-11-26 (verbatim text committed as docs/missions/mmr-split/owner-authorization-2026-11-26.md):
@@ -101,4 +111,5 @@ PR-1 ceiling 3 -> 6, validation 90 -> 150 minutes, program 18 allocated child re
 by the supported controller operation with that ceiling; seq 30 is the round-4 result, seq 31 the round-5 check, seq 32 the round-5 result,
 seq 33 the round-6 check and seq 34 the round-6 stop (no progress). Seq 42 corrects the blocking counts in the final handoff; seq 43 is
 the owner extension of 2026-11-26 (docs/missions/mmr-split/owner-authorization-2026-11-26b.md): PR-1 ceiling 8, program 26 child /
-33 lifetime reviews, validation unchanged at 150 minutes. The PR-1 resume to 8 and the round-7 check are the last two entries.
+33 lifetime reviews, validation unchanged at 150 minutes. Seq 59 is the PR-1 resume to 8, seq 60 the round-7 check, seq 61 the round-7
+result; the last entry is the round-8 check for the candidate that adds this version.
