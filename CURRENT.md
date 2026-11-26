@@ -14,6 +14,23 @@ the integrated result as an alpha prerelease (not Latest; 0.2.15 stays the stabl
   [docs/RELEASE-NOTES-0.2.16-alpha.2.md](docs/RELEASE-NOTES-0.2.16-alpha.2.md).
 - **Budget:** `release-0.2.16-alpha.2`, 30-minute allowance (owner, 2026-11-26), separate from the completed correction
   budget `umm-0311-baseline` (47.64 of 48.62 min), which is unchanged.
+- **Offline (release commit `7a9861a5`, budget `release-0.2.16-alpha.2`):**
+  - Controller focused gate `-Tier Fast -Focused Test-MountedShieldFocused.ps1`: PASS in 140.6 s (4/4 steps; components
+    1525/0, Validate-Source 153/0, 17 of 17 Mounted Shield children, including the loader bindings 25/0 against the
+    0.31.1 compile pin and 25/0 against the installed 0.33.0 loader). An earlier attempt failed in its build step
+    (4.7 s): the new worktree had not yet acquired the pins (`scripts/Get-PinnedLoaderReferences.ps1`).
+  - Controller focused gate `-Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1`: PASS in 265.2 s (4/4; components
+    1525/0, Validate-Source 153/0, package admission and reuse 65/0).
+  - Static loader API audit of both packaged DLLs: mod 14 types/42 members and observer 8 types/20 members resolve on UMM
+    0.31.1, 0.32.4, the owner's 0.33.0 and 0.33.4 ([records](docs/evidence/release-0.2.16-alpha.2/INDEX.md)). Static only.
+- **Packages** (`scripts/Package.ps1 -IncludeRemovalObserver -ArtifactQualifier release` at `7a9861a5`, one clean build):
+  - `KingmakerMountedCombat-0.2.16-alpha.2-release-diagnostic.zip`, SHA-256
+    `64a4317c5fcc6ce3a66e513788a120145120df5979d31d1243ccb26ae893a7ca`; DLL
+    `2105f305856a65c85b82e0294341462bf6ffe0e89420ea011ef860864fe5ddc8`, MVID `34815fb3-3bd1-4d52-8571-46345f170bea`
+    (the DLL both gates tested); validator 12/0.
+  - `KmcRemovalObserver-0.1.0-observer.8-release-diagnostic.zip`, SHA-256
+    `2c0fe38225adbffccec2fe2e31dff82d6a93eeaac9a1d470b065110e5350b1d7`; DLL `f9697f91…` (byte-identical to PR #62's
+    reviewed observer); validator 8/0.
 - **Native:** NOT RUN, startup included; no installation, launch or save change.
 
 # UMM 0.31.1 BASELINE (2026-11-24, UNRELEASED, DRAFT PR #62)
