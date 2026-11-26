@@ -1,6 +1,6 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs exported 2026-11-26 04:50 UTC for candidate commit `e3723c0d240415f8c7e70bb077977bf4e8f24ab3`. Each row names what produced that output (its
+Machine-generated outputs exported 2026-11-26 11:59 UTC for candidate commit `441ce4ee4b2a119dd6e380ec57892a9ff3568f80`. Each row names what produced that output (its
 source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
@@ -17,9 +17,12 @@ python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_
 
 | File | Produced by | Raw SHA-256 | Exported SHA-256 (Git blob) |
 | --- | --- | --- | --- |
-| `r8f1-reproduction.txt` | e3723c0d code, run on the uncommitted batch: Test-Tiers plans for the four estimate cases and one admission-refused run against temporary budgets (counted in the budget) | `4694b3e5b955048839a6440a73cb2480f5ea49380e749fdd77300aa7ef503563` | `907de07b09a8c4c21dbf6c5da686a2e63aeb5aabb9eb6a7c84c1a78bed0216c2` |
-| `tier-selection-r9.log` | e3723c0d code, run on the uncommitted batch (29/0; counted in the budget) | `664dda9c7506a404878bc076feae8b911ff005efb590ad0f4e57da95f970ddf0` | `563c8639506d0c7d18e3f97ef890935adef62f677806bdd5148da72768fb2d0b` |
-| `workflow-budget-umm-0311-baseline-r9.json` | read-only copy of the lab budget record umm-0311-baseline before the round-9 gate (fifth allowance adjustment 40.62 -> 45.62 min; round-9 direct runs imported) | `321175107e242163b9298db67afa0da9c8de40dfe2a3f162e485d261b3ac87f9` | `a7b3f530dfe59797f4be7cb80b5aba465507bc29d14cfaadf6aa64dabc8606d3` |
+| `tier-selection-r10.log` | 441ce4ee code, run on the uncommitted batch (30/0, including the zero-second receipt case; counted in the budget) | `5dece05039fba520917d1584f6e2b13aaf279cc852c01925e45badd1f499565a` | `aed46dea880a54030e69c27d3128dfe97986fde37cfe8bcf0c105a832e6f54cf` |
+| `r9f1-reproduction.txt` | 441ce4ee code, run on the uncommitted batch: Test-Tiers plans for receipt 0 s, 0.4 s, 600 s and inclusive 200 s against temporary budgets (counted in the budget) | `8120aafd9643543e03b8bdfe62745a06b005a6e3132838b476b2ab79dab2c69b` | `eacf706b087c1cd37ed1277eb2f61d9226cfd9cfd6eb4e8037162e1d208575fb` |
+| `workflow-budget-umm-0311-baseline-r10.json` | read-only copy of the lab budget record umm-0311-baseline before the round-10 gate (sixth allowance adjustment 45.62 -> 48.62 min; round-10 direct runs imported) | `80a6b56c26e7899dad2e79ce65bdbd830641253936144090a910503a5282dcb1` | `ba72cf46d1377092c17b858829113c258712ad37767ba5ef66e0fef85366e4d0` |
+| `r8f1-reproduction.txt` | e3723c0d (round 9) | `4694b3e5b955048839a6440a73cb2480f5ea49380e749fdd77300aa7ef503563` (original output, from its first export) | `907de07b09a8c4c21dbf6c5da686a2e63aeb5aabb9eb6a7c84c1a78bed0216c2` |
+| `tier-selection-r9.log` | e3723c0d (round 9; 29/0) | `664dda9c7506a404878bc076feae8b911ff005efb590ad0f4e57da95f970ddf0` (original output, from its first export) | `563c8639506d0c7d18e3f97ef890935adef62f677806bdd5148da72768fb2d0b` |
+| `workflow-budget-umm-0311-baseline-r9.json` | read-only copy before the round-9 gate (round 9) | `321175107e242163b9298db67afa0da9c8de40dfe2a3f162e485d261b3ac87f9` (original output, from its first export) | `a7b3f530dfe59797f4be7cb80b5aba465507bc29d14cfaadf6aa64dabc8606d3` |
 | `tier-selection-r8.log` | 9a11e0a6 (round 8; 29/0) | `e3988c7d28db348651ec63d6bea3fc4870c2e9fc6bcc7f2dbe7f18947b948cb5` (original output, from its first export) | `865c89b0bdb7b8e80ef82c4624d59ba239f72e202bf499732570fb68437ead66` |
 | `tier-plan-probe-r8.log` | 9a11e0a6 (round 8; plan only) | `7994ae243f1818624ffad088c2fa5aff6a7cd9c59482f44d661d3fe80806fe53` (original output, from its first export) | `18e7b1fe276d080f3ff7431ff8163a6c55bb3b14e75d42e8e73277dabb7f1768` |
 | `workflow-budget-umm-0311-baseline-r8.json` | read-only copy before the round-8 gate (round 8) | `e458ad50835452cf088592bcd6138b094fe0c7f04668f93c71f56be3d16eda65` (original output, from its first export) | `70824dffe3865f9da3e0b18d64ec47b5ccfef7a7b873eb6999fb7d4cc7f5150e` |
