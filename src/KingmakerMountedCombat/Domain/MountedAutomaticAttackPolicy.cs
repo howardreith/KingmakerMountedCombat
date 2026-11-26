@@ -9,15 +9,18 @@ namespace KingmakerMountedCombat.Domain
         Admit
     }
 
-    // PR-1 round 11 (R10-F1..F4): the one current admission answer for an unreleased automatic order, in precedence order: actual target
-    // invalidation, then perception loss, then native ineligibility of a still valid target (BlueprintAiAction.IsTargetValid's restricted
-    // rule with the action's current range). Typed, so no observer derives precedence from a reason text.
+    // PR-1 rounds 11-12 (R10-F1..F4, R11-F1..F3): the one current admission answer for an unreleased automatic order, in precedence order:
+    // actual target invalidation, then perception loss (an unavailable rider group or memory included), then native ineligibility of a still
+    // valid target (BlueprintAiAction.IsTargetValid's restricted rule with the action's current range), then the automatic order's own
+    // boundaries (MountedAutomaticAttackPolicy.RetireReason: real time, newer player work, direct control, AI off, brain inactive, Stop, and
+    // the stationary mounted-strike check whenever pair movement is forbidden). Typed, so no observer derives precedence from a reason text.
     public enum MountedAutomaticOrderAdmission
     {
         Admitted,
         TargetInvalid,
         TargetUnperceived,
-        OutsideNativeAdmission
+        OutsideNativeAdmission,
+        OrderBoundary
     }
 
     // One occupied rider command slot as native UnitCommands.Raw holds it.

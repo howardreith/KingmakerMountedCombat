@@ -1411,6 +1411,10 @@ namespace KingmakerMountedCombat.Integration
                 // A released shot/strike may finish its native animation after target death.
                 return false;
             }
+            // PR-1 round 12 (R11-F4): an unreleased automatic command's own observation of its target's loss is answered by its order's one
+            // admission decision, which retires the order (cause, reason, diagnostics) once; a command that is not its order's own falls
+            // through to its own handling below.
+            if (!StrikeReleased && EndIfAutomaticOrderNotAdmitted()) return true;
             // F4 review MINOR-4: a released routine whose target left the field (despawn, hostility) continues natively
             // on the next target exactly as for a target that died in place; only without one is it cancelled as before.
             var continuations = transaction.ContinuationTargetCount;

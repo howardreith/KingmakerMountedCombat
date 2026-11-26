@@ -3235,6 +3235,111 @@ namespace Harness
             }
         }
 
+
+        // PR-1 round 12 (R11-F1): an automatic first windup has started (child attack started, nothing delivered); the rider's AI is switched off
+        // without another command; the delivery tick runs before any controller drive. Controls: AI kept on, and an explicit order with AI off.
+        private static void Round12AiOffBeforeDelivery()
+        {
+            foreach (var kase in new[] { "automatic, AI off", "control: automatic, AI on", "control: explicit, AI off" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;
+                var automatic = kase.Contains("automatic");
+                if (automatic) { Harness.NativeBrainRankingReader.Ranked = null; controller.Propose(Proposal(world.Target), false); }
+                else { controller.BeginOrder(world.Target, false); controller.Drive(); }
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R11-F1 " + kase + ": no wrapper (" + controller.LastFeedback + ")"); continue; }
+                for (var tick = 0; tick < 4 && !wrapper.IsStarted; tick++) NativeTick(world, world.Rider);
+                var windup = wrapper.IsStarted && !wrapper.StrikeReleased && UnitAttack.NativeAttackRules == 0;
+                var spends = UnitAttack.StandardSpends; var rules = UnitAttack.NativeAttackRules;
+                if (kase.EndsWith("AI off", StringComparison.Ordinal)) world.Rider.IsAIEnabled = false;
+                wrapper.ActEventDue = true;
+                NativeTick(world, world.Rider);   // the delivery tick, before any controller drive
+                var delivered = UnitAttack.NativeAttackRules - rules;
+                Console.WriteLine("  R12 AI off (" + kase + "): windup=" + windup + " delivered=" + delivered + " spends=" + (UnitAttack.StandardSpends - spends) + " finished=" + wrapper.IsFinished +
+                    " retirement=" + controller.LastAutomaticRetirement + " intent=" + controller.HasStockAttackIntent + " struck=" + Struck(world));
+                if (kase == "automatic, AI off")
+                    Check(windup && delivered == 0 && UnitAttack.StandardSpends == spends && wrapper.IsFinished && controller.LastAutomaticRetirement == "ai off" &&
+                        !controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 1,
+                        "PR-1 R11-F1 an automatic first windup whose rider's AI is switched off is retired for AI off by its own pre-delivery check: zero deliveries, zero spending");
+                else
+                    Check(windup && delivered == 1 && controller.AutomaticAdmissionRetiredCount == 0,
+                        "PR-1 R11-F1 " + kase + ": the strike is delivered once");
+            }
+        }
+
+        // PR-1 round 12 (R11-F2): only the mount is held (pair movement forbidden through the mount's Hold; the rider's own AiMovementForbidden is
+        // false and no target is marked unreachable, so native admission does not apply). Retained B leaves stationary strike reach; in-reach A
+        // is proposed before the drive. Control: B still in stationary reach keeps its order.
+        private static void Round12MountOnlyHold()
+        {
+            foreach (var bLeaves in new[] { true, false })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.2f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = true;   // production AutomaticMovementForbidden: the player's Hold on the mount
+                world.Rider.AiMovementForbidden = false;
+                var b = new UnitEntityData("hostile-b") { Position = new Vector3(0f, 0f, 1.6f) };
+                world.Rider.CachedSight = unit => true;
+                world.Rider.HasStandard = false; world.Horse.HasStandard = false;   // both Standards cooling: no wrapper yet
+                Harness.NativeBrainRankingReader.Ranked = Rank(world, b, world.Target);
+                controller.Propose(Proposal(world.Target), false);
+                var selected = controller.IntentTarget;
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends; var horseBefore = world.Horse.Position;
+                var admittedBefore = controller.AutomaticAdmittedCount;
+                if (bLeaves) b.Position = new Vector3(0f, 0f, 4f);   // outside stationary mounted-strike reach
+                Harness.NativeBrainRankingReader.Ranked = Rank(world, world.Target, b);
+                controller.Propose(Proposal(world.Target), false);   // before any drive
+                var accepted = controller.AutomaticAdmittedCount == admittedBefore + 1;
+                var after = controller.IntentTarget; var retirement = controller.LastAutomaticRetirement;
+                var bWork = PairWrapperOn(world, b) != null;
+                world.Rider.HasStandard = true; world.Horse.HasStandard = true;
+                DriveToStrike(world, controller, 12);
+                Console.WriteLine("  R12 mount-only Hold (" + (bLeaves ? "B leaves stationary reach" : "control: B in reach") + "): selected=" + selected?.UniqueId + " accepted=" + accepted +
+                    " intent=" + after?.UniqueId + " retirement=" + retirement + " bWork=" + bWork + " moves=" + (UnitCommands.MoveSubmissions - moves) +
+                    " displaced=" + !world.Horse.Position.Equals(horseBefore) + " struck=" + Struck(world));
+                if (bLeaves)
+                    Check(selected == b && accepted && after == world.Target && retirement == "hold out of reach" && !bWork && UnitCommands.MoveSubmissions == moves &&
+                        world.Horse.Position.Equals(horseBefore) && Struck(world) == world.Target.UniqueId,
+                        "PR-1 R11-F2 a mount-only Hold: retained B outside stationary reach cannot veto in-reach A; A's proposal is accepted before the drive and A is struck without travel; B gets no movement or spending");
+                else
+                    Check(selected == b && !accepted && after == b && Struck(world) == b.UniqueId && UnitCommands.MoveSubmissions == moves,
+                        "PR-1 R11-F2 control: retained B still inside stationary reach keeps its order and is struck without travel");
+            }
+        }
+
+        // PR-1 round 12 (R11-F3): after automatic admission the rider's group, or its memory, becomes unavailable; the installed wrapper runs its
+        // pre-start tick before the next drive. Controls: a perceived target, and an explicit order with the group removed.
+        private static void Round12MissingMemory()
+        {
+            foreach (var kase in new[] { "group removed", "memory removed", "control: perceived", "control: explicit, group removed" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;
+                world.Ready[world.Rider] = false;   // installed, waiting for native start; the target needs an approach
+                var explicitOrder = kase.Contains("explicit");
+                if (explicitOrder) { controller.BeginOrder(world.Target, false); controller.Drive(); }
+                else { Harness.NativeBrainRankingReader.Ranked = null; controller.Propose(Proposal(world.Target), false); }
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R11-F3 " + kase + ": no wrapper (" + controller.LastFeedback + ")"); continue; }
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends;
+                if (kase.EndsWith("group removed", StringComparison.Ordinal)) world.Rider.Group = null;
+                else if (kase == "memory removed") world.Rider.Group.Memory = null;
+                NativeTick(world, world.Rider);   // the wrapper's pre-start tick, before the next drive
+                Console.WriteLine("  R12 memory (" + kase + "): finished=" + wrapper.IsFinished + " moves=" + (UnitCommands.MoveSubmissions - moves) + " spends=" + (UnitAttack.StandardSpends - spends) +
+                    " retirement=" + controller.LastAutomaticRetirement + " intent=" + controller.HasStockAttackIntent);
+                if (kase == "group removed" || kase == "memory removed")
+                    Check(wrapper.IsFinished && UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && !controller.HasStockAttackIntent &&
+                        controller.LastAutomaticRetirement == "automatic target left perception",
+                        "PR-1 R11-F3 " + kase + " after automatic admission: the wrapper's own tick retires the order as perception loss; zero move submissions, zero spending");
+                else
+                    Check(!wrapper.IsFinished && UnitCommands.MoveSubmissions > moves && controller.HasStockAttackIntent,
+                        "PR-1 R11-F3 " + kase + ": the order advances normally (a pre-start move is submitted)");
+            }
+        }
+
         private static void Record(World world, MountedCombatController controller, MountedPairAttackCommand wrapper, string label, string expected, long moves, long spends)
         {
             var outcome = wrapper.DeliveredOutcome;
@@ -3242,7 +3347,10 @@ namespace Harness
             var triple = outcome == null ? "<no outcome>" : outcome.EndCause + "|" + outcome.TerminalReason + "|" +
                 (codes == null ? "<none>" : string.Join(",", Array.ConvertAll(codes, c => c.ToString())));
             Console.WriteLine("  R11 invalidation (" + label + "): cause|reason|codes=" + triple + " moves=" + (UnitCommands.MoveSubmissions - moves) +
-                " spends=" + (UnitAttack.StandardSpends - spends) + " retirement=" + controller.LastAutomaticRetirement);
+                " spends=" + (UnitAttack.StandardSpends - spends) + " retirement=" + controller.LastAutomaticRetirement + " retiredCount=" + controller.AutomaticAdmissionRetiredCount);
+            // PR-1 round 12 (R11-F4): every observer leaves the same automatic-retirement diagnostics: one retirement of the order, its reason.
+            Check(controller.LastAutomaticRetirement == "automatic target invalid" && controller.AutomaticAdmissionRetiredCount == 1,
+                "PR-1 R11-F4 " + label + ": the order's retirement is recorded once with its reason, whichever observer saw the loss first");
             Check(string.Equals(triple, expected, StringComparison.Ordinal) && codes != null && codes.Length == 1 && codes[0] == MountedCombatRejectionCode.TargetInvalid &&
                 wrapper.IsFinished && UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && UnitAttack.Acts(world.Rider) == 0 && !controller.HasStockAttackIntent,
                 "PR-1 R10-F2/R9-F3 " + label + ": an unconscious remembered target that also lost native admission ends exactly as TargetInvalid | target became unconscious | one TargetInvalid code; no movement, no spending");
@@ -3292,6 +3400,9 @@ namespace Harness
             try { Round11QueuedPromotion(); } catch (Exception exception) { Check(false, "PR-1 round 11 queued promotion threw " + exception); }
             try { Round11InvalidationWithAdmissionLoss(); } catch (Exception exception) { Check(false, "PR-1 round 11 invalidation with admission loss threw " + exception); }
             try { Round11ExactAssertionRejectsAppendedCode(); } catch (Exception exception) { Check(false, "PR-1 round 11 exact assertion threw " + exception); }
+            try { Round12AiOffBeforeDelivery(); } catch (Exception exception) { Check(false, "PR-1 round 12 AI off threw " + exception); }
+            try { Round12MountOnlyHold(); } catch (Exception exception) { Check(false, "PR-1 round 12 mount-only Hold threw " + exception); }
+            try { Round12MissingMemory(); } catch (Exception exception) { Check(false, "PR-1 round 12 missing memory threw " + exception); }
             try { Round7DeliveredOutcome(); } catch (Exception exception) { Check(false, "PR-1 round 7 delivered outcome threw " + exception); }
             try { Round7TerminalToDispatch(); } catch (Exception exception) { Check(false, "PR-1 round 7 terminal to dispatch threw " + exception); }
             try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }
