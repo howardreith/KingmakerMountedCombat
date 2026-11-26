@@ -887,17 +887,24 @@ namespace KingmakerMountedCombat.Integration
                 if (!ChargeAdmissionPrefix(__instance, cmd, fromQueue ? MountedChargeRequestRoute.QueuePromotion : MountedChargeRequestRoute.Run)) return false;
                 var automatic = fromQueue ? cmd as MountedPairSingleAttack : null;
                 if (automatic == null) return true;
-                if (!automatic.IsAutomaticOrigin)
-                {
-                    // PR-1 review R1-F2: a superseded explicit pair order never promotes from the queue.
-                    var owner = PatchBridge.CombatFor(__instance);
-                    return owner == null || owner.AdmitQueuedExplicitRun(automatic);
-                }
+                if (!automatic.IsAutomaticOrigin) return AdmitExplicitPromotion(automatic, PatchBridge.CombatFor(__instance));
                 var combat = PatchBridge.CombatFor(__instance);
                 if (combat != null) return combat.AdmitQueuedAutomaticRun(automatic);
                 (automatic as MountedPairAttackCommand)?.RecordEndCause(MountedAttackEndCause.Cancelled, "queued automatic command without its pair");
                 automatic.Interrupt();
                 return false;
+            }
+
+            // PR-1 reviews R1-F2, R3-F1: a retired explicit pair wrapper never promotes, also when its pair can no longer be resolved
+            // (a late callback after detachment); otherwise the pair's controller decides.
+            internal static bool AdmitExplicitPromotion(MountedPairSingleAttack command, MountedCombatController owner)
+            {
+                if (command.OrderRetired)
+                {
+                    if (!command.IsFinished) command.Interrupt();
+                    return false;
+                }
+                return owner == null || owner.AdmitQueuedExplicitRun(command);
             }
 
             // Known issues sprint 3 continuation (M05). After the native overload that admits commands, reached by the
@@ -924,7 +931,11 @@ namespace KingmakerMountedCombat.Integration
             // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.
             internal static void ClickUnitPrefix()
             {
-                try { foreach (var combat in ClickControllers()) combat.BeginClickObservation(); }
+                try
+                {
+                    var selected = SelectionManager.Instance?.SelectedUnits;
+                    foreach (var combat in ClickControllers()) combat.BeginClickObservation(selected);
+                }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
             }
 

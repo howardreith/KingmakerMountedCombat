@@ -59,6 +59,16 @@ function Refs([Reflection.MethodBase]$Method) {
 function Calls([Reflection.MethodBase]$Method, [Reflection.MemberInfo]$Target) { @(Refs $Method | Where-Object { $_.Member -eq $Target }).Count }
 function FirstOffset([Reflection.MethodBase]$Method, [Reflection.MemberInfo]$Target) { $hit = @(Refs $Method | Where-Object { $_.Member -eq $Target }) | Select-Object -First 1; if ($hit) { $hit.Offset } else { -1 } }
 function Method([Type]$Type, [string]$Name) { @($Type.GetMethods($any) | Where-Object { $_.Name -ceq $Name }) }
+# Calls made by a method and by the lambdas it defines (compiler-generated '<Name>b__' methods on the type or its closure classes).
+function CallsWithin([Type]$Type, [string]$Name, [Reflection.MemberInfo]$Target) {
+    $total = 0
+    foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
+        foreach ($m in @($t.GetMethods($any))) {
+            if ($m.Name -ceq $Name -and $t -eq $Type -or $m.Name.StartsWith('<' + $Name + '>')) { $total += (Calls $m $Target) }
+        }
+    }
+    $total
+}
 
 # ---- 1. Native acceptance ----------------------------------------------------------------------------------------------
 $commands = GameType 'Kingmaker.UnitLogic.Commands.UnitCommands'
@@ -166,8 +176,9 @@ Check ((Calls $engage ($pair.GetProperty('CurrentMovementOwner', $any).GetGetMet
 Check (@(@(Method $patches 'InternalRunPostfix')[0].GetParameters() | Where-Object { $_.Name -ceq 'fromQueue' -and $_.ParameterType -eq [bool] }).Count -eq 1) 'R5-F5: the Run postfix receives native''s own fromQueue (promotion) parameter'
 # ---- 7. PR-1 round-1 corrections: the compiled controller binds each corrected path ------------------------------------------
 $drive = @(Method $controller 'TryDriveStockAttackIntent')[0]
-Check ((Calls $drive (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0])) -eq 1 -and (Calls (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0]) (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1 -and @((KmcType 'KingmakerMountedCombat.Domain.UnifiedMountedStockAttackPolicy').GetMethod('MountJoinsIntent').GetParameters()).Count -eq 9) 'PR-1 R1-F1: turn-based follow-through receives the planned horse strike''s own admission'
-Check ((Calls (@(Method $controller 'HandleCommandTerminal')[0]) ($ledger.GetMethod('MarkRiderEnded'))) -ge 1 -and (Calls $drive ($ledger.GetMethod('RiderEnded'))) -ge 1) 'PR-1 R1-F3: an actor-specific rider end keeps the order for the horse and is read at the next drive'
+$planner = KmcType 'KingmakerMountedCombat.Domain.MountedDispatchPlanner'
+Check ((CallsWithin $controller 'TryDriveStockAttackIntent' (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0])) -eq 1 -and (Calls $drive ($planner.GetMethod('Plan'))) -eq 1 -and (Calls ($planner.GetMethod('Plan')) ((KmcType 'KingmakerMountedCombat.Domain.UnifiedMountedStockAttackPolicy').GetMethod('MountJoinsIntent'))) -eq 1 -and (Calls (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0]) (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1 -and @((KmcType 'KingmakerMountedCombat.Domain.UnifiedMountedStockAttackPolicy').GetMethod('MountJoinsIntent').GetParameters()).Count -eq 9) 'PR-1 R1-F1/R3-F4/R3-F5: the drive dispatches through the production MountedDispatchPlanner.Plan, whose MountJoinsIntent reads the planned horse strike''s own admission (the drive''s probe lambda)'
+Check ((Calls (@(Method $controller 'SettleOrderTerminal')[0]) ($ledger.GetMethod('MarkRiderEnded'))) -ge 1 -and (Calls $drive ($ledger.GetMethod('RiderEnded'))) -ge 1) 'PR-1 R1-F3: an actor-specific rider end keeps the order for the horse and is read at the next drive'
 Check ((Calls (@(Method $controller 'SweepOrphanedAutomaticCommand')[0]) ($controller.GetProperty('ExplicitOrphanReleasedCount', $any).GetSetMethod($true))) -ge 1) 'PR-1 R1-F5: an explicit wrapper dropped from slot and queue is released by the sweep'
 $retireHidden = @(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]
 Check ((Calls $drive $retireHidden) -ge 1 -and (FirstOffset $drive $retireHidden) -lt (FirstOffset $drive (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -and (Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) $retireHidden) -ge 1) 'PR-1 R1-F9: a hidden automatic target is released before any readiness or geometry probe and before it can refuse a proposal'
@@ -189,11 +200,12 @@ $pairOnAction = @($pair.GetMethods($any) | Where-Object { $_.Name -ceq 'OnAction
 $attackOnAction = $pair.BaseType.GetMethod('OnAction', [Reflection.BindingFlags]'Instance,Public,NonPublic'); $attackOnAction = $attackOnAction.DeclaringType.GetMethod('OnAction', $any)
 Check ((Calls $released ($nativeCommand.GetProperty('IsActed').GetGetMethod())) -eq 0 -and (Calls $released $delivered) -ge 1 -and (FirstOffset $pairOnAction $delivered) -ge 0 -and
     (FirstOffset $pairOnAction $delivered) -lt (FirstOffset $pairOnAction $attackOnAction)) 'PR-1 R1-F3/R2-F1: delivery is the wrapper''s own OnAction (marked before native UnitAttack.OnAction), never IsActed'
-$terminalHandler = @(Method $controller 'HandleCommandTerminal')[0]
+$terminalHandler = @(Method $controller 'SettleOrderTerminal')[0]
+Check ((Calls (@(Method $controller 'HandleCommandTerminal')[0]) $terminalHandler) -eq 1) 'PR-1 R4-F5: HandleCommandTerminal settles the order through SettleOrderTerminal (the transition the attack-path harness executes)'
 Check ((Calls $terminalHandler ($ledger.GetMethod('DecideTerminal'))) -eq 1 -and (Calls $terminalHandler $released) -ge 1 -and (Calls $terminalHandler ($nativeCommand.GetProperty('IsActed').GetGetMethod())) -eq 0 -and
     (Calls $terminalHandler ($ledger.GetMethod('MarkRiderEnded'))) -eq 1 -and (Calls $drive ($ledger.GetMethod('RiderEnded'))) -ge 1) 'PR-1 R1-F3: the terminal disposition comes from DecideTerminal over the wrapper''s delivery facts; a rider end is read at the next drive'
 Check ((Calls $terminalHandler ($ledger.GetMethod('HoldRiderRefusal'))) -eq 1 -and (Calls $terminalHandler ($ledger.GetMethod('SettleRefusalDelivered'))) -eq 1 -and (Calls $terminalHandler ($ledger.GetMethod('TakeRefusalOnRetirement'))) -eq 1 -and
-    (Calls $drive ($ledger.GetMethod('TakeRefusalOnRetirement'))) -eq 1 -and $null -eq $controller.GetField('riderRefusalAwaitingHorse', $any) -and
+    (Calls $drive (@(Method $controller 'FinishTurnBasedIntent')[0])) -eq 1 -and (Calls (@(Method $controller 'FinishTurnBasedIntent')[0]) ($ledger.GetMethod('TakeRefusalOnRetirement'))) -eq 1 -and $null -eq $controller.GetField('riderRefusalAwaitingHorse', $any) -and
     (Calls ($ledger.GetMethod('Clear')) ($ledger.GetMethod('DropRefusal', $any))) -eq 1 -and (Calls ($ledger.GetMethod('Begin')) ($ledger.GetMethod('DropRefusal', $any))) -eq 1) 'PR-1 R2-F4: the pending refusal lives in the generation''s ledger, settles on delivery or final retirement and is dropped on every Begin/Clear'
 $retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]
 $singleType = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
@@ -202,9 +214,19 @@ $markRetired = @(Method $singleType 'MarkOrderRetired')[0]
 $collections = @($controller.GetFields($any) | Where-Object { $_.FieldType.IsGenericType -and @($_.FieldType.GetGenericArguments() | Where-Object { $singleType.IsAssignableFrom($_) }).Count -gt 0 })
 Check ((Calls $retireWrapper ($ledger.GetMethod('RetireWrapper'))) -eq 1 -and (Calls $retireWrapper $markRetired) -ge 2 -and (Calls $retireWrapper $released) -eq 1 -and
     (Calls (@(Method $controller 'TryRetireStockIntent')[0]) $retireWrapper) -eq 1 -and (Calls (@(Method $controller 'RetireSupersededPlayerOrder')[0]) $retireWrapper) -eq 1 -and
-    (Calls (@(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]) $retireWrapper) -eq 1 -and $collections.Count -eq 0) ('PR-1 R2-F1/R3-F1/R3-F2: turn-based, real-time and perception retirement share RetireOrderWrapper (released strike left to native, retirement held on the wrapper); no controller collection holds wrappers (' + (($collections | ForEach-Object { $_.Name }) -join ',') + ')')
+    (Calls (@(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]) $retireWrapper) -eq 1 -and (Calls (@(Method $controller 'RetireOrderForCancel')[0]) $retireWrapper) -eq 2 -and
+    (Calls (@(Method $controller 'RetireOrderOnTargetInvalidation')[0]) $retireWrapper) -eq 1 -and $collections.Count -eq 0) ('PR-1 R2-F1/R3-F1/R3-F2/R4-F1: turn-based, real-time, perception, cancellation and invalidation retirement share RetireOrderWrapper; turn-based, real-time and perception retirement share RetireOrderWrapper (released strike left to native, retirement held on the wrapper); no controller collection holds wrappers (' + (($collections | ForEach-Object { $_.Name }) -join ',') + ')')
 Check ((Calls (@(Method $controller 'AdmitQueuedExplicitRun')[0]) $orderRetired) -eq 1 -and (Calls (@(Method $controller 'AdmitQueuedAutomaticRun')[0]) $orderRetired) -eq 1 -and
-    (Calls (@(Method $patches 'InternalRunPrefix')[0]) (@(Method $controller 'AdmitQueuedExplicitRun')[0])) -eq 1) 'PR-1 R3-F1: explicit and automatic queue promotion refuse a wrapper retired with its order'
+    (Calls (@(Method $patches 'InternalRunPrefix')[0]) (@(Method $patches 'AdmitExplicitPromotion')[0])) -eq 1 -and
+    (FirstOffset (@(Method $patches 'AdmitExplicitPromotion')[0]) $orderRetired) -ge 0 -and (FirstOffset (@(Method $patches 'AdmitExplicitPromotion')[0]) $orderRetired) -lt (FirstOffset (@(Method $patches 'AdmitExplicitPromotion')[0]) (@(Method $controller 'AdmitQueuedExplicitRun')[0]))) 'PR-1 R3-F1: explicit and automatic queue promotion refuse a wrapper retired with its order, the explicit one before any owner lookup (also after detachment)'
+$cancelCore = @(Method $controller 'CancelCore')[0]
+$freshClick = @($controller.GetMethods($any) | Where-Object { @(Refs $_ | Where-Object { $_.Text -ceq 'new stock hostile attack' }).Count -gt 0 })
+Check ((Calls (@(Method $controller 'Cancel')[0]) $cancelCore) -eq 1 -and (Calls $cancelCore (@(Method $controller 'RetireOrderForCancel')[0])) -eq 1 -and $freshClick.Count -eq 1 -and (Calls $freshClick[0] $cancelCore) -eq 1 -and
+    (Calls $drive (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1) 'PR-1 R4-F1/R3-F1: a fresh click cancels through CancelCore (delivery-aware retargeting); target invalidation retires the queued wrapper'
+Check ((Calls (@(Method $controller 'TryRetireStockIntent')[0]) (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0])) -eq 1 -and (Calls (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0]) (@(Method $pair 'StrikeAdmissibleNow')[0])) -eq 1) 'PR-1 R4-F3: restricted automatic movement retires only a strike that is not admissible from the current position'
+$describe = @(Method $pair 'DescribeOutcome')[0]
+Check ((Calls $describe $released) -ge 2) 'PR-1 R4-F6: the outcome attributes a Standard charge only to a delivered strike (a force-finish spends nothing)'
+Check (@(Refs (@(Method $patches 'ClickUnitPrefix')[0]) | Where-Object { $null -ne $_.Member -and ($_.Member.Name -ceq 'get_SelectedUnits' -or $_.Member.Name -ceq 'SelectedUnits') }).Count -eq 1 -and (Calls (@(Method $patches 'ClickUnitPrefix')[0]) (@(Method $controller 'BeginClickObservation')[0])) -eq 1) 'PR-1 R1-F11: the click bracket records which pair actors the click commanded (its selection)'
 $ownership = KmcType 'KingmakerMountedCombat.Domain.MountedManualTargetOwnership'
 $observeAccepted = @(Method $controller 'ObserveAcceptedWork')[0]
 Check ((Calls (@(Method $controller 'ClearStockAttackIntent')[0]) ($ownership.GetMethod('ClearsOnRetirement'))) -eq 2 -and (Calls $observeAccepted ($ownership.GetMethod('ObserveForeignAssignment'))) -eq 1 -and

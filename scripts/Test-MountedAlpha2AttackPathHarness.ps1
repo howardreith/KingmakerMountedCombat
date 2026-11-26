@@ -61,6 +61,13 @@ $members=[ordered]@{
  'CONTROLLER_SWEEP'=(Extract $controller 'private void SweepFinishedCommand()')
  'CONTROLLER_PROBE'=(Extract $controller 'private bool PlannedStrikeAdmissibleNow(MountedCombatActionKind action, UnitEntityData target)')
  'CONTROLLER_FOLLOW_THROUGH'=(ExtractExpression $controller 'private bool FollowThroughStrikeAdmissibleNow(UnitEntityData target) =>')
+ 'CONTROLLER_SETTLE_TERMINAL'=(Extract $controller 'private void SettleOrderTerminal(MountedPairAttackCommand command, bool stockIntentOwned, MountedAttackTerminalKind terminal,')
+ 'CONTROLLER_FINISH_TB'=(Extract $controller 'private void FinishTurnBasedIntent(string feedback, string trace)')
+ 'CONTROLLER_CANCEL_RETIRE'=(Extract $controller 'private void RetireOrderForCancel(string reason, bool ordinaryRetarget)')
+ 'CONTROLLER_INVALIDATION'=(Extract $controller 'private void RetireOrderOnTargetInvalidation()')
+ 'CONTROLLER_TRY_RETIRE'=(Extract $controller 'private bool TryRetireStockIntent(UnitEntityData rider, UnitEntityData mount, bool turnBased)')
+ 'CONTROLLER_STRIKE_ADMISSIBLE'=(ExtractExpression $controller 'private bool StockIntentStrikeAdmissibleNow() =>')
+ 'ADMIT_EXPLICIT_PROMOTION'=(Extract $patch 'internal static bool AdmitExplicitPromotion(MountedPairSingleAttack command, MountedCombatController owner)')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

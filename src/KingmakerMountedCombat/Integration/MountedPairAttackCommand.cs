@@ -513,6 +513,8 @@ namespace KingmakerMountedCombat.Integration
                 RequireLiveExactPair();
                 if (TryEndExpectedTargetInvalidation()) return false;
                 if (EndIfAutomaticTargetUnperceived()) return false;
+                // PR-1 review R4-F4: once newer work was accepted, the unreleased generation issues no further destination.
+                if (!chargeMode && EndIfSupersededBeforeDelivery()) return false;
                 if (actionActor == mount) return TickNativePreStartApproach();
                 var now = Kingmaker.Game.Instance.TimeController.GameTime;
                 var admissible = PreStartStrikeAdmissible();
@@ -524,6 +526,8 @@ namespace KingmakerMountedCombat.Integration
                     {
                         preStartFailedRoutes++;
                         preStartRetryAt = now + TimeSpan.FromSeconds(MountedPreStartApproachPolicy.RetrySeconds);
+                        // PR-1 review R4-F2: a sight destination that ended without admission is not chosen again before start either.
+                        if (currentSightGoal.HasValue) { failedSightGoals.Add(currentSightGoal.Value); currentSightGoal = null; }
                     }
                     StopDelegatedMove(false);
                 }
@@ -680,6 +684,10 @@ namespace KingmakerMountedCombat.Integration
                 NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
             };
         }
+
+        // PR-1 review R4-F3: the order's strike admission from the current position (the controller's restricted-movement retirement).
+        internal bool StrikeAdmissibleNow() =>
+            !IsFinished && (IsStarted ? childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted : PreStartStrikeAdmissible());
 
         private bool PointArrivalWithoutStrike(float radius)
         {
@@ -1225,6 +1233,8 @@ namespace KingmakerMountedCombat.Integration
                     // PR-1 review R1-F4: the current movement permission is rechecked BEFORE a live carrier is adopted or a new
                     // one admitted; ending here releases the exact owned approach (successors keep theirs).
                     if (!chargeMode && EndIfMovementForbiddenAtApproach()) return;
+                    // PR-1 review R4-F4: and the generation's supersession.
+                    if (!chargeMode && EndIfSupersededBeforeDelivery()) return;
                     var commands = mount.Commands;
                     if (!chargeMode && delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
                         ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove) && commands.Queue.Count == 0)
@@ -1491,6 +1501,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void TickApproach()
         {
+            // PR-1 review R4-F4: no carrier is issued, adopted or replaced for a superseded unreleased generation.
+            if (!chargeMode && EndIfSupersededBeforeDelivery()) return;
             if (carrierDeferred && delegatedMove == null)
             {
                 TickDeferredCarrier();
@@ -1532,6 +1544,12 @@ namespace KingmakerMountedCombat.Integration
                     delegatedMoveResultBeforeLegalRangeStop = delegatedMove.Result.ToString();
                     delegatedMovePairDistanceAtLegalRangeStop =
                         GeometryUtils.MechanicsDistance(mount.Position, attackTarget.Position);
+                    StopDelegatedMove(false);
+                }
+                else if (!chargeMode && delegatedMove.Result != ResultType.Success)
+                {
+                    // PR-1 review R4-F3: an ordinary strike that is admissible settles an exact carrier that already ended without success
+                    // (interrupted when movement was revoked); supersession was checked at the top of this tick. Charges keep the strict check.
                     StopDelegatedMove(false);
                 }
                 else
@@ -2229,8 +2247,10 @@ namespace KingmakerMountedCombat.Integration
                 InitialTargetId = initialTargetId,
                 ContinuationTargetIds = string.Join(",", continuationTargetIds.ToArray()),
                 RepathObservations = string.Join(" | ", repathObservations.ToArray()),
-                RiderStandardCharged = IsActed && actionActor == rider,
-                ActionStandardCharged = IsActed,
+                // PR-1 review R4-F6: native spends the Standard at the first native act (OnAction); a force-finish marks IsActed
+                // without it and spends nothing.
+                RiderStandardCharged = StrikeReleased && actionActor == rider,
+                ActionStandardCharged = StrikeReleased,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
                 AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId,
                 AttackWeaponIsNatural = retainedAttackWeaponIsNatural,

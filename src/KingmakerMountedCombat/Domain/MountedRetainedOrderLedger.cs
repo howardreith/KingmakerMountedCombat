@@ -121,9 +121,11 @@ namespace KingmakerMountedCombat.Domain
 
         // ClickUnitHandler.OnClick's own post-Run assignment: a selection equal to the clicked unit, written by a click that did
         // not issue this order, is the player's.
-        public void ObserveClickAssignment(long clickSerial, object currentSelection, object clicked)
+        // Review R1-F11 (round 5): only a click that commanded THIS actor (it was among the click's selected units, the units the
+        // handler assigns) can have written its selection; a click for another companion on the same target changes nothing.
+        public void ObserveClickAssignment(long clickSerial, object currentSelection, object clicked, bool actorCommandedByClick)
         {
-            if (Owned && clicked != null && WrittenInClick != clickSerial && ReferenceEquals(currentSelection, clicked)) Release();
+            if (Owned && actorCommandedByClick && clicked != null && WrittenInClick != clickSerial && ReferenceEquals(currentSelection, clicked)) Release();
         }
 
         // Retirement of the generation clears the selection only if this generation still owns it and it is still that target.
@@ -131,6 +133,54 @@ namespace KingmakerMountedCombat.Domain
             Owned && Generation == generation && currentSelection != null && ReferenceEquals(Target, currentSelection);
 
         public void Release() { Generation = -1; Target = null; WrittenInClick = -1; }
+    }
+
+    // PR-1 round 5 (reviews R3-F4, R3-F5): the next-dispatch plan the turn-based and real-time drive uses, one production operation
+    // that owns the decision, which actor acts, and whether that actor's wrapper may approach. The horse strike-plan probe
+    // (MountInReach) runs only when a horse dispatch can actually follow from it.
+    public struct MountedDispatchFacts
+    {
+        public bool ExactPair, TargetValid, PairCommandActive, TurnBased, RiderEligible, MountEligible, Ranged, Stationary;
+        public bool MountAlreadyInRange, ExplicitMountOrder, LegacyUnifiedTurn, PairedActivation, Automatic, MountAddressable;
+        public bool MeleeOrder, Superseded, PreferMount;
+        public System.Func<bool> MountInReach;
+    }
+
+    public struct MountedDispatchPlan
+    {
+        public MountedStockAttackDecision Decision;
+        public bool HorseAction;
+        public bool AllowApproach;
+        public bool MountReachProbed;
+    }
+
+    public static class MountedDispatchPlanner
+    {
+        public static MountedDispatchPlan Plan(MountedDispatchFacts facts)
+        {
+            var probed = false;
+            // The reach term matters only where MountJoinsIntent reads it (turn-based, rider's order) and only if DecideNext can pick
+            // the horse: no active pair command (DecideNext waits), a melee order, the rider not eligible (it would win), the horse
+            // eligible and addressable.
+            var reach = !facts.TurnBased || facts.ExplicitMountOrder ||
+                !facts.PairCommandActive && facts.MeleeOrder && !facts.RiderEligible && facts.MountEligible && facts.MountAddressable &&
+                (probed = true) && facts.MountInReach != null && facts.MountInReach();
+            var decision = UnifiedMountedStockAttackPolicy.DecideNext(facts.ExactPair, facts.TargetValid, facts.PairCommandActive, facts.TurnBased,
+                facts.RiderEligible, facts.MountEligible, facts.Ranged || facts.Stationary, facts.MountAlreadyInRange,
+                !facts.TurnBased || !facts.ExplicitMountOrder,
+                UnifiedMountedStockAttackPolicy.MountJoinsIntent(facts.TurnBased, facts.ExplicitMountOrder, facts.LegacyUnifiedTurn,
+                    facts.PairedActivation, facts.Automatic, facts.MountAddressable, facts.MeleeOrder, facts.Superseded, reach),
+                facts.PairedActivation && facts.PreferMount);
+            var horse = decision == MountedStockAttackDecision.DispatchMount;
+            return new MountedDispatchPlan
+            {
+                Decision = decision,
+                HorseAction = horse,
+                MountReachProbed = probed,
+                // PR-1 review R1-F1: a turn-based horse follow-through on a rider's order has no movement authority of its own.
+                AllowApproach = !facts.Stationary && (!facts.Ranged || !horse) && !(facts.TurnBased && horse && !facts.ExplicitMountOrder)
+            };
+        }
     }
 
     public sealed class MountedRetainedOrderLedger
@@ -147,12 +197,14 @@ namespace KingmakerMountedCombat.Domain
         }
         public bool HasPendingRefusal(long generation) => IsCurrent(generation) && refusalGeneration == generation && pendingRefusal != null;
         public void SettleRefusalDelivered(long generation) { if (refusalGeneration == generation) DropRefusal(); }
-        public string TakeRefusalOnRetirement(long generation)
+        // Review R2-F4 (round 5): presentable is false when newer work ended the generation (supersession or replacement): the old
+        // refusal is then dropped silently, exactly as controller-first retirement drops it with Clear.
+        public string TakeRefusalOnRetirement(long generation, bool presentable = true)
         {
             if (!HasPendingRefusal(generation)) return null;
             var message = pendingRefusal;
             DropRefusal();
-            return message;
+            return presentable ? message : null;
         }
         private void DropRefusal() { refusalGeneration = -1; pendingRefusal = null; }
 

@@ -158,6 +158,7 @@ namespace Kingmaker.EntitySystem.Entities
         // Native UnitCombatState.ManualTarget (set by UnitCommands.UpdateCombatTarget inside Run and by ClickUnitHandler.OnClick).
         public UnitCombatState CombatState = new UnitCombatState();
         public bool HoldState;
+        public bool IsDirectlyControllable = true, IsAIEnabled = true, IsBrainActive = true;
         public string CharacterName => UniqueId;
         public UnitEntityData(string id) { UniqueId = id; Commands = new Kingmaker.UnitLogic.Commands.UnitCommands(this); }
         public float DistanceTo(UnitEntityData other) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(Position, other.Position);
@@ -351,6 +352,14 @@ namespace Kingmaker.UnitLogic.Commands
         public bool Contains(UnitCommand command) => command != null && raw[(int)command.Type] == command;
         // The pair's native seams (InternalRunPrefix for a promotion, the Run postfix, AddToQueueInternal's postfix).
         public static Func<UnitCommand, bool> PromotionPrefix;
+        private static readonly Dictionary<UnitCommand, int> installs = new Dictionary<UnitCommand, int>(), holdWrites = new Dictionary<UnitCommand, int>(), targetWrites = new Dictionary<UnitCommand, int>();
+        public static int MoveSubmissions;
+        private static void Count(Dictionary<UnitCommand, int> map, UnitCommand command) { int value; map.TryGetValue(command, out value); map[command] = value + 1; }
+        private static int Read(Dictionary<UnitCommand, int> map, UnitCommand command) { int value; return map.TryGetValue(command, out value) ? value : 0; }
+        public static int Installs(UnitCommand command) => Read(installs, command);
+        public static int HoldWrites(UnitCommand command) => Read(holdWrites, command);
+        public static int TargetWrites(UnitCommand command) => Read(targetWrites, command);
+        public static void ResetCounters() { installs.Clear(); holdWrites.Clear(); targetWrites.Clear(); MoveSubmissions = 0; }
         public static Action<UnitCommands, UnitCommand, bool> RunPostfix;
         public static Action<UnitCommands, UnitCommand> QueuePostfix;
         // Native Run (slot acceptance): the slot's previous occupant is interrupted and replaced; UpdateCombatTarget writes the manual
@@ -365,7 +374,11 @@ namespace Kingmaker.UnitLogic.Commands
             if (existing != null && existing != command && !existing.IsFinished) existing.Interrupt();
             raw[(int)command.Type] = command;
             RunCount++;
-            if (command.MarkManualTarget && command.AiAction == null && command.TargetUnit != null) owner.CombatState.ManualTarget = command.TargetUnit;
+            Count(installs, command);
+            if (command is UnitMoveTo) MoveSubmissions++;
+            // Native Run clears its owner's Hold (NativeRunHoldBoundary; the pair's keep-Hold exception is not modelled here).
+            owner.HoldState = false; Count(holdWrites, command);
+            if (command.MarkManualTarget && command.AiAction == null && command.TargetUnit != null) { owner.CombatState.ManualTarget = command.TargetUnit; Count(targetWrites, command); }
             RunPostfix?.Invoke(this, command, fromQueue);
         }
         // Native AddToQueueInternal (queue acceptance).
@@ -402,6 +415,7 @@ namespace KingmakerMountedCombat.Integration
     using KingmakerMountedCombat.Logging;
     using TurnBased.Controllers;
     using Kingmaker;
+    using Harness;
 
     /* ADMISSION_ENUM */
 
@@ -447,6 +461,7 @@ namespace KingmakerMountedCombat.Integration
         internal static bool ChargeExecutionPrefix(UnitCommand __instance) => true;
         private static bool IsRelationshipControlShell(UnitCommand command) => false;
         /* APPROACH_PREFIX */
+        /* ADMIT_EXPLICIT_PROMOTION */
     }
 
 
@@ -551,7 +566,8 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryDischargeChargeCleanupDebt() => true;
         private bool ForeignPathActive() => false;
         private bool IsNativeRangedTailTermination() => false;
-        private void ReportTerminalOnce() { TerminalReports++; }
+        internal Action<MountedPairAttackCommand> TerminalCallback;
+        private void ReportTerminalOnce() { TerminalReports++; TerminalCallback?.Invoke(this); }
         private void TryContinueRoutineOnNextTarget() { }
         private void CreateAndValidateChildAttack() { ChildCreations++; }
         private void TryLogInfo(string line) { try { logger.Info(line); } catch (Exception) { } }
@@ -560,6 +576,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal int DelegatedMoveStarts => delegatedMoveStartCount;
         internal bool ChargeMode => chargeMode;
+        internal MountedCombatActionKind Action => action;
         internal UnitEntityData ActionActor => actionActor;
         /* ON_ACTION */
         // Harness-only: mark the child attack as delivered (an attack rule raised), the native release evidence.
@@ -589,6 +606,8 @@ namespace KingmakerMountedCombat.Integration
 
 namespace Harness
 {
+    using TurnBased.Controllers;
+    using KingmakerMountedCombat.Logging;
     using Kingmaker.EntitySystem.Entities;
     using Kingmaker.UnitLogic.Commands;
     using Kingmaker.UnitLogic.Commands.Base;
@@ -600,7 +619,7 @@ namespace Harness
     // fields are the ones those members read. The surrounding drive (TryDriveStockAttackIntent, HandleCommandTerminal) is not
     // spliced: its decisions are the production domain functions the cases call with the facts it assembles (compiled-wiring checks
     // in scripts/Test-MmrAttackOrdersLifecycleContract.ps1 bind that glue).
-    internal sealed class HarnessRelationship { public RelationshipState State = RelationshipState.Mounted; public UnitEntityData Rider, Mount; }
+    internal sealed class HarnessRelationship { public RelationshipState State = RelationshipState.Mounted; public UnitEntityData Rider, Mount; public long MountedPairGeneration = 1; }
     internal sealed class HarnessScheduler { public int ExternalInterrupts; public void ObserveExternalInterrupt(MountedPairAttackCommand command, string reason) { ExternalInterrupts++; } }
 
     internal sealed class MountedCombatController
@@ -628,6 +647,52 @@ namespace Harness
         internal long Generation => stockIntent.Generation;
         internal int ExternalInterruptCount => pairedCommandScheduler.ExternalInterrupts;
 
+        // ---- round 5: terminal settlement, cancellation and retirement entry points; the warning boundary ----
+        internal string LastFeedback;
+        internal string LastStandardRefusalTrace;
+        internal readonly List<string> Warnings = new List<string>();
+        internal long RiderSpecificTerminalCount, PendingRefusalPresentedCount, StockAttackUnexecutedRetirementCount, AutomaticRetiredCount;
+        internal string LastAutomaticRetirement;
+        internal bool MovementForbidden;
+        private readonly MountedAutomaticAttackGate automaticGate = new MountedAutomaticAttackGate();
+        // The player-facing warning (production: EventBus IWarningNotificationUIHandler.HandleWarning(LastFeedback)), captured here.
+        private void ShowStockFeedback() => Warnings.Add(LastFeedback);
+        private void TryLog(Func<string> line) { }
+        private bool AutomaticMovementForbidden(UnitEntityData rider) => MovementForbidden;
+        private bool HasRiderPlayerOperation(UnitEntityData rider, UnitEntityData mount) => false;
+        private bool IsTargetInRiderReach(UnitEntityData target) => false;
+        internal void CancelForNewOrder() => RetireOrderForCancel("new stock hostile attack", true);
+        internal void HardCancel(string reason) => RetireOrderForCancel(reason, false);
+        internal void InvalidateTarget() => RetireOrderOnTargetInvalidation();
+        internal bool TryRetire(bool turnBased) => TryRetireStockIntent(relationship.Rider, relationship.Mount, turnBased);
+        internal void FinishTurnBased(string feedback) => FinishTurnBasedIntent(feedback, "harness");
+        // HandleCommandTerminal's ownership prelude, its terminal classification over the wrapper's own facts (production
+        // MountedAttackTerminalPolicy), then the production SettleOrderTerminal. capabilityIsCause is the native branch fact the
+        // production transpiler records (TurnBasedCannotAct / RunningCannotAct).
+        internal void Terminal(MountedPairAttackCommand command, bool capabilityIsCause, MountedAttackEndCause? causeOverride = null)
+        {
+            var owned = ReferenceEquals(stockIntentCommand, command);
+            if (owned) stockIntentCommand = null;
+            finishedCommandPendingSweep = command;
+            if (activeCommand == command) activeCommand = null;
+            var rule = command.LastAttackRule != null;
+            var terminal = MountedAttackTerminalPolicy.Classify(new MountedAttackTerminalFacts
+            {
+                NativeSuccess = command.Result == UnitCommand.ResultType.Success,
+                TransactionCompleted = command.Transaction.State == MountedCombatTransactionState.Completed,
+                NativeAttackRuleObserved = rule,
+                CompletedAttackCount = rule && command.Result == UnitCommand.ResultType.Success ? 1 : 0
+            });
+            SettleOrderTerminal(command, owned, terminal, causeOverride ?? command.EndCause, capabilityIsCause, rule,
+                rule && command.Result == UnitCommand.ResultType.Success ? 1 : 0, command.Result.ToString(), "harness", "harness", null);
+        }
+        /* CONTROLLER_SETTLE_TERMINAL */
+        /* CONTROLLER_FINISH_TB */
+        /* CONTROLLER_CANCEL_RETIRE */
+        /* CONTROLLER_INVALIDATION */
+        /* CONTROLLER_TRY_RETIRE */
+        /* CONTROLLER_STRIKE_ADMISSIBLE */
+
         internal MountedCombatController(UnitEntityData rider, UnitEntityData mount) { relationship.Rider = rider; relationship.Mount = mount; }
         private bool IsPairPlayerOrder(UnitCommand command) => command != null && command.CreatedByPlayer;
         private static string DescribeCommand(UnitCommand command) => command.GetType().Name;
@@ -645,7 +710,9 @@ namespace Harness
         internal void AcceptWrapper(MountedPairAttackCommand wrapper, UnitEntityData actor, UnitEntityData target)
         {
             retainedOrder.RecordOwnIssued(stockIntent.Generation, wrapper);
-            wrapper.RetainedOrderSupersededCheck = RetainedOrderSuperseded;
+            var generation = stockIntent.Generation;
+            wrapper.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(generation, issued);
+            wrapper.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(generation);   // exactly as TryExecuteAction wires it
             activeCommand = wrapper; stockIntentCommand = wrapper;
             OwnManualTarget(actor, target, stockIntent.Automatic ? -1 : stockIntent.Generation);
         }
@@ -683,6 +750,9 @@ namespace Harness
             public HarnessLogger Logger = new HarnessLogger();
             public readonly Dictionary<UnitEntityData, bool> Ready = new Dictionary<UnitEntityData, bool>();
             public bool Perceived = true;
+            // R4-F2: the first carrier destination fails without displacement (native pathing refuses it).
+            public bool FailFirstDestination;
+            public int FailedDestinations;
             public int NativeApproachSteps;
         }
 
@@ -695,6 +765,7 @@ namespace Harness
             UnitAttack.NativeAttackRules = 0;
             UnitCommand.NativeDeadlineInterrupts = 0;
             UnitCommands.PromotionPrefix = null; UnitCommands.RunPostfix = null; UnitCommands.QueuePostfix = null;
+            UnitCommands.ResetCounters();
             var world = new World();
             world.Rider = new UnitEntityData("rider") { Position = horse, WeaponRange = 1.5f };
             world.Rider.View.Corpulence = 0.4f;
@@ -757,6 +828,12 @@ namespace Harness
         // turns with the mount (Unity yaw: Quaternion.Euler(0, turn, 0) applied to the offset).
         private static void TickMove(World world, UnitMoveTo move)
         {
+            if (world.FailFirstDestination && world.FailedDestinations == 0 && move.Travelled.Count == 0 && !move.Point.Equals(world.Target.Position))
+            {
+                world.FailedDestinations++;
+                move.ForceFinish(UnitCommand.ResultType.Fail);
+                return;
+            }
             var mover = move.Executor;
             var close = move.IsUnitEnoughClose;
             if (move.FirstProximityDecision == null) move.FirstProximityDecision = close;
@@ -1063,13 +1140,13 @@ namespace Harness
             }
             // R1-F1: a horse order without approach authority (follow-through) settles when its target is outside the exact strike
             // radius, also after leaving reach before start; an in-reach control strikes once.
-            foreach (var kase in new[] { "just outside", "left reach before start", "in reach" })
+            foreach (var kase in new[] { "just outside", "outside, moved farther before start", "in reach" })
             {
                 var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(kase == "in reach" ? 1.5f : 2.41f, 0f, 0f), null, true);
                 var order = Order(world, MountedCombatActionKind.MountPrimaryNatural, false);
                 order.ForbidApproach();
                 world.Horse.Commands.Run(order);
-                if (kase == "left reach before start") world.Target.Position = new Vector3(3.5f, 0f, 0f);
+                if (kase == "outside, moved farther before start") world.Target.Position = new Vector3(3.5f, 0f, 0f);
                 order.Start();
                 for (var tick = 0; tick < 3 && !order.IsFinished; tick++) NativeTick(world, world.Horse);
                 if (kase == "in reach")
@@ -1158,66 +1235,6 @@ namespace Harness
             };
             UnitCommands.QueuePostfix = (container, command) => controller.ObserveAcceptedWork(container, command, MountedAcceptedWorkRoute.Queue);
             return controller;
-        }
-
-        // Case 1 (R1-F3): terminal handling followed by the next dispatch, for an unstarted turn-based force-finish and an interrupted
-        // first windup; controls: a delivered rider strike, and a spent or ended horse.
-        private static void Round4RiderRefusal()
-        {
-            foreach (var kase in new[] { "unstarted force-finish", "interrupted first windup", "delivered control" })
-            foreach (var horseState in new[] { "eligible", "spent", "ended" })
-            {
-                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, true);
-                var controller = Controller(world);
-                controller.BeginOrder(world.Target, false);
-                var rider = Order(world, MountedCombatActionKind.RiderMelee, false);
-                world.Rider.Commands.Run(rider);
-                controller.AcceptWrapper(rider, world.Rider, world.Target);
-                if (kase == "unstarted force-finish") rider.ForceFinishForTurnBased(UnitCommand.ResultType.Success);
-                else
-                {
-                    NativeTick(world, world.Rider);
-                    if (kase == "delivered control") { rider.ActEventDue = true; NativeTick(world, world.Rider); }
-                    rider.Interrupt();
-                }
-                var generation = controller.Generation;
-                var disposition = MountedRetainedOrderLedger.DecideTerminal(new MountedOrderTerminalFacts
-                {
-                    OwnedByOrder = true, OrderCurrent = controller.Ledger.IsCurrent(generation), TurnBased = true, MeleeOrder = controller.Ledger.Melee,
-                    RiderMeleeCommand = true, CapabilityIsCause = kase != "delivered control", Delivered = rider.StrikeReleased,
-                    AttackRuleObserved = rider.LastAttackRule != null, CompletedAttacks = 0
-                });
-                if (disposition == MountedOrderTerminalDisposition.RiderEndedForHorse)
-                {
-                    controller.Ledger.MarkRiderEnded(generation);
-                    controller.Ledger.HoldRiderRefusal(generation, "rider cannot act");
-                }
-                // The next drive: the dispatcher's own inputs (riderEligible excludes an ended rider attempt; the horse's eligibility is
-                // its Standard and addressability; mountInReach from the production planned-strike probe).
-                var riderEligible = !controller.Ledger.RiderEnded(generation);
-                var mountEligible = horseState == "eligible";
-                var addressable = horseState != "ended";
-                var decision = disposition == MountedOrderTerminalDisposition.RiderEndedForHorse
-                    ? (MountedStockAttackDecision?)UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, riderEligible, mountEligible, false, true, true,
-                        UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, false, false, true, false, addressable, true,
-                            controller.Ledger.Superseded(generation), controller.HorseFollowThroughAdmissible(world.Target)))
-                    : null;
-                var deliveries = UnitAttack.NativeAttackRules;
-                if (kase == "delivered control")
-                    Check(disposition == MountedOrderTerminalDisposition.Retire && deliveries == 1 && horseState != null,
-                        "PR-1 R1-F3 delivered control (" + horseState + " horse): a delivered rider strike retires the order; no horse recheck");
-                else if (horseState == "eligible")
-                    Check(disposition == MountedOrderTerminalDisposition.RiderEndedForHorse && rider.IsActed == (kase == "unstarted force-finish") &&
-                        deliveries == 0 && !riderEligible && decision == MountedStockAttackDecision.DispatchMount,
-                        "PR-1 R1-F3 " + kase + ": zero rider deliveries (IsActed " + rider.IsActed + " is not delivery); the next dispatch is one horse attempt, not the rider");
-                else
-                {
-                    var refusal = controller.Ledger.TakeRefusalOnRetirement(generation);
-                    Check(disposition == MountedOrderTerminalDisposition.RiderEndedForHorse && deliveries == 0 && decision != MountedStockAttackDecision.DispatchMount &&
-                        decision != MountedStockAttackDecision.DispatchRider && refusal == "rider cannot act" && controller.Ledger.TakeRefusalOnRetirement(generation) == null,
-                        "PR-1 R1-F3/R2-F4 " + kase + ", " + horseState + " horse: no horse or rider attempt (" + decision + "); the rider's refusal is the answer once");
-                }
-            }
         }
 
         // Case 2 (R2-F1): a positive control that delivers through native OnAction, supersession before the first delivery, and
@@ -1356,7 +1373,7 @@ namespace Harness
                 }
                 else if (kase == "click issuing the pair's own order")
                 {
-                    controller.BeginClickObservation();
+                    controller.BeginClickObservation(new[] { world.Rider });
                     controller.Own(world.Rider, world.Target, controller.Generation);
                     world.Rider.CombatState.ManualTarget = world.Target;   // ClickUnitHandler.OnClick's own post-Run assignment
                     controller.EndClickObservation(world.Target);
@@ -1376,7 +1393,7 @@ namespace Harness
                     }
                     if (kase == "native click after Run")
                     {
-                        controller.BeginClickObservation();
+                        controller.BeginClickObservation(new[] { world.Rider });
                         world.Rider.Commands.Run(new HarnessPlayerCommand(world.Target, UnitCommand.CommandType.Move) { WritesNoTarget = true });
                         world.Rider.CombatState.ManualTarget = world.Target;
                         controller.EndClickObservation(world.Target);
@@ -1387,39 +1404,6 @@ namespace Harness
                 var selection = world.Rider.CombatState.ManualTarget;
                 Check(expectOwned ? selection == null : selection == world.Target,
                     "PR-1 R1-F11 " + kase + ": after retirement the actor's selection is " + (selection == null ? "<none> (the order's own write was released)" : selection.UniqueId + " (the newer assignment survives)"));
-            }
-        }
-
-        // Case 5 (R3-F4): horse reach through the production dispatch seam (the spliced planned-strike probe feeding MountJoinsIntent and
-        // DecideNext), then the dispatched follow-through's own start without approach authority.
-        private static void Round4HorseReach()
-        {
-            foreach (var kase in new[] { "initially outside", "inside then outside", "continuously inside" })
-            {
-                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(kase == "initially outside" ? 2.41f : 2.0f, 0f, 0f), null, true);
-                var controller = Controller(world);
-                controller.BeginOrder(world.Target, false);
-                controller.Ledger.MarkRiderEnded(controller.Generation);
-                var inReach = controller.HorseFollowThroughAdmissible(world.Target);
-                var decision = UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, false, true, false, true, true,
-                    UnifiedMountedStockAttackPolicy.MountJoinsIntent(true, false, false, true, false, true, true, false, inReach));
-                var dispatched = decision == MountedStockAttackDecision.DispatchMount;
-                MountedPairAttackCommand horse = null;
-                if (dispatched)
-                {
-                    horse = Order(world, MountedCombatActionKind.MountPrimaryNatural, false);
-                    horse.ForbidApproach();   // the turn-based follow-through has no approach authority (allowApproach false at dispatch)
-                    world.Horse.Commands.Run(horse);
-                    if (kase == "inside then outside") world.Target.Position = new Vector3(3.5f, 0f, 0f);
-                    for (var tick = 0; tick < 4 && !horse.IsFinished && UnitAttack.NativeAttackStarts == 0; tick++) NativeTick(world, world.Horse);
-                }
-                var carriers = horse == null ? 0 : horse.DelegatedMoveStarts;
-                var starts = UnitAttack.NativeAttackStarts;
-                Console.WriteLine("ROUND4 horse reach " + kase + ": probes=" + controller.PlannedStrikeProbeCount + " dispatch=" + (dispatched ? 1 : 0) + " carriers=" + carriers + " starts=" + starts);
-                if (kase == "initially outside") Check(!dispatched && carriers == 0 && starts == 0, "PR-1 R3-F4 initially outside: no dispatch, carrier or start");
-                if (kase == "inside then outside") Check(dispatched && carriers == 0 && starts == 0 && horse.IsFinished && world.Horse.View.AgentASP.FindPathCount == 0,
-                    "PR-1 R3-F4 inside then outside after the observed dispatch: the follow-through settles with no movement and no attack");
-                if (kase == "continuously inside") Check(dispatched && carriers == 0 && starts == 1, "PR-1 R3-F4 continuously inside: one dispatch, no carrier, one start");
             }
         }
 
@@ -1505,32 +1489,321 @@ namespace Harness
                 "PR-1 R2-F3: the stalled windup ends at its ordinary bound after " + seconds.ToString("0.0") + " s (8.5 s; no negative elapsed time, no carried wait)");
         }
 
-        // Case 8 (R2-F4): feedback through the generation-bound refusal.
-        private static void Round4Feedback()
+        // ===================== PR-1 round 5 =====================
+        private static bool detached;
+
+        private static MountedCombatController Controller5(World world)
         {
-            var ledger = new MountedRetainedOrderLedger();
-            ledger.Begin(1, false, true);
-            ledger.MarkRiderEnded(1);
-            ledger.HoldRiderRefusal(1, "rider dazed");
-            var spent = ledger.TakeRefusalOnRetirement(1);
-            Check(spent == "rider dazed" && ledger.TakeRefusalOnRetirement(1) == null, "PR-1 R2-F4 spent horse (entirely unexecuted): the refusal is presented once");
-            ledger.Begin(2, false, true);
-            ledger.HoldRiderRefusal(2, "rider dazed");
-            // An admitted horse that loses reach before start ends undelivered: its terminal retires the order (DecideTerminal Retire).
-            var lostReach = MountedRetainedOrderLedger.DecideTerminal(new MountedOrderTerminalFacts { OwnedByOrder = true, OrderCurrent = true, TurnBased = true, MeleeOrder = true });
-            Check(ledger.HasPendingRefusal(2) && lostReach == MountedOrderTerminalDisposition.Retire && ledger.TakeRefusalOnRetirement(2) == "rider dazed",
-                "PR-1 R2-F4 admitted horse that loses reach before start: admission did not settle the refusal; the final retirement presents it once");
-            ledger.Begin(3, false, true);
-            ledger.HoldRiderRefusal(3, "rider dazed");
-            ledger.SettleRefusalDelivered(3);
-            Check(ledger.TakeRefusalOnRetirement(3) == null, "PR-1 R2-F4 successful follow-through: the horse's delivery settles the refusal; no warning");
-            ledger.Begin(4, false, true);
-            ledger.HoldRiderRefusal(4, "rider dazed");
-            ledger.Begin(5, false, true);
-            Check(ledger.TakeRefusalOnRetirement(5) == null && ledger.TakeRefusalOnRetirement(4) == null, "PR-1 R2-F4 replacement: the later generation receives no stale message");
-            ledger.HoldRiderRefusal(5, "rider dazed");
-            ledger.Clear();
-            Check(!ledger.HasPendingRefusal(5), "PR-1 R2-F4 cancellation clears the pending refusal");
+            detached = false;
+            var controller = Controller(world);
+            // Production InternalRunPrefix: a pair wrapper's promotion goes through PatchMethods.AdmitExplicitPromotion (spliced),
+            // with no owner once the pair is detached.
+            UnitCommands.PromotionPrefix = command => !(command is MountedPairSingleAttack) ||
+                PatchMethods.AdmitExplicitPromotion((MountedPairSingleAttack)command, detached ? null : controller);
+            return controller;
+        }
+
+        private static MountedPairAttackCommand Wrapper(World world, MountedCombatController controller, MountedCombatActionKind action, bool queue = false)
+        {
+            var wrapper = Order(world, action, false);
+            var executor = action == MountedCombatActionKind.MountPrimaryNatural ? world.Horse : world.Rider;
+            if (queue) executor.Commands.Enqueue(wrapper); else executor.Commands.Run(wrapper);
+            controller.AcceptWrapper(wrapper, executor, world.Target);
+            return wrapper;
+        }
+
+        // The next drive's dispatch through the production plan; a horse dispatch submits a wrapper carrying the plan's approach authority.
+        private static MountedPairAttackCommand NextDispatch(World world, MountedCombatController controller, bool turnBased, bool riderStandard, bool mountEligible,
+            bool mountAddressable, bool pairCommandActive, bool melee, out MountedDispatchPlan plan)
+        {
+            plan = MountedDispatchPlanner.Plan(new MountedDispatchFacts
+            {
+                ExactPair = true, TargetValid = true, PairCommandActive = pairCommandActive, TurnBased = turnBased,
+                RiderEligible = riderStandard && !controller.Ledger.RiderEnded(controller.Generation), MountEligible = mountEligible,
+                Ranged = !melee, MountAlreadyInRange = true, PairedActivation = true, MountAddressable = mountAddressable, MeleeOrder = melee,
+                Superseded = controller.Ledger.Superseded(controller.Generation), MountInReach = () => controller.HorseFollowThroughAdmissible(world.Target)
+            });
+            if (plan.Decision == MountedStockAttackDecision.CompleteTurnBasedIntent) controller.FinishTurnBased("no standard action left");
+            if (!plan.HorseAction) return null;
+            var horse = Order(world, MountedCombatActionKind.MountPrimaryNatural, false);
+            if (!plan.AllowApproach) horse.ForbidApproach();
+            world.Horse.Commands.Run(horse);
+            controller.AcceptWrapper(horse, world.Horse, world.Target);
+            horse.TerminalCallback = command => controller.Terminal(command, false);
+            return horse;
+        }
+
+        private static void Deliver(World world, MountedPairAttackCommand command, UnitEntityData unit)
+        {
+            for (var tick = 0; tick < 4 && !command.IsStarted; tick++) NativeTick(world, unit);
+            command.ActEventDue = true;
+            NativeTick(world, unit);
+        }
+
+        // Cases 1 and 8 (R1-F3, R4-F5, R2-F4): the rider terminal runs the production settlement, then the production plan dispatches;
+        // submissions and warnings are counted at the facade boundary.
+        private static void Round5TerminalAndFeedback()
+        {
+            foreach (var kase in new[] { "unstarted force-finish", "interrupted first windup", "delivered control" })
+            foreach (var horseState in new[] { "eligible", "spent", "ended" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, true);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                var rider = Wrapper(world, controller, MountedCombatActionKind.RiderMelee);
+                rider.TerminalCallback = command => controller.Terminal(command, kase != "delivered control");
+                controller.LastFeedback = "rider cannot act";   // the rider terminal's evidenced refusal text
+                if (kase == "unstarted force-finish") rider.ForceFinishForTurnBased(UnitCommand.ResultType.Success);
+                else if (kase == "interrupted first windup") { NativeTick(world, world.Rider); rider.Interrupt(); }
+                else { Deliver(world, rider, world.Rider); rider.FinishSuccess(); }
+                var riderDeliveries = UnitAttack.NativeAttackRules;
+                var submissionsBefore = world.Horse.Commands.RunCount;
+                MountedDispatchPlan plan;
+                var horse = kase == "delivered control" ? null : NextDispatch(world, controller, true, false, horseState == "eligible", horseState != "ended", false, true, out plan);
+                var submissions = world.Horse.Commands.RunCount - submissionsBefore;
+                if (horse != null) { Deliver(world, horse, world.Horse); horse.FinishSuccess(); }
+                var horseDeliveries = UnitAttack.NativeAttackRules - riderDeliveries;
+                var label = "PR-1 R1-F3/R4-F5/R2-F4 " + kase + ", " + horseState + " horse: rider deliveries " + riderDeliveries + ", horse submissions " + submissions +
+                    ", warnings [" + string.Join("|", controller.Warnings.ToArray()) + "]";
+                if (kase == "delivered control")
+                    Check(riderDeliveries == 1 && submissions == 0 && controller.Warnings.Count == 0 && !controller.Ledger.RiderEnded(controller.Generation), label + " (a delivered rider attempt keeps the order for native's next budget; no horse recheck, no warning)");
+                else if (horseState == "eligible")
+                    Check(riderDeliveries == 0 && submissions == 1 && horseDeliveries == 1 && controller.Warnings.Count == 0 && !controller.Ledger.HasPendingRefusal(controller.Generation), label + " (one horse submission; its delivery settles the refusal)");
+                else
+                    Check(riderDeliveries == 0 && submissions == 0 && controller.Warnings.Count == 1 && controller.Warnings[0] == "rider cannot act" && !controller.HasStockAttackIntent,
+                        label + " (no submission; the rider's refusal is the answer once)");
+            }
+            // R2-F4: the refusal pending for an admitted horse: wrapper-first supersession, controller-first supersession, replacement,
+            // and a horse that loses reach before start.
+            foreach (var kase in new[] { "wrapper-first supersession", "controller-first supersession", "replacement", "horse loses reach before start" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, true);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                var rider = Wrapper(world, controller, MountedCombatActionKind.RiderMelee);
+                rider.TerminalCallback = command => controller.Terminal(command, true);
+                controller.LastFeedback = "rider cannot act";
+                rider.ForceFinishForTurnBased(UnitCommand.ResultType.Success);
+                world.Ready[world.Horse] = kase != "horse loses reach before start";
+                MountedDispatchPlan plan;
+                var horse = NextDispatch(world, controller, true, false, true, true, false, true, out plan);
+                if (kase == "horse loses reach before start")
+                {
+                    world.Target.Position = new Vector3(3.5f, 0f, 0f);
+                    world.Ready[world.Horse] = true;
+                    for (var tick = 0; tick < 4 && !horse.IsFinished; tick++) NativeTick(world, world.Horse);
+                }
+                else
+                {
+                    NativeTick(world, world.Horse);   // the horse's windup has begun
+                    if (kase == "replacement")
+                    {
+                        horse.TerminalCallback = command => controller.Terminal(command, false, MountedAttackEndCause.Replaced);
+                        world.Horse.Commands.Run(new HarnessPlayerCommand(world.Target, UnitCommand.CommandType.Standard));
+                    }
+                    else
+                    {
+                        world.Rider.Commands.Run(new HarnessPlayerCommand(world.Target, UnitCommand.CommandType.Move));
+                        if (kase == "controller-first supersession") controller.RetireTurnBased();
+                        NativeTick(world, world.Horse);
+                    }
+                }
+                var expected = kase == "horse loses reach before start" ? 1 : 0;
+                Check(horse != null && horse.IsFinished && UnitAttack.NativeAttackRules == 0 && controller.Warnings.Count == expected &&
+                    (expected == 0 || controller.Warnings[0] == "rider cannot act") && !controller.HasStockAttackIntent,
+                    "PR-1 R2-F4 " + kase + ": warnings [" + string.Join("|", controller.Warnings.ToArray()) + "] (" +
+                    (expected == 1 ? "the unresolved rider refusal, once" : "newer work drops the old refusal") + ")");
+            }
+        }
+
+        // R3-F1 / R4-F1: general cancellation, target invalidation, a late promotion after detachment, and a fresh rider click after the
+        // horse's first delivery. Installations, Hold writes and selection writes are counted per command at native Run.
+        private static void Round5Cancellation()
+        {
+            foreach (var kase in new[] { "hard cancellation", "target invalidation", "late promotion after detachment" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller5(world);
+                world.Successor = new UnitEntityData("hostile-2") { Position = new Vector3(2f, 0f, 1f) };
+                var older = new HarnessStationaryCommand();
+                world.Rider.Commands.Run(older);
+                controller.BeginOrder(world.Target, false);
+                var wrapper = Wrapper(world, controller, MountedCombatActionKind.RiderMelee, true);
+                var successor = new HarnessPlayerCommand(world.Successor, UnitCommand.CommandType.Free);
+                world.Rider.Commands.Enqueue(successor);
+                if (kase == "target invalidation") controller.InvalidateTarget(); else controller.HardCancel("relationship cleanup");
+                if (kase == "late promotion after detachment")
+                {
+                    detached = true;   // the pair is gone; a stale queue entry for the retired wrapper is promoted late
+                    world.Rider.Commands.Queue.AddFirst(wrapper);
+                }
+                older.FinishSuccess();
+                world.Rider.Commands.RemoveFinishedAndUpdateQueue();
+                world.Rider.Commands.RemoveFinishedAndUpdateQueue();
+                Check(UnitCommands.Installs(wrapper) == 0 && UnitCommands.HoldWrites(wrapper) == 0 && UnitCommands.TargetWrites(wrapper) == 0 && wrapper.OrderRetired &&
+                    wrapper.IsFinished && UnitCommands.Installs(successor) == 1 && world.Rider.Commands.Contains(successor),
+                    "PR-1 R3-F1 " + kase + ": the queue-only wrapper is installed 0 times (Hold writes 0, selection writes 0); the unrelated successor is installed once");
+            }
+            foreach (var ordinary in new[] { true, false })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                var horse = Wrapper(world, controller, MountedCombatActionKind.MountPrimaryNatural);
+                horse.TerminalCallback = command => controller.Terminal(command, false);
+                Deliver(world, horse, world.Horse);
+                var interruptsBefore = controller.ExternalInterruptCount;
+                if (ordinary) { controller.CancelForNewOrder(); controller.BeginOrder(world.Successor ?? new UnitEntityData("hostile-2"), false); }
+                else controller.HardCancel("dismount");
+                var stillRunning = !horse.IsFinished;
+                if (ordinary) horse.FinishSuccess();   // native completion of the released routine
+                MountedDispatchPlan plan;
+                if (ordinary)
+                    Check(stillRunning && controller.ExternalInterruptCount == interruptsBefore && UnitAttack.NativeAttackRules == 1 && controller.Active == null &&
+                        controller.Ledger.IsCurrent(controller.Generation) && !controller.Ledger.RiderEnded(controller.Generation),
+                        "PR-1 R4-F1 fresh rider click after the horse's first delivery: zero KMC interruptions, native completion, the retired generation does not repeat");
+                else
+                    Check(!stillRunning && controller.ExternalInterruptCount == interruptsBefore + 1, "PR-1 R4-F1 hard-boundary control: a dismount still ends the released command");
+            }
+        }
+
+        // R1-F11: a companion's click on the pair's target assigns no pair actor; a genuine same-target rider click does.
+        private static void Round5ClickAttribution()
+        {
+            foreach (var riderCommanded in new[] { false, true })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller5(world);
+                var companion = new UnitEntityData("companion");
+                controller.BeginOrder(world.Target, false);
+                controller.Own(world.Rider, world.Target, controller.Generation);
+                controller.BeginClickObservation(riderCommanded ? new[] { world.Rider } : new[] { companion });
+                if (riderCommanded) world.Rider.CombatState.ManualTarget = world.Target; else companion.CombatState.ManualTarget = world.Target;
+                controller.EndClickObservation(world.Target);
+                controller.Clear("order retired");
+                var selection = world.Rider.CombatState.ManualTarget;
+                Check(riderCommanded ? selection == world.Target : selection == null,
+                    "PR-1 R1-F11 " + (riderCommanded ? "genuine same-target rider click" : "companion click on the pair's target") + ": after retirement the rider's selection is " +
+                    (selection == null ? "<none> (the pair's own write was released)" : selection.UniqueId + " (the player's assignment survives)"));
+            }
+        }
+
+        // R4-F2, R4-F3, R4-F4: approach corrections.
+        private static void Round5Approach()
+        {
+            // R4-F2: before start, the first sight destination fails without displacement; the next attempt uses a different goal.
+            {
+                Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f;
+                var world = NewWorld(new Vector3(1.3f, 0f, 0.7f), new Vector3(2.5f, 0f, 0.7f), wall, false);
+                world.Rider.Position = world.Horse.Position + new Vector3(0f, 0f, -0.3f);
+                world.Ready[world.Rider] = false;
+                var failed = new List<Vector3>();
+                var goals = new List<Vector3>();
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                order.AllowPreStartApproach();
+                world.Rider.Commands.Run(order);
+                world.FailFirstDestination = true;
+                var startsEarly = 0;
+                for (var tick = 0; tick < 120 && UnitAttack.NativeAttackStarts == 0; tick++)
+                {
+                    NativeTick(world, world.Rider);
+                    var carrier = world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) as UnitMoveTo;
+                    if (carrier != null && (goals.Count == 0 || !goals[goals.Count - 1].Equals(carrier.Point))) goals.Add(carrier.Point);
+                    NativeTick(world, world.Horse);
+                    Kingmaker.Game.Instance.TimeController.GameTime += TimeSpan.FromSeconds(0.4);
+                    if (world.Rider.EyePosition.z >= 0.6f) world.Ready[world.Rider] = true; else if (UnitAttack.NativeAttackStarts > 0) startsEarly++;
+                }
+                Check(goals.Count >= 2 && !goals[0].Equals(goals[1]) && world.FailedDestinations == 1 && order.FailedSightGoalCount >= 1 && startsEarly == 0 && UnitAttack.NativeAttackStarts == 1,
+                    "PR-1 R4-F2: the failed pre-start sight goal " + (goals.Count > 0 ? goals[0].ToString() : "-") + " is not chosen again (next " + (goals.Count > 1 ? goals[1].ToString() : "-") +
+                    "); movement on the alternative, zero early starts, one start after readiness");
+            }
+            // R4-F3: controller-first restricted automatic movement and a carrier-first interrupted move, each with an out-of-range control.
+            foreach (var ordering in new[] { "controller-first automatic", "carrier-first interrupted move" })
+            foreach (var inReach in new[] { true, false })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), null, false);
+                var controller = Controller5(world);
+                var automatic = ordering == "controller-first automatic";
+                controller.BeginOrder(world.Target, automatic);
+                var order = Order(world, MountedCombatActionKind.RiderMelee, automatic);
+                var forbid = false;
+                order.PreStartMovementForbidden = () => forbid;
+                world.Rider.Commands.Run(order);
+                controller.AcceptWrapper(order, world.Rider, world.Target);
+                for (var tick = 0; tick < 3; tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                var carrier = order.DelegatedMove;
+                if (inReach) world.Target.Position = world.Horse.Position + new Vector3(1.5f, 0f, 0f);
+                forbid = true; controller.MovementForbidden = true;
+                var before = world.Horse.Position;
+                if (automatic) controller.TryRetire(false); else carrier.Interrupt();
+                for (var tick = 0; tick < 4 && !order.IsFinished && UnitAttack.NativeAttackStarts == 0; tick++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                var travelled = Kingmaker.Utility.GeometryUtils.MechanicsDistance(before, world.Horse.Position);
+                Check(carrier != null && carrier.IsFinished && order.DelegatedMove == null && travelled < 0.0001f && UnitAttack.NativeAttackStarts == (inReach ? 1 : 0),
+                    "PR-1 R4-F3 " + ordering + (inReach ? " (target in reach)" : " (out-of-range control)") + ": further travel " + travelled.ToString("0.###") +
+                    " m, exact carrier released, rider starts " + UnitAttack.NativeAttackStarts);
+            }
+            // R4-F4: competing work accepted while the old wrapper waits (pre-start, mount slot free) and while its started carrier is deferred.
+            foreach (var kase in new[] { "waiting to start", "deferred carrier" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), null, false);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                HarnessStationaryCommand cast = null;
+                if (kase == "deferred carrier") { cast = new HarnessStationaryCommand(); world.Horse.Commands.Run(cast); }
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                world.Ready[world.Rider] = kase == "deferred carrier";
+                if (kase == "waiting to start") order.AllowPreStartApproach();
+                world.Rider.Commands.Run(order);
+                controller.AcceptWrapper(order, world.Rider, world.Target);
+                if (kase == "deferred carrier") NativeTick(world, world.Rider);
+                var newer = new HarnessPlayerCommand(world.Successor ?? world.Target, UnitCommand.CommandType.Standard);
+                world.Rider.Commands.Enqueue(newer);
+                if (cast != null) { cast.FinishSuccess(); world.Horse.Commands.RemoveFinishedAndUpdateQueue(); }
+                var movesBefore = UnitCommands.MoveSubmissions;
+                NativeTick(world, world.Rider);   // the wrapper ticks before any controller update
+                Check(order.IsFinished && UnitCommands.MoveSubmissions == movesBefore && (world.Rider.Commands.Queue.Contains(newer) || world.Rider.Commands.Contains(newer)) && UnitAttack.NativeAttackStarts == 0,
+                    "PR-1 R4-F4 " + kase + ": the superseded wrapper submits no carrier (" + (UnitCommands.MoveSubmissions - movesBefore) + ") and the newer command is preserved (queued or promoted)");
+            }
+        }
+
+        // R3-F4 / R3-F5: the production dispatch plan creates the follow-through and its approach authority; probe counts per case.
+        private static void Round5Dispatch()
+        {
+            foreach (var kase in new[] { "initially outside", "inside then outside", "continuously inside" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(kase == "initially outside" ? 2.41f : 2.0f, 0f, 0f), null, true);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                controller.Ledger.MarkRiderEnded(controller.Generation);
+                var submissionsBefore = world.Horse.Commands.RunCount;
+                MountedDispatchPlan plan;
+                var horse = NextDispatch(world, controller, true, false, true, true, false, true, out plan);
+                var dispatched = world.Horse.Commands.RunCount - submissionsBefore;
+                if (horse != null)
+                {
+                    if (kase == "inside then outside") world.Target.Position = new Vector3(3.5f, 0f, 0f);
+                    for (var tick = 0; tick < 4 && !horse.IsFinished && UnitAttack.NativeAttackStarts == 0; tick++) NativeTick(world, world.Horse);
+                }
+                var carriers = horse == null ? 0 : horse.DelegatedMoveStarts;
+                Console.WriteLine("ROUND5 dispatch " + kase + ": probes=" + controller.PlannedStrikeProbeCount + " dispatch=" + dispatched + " allowApproach=" + plan.AllowApproach +
+                    " carriers=" + carriers + " starts=" + UnitAttack.NativeAttackStarts);
+                if (kase == "initially outside") Check(dispatched == 0 && carriers == 0 && UnitAttack.NativeAttackStarts == 0, "PR-1 R3-F4 initially outside: no dispatch, carrier or start");
+                if (kase == "inside then outside") Check(dispatched == 1 && !plan.AllowApproach && carriers == 0 && UnitAttack.NativeAttackStarts == 0 && horse.IsFinished,
+                    "PR-1 R3-F4 inside then outside: the production plan dispatched a follow-through without approach authority; no carrier, no attack");
+                if (kase == "continuously inside") Check(dispatched == 1 && carriers == 0 && UnitAttack.NativeAttackStarts == 1, "PR-1 R3-F4 continuously inside: one dispatch, no carrier, one start");
+            }
+            foreach (var kase in new[] { "active wrapper", "ranged order", "spent horse", "ended horse", "rider eligible", "eligible follow-through" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.0f, 0f, 0f), null, true);
+                var controller = Controller5(world);
+                controller.BeginOrder(world.Target, false);
+                if (kase != "rider eligible") controller.Ledger.MarkRiderEnded(controller.Generation);
+                MountedDispatchPlan plan;
+                NextDispatch(world, controller, true, kase == "rider eligible", kase != "spent horse", kase != "ended horse", kase == "active wrapper", kase != "ranged order", out plan);
+                var expected = kase == "eligible follow-through" ? 1 : 0;
+                Check(controller.PlannedStrikeProbeCount == expected && plan.MountReachProbed == (expected == 1),
+                    "PR-1 R3-F5 " + kase + ": horse strike-plan probes " + controller.PlannedStrikeProbeCount);
+            }
         }
 
         private static int Main()
@@ -1541,14 +1814,16 @@ namespace Harness
             try { PR1R1F6(); } catch (Exception exception) { Check(false, "PR-1 R1-F6 threw " + exception); }
             try { PR1R1F7(); } catch (Exception exception) { Check(false, "PR-1 R1-F7 threw " + exception); }
             try { PR1Round2(); } catch (Exception exception) { Check(false, "PR-1 round 2 threw " + exception); }
-            try { Round4RiderRefusal(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 1 threw " + exception); }
             try { Round4DeliveryAndRetirement(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 2 threw " + exception); }
             try { Round4QueueLifecycle(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 3 threw " + exception); }
             try { Round4ManualTargets(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 4 threw " + exception); }
-            try { Round4HorseReach(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 5 threw " + exception); }
             try { Round4Approach(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 6 threw " + exception); }
             try { Round4WaitAndClocks(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 7 threw " + exception); }
-            try { Round4Feedback(); } catch (Exception exception) { Check(false, "PR-1 round 4 case 8 threw " + exception); }
+            try { Round5TerminalAndFeedback(); } catch (Exception exception) { Check(false, "PR-1 round 5 terminal/feedback threw " + exception); }
+            try { Round5Cancellation(); } catch (Exception exception) { Check(false, "PR-1 round 5 cancellation threw " + exception); }
+            try { Round5ClickAttribution(); } catch (Exception exception) { Check(false, "PR-1 round 5 click attribution threw " + exception); }
+            try { Round5Approach(); } catch (Exception exception) { Check(false, "PR-1 round 5 approach threw " + exception); }
+            try { Round5Dispatch(); } catch (Exception exception) { Check(false, "PR-1 round 5 dispatch threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }

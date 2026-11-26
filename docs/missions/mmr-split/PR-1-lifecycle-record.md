@@ -63,3 +63,22 @@ current; retirement of G ends every unreleased wrapper of G but leaves a release
 8. **Evidence (R3-F4 and section 5).** The domain decisions are driven in sequence by component tests (terminal -> next
    dispatch, retirement -> promotion, delivery -> supersession, assignment -> cleanup); the wrapper members by the
    attack-path harness; the controller glue by compiled-wiring checks. The lost-reach fixture starts inside reach.
+
+## Round 5 additions (review of e9ef7f6f)
+
+- **Cancellation (R3-F1, R4-F1).** `Cancel` -> `CancelCore(reason, ordinaryRetarget)` -> `RetireOrderForCancel`: the active and the
+  order's own (possibly queue-only) wrappers are retained before the intent is cleared and retired through `RetireOrderWrapper`. A fresh
+  player click is ordinary retargeting (a delivered strike stays native's until its terminal); every other boundary is hard (even a
+  delivered strike is ended). Target invalidation retires a queue-only wrapper (`RetireOrderOnTargetInvalidation`). Promotion of a
+  retired explicit wrapper is refused before any owner lookup (`PatchMethods.AdmitExplicitPromotion`), so also after detachment.
+- **Terminal settlement (R4-F5, R2-F4).** `HandleCommandTerminal` -> `SettleOrderTerminal` (spliced into the harness unchanged). The
+  rider's pending refusal is settled by delivery or by why the generation ended: newer work (supersession latch, `Replaced`) drops it
+  silently; an unexecuted horse on the still-current order presents it once. `FinishTurnBasedIntent` is the shared spent-horse ending.
+- **Dispatch plan (R3-F4, R3-F5).** `MountedDispatchPlanner.Plan` owns the decision, the acting actor and its approach authority; the
+  horse strike-plan probe runs only when a horse dispatch can follow from it.
+- **Click attribution (R1-F11).** The click bracket records which pair actors the click commanded (its selection); only those can have
+  been assigned by the handler's post-Run write.
+- **Approach (R4-F2, R4-F3, R4-F4).** A failed pre-start sight goal is excluded too; restricted automatic movement retires only a
+  strike not admissible from the current position; an admissible ordinary strike settles an already interrupted exact carrier; no
+  carrier is issued, adopted or replaced once the unreleased generation is superseded.
+- **Spending (R4-F6).** The outcome attributes a Standard charge only to a delivered strike.
