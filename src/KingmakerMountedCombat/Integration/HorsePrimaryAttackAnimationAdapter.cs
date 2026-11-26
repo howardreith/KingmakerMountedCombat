@@ -196,8 +196,12 @@ namespace KingmakerMountedCombat.Integration
         internal static HorseBiteClass ClassifyBiteLimb(WeaponSlot hand, BlueprintItemWeapon planned, IList<WeaponSlot> runtimeLimbs,
             BlueprintItemWeapon[] blueprintLimbs, string registeredBiteGuid)
         {
+            // PR-5 review R2-F2 (round 5): a missing required first-slot reference (the runtime first limb or the registered body's
+            // first limb) or a missing planned weapon identity is unavailable evidence, not a readable mismatch; NotBite is reserved for a
+            // readable, confirmed non-Bite.
             if (hand == null || ReferenceEquals(planned, null) || runtimeLimbs == null || runtimeLimbs.Count == 0 || blueprintLimbs == null ||
-                blueprintLimbs.Length == 0 || string.IsNullOrEmpty(registeredBiteGuid))
+                blueprintLimbs.Length == 0 || string.IsNullOrEmpty(registeredBiteGuid) || runtimeLimbs[0] == null ||
+                ReferenceEquals(blueprintLimbs[0], null) || string.IsNullOrEmpty(planned.AssetGuid))
                 return HorseBiteClass.Unavailable;
             return ReferenceEquals(runtimeLimbs[0], hand) && ReferenceEquals(blueprintLimbs[0], planned) &&
                 string.Equals(planned.AssetGuid, registeredBiteGuid, StringComparison.Ordinal)

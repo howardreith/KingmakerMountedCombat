@@ -673,7 +673,6 @@ namespace KingmakerMountedCombat.Integration
             RegisterMountedCombatFeatReported(library);
 
             biteGuid = bite.AssetGuid;
-            RegisteredBiteGuid = biteGuid;
             biteName = bite.name;
             hoofName = hoof.name;
             // Installed BlueprintFeatureSelection.Items enumerates AllFeatures,
@@ -701,6 +700,9 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException(error);
             }
             ValidateRegisteredContract(library);
+            // PR-5 review R4-F3: the classifier's registered Bite identity is published only once Horse registration has succeeded
+            // (after the selection transaction and the registered-contract check); a failed registration never publishes it.
+            RegisteredBiteGuid = biteGuid;
         }
 
         private void RemoveRidingDog(LibraryScriptableObject library)
@@ -1305,8 +1307,22 @@ namespace KingmakerMountedCombat.Integration
                 string.Equals(item.AssetGuid, expected.AssetGuid, StringComparison.Ordinal));
         }
 
+        // PR-5 review R4-F3: the owned Unity objects are destroyed in their own non-inlined method, so the rollback itself (and its
+        // identity withdrawal) never depends on an engine call being compiled into its body.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private void DestroyOwnedObjects()
+        {
+            for (var index = ownedObjects.Count - 1; index >= 0; index--)
+            {
+                if (ownedObjects[index] != null) { UnityEngine.Object.Destroy(ownedObjects[index]); }
+            }
+            ownedObjects.Clear();
+        }
+
         private void RollBackPartialRegistration(LibraryScriptableObject library)
         {
+            // PR-5 review R4-F3: no registered Bite identity survives a rolled-back registration (withdrawn first, before any removal).
+            RegisteredBiteGuid = null;
             if (selectionLease != null && rangerSelection != null)
             {
                 string ignored;
@@ -1321,11 +1337,7 @@ namespace KingmakerMountedCombat.Integration
             RemoveExact(library, blueprintList, UpgradeGuid, horseUpgrade);
             RemoveExact(library, blueprintList, UnitGuid, horseUnit);
             RemoveExact(library, blueprintList, PortraitGuid, horsePortrait);
-            for (var index = ownedObjects.Count - 1; index >= 0; index--)
-            {
-                if (ownedObjects[index] != null) { UnityEngine.Object.Destroy(ownedObjects[index]); }
-            }
-            ownedObjects.Clear();
+            DestroyOwnedObjects();
             horseUnit = null;
             horsePortrait = null;
             horseIcon = null;

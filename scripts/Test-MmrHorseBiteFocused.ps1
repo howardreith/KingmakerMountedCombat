@@ -7,6 +7,7 @@ param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 #   2. Test-MountedAlpha2BiteContract.ps1: MMR-07 (review R1-F13) the production Horse Bite handle binding and strike reader on
 #      genuine Kingmaker handle/action/manager objects, and the compiled postfix/OnAction wiring.
 #   3. Test-MountedPresentationContracts.ps1: the paired presentation seams beside the attack animation path.
+#   4. Test-HarnessSelection.ps1: PR-5 review R4-F1, the harness dispatcher's invocation-scoped single-case selection.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
 #   (Mounted Shield registration, amounts, AC/check writes, publication, embedded icon identity); Test-MountedArcheryFeatContract.ps1;
 #   chunk7\Test-Chunk7RangerSelectionContract.ps1 (Horse/Riding Dog selection); chunk7\Test-Chunk7ReplaySubscriberContract.ps1
@@ -23,7 +24,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MmrHorseBiteNativeContract.ps1'),@('Test-MountedAlpha2BiteContract.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MmrHorseBiteNativeContract.ps1'),@('Test-MountedAlpha2BiteContract.ps1'),@('Test-MountedPresentationContracts.ps1'),@('Test-HarnessSelection.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

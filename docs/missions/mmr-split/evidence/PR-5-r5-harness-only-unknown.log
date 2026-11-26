@@ -1,0 +1,3 @@
+FAIL harness selection: -Only 'horse native-controls UX repairs are exact-pair scoped' matched 0 harness cases (exactly one is required)
+TOTAL PASS=0 FAIL=1
+METERED Test-Harness.ps1 -Only unknown name (PR-5 r5 R4-F1) 4.0 s | get mounted-alpha2-melee-pose-20261124: spent 128.84 of 150 min; remaining 21.17 min; entries 191 (running 0, interrupted 0, unreconciled 0) 

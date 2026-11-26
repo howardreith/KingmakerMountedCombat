@@ -1,9 +1,12 @@
 [CmdletBinding()]
-param()
+# PR-5 review R4-F1: -Only runs exactly one named case (invocation-scoped; see scripts/HarnessDispatch.ps1). Without it every case runs.
+param([string]$Only)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'HarnessDispatch.ps1')
+Initialize-HarnessSelection $Only
 
 $repoRoot = Get-KmcRepositoryRoot
 $currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
@@ -33,21 +36,6 @@ function New-TestChildEntryPreamble([string]$Scenario,[string]$RunId) {
         actors=[ordered]@{rider=(& $actor 'rider' 101);mount=(& $actor 'horse' 102)}
         party=[ordered]@{playerInCombat=$false;members=6;membersInCombat=0;idle=$true;memberIds=@('rider','horse','a','b','c','d')}
         turnBased=$false;currentTurnActor=$null;paused=$false
-    }
-}
-
-function Invoke-HarnessTest {
-    param([string]$Name, [scriptblock]$Body)
-    # PR-5 review R3-F6: optional single-case selection (exact name); unset runs every case as before.
-    if (-not [string]::IsNullOrEmpty($env:KMC_HARNESS_ONLY) -and $Name -cne $env:KMC_HARNESS_ONLY) { return }
-    try {
-        & $Body
-        $script:passed++
-        Write-Host "PASS $Name"
-    }
-    catch {
-        $script:failed++
-        Write-Host "FAIL $Name`: $($_.Exception.Message)"
     }
 }
 
@@ -10503,23 +10491,20 @@ try {
         $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
         $nativeControlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
         $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
-        # PR-5 review R3-F6: the binding moved from inline adapter statements into HorseStrikeHandleBinding (driven on genuine Kingmaker
-        # objects by Test-MountedAlpha2BiteContract.ps1); these predicates check the same exact-action, ownership and idempotence rules
-        # in the current production source, and each has a negative over a source with that rule removed.
-        $bindingSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\HorseStrikeHandleBinding.cs'))
-        $exactSingleAction = { param($binding) $binding.Contains('if (candidate == null || !boundary.IsBiteAction(candidate)) continue;') -and $binding.Contains('if (count != 1)') -and
-            $binding.Contains('result.Outcome = HorseStrikeHandleOutcome.RejectedCandidateCount;') }
-        $exactOwnershipIdempotence = { param($adapterText, $binding)
-            $adapterText.Contains('handle => command.HasRecordedHorsePrimaryAnimation(handle)') -and
-            $adapterText.Contains('(handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source)') -and
-            $adapterText.Contains('(handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action)') -and
-            $binding.Contains('if (!boundary.ExactContext) return result;') -and $binding.Contains('if (boundary.IsRecorded(current))') -and
-            $binding.Contains('!boundary.HandleUsesHorseManager(current)') -and $binding.Contains('if (boundary.HasAnyRecorded)') -and
-            $binding.Contains('boundary.Refresh(current, stock);') -and $binding.Contains('boundary.Record(current, stock, StockCreated);') }
-        Assert-Test (-not (& $exactSingleAction $bindingSource.Replace('if (count != 1)', 'if (count < 1)')) -and
-            -not (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource.Replace('if (boundary.IsRecorded(current))', 'if (false)')) -and
-            -not (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource.Replace('!boundary.HandleUsesHorseManager(current)', 'false'))) `
-            'Horse primary binding predicates accept an ambiguous-action, duplicate-binding or foreign-manager source'
+        # PR-5 review R3-F6 (round 5): the exact-action, ownership and idempotence rules are judged by behavior, not spelling: the
+        # compiled HorseStrikeHandleBinding decision on genuine Kingmaker handle/action/manager objects (the production-backed cases of
+        # scripts/Test-MountedAlpha2BiteContract.ps1, run here on the built product). Two eligible Bite actions write nothing, a repeated
+        # handle is registered once, and a handle of another animation manager is refused.
+        $bindingContract = Join-Path $PSScriptRoot 'Test-MountedAlpha2BiteContract.ps1'
+        # A PowerShell 7 parent's module path breaks a Windows PowerShell child's autoload (as in the focused wrappers).
+        $savedModulePath = $env:PSModulePath; $env:PSModulePath = $null
+        try { $bindingLines = @(& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $bindingContract 2>&1 | ForEach-Object { [string]$_ }); $bindingExit = $LASTEXITCODE }
+        finally { $env:PSModulePath = $savedModulePath }
+        foreach ($required in @('PASS two Bite actions: the fallback assigns nothing', 'PASS the same genuine handle is recorded exactly once',
+                'PASS a genuine handle from another animation manager is refused')) {
+            Assert-Test ($bindingExit -eq 0 -and @($bindingLines | Where-Object { $_ -ceq $required }).Count -eq 1) `
+                ('Horse primary binding behavior not established by the compiled decision (exit ' + $bindingExit + '): ' + $required)
+        }
 
         $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
@@ -10544,7 +10529,6 @@ try {
             $horsePrimaryAnimationSource.Contains('command.Action == MountedCombatActionKind.MountPrimaryNatural') -and
             $horsePrimaryAnimationSource.Contains('HorseCompanionBlueprintService.UnitGuid') -and
             $horsePrimaryAnimationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
-            (& $exactSingleAction $bindingSource) -and
             $horsePrimaryAnimationSource.Contains('handle => attack.AnimationHandle = handle') -and
             $projectSource.Contains('Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs"') -and
             -not $animationSource.Contains('catch') -and
@@ -10559,7 +10543,6 @@ try {
             $childValidationIndex -gt $directAnimationIndex -and
             $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
             $horsePrimaryAnimationSource.Contains('var exact = IsExactHorsePrimaryContext(command, attack, horse) && IsHorseBiteSlot(horse, attack);') -and
-            (& $exactOwnershipIdempotence $horsePrimaryAnimationSource $bindingSource) -and
             $horsePrimaryAnimationSource.Contains('HandleRefreshCount++;') -and
             $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;') -and
             $attackCommandSource.Contains('!ReferenceEquals(horsePrimaryAnimationAction, animationAction)') -and
@@ -13245,6 +13228,8 @@ finally {
     }
 }
 
+$selectionFailure = Get-HarnessSelectionFailure
+if ($null -ne $selectionFailure) { $failed++; Write-Host "FAIL harness selection: $selectionFailure" }
 Write-Host "TOTAL PASS=$passed FAIL=$failed"
-if ($failed -ne 0) { exit 1 }
+if ($failed -ne 0 -or $passed -eq 0) { exit 1 }
 

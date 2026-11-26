@@ -374,12 +374,13 @@ function New-Unit([string]$Guid, [string]$Id) {
 $terminalType = [Action`2].MakeGenericType($commandType, $outcomeType)
 $transactionType = KmcType 'KingmakerMountedCombat.Domain.MountedCombatTransaction'
 $reportTerminal = $commandType.GetMethod('ReportTerminalOnce', $any)
-function Deliver([string]$Guid, $Observed, [string]$Source, $Registered, [bool]$Detailed) {
+function Deliver([string]$Guid, $Observed, [string]$Source, $Registered, [bool]$Detailed, $Observation = $null) {
     $c = New-Native $commandType
     SetField $c $commandType 'action' ([Enum]::Parse((KmcType 'KingmakerMountedCombat.Domain.MountedCombatActionKind'), 'MountPrimaryNatural'))
     $u = New-Unit $Guid 'horse-1'; SetField $c $commandType 'mount' $u; SetField $c $commandType 'actionActor' $u
     $obs = [Activator]::CreateInstance($observationType)
     if ($null -ne $Observed) { [void]$observationType.GetMethod('Observe', [Type[]]@([bool], $handleType, [string])).Invoke($obs, [object[]]@($true, $Observed, $Source)) }
+    if ($null -ne $Observation) { $obs = $Observation }
     SetField $c $commandType 'horseBiteObservation' $obs
     if ($null -ne $Registered) {
         SetField $c $commandType 'horsePrimaryAnimationHandle' $Registered; SetField $c $commandType 'horsePrimaryAnimationHandleSource' 'stock-created'
@@ -455,4 +456,116 @@ Write-Host ('  R3-F2 row/reader: rejected=' + (RowAccepts $rejectedHandle) + '/'
 Check ($clauses.Success -and (Calls $phase3d $null $acceptedFour) -and -not (RowAccepts $rejectedHandle) -and (& $readerRejects $rejectedHandle) -and
     (RowAccepts $registered) -and -not (& $readerRejects $registered) -and -not (& $readerRejects $historicalRow) -and -not (& $readerRejects $oldestRow) -and (& $readerRejects $unreadableRow) -and
     -not (RowAccepts $unreadableRow)) 'PR-5 R3-F2: the explicit Mount Primary row (production four-argument decision) and its reader reject an acted, finished, uninterrupted handle binding rejected (unrecorded) and an unreadable fact; the registered Bite and historical artifacts (without the readability field, or without any source) pass under strict mode'
+# ---- 5. PR-5 round 5 ---------------------------------------------------------------------------------------------------
+# R2-F2: after a known Bite observation, the production classifier (ClassifyBiteLimb) on nonempty collections whose required first
+# entry is missing, and on a planned weapon without identity, is Unavailable; through the production observation step
+# (HorseStrikeObservationStep.Observe, the command's contained observation) that is one identifiable unreadable strike line, the
+# earlier handle and source cleared, and terminal playback rejected by the production decision. The confirmed hoof stays NotBite
+# and leaves the earlier Bite standing.
+$nullFirstRuntime = [Activator]::CreateInstance([Collections.Generic.List`1].MakeGenericType($slotType)); foreach ($x in @($null, $hoofSlotA, $hoofSlotB)) { $nullFirstRuntime.Add($x) }
+$nullFirstBlueprint = [Array]::CreateInstance($weaponType, 3); $nullFirstBlueprint.SetValue($hoofWeapon, 1); $nullFirstBlueprint.SetValue($hoofWeapon, 2)
+$noIdentityBite = New-Weapon 'Bite'
+$noIdentityLimbs = [Array]::CreateInstance($weaponType, 3); $noIdentityLimbs.SetValue($noIdentityBite, 0); $noIdentityLimbs.SetValue($hoofWeapon, 1); $noIdentityLimbs.SetValue($hoofWeapon, 2)
+function Classify($Hand, $Weapon, $Limbs, $BlueprintLimbs) { $classify.Invoke($null, [object[]]@($Hand, $Weapon, $Limbs, $BlueprintLimbs, $registeredBiteGuid)).ToString() }
+$classes = @((Classify $biteSlot $biteWeapon $nullFirstRuntime $blueprintLimbs), (Classify $biteSlot $biteWeapon $runtimeLimbs $nullFirstBlueprint),
+    (Classify $biteSlot $noIdentityBite $runtimeLimbs $noIdentityLimbs), (Classify $hoofSlotA $hoofWeapon $runtimeLimbs $blueprintLimbs), (Classify $biteSlot $biteWeapon $runtimeLimbs $blueprintLimbs))
+$biteClassType = KmcType 'KingmakerMountedCombat.Domain.HorseBiteClass'
+$step = (KmcType 'KingmakerMountedCombat.Domain.HorseStrikeObservationStep').GetMethod('Observe').MakeGenericMethod([object], $handleType)
+function Step($Observation, [scriptblock]$ClassifyPlan) {
+    $script:stepLines = New-Object System.Collections.ArrayList
+    [void]$step.Invoke($null, [object[]]@($Observation,
+        (As-Delegate { [object]'plan' } ([Func`1].MakeGenericType([object]))),
+        (As-Delegate $ClassifyPlan ([Func`2].MakeGenericType([object], $biteClassType))),
+        (As-Delegate { param($p) $null } ([Func`2].MakeGenericType([object], $handleType))),
+        (As-Delegate { param($h) 'stock-created' } ([Func`2].MakeGenericType($handleType, [string]))),
+        (As-Delegate { param($p) 'Horse strike: horse=horse-1; slot=limb0.' } ([Func`2].MakeGenericType([object], [string]))),
+        (As-Delegate { 'horse-1' } ([Func`1].MakeGenericType([string]))),
+        (As-Delegate { param($l) [void]$script:stepLines.Add($l) } ([Action`1].MakeGenericType([string])))))
+}
+$knownHandle = New-Handle $bite $manager
+$observeKnown = $observationType.GetMethod('Observe', [Type[]]@([bool], $handleType, [string]))
+$missingLimb = [Activator]::CreateInstance($observationType); [void]$observeKnown.Invoke($missingLimb, [object[]]@($true, $knownHandle, 'stock-created'))
+Step $missingLimb { param($p) [Enum]::Parse($biteClassType, (Classify $biteSlot $biteWeapon $nullFirstRuntime $blueprintLimbs)) }
+$missingLines = @($script:stepLines.ToArray())
+$confirmedHoof = [Activator]::CreateInstance($observationType); [void]$observeKnown.Invoke($confirmedHoof, [object[]]@($true, $knownHandle, 'stock-created'))
+Step $confirmedHoof { param($p) [Enum]::Parse($biteClassType, (Classify $hoofSlotA $hoofWeapon $runtimeLimbs $blueprintLimbs)) }
+$hoofLines = @($script:stepLines.ToArray())
+$missingTerminal = Deliver $horseUnitGuid $null $null $knownHandle $false $missingLimb
+Write-Host ('  R2-F2 r5: classes=' + ($classes -join ',') + ' missing=' + $missingLimb.Kind + '/' + $missingLimb.UnreadableReason + ' line=' + ($missingLines -join ' | ') + ' terminal=' + $missingTerminal[0].HorseBiteTerminal + ' accepted=' + (Accepted $missingTerminal[0]) + ' hoof=' + $confirmedHoof.Kind)
+Check (($classes -join ',') -ceq 'Unavailable,Unavailable,Unavailable,NotBite,Bite' -and
+    $missingLimb.Kind.ToString() -ceq 'Unreadable' -and $missingLimb.UnreadableReason -ceq 'limb:unavailable' -and $null -eq $missingLimb.Handle -and $null -eq $missingLimb.Source -and
+    $missingLines.Count -eq 1 -and $missingLines[0] -like 'Horse strike: horse=horse-1*biteObservation=unreadable(limb:unavailable)*' -and
+    $missingTerminal.Count -eq 1 -and [string]$missingTerminal[0].HorseBiteTerminal -like '{observed=unreadable(limb:unavailable)*' -and -not (Accepted $missingTerminal[0]) -and
+    $confirmedHoof.Kind.ToString() -ceq 'Handle' -and [object]::ReferenceEquals($confirmedHoof.Handle, $knownHandle) -and $hoofLines.Count -eq 1 -and -not ($hoofLines[0] -like '*unreadable*')) 'PR-5 R2-F2: after a known Bite, a nonempty limb collection with a null required first entry (runtime or registered) or a planned weapon without identity is Unavailable: one identifiable unreadable strike line, the earlier handle and source cleared, terminal playback rejected; a confirmed hoof is NotBite and keeps the earlier Bite'
+
+# R4-F3: the registered Bite identity follows successful registration. The compiled Register publishes it only after the selection
+# transaction and the registered-contract check (the property setter's only call in Register follows ValidateRegisteredContract),
+# and the production rollback withdraws it before any removal; invoked on a service holding a published identity, the rollback
+# leaves the classifier without one (Unavailable), while the published identity admits the original untagged Bite.
+$serviceType = KmcType 'KingmakerMountedCombat.Integration.HorseCompanionBlueprintService'
+$biteProperty = $serviceType.GetProperty('RegisteredBiteGuid', $any); $biteSetter = $biteProperty.GetSetMethod($true)
+function Offsets([Reflection.MethodBase]$Method, [Reflection.MethodBase]$Target) {
+    $il = $Method.GetMethodBody().GetILAsByteArray(); $at = @()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { if ($Method.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { $at += $i } } catch { } } }
+    , $at
+}
+$register = $serviceType.GetMethod('Register', $any); $validate = $serviceType.GetMethod('ValidateRegisteredContract', $any); $applyDesired = $serviceType.GetMethod('ApplySelectionDesired', $any)
+$rollback = $serviceType.GetMethod('RollBackPartialRegistration', $any)
+$publishAt = Offsets $register $biteSetter; $validateAt = Offsets $register $validate; $desiredAt = Offsets $register $applyDesired; $withdrawAt = Offsets $rollback $biteSetter
+$untaggedGuid = [string](GameType 'Kingmaker.Blueprints.BlueprintScriptableObject').GetProperty('AssetGuid').GetValue($untaggedBite, $null)
+$untaggedPublished = $classify.Invoke($null, [object[]]@($biteSlot, $untaggedBite, $runtimeLimbs, $registeredUntagged, $untaggedGuid)).ToString()
+$previousIdentity = $biteProperty.GetValue($null, $null)
+$rolledBack = $null; $rollbackFault = $null
+try {
+    [void]$biteSetter.Invoke($null, [object[]]@($untaggedGuid))
+    $service = New-Native $serviceType
+    try { [void]$rollback.Invoke($service, [object[]]@($null)) } catch { $rollbackFault = $_.Exception.GetBaseException().GetType().Name }
+    $rolledBack = $biteProperty.GetValue($null, $null)
+}
+finally { [void]$biteSetter.Invoke($null, [object[]]@($previousIdentity)) }
+$afterRollback = $classify.Invoke($null, [object[]]@($biteSlot, $untaggedBite, $runtimeLimbs, $registeredUntagged, $rolledBack)).ToString()
+Write-Host ('  R4-F3: publish@' + ($publishAt -join ',') + ' desired@' + ($desiredAt -join ',') + ' validate@' + ($validateAt -join ',') + ' withdraw@' + ($withdrawAt -join ',') + ' rolledBack=' + [string]$rolledBack + ' (rollback remainder ' + [string]$rollbackFault + ') classify after rollback=' + $afterRollback + ' published=' + $untaggedPublished)
+Check ($publishAt.Count -eq 1 -and $validateAt.Count -eq 1 -and $desiredAt.Count -ge 1 -and $publishAt[0] -gt $validateAt[0] -and $publishAt[0] -gt ($desiredAt | Measure-Object -Maximum).Maximum -and
+    $withdrawAt.Count -eq 1 -and $null -eq $rolledBack -and $afterRollback -ceq 'Unavailable' -and $untaggedPublished -ceq 'Bite') 'PR-5 R4-F3: Register publishes the Bite identity only after the selection transaction and the registered-contract check; the production rollback withdraws it, leaving the classifier Unavailable; a published identity admits the original untagged Bite'
+
+# R4-F2: a KMC-supplied Bite is observed at its strike, the registration then refreshes to a different stock handle of the same
+# action, and the command terminates before another Bite acts. The production ReportTerminalOnce output passes through the compiled
+# schema-8 writer (CaptureMountedOutcome) and, with the animation snapshot of that registration, through the production schema-8
+# reader clause (taken from scripts/runtime/RuntimeHarness.Common.ps1); a historical positive (equal sources) still passes and an
+# unregistered observation (unrecorded) is still rejected.
+$capture = $engine.GetMethod('CaptureMountedOutcome', $any)
+$suppliedHandle = New-Handle $bite $manager; $refreshedStock = New-Handle $bite $manager
+$refreshed = Deliver $horseUnitGuid $suppliedHandle 'kmc-supplied' $refreshedStock $false
+$historicalOutcome = Deliver $horseUnitGuid $registeredHandle 'stock-created' $registeredHandle $false
+$unrecordedOutcome = Deliver $horseUnitGuid $suppliedHandle 'unrecorded' $refreshedStock $false
+function Wire($o) { $j = $capture.Invoke($null, [object[]]@($o, $true)); $j.ToString() | ConvertFrom-Json }
+function Snapshot([string]$Last, [int]$Created, [int]$Adopted) { [pscustomobject][ordered]@{ delegatedLocomotionRestoreCount = 0; lastDelegatedLocomotionSource = 'none'; lastDelegatedLocomotionSpeed = 0;
+    horsePrimaryHandleCreateCount = $Created; horsePrimaryHandleAdoptCount = $Adopted; horsePrimaryHandleRejectCount = 0; lastHorsePrimaryHandleSource = $Last;
+    lastHorsePrimaryActionName = 'HorseAnimationSet_Bite'; lastHorsePrimaryActionType = 'SpecialAttack' } }
+$schema8 = [regex]::Match($commonText, "(?s)if \(\[string\]\`$o\.mountedTurnHorseOutcome\.attackAnimationHandleSource -cnotin .*?\) \{\s*throw 'PASS Horse native animation did not prove")
+$schema8Clause = $schema8.Value.Substring(4, $schema8.Value.LastIndexOf(') {') - 4)
+$schema8Rejects = [scriptblock]::Create('param($o) (' + $schema8Clause + ')')
+function Schema8($Outcome, $Snapshot) { [pscustomobject]@{ mountedTurnHorseOutcome = $Outcome; mountedHorseOutcome = $Outcome; mountedTurnHorseAnimation = $Snapshot[0]; mountedHorseAnimation = $Snapshot[1] } }
+$refreshedWire = Wire $refreshed[0]
+$refreshedVerdict = & $schema8Rejects (Schema8 $refreshedWire @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 1 1)))
+$historicalVerdict = & $schema8Rejects (Schema8 (Wire $historicalOutcome[0]) @((Snapshot 'stock-created' 0 1), (Snapshot 'stock-created' 0 2)))
+$unrecordedVerdict = & $schema8Rejects (Schema8 (Wire $unrecordedOutcome[0]) @((Snapshot 'stock-created' 1 0), (Snapshot 'stock-created' 1 1)))
+Write-Host ('  R4-F2: refreshed outcome source=' + $refreshedWire.attackAnimationHandleSource + ' registration=' + $refreshed[0].AttackAnimationRegisteredSource + ' rejected=' + $refreshedVerdict + ' | historical rejected=' + $historicalVerdict + ' | unrecorded rejected=' + $unrecordedVerdict)
+Check ($schema8.Success -and $refreshedWire.attackAnimationHandleSource -ceq 'kmc-supplied' -and $refreshed[0].AttackAnimationRegisteredSource -ceq 'stock-created' -and
+    -not $refreshedVerdict -and -not $historicalVerdict -and $unrecordedVerdict) 'PR-5 R4-F2: the schema-8 reader credits the KMC-supplied Bite observed at its strike after the registration refreshed to a stock handle (writer output through the production reader); a historical positive passes and an unrecorded observation is rejected'
+
+# R3-F2: a serialized current outcome (the production ReportTerminalOnce outcome through the tranche's own JSON settings) passes the
+# Mount Primary reader; removing the observed source, or the readability field, separately makes it fail; the explicit unrecorded
+# negative still fails and the supported historical positives still pass.
+$jsonSettings = $phase3d.GetField('JsonSettings', $any).GetValue($null)
+$jObject = $jsonSettings.GetType().Assembly.GetType('Newtonsoft.Json.Linq.JObject', $true)
+$serializer = $jObject.Assembly.GetType('Newtonsoft.Json.JsonSerializer').GetMethod('Create', [Type[]]@($jsonSettings.GetType())).Invoke($null, [object[]]@($jsonSettings))
+function Serialized($o) { ($jObject.GetMethod('FromObject', [Type[]]@([object], $serializer.GetType())).Invoke($null, [object[]]@($o, $serializer))).ToString() | ConvertFrom-Json }
+function Without($o, [string]$Name) { $copy = $o | ConvertTo-Json -Depth 6 | ConvertFrom-Json; $copy.PSObject.Properties.Remove($Name); $copy }
+$currentRow = Serialized $detailed[0]; $currentRow.attackAnimationActed = $true; $currentRow.attackAnimationFinished = $true
+$noSource = Without $currentRow 'attackAnimationHandleSource'; $noReadability = Without $currentRow 'attackAnimationFactsUnreadable'
+$unrecordedRow = $currentRow | ConvertTo-Json -Depth 6 | ConvertFrom-Json; $unrecordedRow.attackAnimationHandleSource = 'unrecorded'
+Write-Host ('  R3-F2 r5: current=' + (& $readerRejects $currentRow) + ' noSource=' + (& $readerRejects $noSource) + ' noReadability=' + (& $readerRejects $noReadability) + ' unrecorded=' + (& $readerRejects $unrecordedRow) + ' historical=' + (& $readerRejects $historicalRow) + ' oldest=' + (& $readerRejects $oldestRow))
+Check ($null -ne $currentRow.PSObject.Properties['attackAnimationObservation'] -and -not (& $readerRejects $currentRow) -and (& $readerRejects $noSource) -and (& $readerRejects $noReadability) -and
+    (& $readerRejects $unrecordedRow) -and -not (& $readerRejects $historicalRow) -and -not (& $readerRejects $oldestRow)) 'PR-5 R3-F2: a serialized current Mount Primary outcome passes; removing its observed source or its readability field separately fails; the unrecorded negative fails and the supported historical positives pass'
 Write-Host ('Mounted alpha 2 bite contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
