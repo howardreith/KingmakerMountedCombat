@@ -143,6 +143,18 @@ $estimate = if ($unknownSteps -eq 0 -and $steps.Count -gt 0) { [int][Math]::Ceil
 # What admission is told: the complete estimate when every step is known, otherwise the known
 # part as a lower bound (a selection whose known steps alone exceed the allowance never starts).
 $admissionEstimate = if ($knownSeconds -gt 0) { [int][Math]::Ceiling($knownSeconds) } else { $null }
+# Full -SkipBuild with no inclusive Full duration yet: the recorded receipt-check duration (the work the umbrella starts
+# with) is a lower bound for selection admission and for the Full step's admission. The total estimate stays unknown
+# and nothing is recorded as Full history. Full with a build, Fast and Candidate are unchanged.
+$receiptLowerBound = $null
+if ($Tier -eq 'Full' -and $SkipBuild -and $null -eq (Get-KmcWorkflowStepHistorySeconds $budgetView 'FULL umbrella (scripts/Test.ps1)')) {
+    $receiptHistory = Get-KmcWorkflowStepHistorySeconds $budgetView 'reuse check'
+    if ($null -ne $receiptHistory) {
+        $receiptLowerBound = [int][Math]::Ceiling($receiptHistory)
+        if ($null -eq $admissionEstimate -or $admissionEstimate -lt $receiptLowerBound) { $admissionEstimate = $receiptLowerBound }
+        $stepEstimates['FULL umbrella (scripts/Test.ps1)'] = $receiptLowerBound
+    }
+}
 
 if ($Plan) {
     $now = Get-KmcWorkflowClock
@@ -155,7 +167,7 @@ if ($Plan) {
     foreach ($step in $steps) {
         $index++
         $last = Get-KmcWorkflowStepHistorySeconds $budgetView $step.Name
-        Write-Host ('  ' + $index + '. ' + $step.Name + ' [' + $step.Prerequisite + '] ' + $(if (-not $step.Timed) { 'timed within FULL umbrella' } else { 'last=' + $(if ($null -eq $last) { 'unknown' } else { [string]$last + 's' }) }) + ' :: ' + $step.Detail)
+        Write-Host ('  ' + $index + '. ' + $step.Name + ' [' + $step.Prerequisite + '] ' + $(if (-not $step.Timed) { 'timed within FULL umbrella' } else { 'last=' + $(if ($null -eq $last) { 'unknown' } else { [string]$last + 's' }) + $(if ($null -eq $last -and $null -ne $receiptLowerBound -and $stepEstimates.ContainsKey($step.Name)) { ' (admission lower bound ' + $stepEstimates[$step.Name] + 's from the recorded reuse check)' } else { '' }) }) + ' :: ' + $step.Detail)
     }
     Write-Host ('  estimate=' + $(if ($null -eq $estimate) { 'unknown (' + $unknownSteps + ' step(s) without a recorded duration)' } else { [string]$estimate + 's from recorded durations' }))
     if (Test-Path -LiteralPath $productDll -PathType Leaf) {

@@ -345,6 +345,18 @@ try {
         $inclusiveRunScans = & $scanCount
         $inclusiveLow = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-inclusive-low')
         $inclusiveLowScans = & $scanCount
+        # R8-F1: Full -SkipBuild with a current receipt, 600 s of recorded receipt-check history, no Full history and a
+        # 1-minute allowance: the receipt duration is the admission lower bound, so the run is refused as known oversized
+        # work before any receipt scan or runner; no Full history is invented and the plan keeps the total unknown while
+        # showing the bound given to the Full step's admission.
+        [ordered]@{ schemaVersion = 1; budgetId = 'fixture-full-receipt-bound'; allowanceMinutes = 1; blockCeilingMinutes = 30; createdUtc = (Get-Date).ToUniversalTime().ToString('o'); entries = @()
+            stepHistory = [ordered]@{ 'reuse check' = [ordered]@{ seconds = 600; observedUtc = (Get-Date).ToUniversalTime().ToString('o') } } } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $budgetRoot 'fixture-full-receipt-bound.json') -Encoding UTF8
+        $boundRun = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-receipt-bound')
+        $boundRunScans = & $scanCount
+        $boundRecord = Get-Content -LiteralPath (Join-Path $budgetRoot 'fixture-full-receipt-bound.json') -Raw | ConvertFrom-Json
+        $boundInvented = $null -ne $boundRecord.stepHistory -and $null -ne $boundRecord.stepHistory.PSObject.Properties['FULL umbrella (scripts/Test.ps1)']
+        $boundPlan = Invoke-PS @('-File', $tiersScript, '-Tier', 'Full', '-QualificationTask', 'boundary-reuse-check', '-SkipBuild', '-BudgetId', 'fixture-full-receipt-bound', '-Plan')
+        $null = & $scanCount
     }
     finally {
         $env:KMC_WORKFLOW_BUDGET_ROOT = $previousRoot; $env:KMC_WORKFLOW_BUDGET_ENTRY = $previousEntry; $env:KMC_WORKFLOW_BUDGET_ID = $previousBudgetId
@@ -365,6 +377,7 @@ try {
     Add-Case 'full-estimate-counts-the-inclusive-duration-once' $inclusivePlanOk ("Full plan: " + [regex]::Match($inclusivePlan.Output, 'estimate=[^\r\n]*').Value + "; " + [regex]::Match($inclusivePlan.Output, 'reuse check \[[^\]]*\] [^:]*').Value.Trim() + "; Fast and Candidate list the receipt step with last=120s: $($fastPlan.Output -match 'reuse check \[[^\]]*\] last=120s')/$($candidatePlan.Output -match 'reuse check \[[^\]]*\] last=120s')")
     Add-Case 'full-admitted-between-inclusive-and-double-counted-cost' ($inclusiveRun.ExitCode -eq 0 -and $inclusiveRun.Output -match 'RUNNER BOUNDARY' -and $inclusiveRunScans -eq 1) ("allowance 270 s; exit $($inclusiveRun.ExitCode); receipt scans $inclusiveRunScans; runner boundary reached: $($inclusiveRun.Output -match 'RUNNER BOUNDARY')" + $(if ($inclusiveRun.ExitCode) { '; ' + (Get-Reason $inclusiveRun.Output) } else { '' }))
     Add-Case 'full-refused-below-the-inclusive-cost' ($inclusiveLow.ExitCode -ne 0 -and $inclusiveLow.Output -match 'refuses oversized work' -and $inclusiveLowScans -eq 0 -and $inclusiveLow.Output -notmatch 'RUNNER BOUNDARY') ("allowance 180 s; exit $($inclusiveLow.ExitCode); receipt scans $inclusiveLowScans; " + (Get-Reason $inclusiveLow.Output))
+    Add-Case 'full-reuse-without-full-history-uses-the-receipt-lower-bound' ($boundRun.ExitCode -ne 0 -and $boundRun.Output -match 'refuses oversized work' -and $boundRunScans -eq 0 -and $boundRun.Output -notmatch 'RUNNER BOUNDARY' -and -not $boundInvented -and $boundPlan.Output -match 'estimate=unknown' -and $boundPlan.Output -match 'FULL umbrella \(scripts/Test\.ps1\) \[[^\]]*\] last=unknown \(admission lower bound 600s from the recorded reuse check\)') ("600 s receipt history, no Full history, 60 s allowance; exit $($boundRun.ExitCode); receipt scans $boundRunScans; runner boundary reached: $($boundRun.Output -match 'RUNNER BOUNDARY'); Full history invented: $boundInvented; plan: " + [regex]::Match($boundPlan.Output, 'estimate=[^\r\n]*').Value + "; " + [regex]::Match($boundPlan.Output, 'FULL umbrella \(scripts/Test\.ps1\) \[[^\]]*\] last=[^:]*').Value.Trim() + "; " + (Get-Reason $boundRun.Output))
     Add-Case 'later-full-admission-with-less-time-than-the-established-duration-refused' ($fullShort.ExitCode -ne 0 -and $fullShort.Output -match 'refuses oversized work' -and $fullShort.Output -notmatch 'RUNNER BOUNDARY' -and $fullShortScans -eq 0) ("exit $($fullShort.ExitCode); receipt scans $fullShortScans; " + (Get-Reason $fullShort.Output))
     # The Fast reuse boundary refuses stale outputs before running anything.
     [IO.File]::WriteAllText($projectFile, $projectOriginal.Replace('</Project>', '<!-- changed reference --></Project>'))
