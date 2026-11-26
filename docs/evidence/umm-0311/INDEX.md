@@ -1,6 +1,6 @@
 # UMM 0.31.1 baseline evidence
 
-Machine-generated outputs exported 2026-11-26 02:47 UTC for candidate commit `53c987fafe86c2fb790f94899c8cafbde28f9077`. Each row names what produced that output (its
+Machine-generated outputs exported 2026-11-26 03:38 UTC for candidate commit `9a11e0a6d4bf8ca586e2930e8af57e5700b66e4b`. Each row names what produced that output (its
 source commit, or the reused input it describes); outputs produced at another commit are identified there.
 Only local path prefixes were replaced: `<repo>` (this checkout or its temporary clone root), `<temp>`, `<game>`
 (the Kingmaker installation, read-only), `<buildtools>`, `<reference-assemblies>`, `<dotnet>`, `<controller>` (the agent-review controller), `<dev>` (the owner's development folder), `<steam>`, `<user-profile>`, `<fleet>` (the owner's fleet mission folder,
@@ -17,9 +17,12 @@ python -c "import hashlib,subprocess,sys; print(hashlib.sha256(subprocess.check_
 
 | File | Produced by | Raw SHA-256 | Exported SHA-256 (Git blob) |
 | --- | --- | --- | --- |
-| `frozen-product-source-r7.log` | 53c987fa code, run on the uncommitted batch (41/0; counted in the budget) | `0b8c39e69e8897ee750763fb066b21ba8f397e99ee25c374c90eaf17fbf8338e` | `e930c8d9c3e04654401984c69e8d5fa4079dca2f74b456b31f02337e6714dfbb` |
-| `tier-selection-r7.log` | 53c987fa code, run on the uncommitted batch (29/0; counted in the budget) | `6559674f9067c45d87b618d4010259900645a8ba82f7e03eafe262bdc5fe6b8d` | `cf35f5e5cd48767547b71276452b6f0d2d0dbc94fd6932e7903dfcd4b3ce1654` |
-| `workflow-budget-umm-0311-baseline-r7.json` | read-only copy of the lab budget record umm-0311-baseline before the round-7 gate (third allowance adjustment 30.62 -> 35.62 min; round-7 direct runs imported) | `ebe0e447a44c0f69db54fb0a17fd38b7f868608ea41c04c7b2c4259231341a70` | `9eb3bb8c7c0b9ae4d7cc20509f99cda6c3637c50a95661edc09d66758e50a4b4` |
+| `tier-selection-r8.log` | 9a11e0a6 code, run on the uncommitted batch (29/0; counted in the budget) | `e3988c7d28db348651ec63d6bea3fc4870c2e9fc6bcc7f2dbe7f18947b948cb5` | `865c89b0bdb7b8e80ef82c4624d59ba239f72e202bf499732570fb68437ead66` |
+| `tier-plan-probe-r8.log` | 9a11e0a6 code, run on the uncommitted batch: Test-Tiers -Plan for Full and Fast (plan only; counted in the budget) | `7994ae243f1818624ffad088c2fa5aff6a7cd9c59482f44d661d3fe80806fe53` | `18e7b1fe276d080f3ff7431ff8163a6c55bb3b14e75d42e8e73277dabb7f1768` |
+| `workflow-budget-umm-0311-baseline-r8.json` | read-only copy of the lab budget record umm-0311-baseline before the round-8 gate (fourth allowance adjustment 35.62 -> 40.62 min; round-8 direct runs imported) | `e458ad50835452cf088592bcd6138b094fe0c7f04668f93c71f56be3d16eda65` | `70824dffe3865f9da3e0b18d64ec47b5ccfef7a7b873eb6999fb7d4cc7f5150e` |
+| `frozen-product-source-r7.log` | 53c987fa (round 7; 41/0) | `0b8c39e69e8897ee750763fb066b21ba8f397e99ee25c374c90eaf17fbf8338e` (original output, from its first export) | `e930c8d9c3e04654401984c69e8d5fa4079dca2f74b456b31f02337e6714dfbb` |
+| `tier-selection-r7.log` | 53c987fa (round 7; 29/0) | `6559674f9067c45d87b618d4010259900645a8ba82f7e03eafe262bdc5fe6b8d` (original output, from its first export) | `cf35f5e5cd48767547b71276452b6f0d2d0dbc94fd6932e7903dfcd4b3ce1654` |
+| `workflow-budget-umm-0311-baseline-r7.json` | read-only copy before the round-7 gate (round 7) | `ebe0e447a44c0f69db54fb0a17fd38b7f868608ea41c04c7b2c4259231341a70` (original output, from its first export) | `9eb3bb8c7c0b9ae4d7cc20509f99cda6c3637c50a95661edc09d66758e50a4b4` |
 | `frozen-product-source-r6.log` | bad0ad0c (round 6; 37/0) | `3cc054e7b54026295644e084f3156aed10e39dc4e70783435639281b2745be41` (original output, from its first export) | `24a9934e611d3bb2284561e7f3d49a6bfec6aedde1acce0afa0406a941372f97` |
 | `workflow-step-history-probe-r6.txt` | bad0ad0c (round 6; the -Failed switch it probed was removed in round 7) | `f1c993a8a5b33e08d821b1d85786675de45234e352b8d83373026361079ac5b9` (original output, from its first export) | `9a953c6e4739d3984f41e709a40a98ccba14780f45d0f9447da8bff9054084cb` |
 | `workflow-budget-umm-0311-baseline-r6.json` | read-only copy before the round-6 gate (round 6) | `a376bd35097b9e80920c91640404cbaf17e96ff5fbbf5f96fb6d5817ea676006` (original output, from its first export) | `7cae5a570c9560ca310cb2dfeaa2f8cdf43260e61713ed6edaa6ec2bfee6c893` |
