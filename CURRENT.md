@@ -4,7 +4,10 @@ Start here. The owner accepted PR #62 (UMM 0.31.1 baseline; reviewed source `060
 correction rounds, no open findings) and authorized on 2026-11-26 its integration with current main and publication of
 the integrated result as an alpha prerelease (not Latest; 0.2.15 stays the stable release).
 
-- **Branch:** `codex/umm-0311-integration-20261126` (from `20bf1351`). Merge commit `3e2c44a6` integrates main
+- **Branch:** PR #62's own branch `codex/umm-0311-baseline-20261123`, fast-forwarded (owner, 2026-11-26, through PR #62's
+  existing enrollment) to the integrated candidate first prepared on `codex/umm-0311-integration-20261126` (from
+  `20bf1351`; that route, draft PR #69, is superseded). The accepted archive `20bf1351` is kept unchanged in the
+  history. Merge commit `3e2c44a6` integrates main
   `783b2b3d` (Mounted Shield, PR #61). Main carried #63's earlier companion pin (`5be0f737`), which PR #62 had already
   reconciled (`0cbf0167`); the merge keeps PR #62's pins and tooling, main's Mounted Shield sources, tests and records,
   and removes #63's separate restore helper, its test and its pin file (no longer a compile input). The Mounted Shield
@@ -31,6 +34,9 @@ the integrated result as an alpha prerelease (not Latest; 0.2.15 stays the stabl
   - `KmcRemovalObserver-0.1.0-observer.8-release-diagnostic.zip`, SHA-256
     `2c0fe38225adbffccec2fe2e31dff82d6a93eeaac9a1d470b065110e5350b1d7`; DLL `f9697f91…` (byte-identical to PR #62's
     reviewed observer); validator 8/0.
+- **Publication plan:** after review, PR #62 merges to main; the annotated tag `v0.2.16-alpha.2` points to `7a9861a5`,
+  the commit that built both packages (their manifests record it); a GitHub prerelease, not Latest, with both packages
+  and their manifests.
 - **Native:** NOT RUN, startup included; no installation, launch or save change.
 
 # UMM 0.31.1 BASELINE (2026-11-24, UNRELEASED, DRAFT PR #62)

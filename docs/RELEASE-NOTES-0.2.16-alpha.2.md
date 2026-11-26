@@ -66,6 +66,6 @@ alpha.
 
 ## Testing
 
-- **Offline only.** The release gates, packages and their identities are recorded on this GitHub release and in
-  `CURRENT.md` at the release tag.
+- **Offline only.** The release gates, packages and their identities are recorded on this GitHub release and in the first
+  section of `CURRENT.md` on `main`. The release tag points to the commit that built both packages.
 - **Not tested in the game:** startup, the Mounted Shield feat in play, and any loader version.
