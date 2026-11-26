@@ -1,0 +1,16 @@
+inclusive Full 200 s, receipt 120 s
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=200s :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=200s from recorded durations
+receipt 600 s, no Full history
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=unknown (admission lower bound 600s from the recorded reuse check) :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)
+receipt 0 s, no Full history
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=unknown :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)
+receipt 0.4 s, no Full history
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=unknown (admission lower bound 1s from the recorded reuse check) :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)

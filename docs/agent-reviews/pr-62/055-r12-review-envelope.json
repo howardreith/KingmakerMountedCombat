@@ -1,0 +1,187 @@
+{
+  "B": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "H": "64abec4902213dd2fc7299d6851f89ed83fa9c53",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": 2,
+  "amendment_sha256": "0fae88d4efb378d9cd56cb26af6a0f53c92a8a460fe4e32617072804ddaa47ff",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 546.9,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 974080,
+        "input_tokens": 1096308,
+        "output_tokens": 20528,
+        "reasoning_output_tokens": 12059,
+        "total_tokens": 1116836
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a218c2-f28a-7b82-bf4f-2da22cbdf8e1",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "kingmaker-umm-0311-mission-20261123",
+    "sha256": "f7d990f396c858ad663020133baba66e0cefb57f2b8be54a26d96186f86b24d5"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-umm-0311-baseline-20261123-20261123223744-7586\\rounds\\r12\\envelope-1.json",
+  "pr": 62,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r12-review",
+  "published": [
+    {
+      "comment_id": 7198327372,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/62#issuecomment-7198327372"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r12-3c5a6b",
+  "response_sha256": "565ef7a44ef6da7b7e47b97e6dc2fc4f8cead872a121aedcda7cee0b2b1318d7",
+  "result": {
+    "candidate_commit": "64abec4902213dd2fc7299d6851f89ed83fa9c53",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The focused gate passed, and both frozen alpha packages are now traceable to their clean producing commit. Two evidence gaps remain in the enrollment handoff. The recorded denial abbreviates the command the classifier received, and the record of PR #69\u2019s closure lacks a GitHub result.\n\nContinuation for Claude\n\nMake one records-only correction. Retrieve the complete command and its denial from the saved tool event without executing it. Pair the existing cancellation result with a retained GitHub closure event or a read-only status result for PR #69. The separate amendment and cap extension are already substantiated. Preserve the frozen packages and use the existing required gate and release budget for the corrected candidate.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-MountedShieldFocused.ps1 at 64abec49. The log matched the receipt\u2019s SHA-256. The gate exited 0 in 67.6 seconds with both compiler-input checks passing, 1,525 component checks, 153 source checks and all 17 focused children passing. Release-budget spending ended at 13.67 of 30 minutes.",
+        "The retained standalone validator outputs report 12 passes for the main ZIP and 8 for the observer ZIP, with zero failures. Each output names the same ZIP SHA-256 as its qualification manifest. I matched both packaged Info.json hashes to the checkout and both DLL hashes and MVIDs to their static audits.",
+        "The static audits resolved 14 types and 42 members for the main DLL and 8 types and 20 members for the observer across UMM 0.31.1, 0.32.4, the owner\u2019s 0.33.0 and 0.33.4.",
+        "I reproduced all seven committed-blob checksums in the release evidence index and the two original Windows audit checksums."
+      ],
+      "inspected": [
+        "The mission, both owner amendments, repository validation policy, prior findings, developer report and controller evidence.",
+        "The supplied 97-file feature diff matched Git\u2019s merge-base-to-candidate diff. The six files changed since round 11 are release evidence. Only documentation and evidence changed after the package-producing commit 7a9861a5.",
+        "Git ancestry preserves the accepted archive 20bf1351 and main 783b2b3d as the parents of integration merge 3e2c44a6. The archived PR #62 review records are unchanged."
+      ],
+      "limitations": [
+        "The frozen ZIPs were outside the snapshot. Package verification relied on the retained qualification manifests, standalone validator outputs and DLL audits.",
+        "The controller withheld the mixed-session foreground transcript. Its supplied receipt covers the candidate gate. Live GitHub access was outside this review.",
+        "Native startup, gameplay, save/reload and combined-stack behavior remain untested on all four loader versions."
+      ],
+      "required_gaps": [
+        "R11-F2 needs the complete denied command from the preserved tool event.",
+        "R11-F3 needs a GitHub observation of PR #69\u2019s closure to accompany the confirmed enrollment cancellation."
+      ],
+      "source_inspection_only": [
+        "Both shipping projects verify the pinned loader files before reference resolution and check the compiler\u2019s resolved inputs before compilation.",
+        "The qualification packager checks the clean source identity, validates both archives and compares their contents with the build outputs before writing the manifests."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "OWNER AMENDMENT 2 item 1"
+        ],
+        "actual": "Line 11 labels the input verbatim but ends with `(python summary of kmc-amend.json)` in place of the final shell command. The document gives the classifier\u2019s stated reason and the later controller results, but the supplied snapshot contains no complete copy of the denied input.",
+        "blocking_rationale": "The classifier evaluated the compound shell invocation. The owner explicitly required preservation of the exact command, including the part after the resume operation.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "The preserved record identifies the complete shell command submitted for permission review and the matching denial.",
+        "id": "R11-F2",
+        "location": {
+          "file": "docs/evidence/release-0.2.16-alpha.2/continuation-records.md",
+          "line": 11
+        },
+        "priority": "P2",
+        "requested_correction": "Export the original command field and corresponding denial from the saved 13:27:27Z event into a review-visible record.",
+        "requested_evidence": "A narrow extract showing the complete command string, including its final command, and the classifier response associated with that tool call.",
+        "title": "Preserve the complete command from the permission denial",
+        "trigger": "Auditing the automatic permission-review rejection that preceded continuation through PR #62."
+      },
+      {
+        "acceptance_ids": [
+          "OWNER AMENDMENT 2 item 6"
+        ],
+        "actual": "Lines 45\u201349 reproduce the controller\u2019s CANCELLED result. Line 51 reports a GitHub closure time, state and head in prose. The supplied records contain no GitHub response or closure event supporting that statement. The retained branch ref verifies the head only.",
+        "blocking_rationale": "Cancelling an enrollment and closing its pull request are separate operations. The owner required both, and the controller result establishes only the cancellation.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "The terminal state of PR #69 can be traced to a GitHub observation alongside the controller\u2019s cancellation result.",
+        "id": "R11-F3",
+        "location": {
+          "file": "docs/evidence/release-0.2.16-alpha.2/continuation-records.md",
+          "line": 51
+        },
+        "priority": "P2",
+        "requested_correction": "Include the existing GitHub closure result or capture a read-only PR status response. Reference the existing supersession comment identifying #62.",
+        "requested_evidence": "A GitHub result identifying PR #69, its CLOSED state and closure time, together with the supersession comment or its permalink.",
+        "title": "Substantiate the GitHub closure of PR #69",
+        "trigger": "Confirming retirement of the redundant integration route after PR #62\u2019s enrollment resumed."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R11-F1",
+        "rationale": "Both qualification manifests name clean commit 7a9861a5 on codex/umm-0311-integration-20261126. Each lists exactly Info.json and its product DLL. The ZIP digests match the standalone validator outputs, and the DLL digests and MVIDs match the release audits."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R11-F2",
+        "rationale": "The dated results establish that the amendment was admitted at the 10/10 cap at 16:18:24Z and a separate extension set the absolute cap to 13 at 16:18:36Z. The remaining item is the exact denied shell input, whose final command is summarized."
+      },
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R11-F3",
+        "rationale": "The cancellation excerpt identifies the correct #69 enrollment, zero completed reviews, no pending publications and #62 as the continuing route. The GitHub closure is still supported only by the developer\u2019s account."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R11-F4",
+        "rationale": "The index distinguishes Windows-output hashes from Git-blob hashes. Both audit files reproduce the values listed for each representation."
+      }
+    ],
+    "request_id": "kmc-codex-umm-0311-baseline-20261123-20261123223744-7586-r12-3c5a6b",
+    "round": 12,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Mounted Combat 0.2.16-alpha.2 and removal observer 0.1.0-observer.8 declare UMM 0.31.1 and compile against UnityModManager 0.31.1.0 and Harmony12 1.2.0.1. Their frozen archives passed standalone validation.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "Assess Mounted Shield and save behavior in the owner\u2019s alpha playtest."
+      ],
+      "scope_reviewed": "Mounted PR #62\u2019s integrated release candidate and its four round-11 findings. OWNER AMENDMENT 2 places the merge, prerelease publication and verification of published asset hashes after readiness.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 12,
+  "validated_at": "2026-11-26T16:58:26Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}

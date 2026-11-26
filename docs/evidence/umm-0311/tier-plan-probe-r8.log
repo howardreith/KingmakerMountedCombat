@@ -1,0 +1,25 @@
+PLAN tier=Full configuration=Release build=inside umbrella assemblyTarget=Kingmaker selected=2
+  budget umm-0311-baseline: spent 32.86 of 40.62 min; remaining 7.75 min; entries 19 (running 0, interrupted 0, unreconciled 0)
+  1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+  2. FULL umbrella (scripts/Test.ps1) [present] last=unknown :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: plan-check
+  estimate=unknown (1 step(s) without a recorded duration)
+  artifact: <repo>\bin\Release\KingmakerMountedCombat.dll sha256=d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d mvid=9db1be50-bceb-4bb3-a167-14e4ce288e8c (reused: build receipt current)
+  impact workflow-runner (Tier selector, budget and native launcher):
+    focused tests: Test-TierSelection.ps1
+    native routes: none: offline orchestration only; a native launch is selected by its own request
+    neighbors: scripts/Test.ps1 (FULL umbrella) and every child wrapper that inherits KMC_WORKFLOW_BUDGET_ENTRY
+    safety checks: a refusal happens before any lock, staging or launch and never interrupts a running transaction | plan-only invocations build nothing, lock nothing and start no game
+  plan only: nothing was built, run, locked, launched or recorded in the budget.
+PLAN tier=Fast configuration=Release build=no assemblyTarget=n/a selected=3
+  budget umm-0311-baseline: spent 32.86 of 40.62 min; remaining 7.75 min; entries 19 (running 0, interrupted 0, unreconciled 0)
+  1. reuse check [receipt current: outputs reusable] last=unknown :: build receipt <repo>\bin\Release\.loader-input-stamp
+  2. FAST components [present or built by this run] last=3.2s :: <repo>\bin\Tests\Release\KingmakerMountedCombat.Tests.exe
+  3. FAST Validate-Source.ps1 [present] last=18.5s :: <repo>\scripts\Validate-Source.ps1
+  estimate=unknown (1 step(s) without a recorded duration)
+  artifact: <repo>\bin\Release\KingmakerMountedCombat.dll sha256=d20474bf5e4593c84dbb662f5a552798ab07ffe13853085a8443bd157dfe756d mvid=9db1be50-bceb-4bb3-a167-14e4ce288e8c (reused: build receipt current)
+  impact workflow-runner (Tier selector, budget and native launcher):
+    focused tests: Test-TierSelection.ps1
+    native routes: none: offline orchestration only; a native launch is selected by its own request
+    neighbors: scripts/Test.ps1 (FULL umbrella) and every child wrapper that inherits KMC_WORKFLOW_BUDGET_ENTRY
+    safety checks: a refusal happens before any lock, staging or launch and never interrupts a running transaction | plan-only invocations build nothing, lock nothing and start no game
+  plan only: nothing was built, run, locked, launched or recorded in the budget.

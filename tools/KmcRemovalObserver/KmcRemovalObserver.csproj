@@ -13,7 +13,7 @@
     <Prefer32Bit>false</Prefer32Bit>
     <Deterministic>true</Deterministic>
     <!-- The removal observer is a separate minimal UMM mod. It references the
-         same installed game, UMM and Harmony12 surface as KMC and NEVER the
+         same installed game and pinned UMM/Harmony12 surface as KMC and NEVER the
          KingmakerMountedCombat assembly: its whole purpose is to observe the
          cleanup archive in a process where that assembly is genuinely absent. -->
     <ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>true</ResolveAssemblyReferenceIgnoreTargetFrameworkAttributeVersionMismatch>
@@ -36,9 +36,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <Import Project="..\..\LocalGamePaths.props" Condition="Exists('..\..\LocalGamePaths.props')" />
+  <Import Project="..\..\LoaderReferences.targets" />
   <Target Name="RequireLocalGamePaths" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="!Exists('$(KingmakerManagedDir)\Assembly-CSharp.dll')" Text="LocalGamePaths.props must point to the exact local Kingmaker Managed directory." />
-    <Error Condition="!Exists('$(UnityModManagerDir)\UnityModManager.dll')" Text="UnityModManagerDir must contain the exact installed UnityModManager.dll." />
+    <Error Condition="!Exists('$(PinnedLoaderReferenceDir)\UnityModManager.dll')" Text="Run scripts\Get-PinnedLoaderReferences.ps1 to acquire the pinned UMM 0.31.1 build reference." />
   </Target>
   <ItemGroup>
     <Reference Include="System" />
@@ -68,7 +69,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityModManager">
-      <HintPath>$(UnityModManagerDir)\UnityModManager.dll</HintPath>
+      <HintPath>$(PinnedLoaderReferenceDir)\UnityModManager.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json">
@@ -76,7 +77,7 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="0Harmony12">
-      <HintPath>$(UnityModManagerDir)\0Harmony12.dll</HintPath>
+      <HintPath>$(PinnedLoaderReferenceDir)\0Harmony12.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
@@ -92,4 +93,5 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\..\LoaderReferences.Final.targets" />
 </Project>

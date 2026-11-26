@@ -69,14 +69,15 @@ function Get-UnprofiledMatrixRow([string]$Path,$Result){
 
 $document=Get-KmcUmmLoaderProfiles $repoRoot
 $installed=Join-Path $managed 'UnityModManager\UnityModManager.dll'
-Check 'the declared minimum is still 0.28.2 in Info.json and in the profile record, and is no reviewed identity pin' {
-    Need ((Get-KmcUmmDeclaredMinimum $repoRoot)-ceq'0.28.2') 'Info.json ManagerVersion is no longer 0.28.2; a support change needs its own explained decision.'
-    Need ([string]$document.declaredMinimum.value-ceq'0.28.2') 'The profile record states another declared minimum.'
+Check 'the declared minimum is 0.31.1 in Info.json and in the profile record, separately from runtime identity' {
+    Need ((Get-KmcUmmDeclaredMinimum $repoRoot)-ceq'0.31.1') 'Info.json ManagerVersion must match the owner-selected UMM 0.31.1 baseline.'
+    Need ([string]$document.declaredMinimum.value-ceq'0.31.1') 'The profile record states another declared minimum.'
 }
 
 # ---- Genuine references on this machine --------------------------------------------------------
 $extra=@($AdditionalReference)+@((Get-KmcUmmLocalSetting $repoRoot 'UnityModManagerReferencePaths')-split';')
-$candidates=@(@($installed)+$extra|ForEach-Object{([string]$_).Trim()}|Where-Object{$_}|Select-Object -Unique)
+$buildReference=Join-Path $repoRoot 'obj\loader-references\UnityModManager.dll'
+$candidates=@(@($installed,$buildReference)+$extra|ForEach-Object{([string]$_).Trim()}|Where-Object{$_}|Select-Object -Unique)
 $references=@();$absent=@()
 foreach($path in $candidates){
     if(Test-Path -LiteralPath $path -PathType Leaf){$references+=[pscustomobject]@{path=[IO.Path]::GetFullPath($path);sha256=(Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()}}else{$absent+=$path}

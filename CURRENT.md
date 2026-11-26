@@ -1,3 +1,179 @@
+# INTEGRATION AND ALPHA PRERELEASE 0.2.16-alpha.2 (2026-11-26, OWNER AUTHORIZATION)
+
+Start here. The owner accepted PR #62 (UMM 0.31.1 baseline; reviewed source `060d21c1`, archive `20bf1351`, 10/10
+correction rounds, no open findings) and authorized on 2026-11-26 its integration with current main and publication of
+the integrated result as an alpha prerelease (not Latest; 0.2.15 stays the stable release).
+
+- **Branch:** PR #62's own branch `codex/umm-0311-baseline-20261123`, fast-forwarded (owner, 2026-11-26, through PR #62's
+  existing enrollment) to the integrated candidate first prepared on `codex/umm-0311-integration-20261126` (from
+  `20bf1351`; that route, draft PR #69, is superseded). The accepted archive `20bf1351` is kept unchanged in the
+  history. Merge commit `3e2c44a6` integrates main
+  `783b2b3d` (Mounted Shield, PR #61). Main carried #63's earlier companion pin (`5be0f737`), which PR #62 had already
+  reconciled (`0cbf0167`); the merge keeps PR #62's pins and tooling, main's Mounted Shield sources, tests and records,
+  and removes #63's separate restore helper, its test and its pin file (no longer a compile input). The Mounted Shield
+  focused gate checks the 0.31.1 loader bindings against the build's own pin (same genuine bytes `2e038ff2…`).
+- **Version:** 0.2.16-alpha.2 in `version.json`, `Info.json` and `BuildIdentity.cs`; assembly version stays 0.1.0.0. The removal
+  observer keeps `0.1.0-observer.8` (declared minimum 0.31.1 since PR #62). Notes:
+  [docs/RELEASE-NOTES-0.2.16-alpha.2.md](docs/RELEASE-NOTES-0.2.16-alpha.2.md).
+- **Budget:** `release-0.2.16-alpha.2`, 30-minute allowance (owner, 2026-11-26), separate from the completed correction
+  budget `umm-0311-baseline` (47.64 of 48.62 min), which is unchanged.
+- **Offline (release commit `7a9861a5`, budget `release-0.2.16-alpha.2`):**
+  - Controller focused gate `-Tier Fast -Focused Test-MountedShieldFocused.ps1`: PASS in 140.6 s (4/4 steps; components
+    1525/0, Validate-Source 153/0, 17 of 17 Mounted Shield children, including the loader bindings 25/0 against the
+    0.31.1 compile pin and 25/0 against the installed 0.33.0 loader). An earlier attempt failed in its build step
+    (4.7 s): the new worktree had not yet acquired the pins (`scripts/Get-PinnedLoaderReferences.ps1`).
+  - Controller focused gate `-Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1`: PASS in 265.2 s (4/4; components
+    1525/0, Validate-Source 153/0, package admission and reuse 65/0).
+  - Static loader API audit of both packaged DLLs: mod 14 types/42 members and observer 8 types/20 members resolve on UMM
+    0.31.1, 0.32.4, the owner's 0.33.0 and 0.33.4 ([records](docs/evidence/release-0.2.16-alpha.2/INDEX.md)). Static only.
+- **Packages** (`scripts/Package.ps1 -IncludeRemovalObserver -ArtifactQualifier release` at `7a9861a5`, one clean build):
+  - `KingmakerMountedCombat-0.2.16-alpha.2-release-diagnostic.zip`, SHA-256
+    `64a4317c5fcc6ce3a66e513788a120145120df5979d31d1243ccb26ae893a7ca`; DLL
+    `2105f305856a65c85b82e0294341462bf6ffe0e89420ea011ef860864fe5ddc8`, MVID `34815fb3-3bd1-4d52-8571-46345f170bea`
+    (the DLL both gates tested); validator 12/0.
+  - `KmcRemovalObserver-0.1.0-observer.8-release-diagnostic.zip`, SHA-256
+    `2c0fe38225adbffccec2fe2e31dff82d6a93eeaac9a1d470b065110e5350b1d7`; DLL `f9697f91…` (byte-identical to PR #62's
+    reviewed observer); validator 8/0.
+- **Publication plan:** after review, PR #62 merges to main; the annotated tag `v0.2.16-alpha.2` points to `7a9861a5`,
+  the commit that built both packages (their manifests record it); a GitHub prerelease, not Latest, with both packages
+  and their manifests.
+- **Native:** NOT RUN, startup included; no installation, launch or save change.
+
+# UMM 0.31.1 BASELINE (2026-11-24, UNRELEASED, DRAFT PR #62)
+
+Start here. Owner direction: UMM 0.31.x consistently across the Kingmaker mods, newer loaders checked separately. Both
+shipping products (the mod and the separately shipped removal observer) declare **0.31.1** and compile against the
+pinned UnityModManager 0.31.1.0 and 0Harmony12 1.2.0.1 (`scripts/loader-reference-pins.json`, acquired by
+`scripts/Get-PinnedLoaderReferences.ps1` into ignored `obj/loader-references`; never the installed loader, never packaged).
+PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#reconciliation-with-pr-63-and-windows-validation-2026-11-24)).
+
+**Entry points (current).**
+- `scripts/Build-Local.ps1`: acquire the pins, build, and write the build receipt.
+- `scripts/Package.ps1 -IncludeRemovalObserver -ArtifactQualifier <q>`: one build packages and validates both products.
+  `scripts/Package-Observer.ps1` packages the observer alone.
+- `scripts/Validate-Package.ps1` / `scripts/Validate-ObserverPackage.ps1`: validate any ZIP.
+- `scripts/Test-Tiers.ps1 -Tier Fast|Candidate -Focused <Test-*.ps1>`: the controller gate.
+  - `-SkipBuild` reuses outputs only while the build receipt (`bin/<cfg>/.loader-input-stamp`) is current. The receipt
+    covers the loader pins and their parser and verifier, both MSBuild loader targets, the repository-root
+    `Directory.Build.props` and `Directory.Build.targets` and the observer's inherited `tools/Directory.Build.props` and
+    `tools/Directory.Build.targets` whether or not Git tracks them, project files, the build bootstrap
+    `scripts/Build-Local.ps1`, the local `LocalGamePaths.props`, the manifests `Info.json` and `version.json`, every
+    compiled source under `src/`, `tools/KmcRemovalObserver/` and `tests/`, the cached loader bytes, and the bytes of both
+    DLLs and the component runner.
+  - Fast and Candidate check the receipt in their first admitted step (nothing is hashed before budget admission); Full
+    checks it once, through `scripts/Test.ps1 -SkipBuild` inside its admitted umbrella step, and a direct
+    `scripts/Test.ps1 -SkipBuild` checks it the same way before any runner starts. Test.ps1 then exits with the dedicated
+    receipt-refused code (51417): that Full attempt is charged to its budget entry and leaves the recorded Full-suite
+    duration as it was (established, or unknown). A Full run whose work started records its measured duration whether
+    it passes or fails. In the Full plan and estimate the receipt check is a visible prerequisite timed within the
+    umbrella, so its standalone duration is not added; Fast and Candidate keep their separately timed receipt step. Before any
+    Full duration is recorded, a Full -SkipBuild run uses a positive recorded receipt-check duration as an admission lower bound
+    (selection and the Full step), while the plan's total stays unknown and no Full history is written. `-Plan` reports the receipt state, read-only, on
+    both the reuse-check line and the artifact line.
+- `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
+  profile (`umm-0.33.0`) is the installed loader before any admission, compares the installed UnityModManager and
+  Harmony 2 (`0Harmony.dll`) it measures with that profile at dependency admission before staging, and records the
+  profile in the admission receipt. It offers
+  no other loader profile: a native row on another loader needs its own reviewed disposable environment (follow-up).
+
+**Candidate (source `11df053b`; later commits are harness, test, documentation and evidence changes).** Both DLLs are
+byte-identical to the round-2 candidate (`f5a9f386`): no production input changed after `11df053b`.
+
+| Product | DLL SHA-256 / MVID | Loader references | Package (qualifier `umm-0311-11df053b`) | Validator |
+| --- | --- | --- | --- | --- |
+| Mounted Combat | `d20474bf…756d` / `9db1be50-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `89352f07…f78c` | 12/12 |
+| Removal observer | `f9697f91…1958` / `a5e1bb2f-…` | UnityModManager 0.31.1.0, 0Harmony12 1.2.0.1 | `43c5fc82…99ed` | 8/8 |
+
+Records: [`docs/evidence/umm-0311/`](docs/evidence/umm-0311/INDEX.md). The index names the producer of every file.
+
+**Static API audit (both packaged DLLs).** Every UnityModManager and 0Harmony12 member each DLL binds resolves, by name and
+decoded signature, on UMM 0.31.1, 0.32.4, the owner's installed 0.33.0 and 0.33.4 (mod: 14 types/42 members; observer: 8
+types/20 members). The audit was recorded for the same DLL bytes at `f5a9f386` and is reused. Tool: the LoaderApiAudit
+sources committed as `loader-api-audit-Program.cs.txt` and `loader-api-audit-csproj.txt` (.NET 8;
+`dotnet build -c Release`, then
+`LoaderApiAudit.exe --mod <dll> --json <out> --assemblies UnityModManager,0Harmony12,0Harmony --profile "<id>=<UnityModManager.dll>;<0Harmony.dll>;<0Harmony12.dll>"`
+per profile). Profiles 0.31.1/0.32.4/0.33.4 are component-assembled from the author's NuGet packages; 0.33.0 is the
+owner's installed loader (`loader-profiles.md`). The full measured inventory of the four profiles, with the owner's
+extra `0Harmony-1.2.dll`, is `loader-profile-inventory.json` (measured for `272238ce`). Static evidence only.
+
+**Controller gate.** `Test-Tiers.ps1 -Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1` under the mission budget
+`umm-0311-baseline` passed on `293668a4` in 205.2 s: 4/4 steps, 1,488 component checks, 153 source checks and 45 focused
+checks (`d8376646` passed the same gate in 222.6 s before that documentation-only correction). In round 4 the gate on
+`0413ac8d` failed (203.5 s; 1,488 components and 153 source checks passed, 49 of 51 focused checks): the two new
+budget-order cases started a nested tier against a disposable budget while the gate's own entry was active, which the
+budget rules refuse; `dbe51d82` runs those two cases as top-level invocations. The gate on the final review commit is
+recorded by the controller and on the draft PR. The budget record, with the owner's 15-minute
+allowance adjustment and its authorizing assignment, is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline.json`.
+
+**Budget reconciliation (round 5).** The round-4 direct focused runs (outside budget admission) were imported into
+`umm-0311-baseline` with the append-only import (`Reconcile-WorkflowBudget.ps1 -ImportKind`) after the owner accepted them
+as a one-time documented overrun (no exemption for later direct runs): `Test-FrozenProductSource` plus
+`Test-Chunk7NativeLoaderContracts` 11.5 s, `Test-PackageAdmissionAndReuse` 166 s and 184 s (each run's own timer), and
+two `Validate-Source` runs, 20.9 s and 13.9 s (estimates: upper bounds from the measured tool-call spans, which also
+included a commit). The four gate entries, including the failed round-4 gate, are unchanged. The reconciled total was
+20.62 min; the owner then authorized 10 more minutes from it, recorded as the second `allowanceAdjustments` entry
+(15 -> 30.62 min) with the authorizing text. Round-5 direct runs are imported the same way. The record at the time of
+the round-5 evidence is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r5.json`; the round-4 copy keeps its
+original identity.
+
+**Offline checks.** Round 10 (counted in the budget): `Test-TierSelection` 30/0 (the actual Full selector with a zero-second
+receipt record persists no estimate; that entry, interrupted before any measurement, blocks admission until reconciled)
+and a plan-only probe (0 s: no bound; 0.4 s: 1 s bound). Round 9 (counted in the budget): an R8-F1 reproduction (plans for the four estimate cases and one
+admission-refused run against temporary budgets) and `Test-TierSelection` 29/0; the receipt lower-bound case runs in the
+controller gate. Round 8 (counted in the budget): `Test-TierSelection` 29/0 and a plan-only `Test-Tiers` probe;
+the Full outcome and estimate cases run in the controller gate. Round 7 (counted in the budget): `Test-FrozenProductSource` 41/0 (a committed mixed-case
+`tools/directory.BUILD.Targets` rejects the archived observer and keeps main-only reuse; a mixed-case root
+`directory.BUILD.Props` requires another candidate) and `Test-TierSelection` 29/0 (the real receipt helper with a
+current Debug receipt). Round 6 (counted in the budget): `Test-FrozenProductSource` 37/0 (committing
+`tools/Directory.Build.targets` or `.props` rejects the archived observer and keeps main-only reuse; removing it restores
+the observer) and a step-history probe; `Test-PackageAdmissionAndReuse` runs in the controller gate. Round 5
+(`d5268152`, counted in the budget): `Test-BaseGameIsolation` 121/0 (owner-profile
+admission: matching fixture recorded, Harmony 2 alone changed refused), `Test-Chunk7NativeLoaderContracts` 118/0 (the
+launcher admits dependencies against the owner profile before staging), `Validate-Source` 153/0;
+`Test-PackageAdmissionAndReuse` runs in the controller gate. Round 4: `Test-PackageAdmissionAndReuse` 51/51 at `dbe51d82` (run with a simulated enclosing
+workflow entry), `Test-FrozenProductSource` 32/32 and `Test-Chunk7NativeLoaderContracts` 117/117 at `d63d4cc0`. Round 3 (`11df053b`), unchanged since:
+
+| Check | Result |
+| --- | --- |
+| `Test-PinnedLoaderMsBuild` | 12/12 |
+| `Test-PackageAdmissionAndReuse` | 45/45 (round 3) |
+| `Test-FrozenProductSource` | 28/28 (round 3) |
+| `Test-Chunk7NativeLoaderContracts` | 116/116 (round 3) |
+| `Test-UmmLoaderContractChecks` | 23 passed, 2 unassessed inputs |
+| `Test-Harness` | 280 passed, 3 failed |
+
+The three `Test-Harness` failures are the pre-existing ones, the same on `f5a9f386` and the pre-reconciliation commit
+`a61c1a5c`: two need deleted Phase 3E artifacts, and one is a composition-boundary check. An earlier run while another
+session's disposable game copy was running did not qualify (222/61), because Test-Harness refuses runtime cases while a
+Kingmaker process exists.
+
+**Native (not run on any row).** The guarded launcher stages into the live installation's Mods folder under a
+transactional restore. This mission authorizes native runs only through approved disposable harnesses, and this
+repository has none that copies the game.
+
+| Loader | Prerequisite for a native row |
+| --- | --- |
+| 0.33.0 (installed, the default runtime profile) | A disposable game-copy harness for this repository, or the owner's explicit authorization for a guarded live-installation run. |
+| 0.31.1 (baseline) | That, plus an environment whose installed loader is 0.31.1 with Harmony 2.3.1.1, and a reviewed way to admit that profile at the launcher (it admits only the owner profile; follow-up). The `runtime` profile record exists for the readers. |
+| 0.32.4, 0.33.4 | A reviewed runtime profile with exact UMM and Harmony identities, then a guarded disposable environment. |
+
+Combined mod stacks: not run for this candidate. Historical native records keep their original 0.28.2/0.33.2 identities.
+No release, merge, installation, loader replacement or save mutation is part of this checkpoint.
+
+## 2026-11-23 source checkpoint (history)
+
+
+Owner direction: use UMM 0.31.x consistently across the Kingmaker mods, checking newer loaders separately.
+The existing Tabletop Rules Expansion/Cutscene Skip baseline is exactly 0.31.1. Main and removal observer
+manifests now declare it, and both projects use hash-verified 0.31.1/Harmony12 build references rather than the
+installed loader. Direct MSBuild validates the same pins. The genuine 0.31.1 identity is recorded separately
+from the historical 0.28.2 and newer 0.33.0/0.33.2 profiles.
+
+Read [docs/UMM-0311-BASELINE.md](docs/UMM-0311-BASELINE.md) for exact scope and remaining checks. No baseline
+production build, API binding sweep or native run has completed here. The Windows device is unavailable.
+The historical native environment fingerprint is unchanged; it is evidence of its original environment, not
+evidence of a 0.31.1 run. No release, merge, installation or game/save mutation is part of this checkpoint.
+
 # MOUNTED SHIELD PRIVATE ALPHA (2026-11-24, OWNER AMENDMENT 2, PR #61)
 
 The current milestone is a reviewable **private alpha** for the owner's own playtesting. Package

@@ -32,6 +32,17 @@ function Get-KmcUmmDeclaredMinimum([string]$RepoRoot) {
     [string](Get-Content -Raw -LiteralPath (Join-Path $RepoRoot 'Info.json')|ConvertFrom-Json).ManagerVersion
 }
 
+# Inspect the emitted assembly reference versions; lowering only Info.json must not make an older
+# higher-baseline DLL pass package validation. No installed game or loader is loaded for this check.
+function Assert-KmcPinnedLoaderPackageReferences($Identity,$Pins) {
+    foreach($pin in $Pins.references){
+        $matches=@($Identity.referenceIdentities|Where-Object name -CEQ $pin.Name)
+        if($matches.Count-ne1-or[string]$matches[0].version-cne[string]$pin.Version){
+            throw ('Packaged DLL must reference the pinned '+$pin.Name+' '+$pin.Version+'. Rebuild against the baseline; a manifest-only edit is insufficient.')
+        }
+    }
+}
+
 # An optional property of the machine-local LocalGamePaths.props, which already names the loader directory.
 function Get-KmcUmmLocalSetting([string]$RepoRoot,[string]$Name) {
     $path=Join-Path $RepoRoot 'LocalGamePaths.props'

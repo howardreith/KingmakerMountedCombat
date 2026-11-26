@@ -1,0 +1,32 @@
+PASS the declared minimum is 0.31.1 in Info.json and in the profile record, separately from runtime identity
+PASS the installed loader is a reviewed profile and passes identity and API with no profile selected
+PASS selecting its own profile umm-0.33.0 explicitly passes
+PASS selecting umm-0.31.1 for the installed umm-0.33.0 fails identity, and only identity
+PASS selecting umm-0.28.2 for the installed umm-0.33.0 fails identity, and only identity
+PASS selecting umm-0.33.2 for the installed umm-0.33.0 fails identity, and only identity
+PASS an unknown profile name is refused instead of falling back to another profile
+PASS a reference that is not on this machine is unavailable and unassessed, never passed
+PASS a product named explicitly that does not exist is refused, not reported as unassessed
+PASS SYNTHETIC complete loader: the API passes and identity is reported as not asserted
+PASS SYNTHETIC complete loader: a passing API does not hide that it is no reviewed loader
+PASS SYNTHETIC loader with a missing member (no ModEntry.OnToggle) fails the API
+PASS SYNTHETIC loader with an incompatible signature (ModLogger.Log takes an Int32) fails the API
+PASS SYNTHETIC loader with a callback that cannot be assigned (readonly ModEntry.OnUpdate) fails the API
+PASS SYNTHETIC loader with a retyped callback (OnToggle without its second argument) fails the API
+PASS SYNTHETIC loader with a missing capture member (no UI.ToggleWindow) fails the API
+PASS SYNTHETIC loader with members the product calls made non-public (internal ModEntry.Active, private UI.tabId) fails the API
+PASS matrix row for a completed SYNTHETIC inspection: API PASS and API FAIL are both data, and neither is an error
+PASS matrix outcomes: a pass, an incompatibility, an unavailable reference and a result-less inspection are four different things
+PASS matrix row for an inspection that produced no result: an explicit error that keeps the checker's own failure, never blank cells
+PASS matrix row for a reference that is not there: unavailable, not an error and not a result
+
+UMM MATRIX declared minimum 0.31.1 (Info.json ManagerVersion); native execution: not run for any row
+PASS profile umm-0.31.1: its genuine binary passes identity and API
+UMM MATRIX umm-0.31.1 | reference <repo>\obj\loader-references\UnityModManager.dll | UMM IDENTITY PASS profile umm-0.31.1 (parameter) | UMM API PASS reference 0.31.1.0
+UNASSESSED profile umm-0.28.2: no genuine binary with its recorded SHA-256 is on this machine
+UMM MATRIX umm-0.28.2 | reference UNAVAILABLE | identity UNASSESSED | API UNASSESSED
+PASS profile umm-0.33.0: its genuine binary passes identity and API
+UMM MATRIX umm-0.33.0 | reference <game>\Kingmaker_Data\Managed\UnityModManager\UnityModManager.dll | UMM IDENTITY PASS profile umm-0.33.0 (parameter) | UMM API PASS reference 0.33.0.0
+UNASSESSED profile umm-0.33.2: no genuine binary with its recorded SHA-256 is on this machine
+UMM MATRIX umm-0.33.2 | reference UNAVAILABLE | identity UNASSESSED | API UNASSESSED
+UMM LOADER CONTRACT CHECKS PASS=23 FAIL=0 UNASSESSED=2 ERRORS=0; offline inspection of loader binaries, not native execution.

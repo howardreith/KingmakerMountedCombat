@@ -12,8 +12,7 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if (-not $SkipSourceValidation) {
     & (Join-Path $PSScriptRoot 'Validate-Source.ps1')
 }
-
-& (Join-Path $PSScriptRoot 'Restore-UmmBuildReference.ps1')
+& (Join-Path $PSScriptRoot 'Get-PinnedLoaderReferences.ps1') | Out-Null
 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
@@ -40,6 +39,8 @@ $powerShellExe = Join-Path $PSHOME 'powershell.exe'
 $identityJson = & $powerShellExe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Get-AssemblyIdentity.ps1') -AssemblyPath $dll
 if ($LASTEXITCODE -ne 0) { throw 'Isolated assembly identity inspection failed.' }
 $identity = $identityJson | ConvertFrom-Json
+. (Join-Path $PSScriptRoot 'LoaderInputStamp.ps1')
+Write-KmcLoaderInputStamp $repoRoot $Configuration
 Write-Host "PASS build $Configuration"
 Write-Host "DLL=$dll"
 Write-Host "SHA256=$hash"

@@ -26,13 +26,13 @@ two apart by the DLL's SHA-256 (the release package identity is on the GitHub re
 ### Game, loader and dependencies
 
 - **Game:** Pathfinder: Kingmaker, engine build **2.1.7b** only. `Info.json` declares `GameVersion` 2.1.7.
-- **Loader:** this development branch pins its build reference and declares `ManagerVersion` **0.31.1**, the
-  owner's selected compatibility floor shared with Tabletop Rules and Cutscene Skip. The exact upstream reference is
-  recorded in `planning/UMM-BUILD-REFERENCE.json`; it is separate from the installed loader. The previously released
-  0.2.15 package keeps its published metadata. Genuine 0.31.1 passed the earlier offline API inspection
-  ([ledger, T03](CURRENT-KNOWN-ISSUES.md#t03--loader-matrix-on-the-development-machine-2026-11-15)); its exact identity was
-  added to `planning/UMM-LOADER-PROFILES.json` on 2026-11-23. This does not claim native 0.31.1 or Linux/Proton
-  qualification for Mounted Combat.
+- **Loader source baseline (alpha prerelease 0.2.16-alpha.2):** `Info.json` and the removal observer declare **0.31.1**. Builds now use
+  exact pinned UMM 0.31.1/Harmony12 references. The baseline build and the bound-member (static API) audit are done
+  for draft PR #62; native checks are not run ([current results](../CURRENT.md), [record](UMM-0311-BASELINE.md)). Released 0.2.15 still advertises 0.28.2; that old floor was not assessed
+  (no genuine 0.28.2 binary was available). Earlier API compatibility passed offline on genuine 0.33.0 and 0.33.2
+  binaries; 0.33.0 and 0.33.2 identities are reviewed profiles ([ledger, T03](CURRENT-KNOWN-ISSUES.md#t03--loader-matrix-on-the-development-machine-2026-11-15),
+  `planning/UMM-LOADER-PROFILES.json`). Historical native qualification ran on UMM 0.33.2 and keeps that identity.
+  No loader was run natively by the known-issues sprints.
 - **Current native test target:** the reviewed installed **UMM 0.33.0** identity in
   `planning/ENVIRONMENT-FINGERPRINT.json`. Exact runtime version/hash/MVID checks remain independent of the 0.31.1 build
   floor. A working newer installation need not downgrade. Historical loader records and native receipts remain bound to
@@ -313,4 +313,3 @@ personal mod stack; native acceptance of the released 0.2.3–0.2.11 repairs.
 The mod writes to UMM's log, `<Kingmaker install>\Kingmaker_Data\Managed\UnityModManager\Log.txt`, each line prefixed
 `[KingmakerMountedCombat]`. Copy it before the next launch, keep the save, and note the version, turn-based or real
 time, and the steps ([README](../README.md#logs-and-problems)).
-

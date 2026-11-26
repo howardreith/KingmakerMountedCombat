@@ -7,7 +7,10 @@ param(
     [Parameter(Mandatory = $true)][DateTimeOffset]$NotBeforeUtc,
     [switch]$RequirePass,
     [switch]$VerifyLiveWorkingIdentity,
-    [AllowNull()][string]$ExpectedLiveWorkingPath
+    [AllowNull()][string]$ExpectedLiveWorkingPath,
+    # Runtime loader profile the result is judged against (default: the measured owner installation). It must be the
+    # environment's installed loader: a result for another profile, or a mixed identity, is refused.
+    [string]$RuntimeLoaderProfileId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +20,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeStartupEvidence.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeLoaderProfile.ps1')
 
 
 
@@ -176,10 +180,14 @@ if (-not [DateTimeOffset]::TryParse([string]$game.startedAtUtc,[ref]$started) -o
 $gameAuthority = @($fingerprint.kingmaker.files | Where-Object role -eq 'gameplayAssembly')[0]
 $umm = @($fingerprint.kingmaker.files | Where-Object role -eq 'umm')[0]
 $harmony = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
+$loaderProfile = if ($RuntimeLoaderProfileId) { Get-KmcRuntimeLoaderProfile $RuntimeLoaderProfileId } else { Get-KmcRuntimeLoaderProfile }
+if ($loaderProfile.UmmSha256 -cne [string]$umm.sha256 -or $loaderProfile.UmmMvid -cne [string]$umm.mvid -or $loaderProfile.UmmFullName -cne [string]$umm.identity) {
+    throw "Runtime loader profile $($loaderProfile.Id) is not the measured environment's installed loader."
+}
 if ([string]$game.status -cnotin @('PASS','FAIL') -or [string]$game.loadedModId -cne 'KingmakerMountedCombat' -or
     [string]$game.gameVersion -cne [string]$fingerprint.kingmaker.displayVersion -or
     [string]$game.gameAssemblySha256 -cne [string]$gameAuthority.sha256 -or [string]$game.gameAssemblyMvid -cne [string]$gameAuthority.mvid -or
-    [string]$game.ummVersion -cne '0.33.0.0' -or [string]$game.ummSha256 -cne [string]$umm.sha256 -or
+    [string]$game.ummVersion -cne $loaderProfile.UmmVersion -or [string]$game.ummSha256 -cne $loaderProfile.UmmSha256 -or
     [string]$game.harmony12Version -cne '1.2.0.1' -or [string]$game.harmony12Sha256 -cne [string]$harmony.sha256) { throw 'Runtime game-result platform identity is not exact.' }
 if ([int]$game.processId -ne $ExpectedProcessId -or [string]::IsNullOrWhiteSpace([string]$game.currentGameMode) -or
     [int]$game.frameCount -lt 0 -or [double]$game.elapsedSeconds -lt 0.0 -or
@@ -350,4 +358,3 @@ else {
     if ([int]$game.subscenarioFailCount -lt 1 -or [int]$game.assertionFailCount -lt 1) { throw 'FAIL runtime game result lacks a failed subscenario assertion.' }
 }
 Write-Host "TOTAL PASS=$(if([string]$game.status -ceq 'PASS'){39}else{34}) FAIL=0"
-

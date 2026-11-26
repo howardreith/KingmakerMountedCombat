@@ -1,0 +1,96 @@
+{
+    "schemaVersion":  1,
+    "budgetId":  "umm-0311-baseline",
+    "allowanceMinutes":  15,
+    "blockCeilingMinutes":  30,
+    "createdUtc":  "2026-11-24T15:00:00.5051262Z",
+    "stepHistory":  {
+                        "build":  {
+                                      "seconds":  10.1,
+                                      "observedUtc":  "2026-11-24T21:44:33.0053240Z"
+                                  },
+                        "FAST components":  {
+                                                "seconds":  3.3,
+                                                "observedUtc":  "2026-11-24T21:44:36.4096841Z"
+                                            },
+                        "FAST Validate-Source.ps1":  {
+                                                         "seconds":  10.4,
+                                                         "observedUtc":  "2026-11-24T21:44:46.8607747Z"
+                                                     },
+                        "FOCUSED Test-PackageAdmissionAndReuse.ps1":  {
+                                                                          "seconds":  178.8,
+                                                                          "observedUtc":  "2026-11-24T21:47:45.6754761Z"
+                                                                      }
+                    },
+    "allowanceAdjustments":  [
+                                 {
+                                     "utc":  "2026-11-24T15:00:00.5231910Z",
+                                     "fromMinutes":  90,
+                                     "toMinutes":  15,
+                                     "reason":  "Separate mission-specific allowance for the UMM 0.31.1 baseline (PR #62): focused corrections, the required current-commit gate and one necessary corrective rerun. Not a broad harness campaign; no native execution.",
+                                     "authorizedBy":  "repository owner (howardreith)",
+                                     "authorizingAssignment":  "mission kingmaker-umm-0311 owner authorization 2026-11-24 (owner-authorization-20261124-continuation.md, sha256 7778304d0fd0ebe2140f560ad6c3cfc3af7d811a8e98fbce5cd18a31fdf04083)",
+                                     "authorizingText":  "For Mounted, authorize a separate mission-specific allowance of 15 minutes of metered validation through the existing budget mechanism. Record this owner authorization and the explicit 15-minute allowance; preserve the exhausted prior ledger. Cover focused corrections, the required current-commit gate, and one necessary corrective rerun. This does not authorize a broad harness campaign or native execution.",
+                                     "priorLedger":  "development (exhausted, 91.42 of 90 min) preserved unchanged; sha256 at creation 1365a39fb2ba186d107350a2bebcf349e9d9cc13b1f58dd102add1fc87a7bc09"
+                                 }
+                             ],
+    "entries":  [
+                    {
+                        "entryId":  "umm-0311-baseline:20261124T150029460Z:11340:bd00d899",
+                        "kind":  "tier",
+                        "selection":  "Fast: build, FAST components, FAST Validate-Source.ps1, FOCUSED Test-PackageAdmissionAndReuse.ps1",
+                        "startedUtc":  "2026-11-24T15:00:29.4602279Z",
+                        "processId":  11340,
+                        "estimatedSeconds":  null,
+                        "launch":  false,
+                        "batchId":  null,
+                        "batchKey":  null,
+                        "parentEntryId":  null,
+                        "suspendedUtc":  null,
+                        "excludedSeconds":  0,
+                        "stepStartedUtc":  "2026-11-24T15:01:07.7242959Z",
+                        "status":  "completed",
+                        "endedUtc":  "2026-11-24T15:04:11.4183988Z",
+                        "seconds":  222,
+                        "heartbeatUtc":  "2026-11-24T15:04:11.4183988Z"
+                    },
+                    {
+                        "entryId":  "umm-0311-baseline:20261124T150603961Z:38660:9dcdaf17",
+                        "kind":  "tier",
+                        "selection":  "Fast: build, FAST components, FAST Validate-Source.ps1, FOCUSED Test-PackageAdmissionAndReuse.ps1",
+                        "startedUtc":  "2026-11-24T15:06:03.9618854Z",
+                        "processId":  38660,
+                        "estimatedSeconds":  222,
+                        "launch":  false,
+                        "batchId":  null,
+                        "batchKey":  null,
+                        "parentEntryId":  null,
+                        "suspendedUtc":  null,
+                        "excludedSeconds":  0,
+                        "stepStartedUtc":  "2026-11-24T15:06:21.6568055Z",
+                        "status":  "completed",
+                        "endedUtc":  "2026-11-24T15:09:28.7403205Z",
+                        "seconds":  205,
+                        "heartbeatUtc":  "2026-11-24T15:09:28.7403205Z"
+                    },
+                    {
+                        "entryId":  "umm-0311-baseline:20261124T214422728Z:24800:9f633c29",
+                        "kind":  "tier",
+                        "selection":  "Fast: build, FAST components, FAST Validate-Source.ps1, FOCUSED Test-PackageAdmissionAndReuse.ps1",
+                        "startedUtc":  "2026-11-24T21:44:22.7281865Z",
+                        "processId":  24800,
+                        "estimatedSeconds":  205,
+                        "launch":  false,
+                        "batchId":  null,
+                        "batchKey":  null,
+                        "parentEntryId":  null,
+                        "suspendedUtc":  null,
+                        "excludedSeconds":  0,
+                        "stepStartedUtc":  "2026-11-24T21:44:46.8727730Z",
+                        "status":  "failed",
+                        "endedUtc":  "2026-11-24T21:47:45.6844774Z",
+                        "seconds":  203,
+                        "heartbeatUtc":  "2026-11-24T21:47:45.6844774Z"
+                    }
+                ]
+}

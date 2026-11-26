@@ -5445,6 +5445,18 @@ try {
         & $invokeGameResult
     }
 
+    Invoke-HarnessTest 'runtime game result judged against the selected loader profile' {
+        # The owner profile (default and explicit) is the measured environment; the 0.31.1 baseline profile is a reviewed
+        # runtime identity but not the installed loader here, so a result judged against it is refused.
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RuntimeLoaderProfileId 'umm-0.33.0'
+        $refusal = $null
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RuntimeLoaderProfileId 'umm-0.31.1' | Out-Null } catch { $refusal = $_.Exception.Message }
+        if ($refusal -notmatch 'umm-0\.31\.1 is not the measured environment') { throw ('A result was judged against a profile that is not the installed loader: ' + $refusal) }
+        $refusal = $null
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) -RuntimeLoaderProfileId 'umm-0.33.2' | Out-Null } catch { $refusal = $_.Exception.Message }
+        if ($refusal -notmatch 'no runtime identity') { throw ('A historical profile without a runtime record was admitted: ' + $refusal) }
+    }
+
     Invoke-HarnessTest 'runtime game result rejects another reviewed loader and mixed UMM identities' {
         $selectedVersion = $gameResult.ummVersion
         $selectedHash = $gameResult.ummSha256
@@ -13230,4 +13242,3 @@ finally {
 
 Write-Host "TOTAL PASS=$passed FAIL=$failed"
 if ($failed -ne 0) { exit 1 }
-

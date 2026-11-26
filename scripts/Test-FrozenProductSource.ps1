@@ -41,15 +41,19 @@ foreach($ending in @("`n","`r`n")) {
     }
 }
 Invoke-TestGit @('init','--quiet') | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $repo 'src'),(Join-Path $repo 'planning'),(Join-Path $repo 'scripts') | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $repo 'src'),(Join-Path $repo 'scripts'),(Join-Path $repo 'tools/KmcRemovalObserver') | Out-Null
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class Product {}'
 $buildInputs=@(
-    @{path='planning/UMM-BUILD-REFERENCE.json'; original='{"version":"0.31.1.0","sha256":"original"}'; changed='{"version":"0.33.0.0","sha256":"different"}'; name='loader build pin'},
-    @{path='scripts/Restore-UmmBuildReference.ps1'; original='Write-Output "verify pinned loader"'; changed='Write-Output "different loader restore"'; name='loader reference restore helper'},
-    @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'}
+    @{path='scripts/loader-reference-pins.json'; original='{"minimumManagerVersion":"0.31.1","sha256":"original"}'; changed='{"minimumManagerVersion":"0.33.0","sha256":"different"}'; name='loader build pins'},
+    @{path='scripts/Get-PinnedLoaderReferences.ps1'; original='Write-Output "verify pinned loader"'; changed='Write-Output "different loader verifier"'; name='loader reference verifier'},
+    @{path='LoaderReferences.targets'; original='<Project />'; changed='<Project><!-- different guard --></Project>'; name='MSBuild loader guard'},
+    @{path='scripts/Build-Local.ps1'; original='Write-Output "build with pinned loader"'; changed='Write-Output "different build bootstrap"'; name='build bootstrap'},
+    @{path='LoaderReferences.Final.targets'; original='<Project />'; changed='<Project><!-- different final compiler-input check --></Project>'; name='final compiler-input guard'},
+    @{path='scripts/LoaderPins.ps1'; original='function Read-KmcLoaderPinDefinition { "parse" }'; changed='function Read-KmcLoaderPinDefinition { "different parser" }'; name='loader pin parser'}
 )
 foreach($buildInput in $buildInputs) { WriteUtf8 (Join-Path $repo $buildInput.path) $buildInput.original }
-Invoke-TestGit @('add','src/Product.cs','planning','scripts') | Out-Null
+Invoke-TestGit @('add','src/Product.cs','scripts','LoaderReferences.targets','LoaderReferences.Final.targets','tools') | Out-Null
 Invoke-TestGit @('commit','--quiet','-m','Frozen production') | Out-Null
 $commit=[string](Invoke-TestGit @('rev-parse','HEAD'))
 $tree=[string](Invoke-TestGit @('rev-parse','HEAD^{tree}'))
@@ -65,7 +69,12 @@ $manifest=[ordered]@{commit=$commit;branch='codex/product';packageSha256=(Hash $
 WriteUtf8 $manifestPath ($manifest|ConvertTo-Json)
 $suite=[ordered]@{repository=[ordered]@{root=$repo;commit=$commit;branch='codex/product'};package=[ordered]@{sha256=(Hash $package)}}
 WriteUtf8 $suitePath ($suite|ConvertTo-Json -Depth 5)
-$freeze=[ordered]@{source=$commit;tree=$tree;remote=$commit;branch='codex/product';clean=$true;product=$manifest;package=@{path=$package;sha256=(Hash $package)};manifest=@{path=$manifestPath;sha256=(Hash $manifestPath)};suite=@{path=$suitePath;sha256=(Hash $suitePath)}}
+$observerPackage=Join-Path $lab 'artifacts/observer.zip'
+WriteUtf8 $observerPackage 'opaque observer payload'
+$observerManifestPath=$observerPackage+'.manifest.json'
+$observerManifest=[ordered]@{commit=$commit;branch='codex/product';packageSha256=(Hash $observerPackage)}
+WriteUtf8 $observerManifestPath ($observerManifest|ConvertTo-Json)
+$freeze=[ordered]@{source=$commit;tree=$tree;remote=$commit;branch='codex/product';clean=$true;product=$manifest;package=@{path=$package;sha256=(Hash $package)};manifest=@{path=$manifestPath;sha256=(Hash $manifestPath)};suite=@{path=$suitePath;sha256=(Hash $suitePath)};observer=@{path=$observerPackage;sha256=(Hash $observerPackage)};observerManifest=@{path=$observerManifestPath;sha256=(Hash $observerManifestPath)}}
 $freezePath=Join-Path $analysis 'freeze.json'
 WriteUtf8 $freezePath ($freeze|ConvertTo-Json -Depth 8)
 $pins=@{RepositoryRoot=$repo;SourceRoot=$source;FreezePath=$freezePath;ExpectedFreezeSha256=(Hash $freezePath)}
@@ -143,6 +152,63 @@ foreach($buildInput in $buildInputs) {
         $actual=Get-KmcFrozenProductSource @pins
         if($actual.source -cne $commit -or $actual.harnessHead -ceq $commit) { throw 'Restored build inputs lost the frozen product identity.' }
     }
+}
+# The removal observer is reused only while its own inputs are unchanged; main-only reuse does not depend on them.
+WriteUtf8 (Join-Path $repo 'README.md') 'documentation only'
+Invoke-TestGit @('add','README.md') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Documentation only') | Out-Null
+$docsContext=Get-KmcFrozenProductSource @pins
+$observerArguments=@{Context=$docsContext;Manifest=([pscustomobject]$observerManifest);PackagePath=$observerPackage;ManifestPath=$observerManifestPath;Generator='scripts/Package-Observer.ps1';RepositoryRoot=$repo}
+Check 'documentation-only descendant keeps the archived observer identity' {
+    $actual=Assert-KmcFrozenProductManifest @observerArguments
+    if($actual.source -cne $commit) { throw 'Observer admission lost the frozen source.' }
+}
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class ChangedObserver {}'
+Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Changed observer only') | Out-Null
+$observerContext=Get-KmcFrozenProductSource @pins
+$observerArguments.Context=$observerContext
+Refuses 'observer-only change rejects the archived observer' {Assert-KmcFrozenProductManifest @observerArguments} 'Changed removal observer inputs'
+$mainArguments=$packageArguments.Clone(); $mainArguments.Context=$observerContext
+Check 'observer-only change keeps main-only reuse' {
+    $actual=Assert-KmcFrozenProductManifest @mainArguments
+    if($actual.source -cne $commit) { throw 'Main admission lost the frozen source.' }
+}
+WriteUtf8 (Join-Path $repo 'tools/KmcRemovalObserver/Observer.cs') 'class Observer {}'
+Invoke-TestGit @('add','tools/KmcRemovalObserver/Observer.cs') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Restore observer') | Out-Null
+# The MSBuild files the observer inherits from tools/ are observer inputs, matched with Windows filename semantics:
+# committing either one (also with a mixed-case name) rejects the archived observer and keeps main-only reuse; removing
+# it again restores the observer.
+foreach($inherited in @('tools/Directory.Build.targets','tools/Directory.Build.props','tools/directory.BUILD.Targets')) {
+    WriteUtf8 (Join-Path $repo $inherited) '<Project><Target Name="KmcTestObserverHook" BeforeTargets="CoreCompile" /></Project>'
+    Invoke-TestGit @('add',$inherited) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Observer inherited '+$inherited)) | Out-Null
+    $observerArguments.Context=Get-KmcFrozenProductSource @pins
+    Refuses ('committed '+$inherited+' rejects the archived observer') {Assert-KmcFrozenProductManifest @observerArguments} 'Changed removal observer inputs'
+    $mainArguments.Context=$observerArguments.Context
+    Check ('committed '+$inherited+' keeps main-only reuse') {
+        $actual=Assert-KmcFrozenProductManifest @mainArguments
+        if($actual.source -cne $commit) { throw 'Main admission lost the frozen source.' }
+    }
+    Invoke-TestGit @('rm','--quiet',$inherited) | Out-Null
+    Invoke-TestGit @('commit','--quiet','-m',('Remove '+$inherited)) | Out-Null
+}
+$observerArguments.Context=Get-KmcFrozenProductSource @pins
+Check 'archived observer accepted again after the inherited files are removed' {
+    $actual=Assert-KmcFrozenProductManifest @observerArguments
+    if($actual.source -cne $commit) { throw 'Observer admission lost the frozen source.' }
+}
+# The shared repository-root inherited file with a mixed-case name is a production input at the shared boundary.
+WriteUtf8 (Join-Path $repo 'directory.BUILD.Props') '<Project><PropertyGroup><CheckForOverflowUnderflow>true</CheckForOverflowUnderflow></PropertyGroup></Project>'
+Invoke-TestGit @('add','directory.BUILD.Props') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Mixed-case root Directory.Build.props') | Out-Null
+Refuses 'committed mixed-case root Directory.Build.props requires another candidate' {Get-KmcFrozenProductSource @pins} 'new product candidate'
+Invoke-TestGit @('rm','--quiet','directory.BUILD.Props') | Out-Null
+Invoke-TestGit @('commit','--quiet','-m','Remove mixed-case root Directory.Build.props') | Out-Null
+Check 'frozen product reusable again after the mixed-case root file is removed' {
+    $actual=Get-KmcFrozenProductSource @pins
+    if($actual.source -cne $commit) { throw 'Removing the root file lost the frozen product identity.' }
 }
 WriteUtf8 (Join-Path $repo 'src/Product.cs') 'class ChangedProduct {}'
 Invoke-TestGit @('add','src/Product.cs') | Out-Null

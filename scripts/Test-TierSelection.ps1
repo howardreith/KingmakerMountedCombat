@@ -30,14 +30,15 @@ try {
     $env:KMC_WORKFLOW_TEST_CLOCK_FILE = $clock
     $budgetRoot = Use-BudgetRoot 'budgets'
     Set-Clock '2026-10-29T12:00:00Z'
-    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','Reconcile-WorkflowBudget.ps1','workflow-impact-map.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
+    foreach ($name in @('Test-Tiers.ps1','Test.ps1','WorkflowBudget.ps1','Reconcile-WorkflowBudget.ps1','workflow-impact-map.json','LoaderInputStamp.ps1')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $scripts }
     # Discover the actual umbrella's children rather than a claimed plan.
     $tokens = $null; $errors = $null
     $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $scripts 'Test.ps1'), [ref]$tokens, [ref]$errors)
     if ($errors.Count -ne 0) { throw 'Umbrella parse failed.' }
     $children = @($ast.FindAll({ param($node) $node -is [Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -like '*.ps1' }, $true) | ForEach-Object { $_.Value })
     $children += @('Validate-Source.ps1','Test-SelectedFixture.ps1','chunk7\Test-SelectedNested.ps1','Test-AdvanceClock.ps1','Test-Marker.ps1')
-    foreach ($name in @($children | Select-Object -Unique)) {
+    # The dot-sourced receipt helper is the real one (copied above), not a tracing child.
+    foreach ($name in @($children | Select-Object -Unique | Where-Object { $_ -ne 'LoaderInputStamp.ps1' })) {
         $path = Join-Path $scripts $name
         New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
         @'
@@ -67,6 +68,19 @@ public static class TierFixture {
   }
 }
 '@
+    # Output placeholders for the Debug outputs reused with -SkipBuild (the stub runner above is the component runner) and a
+    # current Debug receipt written by the real receipt functions. The boundary is an empty Git repository so the
+    # receipt's file listing runs as in a checkout.
+    & git init --quiet $boundary
+    if ($LASTEXITCODE -ne 0) { throw 'Could not initialize the fixture repository.' }
+    foreach ($output in @('bin/Debug/KingmakerMountedCombat.dll', 'bin/Observer/Debug/KmcRemovalObserver.dll')) {
+        $outputPath = Join-Path $boundary $output
+        New-Item -ItemType Directory -Path (Split-Path -Parent $outputPath) -Force | Out-Null
+        [IO.File]::WriteAllText($outputPath, 'tier-selection placeholder ' + $output)
+    }
+    . (Join-Path $scripts 'LoaderInputStamp.ps1')
+    Write-KmcLoaderInputStamp $boundary 'Debug'
+    if ((Test-KmcLoaderInputStamp $boundary 'Debug') -cne 'current') { throw 'The fixture Debug receipt is not current.' }
     $selector = Join-Path $scripts 'Test-Tiers.ps1'
     $reconcile = Join-Path $scripts 'Reconcile-WorkflowBudget.ps1'
     $passed = 0
@@ -464,6 +478,30 @@ Complete-KmcWorkflowEntry -RepoRoot $Boundary -Admission $admission -Status comp
     $budget = Read-Budget $terminalRoot 'development'
     if ([string]$budget.entries[0].status -cne 'interrupted' -or [double]$budget.entries[0].seconds -ne 30 -or $suspendedOutput -notmatch 'spent 0.5 of 90 min') { throw ('A dead suspended entry was charged past its suspension: ' + $suspendedOutput) }
     Remove-Item -LiteralPath $trace
+    # R9-F1: a zero-second recorded receipt check is not a lower bound. With the current Debug receipt, 'reuse check' at
+    # 0 s and no Full history, the Full plan stays unknown with no bound and the actual Full selector persists its entry
+    # without an estimate (null, not 0). The same entry, turned into an interruption before any measured point (dead
+    # process, heartbeat at its start), is unreconciled and blocks the next admission instead of being settled at zero.
+    $zeroRoot = Use-BudgetRoot 'budgets-zero-receipt'
+    Set-Clock '2026-10-30T08:00:00Z'
+    Write-Record $zeroRoot @() @{ 'reuse check' = @{ seconds = 0; observedUtc = '2026-10-30T07:00:00Z' } }
+    $zeroPlan = (Invoke-Selector @{ Plan=$true; Tier='Full'; SkipBuild=$true; Configuration='Debug'; AssemblyTarget='Both'; QualificationTask='zero receipt' }).Output
+    if ($zeroPlan -notmatch 'estimate=unknown' -or $zeroPlan -notmatch 'FULL umbrella \(scripts/Test\.ps1\) \[[^\]]*\] last=unknown ::' -or $zeroPlan -match 'admission lower bound') { throw ('A zero-second receipt became a Full lower bound in the plan: ' + $zeroPlan) }
+    & $selector -Tier Full -SkipBuild -Configuration Debug -AssemblyTarget Both -QualificationTask 'zero receipt' | Out-Null
+    $budget = Read-Budget $zeroRoot 'development'
+    $zeroEntries = @($budget.entries)
+    if ($zeroEntries.Count -ne 1 -or $null -eq $zeroEntries[0].PSObject.Properties['estimatedSeconds'] -or $null -ne $zeroEntries[0].estimatedSeconds) { throw ('The Full selector persisted an estimate from a zero-second receipt: ' + ($zeroEntries | ConvertTo-Json -Compress -Depth 4)) }
+    if ([double]$budget.stepHistory.'reuse check'.seconds -ne 0 -or ($null -ne $budget.stepHistory.PSObject.Properties['FULL umbrella (scripts/Test.ps1)'] -and [double]$budget.stepHistory.'FULL umbrella (scripts/Test.ps1)'.seconds -le 0)) { throw 'The zero-second receipt was written into Full history.' }
+    $zeroEntry = $zeroEntries[0]
+    foreach ($field in @(@('status', 'running'), @('processId', 999999), @('heartbeatUtc', [string]$zeroEntry.startedUtc), @('stepStartedUtc', $null), @('endedUtc', $null), @('seconds', $null))) { $zeroEntry | Add-Member -NotePropertyName $field[0] -NotePropertyValue $field[1] -Force }
+    $budget.entries = @($zeroEntry)
+    $budget | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $zeroRoot 'development.json') -Encoding UTF8
+    Set-Clock '2026-10-30T08:10:00Z'
+    Remove-Item -LiteralPath $trace -ErrorAction SilentlyContinue
+    Assert-Refused @{ Tier='Fast'; SkipBuild=$true; Configuration='Debug'; Focused='Test-SelectedFixture.ps1' } 'unknown spend'
+    $budget = Read-Budget $zeroRoot 'development'
+    if ([string]@($budget.entries)[0].status -cne 'unreconciled' -or $null -ne @($budget.entries)[0].seconds) { throw ('The interrupted zero-receipt Full entry was settled instead of requiring reconciliation: ' + (@($budget.entries)[0] | ConvertTo-Json -Compress)) }
+    $passed++
     $passed++
     Write-Host "Tier selection: PASS=$passed FAIL=0; offline orchestration only (stub children, boundary budget, file clock)."
 }

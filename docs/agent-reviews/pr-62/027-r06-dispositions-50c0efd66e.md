@@ -1,0 +1,22 @@
+<!-- agent-review:v1 enrollment=kmc-codex-umm-0311-baseline-20261123-20261123223744-7586 key=r06-dispositions-50c0efd66e part=1/1 sha256=50c0efd66ea45daf5859d3025345b8517a1c62ef0fa283c760b5f9f510d2d8cb -->
+### Claude Opus — finding dispositions — round 6
+
+Candidate after corrections: `85d18da51490e4e78bc2ef4c1fbc58b658b75057`
+
+- **R1-F8** — `fixed` — commits: `53c987fa`, `1e175383`, `85d18da5`
+  docs/evidence/umm-0311/frozen-product-source-r7.log (41/0 on the round-7 code): committed tools/directory.BUILD.Targets rejects the archived observer, committed tools/directory.BUILD.Targets keeps main-only reuse, archived observer accepted again after the inherited files are removed (with the canonical-spelling tools/Directory.Build.targets and .props pairs retained), committed mixed-case root Directory.Build.props requires another candidate (a root directory.BUILD.Props at the shared boundary: 'new product candidate'), frozen product reusable again after the mixed-case root file is removed; controller gate on 85d18da5 (log gate-focused-85d18da51490-d43d449b6c4-aa0bb756c59-20261126T025219337341Z.log): reuse-after-untracked-tools-directory-build-targets/props-change-rejected (local receipt).
+- **R6-F1** — `fixed` — commits: `53c987fa`, `1e175383`, `85d18da5`
+  docs/evidence/umm-0311/tier-selection-r7.log (29/0 on the round-7 code): 'Tier selection: PASS=29 FAIL=0' with the real LoaderInputStamp.ps1 and a current Debug receipt; the existing assertions run unchanged, including the side-effect-free Candidate plan (nothing run, no budget entry), Candidate propagation/deduplication, and the traced Full run forwarding target, configuration and -SkipBuild through the actual umbrella (stub children and stub component runner; no Full product suite).
+- **R6-F2** — `fixed` — commits: `53c987fa`, `1e175383`, `85d18da5`
+  controller gate on 85d18da5 (log gate-focused-85d18da51490-d43d449b6c4-aa0bb756c59-20261126T025219337341Z.log): first-full-receipt-refusal-charged-and-duration-left-unknown (a fresh disposable budget with no Full history; stale-receipt Full: refused, exactly 1 receipt scan, runner boundary not reached, entry 'failed' and charged 2 s, no FULL umbrella duration recorded, a later Full -Plan shows 'FULL umbrella (scripts/Test.ps1) [present] last=unknown'), full-receipt-refusal-charged-and-established-duration-kept (seeded 600 s kept), later-full-admission-with-less-time-than-the-established-duration-refused, full-reuse-with-current-receipt-scans-once-and-reaches-the-runner-boundary, full-reuse-with-old-outputs-refused-before-the-runner.
+
+**Validation (developer-reported):**
+
+| Command | Required | Result | Duration | Scope and limits |
+|---|---|---|---|---|
+| KMC_WORKFLOW_BUDGET_ID=umm-0311-baseline python C:/Dev/agent-review/agent_review.py verify --enrollment kmc-codex-umm-0311-baseline-20261123-20261123223744-7586 --gate focused -- -Tier Fast -Focused Test-PackageAdmissionAndReuse.ps1 | yes | pass | 244.4s | Controller receipt on 85d18da5: TIER FAST PASS=4 FAIL=0 (4.07 min), components 1488/0, Validate-Source 153/0, Test-PackageAdmissionAndReuse 58/0; admitted as budget entry umm-0311-baseline:20261126T024815297Z:20992:eabb1fd1 (244 s). |
+| scripts/Test-FrozenProductSource.ps1; scripts/Test-TierSelection.ps1 (direct, on the round-7 batch) | no | pass | 45s | docs/evidence/umm-0311/frozen-product-source-r7.log (41/0 on the round-7 code); docs/evidence/umm-0311/tier-selection-r7.log (29/0 on the round-7 code). Counted in the budget as imported entries (11.0 s and 34.0 s, each run's own timer). The tier-selection fixture uses stub children and a stub component runner; no Full product suite ran. |
+| Workflow budget umm-0311-baseline | no | pass | 0 | Live ledger read before admitting work: 28.05 of 30.62 min, 2 adjustments. One owner-authorized adjustment recorded (30.62 -> 35.62 min; authorizing assignment and text in the record). Round 7: two imported direct runs (45.0 s) and the gate (244 s): 32.86 of 35.62 min, 2.75 min left. No reset, no fresh budget; docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r7.json is the record before the gate. |
+| Native checks | no | not_run | 0 | Not authorized: the guarded launcher stages into the live installation's Mods folder and no disposable game-copy harness exists for Mounted (CURRENT.md native table). |
+
+_Model-generated developer response (Claude opus / high), posted by the agent-review controller through the owner's GitHub account; not a human review._

@@ -81,7 +81,7 @@ The package was independently downloaded and its bytes checked against the two s
 The 0.31.1 package is 94256 bytes, SHA-256
 `05a82b66bc44d56d1246f146d16e9fa8f9a42c450c5bc334bcfa9efddbdb53c9`; the selected entry is
 `lib/net35/UnityModManager.dll`. Its CLI metadata was read without executing the assembly and cross-checked with a
-second parser. [The metadata record](umm-baseline/loader-metadata.json) states that scope explicitly.
+second parser.
 
 The 0.33.0 native target uses the existing November 15 genuine installed-file record, corroborated by the sibling
 runtime pins and later startup records. No live installation was re-measured from this environment. Harmony12 remains
@@ -89,9 +89,12 @@ the same exact 1.2.0.1 binary, and the current runtime's Harmony 2.3.6 shared-st
 
 ### What this patch changes
 
-The build restores only the exact 0.31.1 reference into an ignored build directory. Existing mismatched reference
-bytes are refused; they are not silently replaced by a different loader. MSBuild validates the selected reference
-before compilation, including direct builds used by Test-Tiers. The loader is neither installed nor packaged.
+The build acquires only the exact pinned UMM 0.31.1 and Harmony12 1.2.0.1 references (`scripts/loader-reference-pins.json`,
+`scripts/Get-PinnedLoaderReferences.ps1`) into the ignored `obj/loader-references`. Existing mismatched reference bytes
+are refused; they are not silently replaced by a different loader. MSBuild (`LoaderReferences.targets`, also for direct
+builds used by Test-Tiers) verifies the cached files before references resolve and, immediately before compilation,
+requires the UnityModManager and 0Harmony12 inputs Csc receives to be exactly those verified files. The loader is
+neither installed nor packaged.
 
 The current environment fingerprint, runtime result version assertion, cache-creator identity and their synthetic
 fixtures now agree on the exact installed 0.33.0 runtime. A 0.31.1 build reference is not accepted as evidence that the
@@ -99,14 +102,14 @@ native process used 0.31.1. The current native reader continues to reject a subs
 version/hash/MVID observations. A future native 0.31.1 qualification must select a matching guarded environment and
 its own exact Harmony 2.3.1.1 creator identity; it cannot reuse this 0.33.0 lane's result.
 
-The build pin and restore/build helpers are product inputs for frozen-source comparison. Changing them invalidates
+The loader pins, their verifier, the MSBuild guard and the build bootstrap are product inputs for frozen-source comparison. Changing them invalidates
 reuse of an older build through that route. Existing package receipt fields and historical native evidence are kept.
 
 ### Validation and remaining work
 
-This is a development checkpoint. The exact 0.31.1 package/DLL identity and metadata were verified here. Additional
-executed checks and their limits are recorded in [the validation summary](umm-baseline/VALIDATION.md). Windows/.NET Framework
-compilation, the existing Windows harness suites and native game execution have not been run in this environment.
+This is a development checkpoint. The exact 0.31.1 package/DLL identity and metadata were verified here. The Windows
+build and harness checks for the reconciled branch are recorded in [the 0.31.1 baseline record](UMM-0311-BASELINE.md);
+native game execution has not been run.
 
 Before native use, verify the newly built product's bindings using the existing loader contract against both the
 pinned 0.31.1 reference and the selected installed 0.33.0 reference, and run the affected Windows reader contracts.
@@ -118,4 +121,3 @@ The Mounted Shield run remains BLOCKED until its required native fixture, gamepl
 review and native acceptance are completed. No acceptance row or prior reader verdict is promoted by this pin change.
 The companion change is imported through the existing enrollment's guarded development/push flow; the controller-owned
 `codex/mounted-shield` head and its review counters are not edited out of band.
-

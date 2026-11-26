@@ -1,0 +1,266 @@
+{
+    "schema":  "kmc.package-admission-reuse-tests.v1",
+    "commit":  "dbe51d82567bcd2a26876139b7360036b1c773d1",
+    "released_fixture_sha256":  "0b650bb3dea5003e36606a217d1f2269f1b42b69050d35b5f1785bc18d228af8",
+    "main_package_sha256":  "bb287c92da271d9f9ed4899aa89bbb297e0dca2793767c2d6eefe81eb1040ff5",
+    "observer_package_sha256":  "3f58152a112278cb0da762b53ea287c9267262cc28a549348bf274c97ec68f9b",
+    "passed":  51,
+    "total":  51,
+    "cases":  [
+                  {
+                      "name":  "pins-genuine-definition-accepted",
+                      "passed":  true,
+                      "detail":  "genuine pins and populated cache verified"
+                  },
+                  {
+                      "name":  "pins-omitted-harmony12-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "pins-harmony12-naming-another-cache-file-rejected",
+                      "passed":  true,
+                      "detail":  "must define 0Harmony12 exactly once as 0Harmony12"
+                  },
+                  {
+                      "name":  "pins-digest-with-trailing-line-feed-rejected",
+                      "passed":  true,
+                      "detail":  "reference pin"
+                  },
+                  {
+                      "name":  "packages-built-by-combined-qualification-route",
+                      "passed":  true,
+                      "detail":  "main bb287c92da271d9f9ed4899aa89bbb297e0dca2793767c2d6eefe81eb1040ff5; observer 3f58152a112278cb0da762b53ea287c9267262cc28a549348bf274c97ec68f9b"
+                  },
+                  {
+                      "name":  "main-validator-genuine-package-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "main-validator-one-element-array-minimum-rejected",
+                      "passed":  true,
+                      "detail":  "not exact"
+                  },
+                  {
+                      "name":  "main-validator-extra-UnityModManager.dll-rejected",
+                      "passed":  true,
+                      "detail":  "ualifiedErrorId : Package allowlist/duplicate mismatch. Actual entries: KingmakerMountedCombat/Info.json, KingmakerMountedCombat/KingmakerMountedCombat.dll, KingmakerMountedCombat/UnityModManager.dll "
+                  },
+                  {
+                      "name":  "main-validator-extra-0Harmony12.dll-rejected",
+                      "passed":  true,
+                      "detail":  "ullyQualifiedErrorId : Package allowlist/duplicate mismatch. Actual entries: KingmakerMountedCombat/Info.json, KingmakerMountedCombat/KingmakerMountedCombat.dll, KingmakerMountedCombat/0Harmony12.dll "
+                  },
+                  {
+                      "name":  "main-validator-extra-Assembly-CSharp.dll-rejected",
+                      "passed":  true,
+                      "detail":  "ualifiedErrorId : Package allowlist/duplicate mismatch. Actual entries: KingmakerMountedCombat/Info.json, KingmakerMountedCombat/KingmakerMountedCombat.dll, KingmakerMountedCombat/Assembly-CSharp.dll "
+                  },
+                  {
+                      "name":  "observer-validator-genuine-package-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "observer-validator-one-element-array-minimum-rejected",
+                      "passed":  true,
+                      "detail":  "not exact"
+                  },
+                  {
+                      "name":  "observer-validator-extra-UnityModManager.dll-rejected",
+                      "passed":  true,
+                      "detail":  "FullyQualifiedErrorId : Observer package allowlist/duplicate mismatch. Actual entries: KmcRemovalObserver/Info.j son, KmcRemovalObserver/KmcRemovalObserver.dll, KmcRemovalObserver/UnityModManager.dll "
+                  },
+                  {
+                      "name":  "observer-validator-extra-0Harmony12.dll-rejected",
+                      "passed":  true,
+                      "detail":  "on + FullyQualifiedErrorId : Observer package allowlist/duplicate mismatch. Actual entries: KmcRemovalObserver/Info.j son, KmcRemovalObserver/KmcRemovalObserver.dll, KmcRemovalObserver/0Harmony12.dll "
+                  },
+                  {
+                      "name":  "observer-validator-extra-Assembly-CSharp.dll-rejected",
+                      "passed":  true,
+                      "detail":  "FullyQualifiedErrorId : Observer package allowlist/duplicate mismatch. Actual entries: KmcRemovalObserver/Info.j son, KmcRemovalObserver/KmcRemovalObserver.dll, KmcRemovalObserver/Assembly-CSharp.dll "
+                  },
+                  {
+                      "name":  "main-validator-dll-compiled-against-umm-0.33-rejected",
+                      "passed":  true,
+                      "detail":  "released 0.2.15 DLL (UnityModManager 0.33.0.0): must reference the pinned UnityModManager 0"
+                  },
+                  {
+                      "name":  "main-validator-missing-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-missing-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-duplicated-umm-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-duplicated-umm-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define exactly: UnityModManager, 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-mismapped-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define 0Harmony12 exactly once as 0Harmony12"
+                  },
+                  {
+                      "name":  "observer-validator-mismapped-harmony12-pin-rejected",
+                      "passed":  true,
+                      "detail":  "must define 0Harmony12 exactly once as 0Harmony12"
+                  },
+                  {
+                      "name":  "main-validator-minimum-umm-version-disagreement-rejected",
+                      "passed":  true,
+                      "detail":  "reference must equal the declared minimum"
+                  },
+                  {
+                      "name":  "observer-validator-minimum-umm-version-disagreement-rejected",
+                      "passed":  true,
+                      "detail":  "reference must equal the declared minimum"
+                  },
+                  {
+                      "name":  "main-validator-canonical-pins-accepted-again",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "observer-validator-canonical-pins-accepted-again",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "main-admission-matching-zip-and-manifest-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "observer-admission-matching-zip-and-manifest-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "common-admission-receipt-version-only-changed-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "normal-player-observer-matching-receipt-accepted",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "normal-player-observer-stale-dll-hash-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "normal-player-observer-stale-mvid-rejected",
+                      "passed":  true,
+                      "detail":  "not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "admission-correct-outer-zip-with-another-builds-dll-rejected",
+                      "passed":  true,
+                      "detail":  "other build exit 0; not the build its manifest names (DLL SHA-256, MVID, version or entries differ)"
+                  },
+                  {
+                      "name":  "reuse-of-unchanged-verified-outputs-accepted",
+                      "passed":  true,
+                      "detail":  "Build-Local exit 0"
+                  },
+                  {
+                      "name":  "reuse-after-pin-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-verifier-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-project-reference-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-build-bootstrap-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-local-build-settings-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-main-manifest-only-change-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-replaced-shipping-dll-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-removed-shipping-dll-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-replaced-component-runner-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-after-changed-compiled-source-rejected",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "reuse-accepted-again-after-restoring-outputs-and-sources",
+                      "passed":  true,
+                      "detail":  "exit 0"
+                  },
+                  {
+                      "name":  "direct-test-skipbuild-with-stale-outputs-refused-before-the-runner",
+                      "passed":  true,
+                      "detail":  "cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "plan-mode-reports-one-reuse-verdict-for-each-receipt-state",
+                      "passed":  true,
+                      "detail":  "current / missing / stale: (reused: build receipt current) (not reusable: build receipt missing; build first) (not reusable: build receipt stale; build first)"
+                  },
+                  {
+                      "name":  "denied-execution-refused-by-budget-before-any-receipt-scan",
+                      "passed":  true,
+                      "detail":  "exit 1; receipt scans 0; refuses oversized work: tier \"Fast: reuse check, FAST components, FAST Validate-Source"
+                  },
+                  {
+                      "name":  "admitted-execution-scans-the-receipt-once-inside-its-step",
+                      "passed":  true,
+                      "detail":  "exit 1; receipt scans 1; cannot reuse these outputs: the loader pins, verifier, MSBuild guards, project files, build bootstrap, local build settings, manifests, compiled sources, cached loade"
+                  },
+                  {
+                      "name":  "test-tiers-skipbuild-with-old-outputs-refused",
+                      "passed":  true,
+                      "detail":  "not a live parent; this invocation is accounted on its own"
+                  },
+                  {
+                      "name":  "full-admission-with-old-outputs-refused-before-umbrella",
+                      "passed":  true,
+                      "detail":  "not a live parent; this invocation is accounted on its own"
+                  }
+              ]
+}

@@ -1,0 +1,119 @@
+PASS exact native base-only loader inventory
+PASS additional native Managed assembly is recorded with hash and MVID
+PASS additional native UMM dependency has a file-backed identity
+PASS dynamic assembly identities retained without qualification claim
+PASS refuses foreign active mod
+PASS refuses foreign disabled mod
+PASS refuses KMC inactive
+PASS refuses KMC enabled string
+PASS refuses missing loaded Harmony
+PASS refuses changed loaded KMC
+PASS refuses changed loaded gameplay
+PASS refuses foreign Mods assembly
+PASS refuses external file-backed assembly
+PASS refuses Managed sibling prefix path
+PASS refuses Managed nested foreign directory
+PASS refuses Managed traversal outside exact roots
+PASS refuses non-dynamic assembly without location
+PASS refuses non-dynamic assembly with whitespace location
+PASS refuses relative file-backed assembly location
+PASS refuses KMC loaded from Managed instead of candidate path
+PASS refuses KMC loaded from another Mods directory
+PASS refuses missing observed assembly hash
+PASS refuses malformed observed assembly hash
+PASS refuses missing observed MVID
+PASS refuses malformed observed MVID
+PASS refuses empty observed MVID
+PASS refuses missing assembly identity field
+PASS refuses assembly observation error hidden by PASS
+PASS refuses dynamic assembly claims a file identity
+PASS refuses dynamic KMC cannot stand in for candidate
+PASS refuses duplicated required loaded gameplay assembly
+PASS refuses process ID string
+PASS baseline profile admits its own loader and Harmony 2.3.1.1 creator
+PASS refuses baseline observations under the default owner profile
+PASS refuses owner observations under the baseline profile
+PASS refuses owner UMM with the baseline Harmony creator (owner profile)
+PASS refuses owner UMM with the baseline Harmony creator (baseline profile)
+PASS refuses profile without a runtime record
+PASS owner profile verifies its loader stack without cache or shared-state rows
+PASS refuses mixed UMM/Harmony without cache or shared state (owner profile)
+PASS refuses mixed UMM/Harmony without cache or shared state (baseline profile)
+PASS baseline profile verifies its loader stack without cache or shared-state rows
+PASS refuses selected profile with no observed Harmony 2
+PASS launcher resolves the default owner profile for the measured environment
+PASS launcher resolves the explicit owner profile
+PASS refuses launcher refuses the baseline profile in the measured owner environment
+PASS launcher parameter contract keeps Scenario as the first positional parameter and offers no profile selection
+PASS launcher carries the owner profile to the inventory, the result reader and the admission receipt
+PASS launcher admits base-game dependencies against the owner profile before staging
+PASS exact pinned Harmony memory identity and UMM candidate cache
+PASS refuses another reviewed loader 0.31.1.0 cannot stand in for selected runtime 0.33.0
+PASS refuses mixed selected runtime and 0.31.1.0 fullName
+PASS refuses mixed selected runtime and 0.31.1.0 mvid
+PASS refuses mixed selected runtime and 0.31.1.0 sha256
+PASS refuses another reviewed loader 0.33.2.0 cannot stand in for selected runtime 0.33.0
+PASS refuses mixed selected runtime and 0.33.2.0 fullName
+PASS refuses mixed selected runtime and 0.33.2.0 mvid
+PASS refuses mixed selected runtime and 0.33.2.0 sha256
+PASS native UInt16 cache suffix 0
+PASS native UInt16 cache suffix 65535
+PASS refuses memory unknown name
+PASS refuses memory version
+PASS refuses memory public key
+PASS refuses memory dynamic flag
+PASS refuses memory null location
+PASS refuses memory whitespace location
+PASS refuses memory relative location
+PASS refuses memory claimed hash
+PASS refuses memory empty hash string
+PASS refuses memory missing MVID
+PASS refuses memory zero MVID
+PASS refuses memory MVID case
+PASS refuses memory MVID aliases candidate
+PASS refuses memory extra observation field
+PASS refuses duplicate known memory module
+PASS refuses 0Harmony creator name
+PASS refuses 0Harmony creator fullName
+PASS refuses 0Harmony creator mvid
+PASS refuses 0Harmony creator sha256
+PASS refuses 0Harmony creator location
+PASS refuses 0Harmony creator singleton array name
+PASS refuses 0Harmony creator singleton array fullName
+PASS refuses 0Harmony creator singleton array mvid
+PASS refuses 0Harmony creator singleton array sha256
+PASS refuses 0Harmony missing creator
+PASS refuses 0Harmony duplicate creator
+PASS refuses 0Harmony missing dependency role
+PASS refuses 0Harmony changed dependency bytes
+PASS refuses 0Harmony duplicate dependency role
+PASS refuses 0Harmony dependency singleton array relativePath
+PASS refuses 0Harmony dependency singleton array sha256
+PASS refuses UnityModManager creator name
+PASS refuses UnityModManager creator fullName
+PASS refuses UnityModManager creator mvid
+PASS refuses UnityModManager creator sha256
+PASS refuses UnityModManager creator location
+PASS refuses UnityModManager creator singleton array name
+PASS refuses UnityModManager creator singleton array fullName
+PASS refuses UnityModManager creator singleton array mvid
+PASS refuses UnityModManager creator singleton array sha256
+PASS refuses UnityModManager missing creator
+PASS refuses UnityModManager duplicate creator
+PASS refuses UnityModManager missing dependency role
+PASS refuses UnityModManager changed dependency bytes
+PASS refuses UnityModManager duplicate dependency role
+PASS refuses UnityModManager dependency singleton array relativePath
+PASS refuses UnityModManager dependency singleton array sha256
+PASS refuses invalid native cache suffix -1
+PASS refuses invalid native cache suffix 65536
+PASS refuses invalid native cache suffix 0001
+PASS refuses invalid native cache suffix 1.0
+PASS refuses invalid native cache suffix 1e2
+PASS refuses invalid native cache suffix x
+PASS refuses invalid native cache suffix 1.cache.pdb
+PASS refuses cache foreign candidate sha256
+PASS refuses cache foreign candidate mvid
+PASS refuses cache outside exact candidate directory
+PASS reader parses
+LOADER CONTRACT PASS 118 FAIL 0

@@ -2,10 +2,10 @@
   <PropertyGroup>
     <KingmakerInstallDir>C:\Path\To\Pathfinder Kingmaker</KingmakerInstallDir>
     <KingmakerManagedDir>$(KingmakerInstallDir)\Kingmaker_Data\Managed</KingmakerManagedDir>
-    <!-- The installed loader directory supplies the unchanged legacy Harmony12 reference and runtime checks.
-         The product compiles against the separate pinned UMM 0.31.1 reference restored under obj/references;
-         Build-Local and direct MSBuild restore missing reference bytes without changing this installation. -->
     <UnityModManagerDir>$(KingmakerManagedDir)\UnityModManager</UnityModManagerDir>
+    <!-- Installed loader path is for runtime inspection only. The product and removal observer compile
+         against the exact UMM 0.31.1 and Harmony12 pins in scripts/loader-reference-pins.json, acquired by
+         scripts/Get-PinnedLoaderReferences.ps1 into obj/loader-references. Direct MSBuild validates them. -->
     <!-- Optional, read only by the loader checks (scripts/UmmLoaderContracts.ps1), never by the build.
          UnityModManagerProfile: the reviewed profile of planning/UMM-LOADER-PROFILES.json that the loader in
          UnityModManagerDir must be, for example umm-0.33.0. Leave it out and the checks require the installed

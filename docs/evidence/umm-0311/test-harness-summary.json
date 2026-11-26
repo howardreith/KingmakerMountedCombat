@@ -1,0 +1,31 @@
+{
+ "schema": "kmc.test-harness-summary.v2",
+ "candidate_commit": "11df053b",
+ "executed_at_head": "e4e32899 (11df053b plus documentation and evidence only)",
+ "passed": 280,
+ "failed": 3,
+ "qualifying": true,
+ "failures": [
+  "transaction stages the removal observer without any KMC entry and restores exact tree",
+  "exact Phase 3F fallback and UMM cache restore after transactional replacement",
+  "runtime update failures abort automation and always execute cleanup"
+ ],
+ "same_failures_as_baseline": true,
+ "baseline": {
+  "candidate_commit": "f5a9f386",
+  "passed": 280,
+  "failed": 3,
+  "failures": [
+   "transaction stages the removal observer without any KMC entry and restores exact tree",
+   "exact Phase 3F fallback and UMM cache restore after transactional replacement",
+   "runtime update failures abort automation and always execute cleanup"
+  ],
+  "pre_reconciliation_commit": "a61c1a5c",
+  "pre_reconciliation_failures": [
+   "transaction stages the removal observer without any KMC entry and restores exact tree",
+   "exact Phase 3F fallback and UMM cache restore after transactional replacement",
+   "runtime update failures abort automation and always execute cleanup"
+  ]
+ },
+ "earlier_attempt": "An earlier run on 11df053b while another session's disposable game copy was running was not qualifying (222/61; Test-Harness refuses runtime cases while a Kingmaker process exists). This run had no game process."
+}

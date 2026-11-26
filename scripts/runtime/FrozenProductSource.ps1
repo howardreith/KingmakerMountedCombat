@@ -35,9 +35,11 @@ function Get-KmcFrozenProductSource {
     & git -C $repo merge-base --is-ancestor $sourceHead $harnessHead
     if($LASTEXITCODE -ne 0) { throw 'Execution harness is not a descendant of the product source.' }
     # All native production and compilation inputs must remain identical, including
-    # the loader build pin and the scripts that restore/use it. Harness changes are
+    # the loader build pins, their parser, the script that acquires and verifies them, both MSBuild guards (the early and
+    # the final compiler-input check) and the build bootstrap. Harness changes are
     # separately identified and separately prove their live safety.
-    $changed=@(& git -C $repo diff --name-only $sourceHead $harnessHead -- src Info.json version.json KingmakerMountedCombat.sln Directory.Build.props Directory.Build.targets planning/UMM-BUILD-REFERENCE.json scripts/Restore-UmmBuildReference.ps1 scripts/Build-Local.ps1)
+    # The inherited MSBuild files are matched with Windows filename semantics (case-insensitive exact pathspecs).
+    $changed=@(& git -C $repo diff --name-only $sourceHead $harnessHead -- src Info.json version.json KingmakerMountedCombat.sln ':(icase)Directory.Build.props' ':(icase)Directory.Build.targets' scripts/loader-reference-pins.json scripts/LoaderPins.ps1 scripts/Get-PinnedLoaderReferences.ps1 LoaderReferences.targets LoaderReferences.Final.targets scripts/Build-Local.ps1)
     if($LASTEXITCODE -ne 0 -or $changed.Count -ne 0) { throw 'Changed production inputs require a new product candidate.' }
     foreach($binding in @($freeze.package,$freeze.manifest,$freeze.suite)) {
         if((Get-FileHash -LiteralPath $binding.path -Algorithm SHA256).Hash.ToLowerInvariant() -cne [string]$binding.sha256) { throw 'Frozen package, manifest or suite bytes changed.' }
@@ -58,7 +60,14 @@ function Assert-KmcFrozenProductManifest {
     $verified=Get-KmcFrozenProductSource -RepositoryRoot $RepositoryRoot -SourceRoot $Context.sourceRoot -FreezePath $Context.freezePath -ExpectedFreezeSha256 $Context.freezeSha256
     if($verified.harnessHead -cne $Context.harnessHead) { throw 'Execution harness changed after frozen-source admission.' }
     $f=$verified.freeze
-    if($Generator -ceq 'scripts/Package-Observer.ps1') { $packageBinding=$f.observer; $manifestBinding=$f.observerManifest }
+    if($Generator -ceq 'scripts/Package-Observer.ps1') {
+        # The removal observer is a separately shipped product: its own project, sources and manifest, and the MSBuild
+        # files it inherits from tools/ (Directory.Build.props/.targets), must also be unchanged for the archived observer
+        # to be reused (main-only reuse does not depend on them).
+        $observerChanged=@(& git -C $RepositoryRoot diff --name-only $verified.source $verified.harnessHead -- tools/KmcRemovalObserver ':(icase)tools/Directory.Build.props' ':(icase)tools/Directory.Build.targets')
+        if($LASTEXITCODE -ne 0 -or $observerChanged.Count -ne 0) { throw 'Changed removal observer inputs require a new observer candidate.' }
+        $packageBinding=$f.observer; $manifestBinding=$f.observerManifest
+    }
     else { $packageBinding=$f.package; $manifestBinding=$f.manifest }
     if([IO.Path]::GetFullPath($PackagePath) -cne [string]$packageBinding.path -or
        [IO.Path]::GetFullPath($ManifestPath) -cne [string]$manifestBinding.path -or

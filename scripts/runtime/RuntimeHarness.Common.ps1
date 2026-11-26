@@ -3596,9 +3596,30 @@ function Assert-KmcSteamSafety {
     }
 }
 
+# The product's standalone validator, run once per package, and its measurement compared with a manifest: package and
+# DLL SHA-256, MVID, product version and entries. Admission callers measure once and reuse the result.
+function Get-KmcMeasuredPackage {
+    param([Parameter(Mandatory = $true)][string]$PackagePath, [ValidateSet('scripts/Package.ps1','scripts/Package-Observer.ps1')][string]$Generator = 'scripts/Package.ps1')
+    $validator = if ($Generator -ceq 'scripts/Package-Observer.ps1') { 'Validate-ObserverPackage.ps1' } else { 'Validate-Package.ps1' }
+    $measured = & (Join-Path (Get-KmcRepositoryRoot) ('scripts\' + $validator)) -PackagePath $PackagePath -PassThru | Select-Object -Last 1
+    if ($null -eq $measured) { throw 'Package validation returned no measurement.' }
+    return $measured
+}
+function Assert-KmcManifestMatchesMeasuredPackage {
+    param([Parameter(Mandatory = $true)]$Manifest, [Parameter(Mandatory = $true)]$Measured)
+    if ([string]$Measured.packageSha256 -cne [string]$Manifest.packageSha256 -or
+        [string]$Measured.dllSha256 -cne [string]$Manifest.dllSha256 -or [string]$Measured.dllMvid -cne [string]$Manifest.dllMvid -or
+        [string]$Measured.version -cne [string]$Manifest.version -or
+        ((@($Measured.entries) | ConvertTo-Json -Depth 6 -Compress) -cne (@($Manifest.entries) | ConvertTo-Json -Depth 6 -Compress))) {
+        throw 'The DLL inside the package is not the build its manifest names (DLL SHA-256, MVID, version or entries differ).'
+    }
+}
+
 function Assert-KmcPackageManifest {
     param([Parameter(Mandatory = $true)][string]$PackagePath, [Parameter(Mandatory = $true)][string]$ManifestPath,
-        [ValidateSet('scripts/Package.ps1','scripts/Package-Observer.ps1')][string]$Generator = 'scripts/Package.ps1')
+        [ValidateSet('scripts/Package.ps1','scripts/Package-Observer.ps1')][string]$Generator = 'scripts/Package.ps1',
+        # A measurement already taken by the caller for this package (reused, never re-derived from the manifest).
+        $Measured)
     $repoRoot = Get-KmcRepositoryRoot; $labRoot = Get-KmcLabRoot
     $resolvedPackage = [IO.Path]::GetFullPath($PackagePath)
     $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')
@@ -3619,6 +3640,10 @@ function Assert-KmcPackageManifest {
         [string]$manifest.packagePath -cne $resolvedPackage -or [string]$manifest.packageSha256 -cne (Get-KmcSha256 $resolvedPackage)) {
         throw 'Package manifest does not bind the exact clean branch, HEAD, and diagnostic ZIP.'
     }
+    # The DLL inside the ZIP must be the build the manifest names (one measurement by the standalone validator).
+    $measured = if ($null -ne $Measured) { $Measured } else { Get-KmcMeasuredPackage -PackagePath $resolvedPackage -Generator $Generator }
+    Assert-KmcManifestMatchesMeasuredPackage -Manifest $manifest -Measured $measured
+    $manifest | Add-Member -NotePropertyName measuredPackage -NotePropertyValue $measured -Force
     return $manifest
 }
 

@@ -162,4 +162,3 @@
     "2026-11-23 owner decision: pin the build and primary compatibility baseline to UMM 0.31.1, following Kingmaker Tabletop Rules and Cutscene Skip. The native Windows target recorded here is separately updated to the already reviewed installed UMM 0.33.0.0 profile (planning/UMM-LOADER-PROFILES.json, measured 2026-11-15; also the exact Buff Planner runtime pin). This does not require a working newer installation to downgrade. Exact runtime identity checks remain; the 0.31.1 build baseline does not prove native 0.31.1 or Linux/Proton acceptance. Historical observations and verdicts remain bound to their original environments. No new game run or installation was performed for this update."
   ]
 }
-

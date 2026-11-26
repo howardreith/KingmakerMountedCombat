@@ -1,0 +1,3 @@
+OBSERVER PACKAGE PASS=8 FAIL=0
+PACKAGE=<lab>\artifacts\KmcRemovalObserver-0.1.0-observer.8-release-diagnostic.zip
+SHA256=2c0fe38225adbffccec2fe2e31dff82d6a93eeaac9a1d470b065110e5350b1d7

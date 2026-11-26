@@ -1,0 +1,14 @@
+{
+  "project": "kingmaker-mounted-combat",
+  "problems": [],
+  "repo_root": "<repo>",
+  "origin": "https://github.com/howardreith/KingmakerMountedCombat.git",
+  "actor": "howardreith",
+  "default_branch": "main",
+  "permission": "ADMIN",
+  "branch_pattern": "^codex/[a-z0-9][a-z0-9._/-]*$",
+  "push": "built-in guarded push",
+  "gates": [
+    "focused"
+  ]
+}

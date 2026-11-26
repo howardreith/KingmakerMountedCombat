@@ -24,10 +24,9 @@ param()
 #  11. chunk7\Test-Chunk7CombatPersistenceEvidence.ps1 and 12. chunk7\Test-Chunk7PersistenceEvidence.ps1: the persistence
 #      readers and case registries the new mounted-shield-tb-manual case joins.
 #  13. chunk7\Test-Chunk7ProfileAreasIsolation.ps1: the profile/area isolation scenario list the shield scenarios join.
-#  14. Test-UmmBuildReference.ps1: the pinned UMM 0.31.1 restore helper on the genuine archive (the build restores it).
-#  15. Test-Chunk7NativeLoaderContracts.ps1: the native inventory reader for the selected 0.33.0 runtime identity.
-#  16. Test-FrozenProductSource.ps1: build provenance (the loader pin and its restore/build helpers are product inputs).
-#  17-18. Test-UmmLoaderContracts.ps1: the compiled product's loader bindings against the genuine 0.31.1 reference and
+#  14. Test-Chunk7NativeLoaderContracts.ps1: the native inventory reader for the selected 0.33.0 runtime identity.
+#  15. Test-FrozenProductSource.ps1: build provenance (the loader pins and their build check are product inputs).
+#  16-17. Test-UmmLoaderContracts.ps1: the compiled product's loader bindings against the genuine 0.31.1 compile pin and
 #      the installed 0.33.0 loader, each with its reviewed identity profile.
 # The production amount policy, contribution ledger, publication set and contract text are unit-tested by the component
 # runner (tests/MountedShieldTests.cs and the existing Mounted Combat/Archery suites), which the Fast tier itself runs with
@@ -38,13 +37,14 @@ $failed=New-Object 'System.Collections.Generic.List[string]'
 # cannot autoload its built-in Get-FileHash. Each child computes its own default module path instead.
 $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
+# The genuine UMM 0.31.1 compile input the build verifies (scripts/loader-reference-pins.json).
+$reference=Join-Path $repoRoot 'obj\loader-references\UnityModManager.dll'
 $children=@(
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedArcheryFeatContract.ps1'),@('Test-MountedRangedMovementContracts.ps1'),
     @('Test-ContinuousDriveContracts.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),@('chunk7\Test-Chunk7RangerSelectionContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-Sprint6ShieldReaders.ps1'),@('Test-Sprint6FeatReaders.ps1'),
     @('chunk7\Test-Chunk7CombatPersistenceEvidence.ps1'),@('chunk7\Test-Chunk7PersistenceEvidence.ps1'),@('chunk7\Test-Chunk7ProfileAreasIsolation.ps1'),
-    @('Test-UmmBuildReference.ps1'),@('Test-Chunk7NativeLoaderContracts.ps1'),@('Test-FrozenProductSource.ps1'),
+    @('Test-Chunk7NativeLoaderContracts.ps1'),@('Test-FrozenProductSource.ps1'),
     @('Test-UmmLoaderContracts.ps1','-Reference',$reference,'-Profile','umm-0.31.1','-IgnoreLocalProfile'),
     @('Test-UmmLoaderContracts.ps1','-Profile','umm-0.33.0','-IgnoreLocalProfile'))
 foreach($child in $children){

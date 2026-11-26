@@ -108,7 +108,14 @@ if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
 $components = Join-Path $repoRoot ('bin/Tests/' + $Configuration + '/KingmakerMountedCombat.Tests.exe')
 $productDll = Join-Path $repoRoot ('bin/' + $Configuration + '/KingmakerMountedCombat.dll')
 $steps = New-Object 'System.Collections.Generic.List[object]'
-function Add-Step([string]$Name, [string]$Detail, [string]$Prerequisite) { $steps.Add([pscustomobject]@{ Name = $Name; Detail = $Detail; Prerequisite = $Prerequisite }) }
+. (Join-Path $scriptsRoot 'LoaderInputStamp.ps1')
+# Reused outputs (-SkipBuild) are admitted only against the build receipt written next to them. Plan mode reports the
+# receipt state, read-only; an execution hashes nothing before budget admission and checks the receipt once: inside its
+# admitted 'reuse check' step, or for Full inside the admitted umbrella step, where Test.ps1 -SkipBuild checks it
+# before any runner (the same check protects a direct Test.ps1 -SkipBuild). The plan and estimate keep the check.
+$reuseState = if ($SkipBuild -and $Plan) { Test-KmcLoaderInputStamp $repoRoot $Configuration } else { $null }
+function Add-Step([string]$Name, [string]$Detail, [string]$Prerequisite, [bool]$Timed = $true) { $steps.Add([pscustomobject]@{ Name = $Name; Detail = $Detail; Prerequisite = $Prerequisite; Timed = $Timed }) }
+if ($SkipBuild) { Add-Step 'reuse check' ('build receipt ' + (Get-KmcLoaderInputStampPath $repoRoot $Configuration)) $(if (-not $Plan) { if ($Tier -eq 'Full') { 'checked once by Test.ps1 -SkipBuild inside the admitted umbrella step' } else { 'checked inside the admitted step' } } else { switch ($reuseState) { 'current' { 'receipt current: outputs reusable' } 'missing' { 'MISSING build receipt: build first' } default { 'STALE build receipt: inputs or outputs changed; build first' } } }) ($Tier -ne 'Full') }
 if ($Tier -eq 'Full') {
     Add-Step 'FULL umbrella (scripts/Test.ps1)' ('Test.ps1 -AssemblyTarget ' + $AssemblyTarget + $(if ($SkipBuild) { ' -SkipBuild' } else { '' }) + '; task: ' + $QualificationTask) $(if (Test-Path -LiteralPath (Join-Path $scriptsRoot 'Test.ps1')) { 'present' } else { 'MISSING Test.ps1' })
 } else {
@@ -127,7 +134,8 @@ $budgetIdResolved = Get-KmcWorkflowBudgetId $BudgetId
 $budgetView = Read-KmcWorkflowBudget $repoRoot $budgetIdResolved
 $knownSeconds = 0.0; $unknownSteps = 0
 $stepEstimates = @{}
-foreach ($step in $steps) {
+# A prerequisite included in a timed step (the Full receipt check, inside the umbrella) adds no estimate of its own.
+foreach ($step in @($steps | Where-Object { $_.Timed })) {
     $last = Get-KmcWorkflowStepHistorySeconds $budgetView $step.Name
     if ($null -eq $last) { $unknownSteps++ } else { $knownSeconds += $last; $stepEstimates[$step.Name] = [int][Math]::Ceiling($last) }
 }
@@ -135,6 +143,20 @@ $estimate = if ($unknownSteps -eq 0 -and $steps.Count -gt 0) { [int][Math]::Ceil
 # What admission is told: the complete estimate when every step is known, otherwise the known
 # part as a lower bound (a selection whose known steps alone exceed the allowance never starts).
 $admissionEstimate = if ($knownSeconds -gt 0) { [int][Math]::Ceiling($knownSeconds) } else { $null }
+# Full -SkipBuild with no inclusive Full duration yet: the recorded receipt-check duration (the work the umbrella starts
+# with) is a lower bound for selection admission and for the Full step's admission. The total estimate stays unknown
+# and nothing is recorded as Full history. Full with a build, Fast and Candidate are unchanged.
+$receiptLowerBound = $null
+if ($Tier -eq 'Full' -and $SkipBuild -and $null -eq (Get-KmcWorkflowStepHistorySeconds $budgetView 'FULL umbrella (scripts/Test.ps1)')) {
+    $receiptHistory = Get-KmcWorkflowStepHistorySeconds $budgetView 'reuse check'
+    # Only a strictly positive measurement is a bound: a zero-second record leaves the estimate unknown (null), so an
+    # interrupted unmeasured run still needs explicit reconciliation instead of being settled at zero.
+    if ($null -ne $receiptHistory -and $receiptHistory -gt 0) {
+        $receiptLowerBound = [int][Math]::Ceiling($receiptHistory)
+        if ($null -eq $admissionEstimate -or $admissionEstimate -lt $receiptLowerBound) { $admissionEstimate = $receiptLowerBound }
+        $stepEstimates['FULL umbrella (scripts/Test.ps1)'] = $receiptLowerBound
+    }
+}
 
 if ($Plan) {
     $now = Get-KmcWorkflowClock
@@ -147,13 +169,13 @@ if ($Plan) {
     foreach ($step in $steps) {
         $index++
         $last = Get-KmcWorkflowStepHistorySeconds $budgetView $step.Name
-        Write-Host ('  ' + $index + '. ' + $step.Name + ' [' + $step.Prerequisite + '] last=' + $(if ($null -eq $last) { 'unknown' } else { [string]$last + 's' }) + ' :: ' + $step.Detail)
+        Write-Host ('  ' + $index + '. ' + $step.Name + ' [' + $step.Prerequisite + '] ' + $(if (-not $step.Timed) { 'timed within FULL umbrella' } else { 'last=' + $(if ($null -eq $last) { 'unknown' } else { [string]$last + 's' }) + $(if ($null -eq $last -and $null -ne $receiptLowerBound -and $stepEstimates.ContainsKey($step.Name)) { ' (admission lower bound ' + $stepEstimates[$step.Name] + 's from the recorded reuse check)' } else { '' }) }) + ' :: ' + $step.Detail)
     }
     Write-Host ('  estimate=' + $(if ($null -eq $estimate) { 'unknown (' + $unknownSteps + ' step(s) without a recorded duration)' } else { [string]$estimate + 's from recorded durations' }))
     if (Test-Path -LiteralPath $productDll -PathType Leaf) {
         $mvid = 'unknown'
         try { $mvid = [Reflection.Assembly]::ReflectionOnlyLoadFrom($productDll).ManifestModule.ModuleVersionId.ToString() } catch { }
-        Write-Host ('  artifact: ' + $productDll + ' sha256=' + (Get-FileHash -LiteralPath $productDll -Algorithm SHA256).Hash.ToLowerInvariant() + ' mvid=' + $mvid + $(if ($SkipBuild) { ' (reused)' } else { ' (replaced by the build step)' }))
+        Write-Host ('  artifact: ' + $productDll + ' sha256=' + (Get-FileHash -LiteralPath $productDll -Algorithm SHA256).Hash.ToLowerInvariant() + ' mvid=' + $mvid + $(if (-not $SkipBuild) { ' (replaced by the build step)' } else { switch ($reuseState) { 'current' { ' (reused: build receipt current)' } 'missing' { ' (not reusable: build receipt missing; build first)' } default { ' (not reusable: build receipt stale; build first)' } } }))
     } else { Write-Host ('  artifact: ' + $productDll + ' not built') }
     # Impact map: which reviewed families the working tree touches and what they depend on.
     $mapPath = Join-Path $scriptsRoot 'workflow-impact-map.json'
@@ -195,12 +217,16 @@ function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
         throw ('Workflow budget refused step: ' + $Name)
     }
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    $ok = $true; $detail = ''
+    $ok = $true; $detail = ''; $script:lastChildExit = $null
     try { & $Body } catch { $ok = $false; $detail = $_.Exception.Message }
     $sw.Stop()
     $script:results += [pscustomobject]@{ step = $Name; pass = $ok; seconds = [Math]::Round($sw.Elapsed.TotalSeconds, 1); detail = $detail }
     Write-Host (('{0,-4} {1} ({2}s){3}' -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $Name, [Math]::Round($sw.Elapsed.TotalSeconds, 1), $(if ($ok) { '' } else { ': ' + $detail })))
-    try { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission -StepName $Name -StepSeconds $sw.Elapsed.TotalSeconds } catch { Write-Warning ('Workflow budget heartbeat failed: ' + $_.Exception.Message) }
+    # Every step's measured duration is recorded, also when it fails after its work started, except a Full umbrella
+    # whose child exited with the receipt-refused code: no work started, so that attempt heartbeats and is charged
+    # through its entry and leaves Full history as it was (an established duration, or unknown).
+    $recordDuration = -not ($Name -like 'FULL umbrella*' -and $script:lastChildExit -eq $script:KmcReceiptRefusedExitCode)
+    try { if ($recordDuration) { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission -StepName $Name -StepSeconds $sw.Elapsed.TotalSeconds } else { Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $admission } } catch { Write-Warning ('Workflow budget heartbeat failed: ' + $_.Exception.Message) }
     if (-not $ok) { throw ('Tier step failed: ' + $Name) }
 }
 # Children run as separate processes whose output is relayed when they end; while they run
@@ -233,11 +259,13 @@ function Invoke-TestScript([string]$Name, [string[]]$Extra = @(), [string]$Path 
     if ($takesConfiguration) { $arguments += @('-Configuration',$Configuration) }
     if ($Extra.Count -gt 0) { $arguments += $Extra }
     $exit = Invoke-KmcTierChild 'powershell.exe' $arguments
+    $script:lastChildExit = $exit
     if ($exit -ne 0) { throw ($Name + ' exited ' + $exit) }
     $invokedTests[$Name] = $true
 }
 $outcome = 'failed'
 try {
+    if ($SkipBuild -and $Tier -ne 'Full') { Invoke-Tiered 'reuse check' { Assert-KmcLoaderInputStamp $repoRoot $Configuration } }
     if ($Tier -eq 'Full') {
         $fullArguments = @('-AssemblyTarget', $AssemblyTarget)
         if ($SkipBuild) { $fullArguments += '-SkipBuild' }
@@ -248,6 +276,7 @@ try {
                 if ([string]::IsNullOrWhiteSpace($msbuild)) { throw 'MSBuild not found.' }
                 $exit = Invoke-KmcTierChild $msbuild @((Join-Path $repoRoot 'KingmakerMountedCombat.sln'), '/t:Build', "/p:Configuration=$Configuration", '/m:1', '/v:minimal', '/nologo')
                 if ($exit -ne 0) { throw 'Build failed.' }
+                Write-KmcLoaderInputStamp $repoRoot $Configuration
             }
         }
         Invoke-Tiered 'FAST components' {
