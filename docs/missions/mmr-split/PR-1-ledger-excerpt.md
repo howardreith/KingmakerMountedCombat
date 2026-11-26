@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T14:55:35+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T16:26:32+00:00.
 
 ```json
 {"branch": "codex/mmr-attack-orders", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "extraction_commit": "95c26e59", "extraction_proof": "build clean; components 1539/0; Validate-Source 153/0; orders native contract 4/0; lifecycle contract 49/0; attack-path harness 16/0 (metered rerun after removing a PR-2 helper); whole-file identity of 6 owned files with 46444b30; shared-file residuals only PR-2/PR-5 pieces", "initial_push": "audited ordinary push (AGENTS.md; no project helper on main); receipt push-audits/codex_mmr-attack-orders-95c26e59-2026-11-25T153350+0000.json", "kind": "enrollment", "max_rounds": 3, "mission": "docs/missions/mmr-split/PR-1-attack-orders.md", "mission_commit": "f29a45e3", "pr": "PR-1", "pr_number": 65, "prev_sha256": "4ecc6180bebafa14b800701c0c0b66d2a6a255353a0ce6f517bb10c37081dd8a", "program_rounds": {"cap": 22, "child_allocated_so_far": 3, "spent_before": 7}, "seq": 7, "target": "main", "utc": "2026-11-25T15:34:13+00:00"}
@@ -104,6 +104,21 @@ SHA-256 `6f7663730fc96ef6dd0a34cb3fd86a93c9dedfe2d72f3b2f8f4b53068632795c`
 ```
 SHA-256 `bcb5141b48512f1a7477e007f4358c4c1ef482405eecc9cf1dd0d4d53f45b638`
 
+```json
+{"budget": "budget record read at 2026-11-26T15:19:36Z: budget mounted-alpha2-melee-pose-20261124: spent 121.44 of 150 min; remaining 28.57 min; entries 168 (running 0, interrupted 0, unreconciled 0)", "candidate": "b1575568827096453af5697f7f94b9f3d9ad814d", "controller_status": "BLOCKED (review-round cap reached for final, 8/8); stop preserved, not resumed, no replacement enrollment (owner instruction 2026-11-26b)", "decision": "changes_required", "deferral_accepted": ["R7-F3"], "kind": "review_result", "note": "program end: PR-1 is not accepted, so PR-2 (depends on PR-1 acceptance) and PR-6 (depends on every feature acceptance) cannot start; PR-4 and PR-5 stops preserved; PR-3 is the only accepted child", "open_blocking": ["R8-F1", "R8-F2"], "open_optional": ["R8-F3"], "pr": "PR-1", "prev_sha256": "bcb5141b48512f1a7477e007f4358c4c1ef482405eecc9cf1dd0d4d53f45b638", "program_rounds": "26 of 33 lifetime (19 of 26 allocated child reviews)", "records": "decomposition/pr1/developer-report.r8.json, pr1/controller-review-r8.json, status/pr1-post-review-r8-status.json; structured review state/<enrollment>/rounds/r08/envelope-1.json", "round": 8, "seq": 63, "utc": "2026-11-26T15:19:48+00:00", "verified": ["R1-F11", "R4-F1", "R4-F5", "R6-F1", "R7-F1", "R7-F2"]}
+```
+SHA-256 `405d3edf278e977abcc5f3ec5782f32ef3d8b0d146fc09236b6ab40d3ef4e343`
+
+```json
+{"after": "ACTIVE, 8 of 10", "authority": "owner instruction 2026-11-26c section 2 (docs/missions/mmr-split/owner-authorization-2026-11-26c.md)", "before": "BLOCKED (review-round cap reached for final, 8/8)", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "kind": "resume", "operation": "agent_review.py resume --max-rounds 10", "pr": "PR-1", "prev_sha256": "f0f414ed53d3703340331330af2cb7d445fcbb79ad2a318c2a0c2e42e67b30da", "records": "decomposition/status/pr1-pre-resume-3-status.json, pr1-resume-3.out, pr1-post-resume-3-status.json", "seq": 68, "utc": "2026-11-26T16:26:32+00:00"}
+```
+SHA-256 `d5a802ac65eca9d314cc7d630c2651adcb51e3b43b803a78d26c79f21738c8c8`
+
+```json
+{"budget": "budget record read at 2026-11-26T16:26:31Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 122.87 of 150 min; remaining 27.13 min; entries 178 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-attack-orders that regenerates docs/missions/mmr-split/PR-1-ledger-excerpt.md with this entry", "child_rounds": "8 of 10 used", "kind": "pre_review_check", "pr": "PR-1", "prev_sha256": "d5a802ac65eca9d314cc7d630c2651adcb51e3b43b803a78d26c79f21738c8c8", "program_rounds": "26 of 38 lifetime (19 of 31 allocated child reviews)", "round": 9, "seq": 69, "utc": "2026-11-26T16:26:32+00:00"}
+```
+SHA-256 `cc2edf9cbca9d8ee7d14300cd01492a53cbf2b60bc4b44df8d682672f57a0564`
+
 Controller facts for cross-checking: the r01 request comment on PR #65 was created 2026-11-25T15:35:59Z (after seq 8);
 the r02 request followed gate receipt gate-focused-49b1c7b94e9a-d43d449b6c4-af2513083e1-20261125T164039504028Z (after seq 11).
 Seq 14 is the owner decision of 2026-11-26 (verbatim text committed as docs/missions/mmr-split/owner-authorization-2026-11-26.md):
@@ -112,4 +127,6 @@ by the supported controller operation with that ceiling; seq 30 is the round-4 r
 seq 33 the round-6 check and seq 34 the round-6 stop (no progress). Seq 42 corrects the blocking counts in the final handoff; seq 43 is
 the owner extension of 2026-11-26 (docs/missions/mmr-split/owner-authorization-2026-11-26b.md): PR-1 ceiling 8, program 26 child /
 33 lifetime reviews, validation unchanged at 150 minutes. Seq 59 is the PR-1 resume to 8, seq 60 the round-7 check, seq 61 the round-7
-result; the last entry is the round-8 check for the candidate that adds this version.
+result, seq 62 the round-8 check, seq 63 the round-8 result (cap stop at 8/8), seq 64 the final report of 2026-11-26b;
+seq 65-67 record owner instruction 2026-11-26c (total cap 10), the PR-3 acceptance and the correction to seq 61; seq 68 is the
+resume to 10 and the last entry is the round-9 check for the candidate that adds this version.
