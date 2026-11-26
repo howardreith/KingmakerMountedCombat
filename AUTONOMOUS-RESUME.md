@@ -1,3 +1,8 @@
+# Integration and alpha prerelease 0.2.16-alpha.2 (2026-11-26, owner authorization)
+
+Read CURRENT.md's first section. The integrated branch `codex/umm-0311-integration-20261126` merges main (Mounted Shield)
+into the accepted UMM 0.31.1 baseline. The alpha is a GitHub prerelease, never Latest; 0.2.15 stays stable. Native: NOT RUN.
+
 # UMM 0.31.1 baseline (2026-11-23, unreleased)
 
 Read CURRENT.md's first section and docs/UMM-0311-BASELINE.md. Compile against the exact 0.31.1/Harmony12 pins

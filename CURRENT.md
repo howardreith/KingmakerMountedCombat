@@ -1,3 +1,21 @@
+# INTEGRATION AND ALPHA PRERELEASE 0.2.16-alpha.2 (2026-11-26, OWNER AUTHORIZATION)
+
+Start here. The owner accepted PR #62 (UMM 0.31.1 baseline; reviewed source `060d21c1`, archive `20bf1351`, 10/10
+correction rounds, no open findings) and authorized on 2026-11-26 its integration with current main and publication of
+the integrated result as an alpha prerelease (not Latest; 0.2.15 stays the stable release).
+
+- **Branch:** `codex/umm-0311-integration-20261126` (from `20bf1351`). Merge commit `3e2c44a6` integrates main
+  `783b2b3d` (Mounted Shield, PR #61). Main carried #63's earlier companion pin (`5be0f737`), which PR #62 had already
+  reconciled (`0cbf0167`); the merge keeps PR #62's pins and tooling, main's Mounted Shield sources, tests and records,
+  and removes #63's separate restore helper, its test and its pin file (no longer a compile input). The Mounted Shield
+  focused gate checks the 0.31.1 loader bindings against the build's own pin (same genuine bytes `2e038ff2…`).
+- **Version:** 0.2.16-alpha.2 in `version.json`, `Info.json` and `BuildIdentity.cs`; assembly version stays 0.1.0.0. The removal
+  observer keeps `0.1.0-observer.8` (declared minimum 0.31.1 since PR #62). Notes:
+  [docs/RELEASE-NOTES-0.2.16-alpha.2.md](docs/RELEASE-NOTES-0.2.16-alpha.2.md).
+- **Budget:** `release-0.2.16-alpha.2`, 30-minute allowance (owner, 2026-11-26), separate from the completed correction
+  budget `umm-0311-baseline` (47.64 of 48.62 min), which is unchanged.
+- **Native:** NOT RUN, startup included; no installation, launch or save change.
+
 # UMM 0.31.1 BASELINE (2026-11-24, UNRELEASED, DRAFT PR #62)
 
 Start here. Owner direction: UMM 0.31.x consistently across the Kingmaker mods, newer loaders checked separately. Both

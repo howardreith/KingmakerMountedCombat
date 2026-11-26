@@ -4,7 +4,7 @@ A Unity Mod Manager (UMM) mod for Pathfinder: Kingmaker (engine build 2.1.7b) th
 companion: a Horse or Riding Dog added by the mod, or a supported stock Mammoth. Rider and mount keep their own actions,
 health and defenses. No other mod is required.
 
-Release notes: [0.2.15](docs/RELEASE-NOTES-0.2.15.md) (current), [0.2.14](docs/RELEASE-NOTES-0.2.14.md),
+Release notes: [0.2.16-alpha.2](docs/RELEASE-NOTES-0.2.16-alpha.2.md) (alpha prerelease), [0.2.15](docs/RELEASE-NOTES-0.2.15.md) (current stable), [0.2.14](docs/RELEASE-NOTES-0.2.14.md),
 [0.2.13](docs/RELEASE-NOTES-0.2.13.md),
 [0.2.12](docs/RELEASE-NOTES-0.2.12.md),
 [0.2.11](docs/RELEASE-NOTES-0.2.11.md),
@@ -16,10 +16,10 @@ and [0.2.1](docs/RELEASE-NOTES-0.2.1.md).
 
 ## Current status
 
-- **Unreleased loader baseline:** source now declares and builds against UMM **0.31.1**, independently of the
-  installed loader. The baseline build and the static API audit are done for draft PR #62 (results in
-  [CURRENT.md](CURRENT.md)); native checks have not been run. This does not change the released 0.2.15 package or
-  establish runtime support for any newer loader. [Compatibility record](docs/UMM-0311-BASELINE.md).
+- **Alpha prerelease 0.2.16-alpha.2:** the Mounted Shield feat (from 0.2.16-alpha.1) and the UMM **0.31.1** loader
+  baseline: the mod declares and builds against UMM 0.31.1, independently of the installed loader. The static API audit
+  is done; native checks have not been run, startup included ([notes](docs/RELEASE-NOTES-0.2.16-alpha.2.md),
+  [compatibility record](docs/UMM-0311-BASELINE.md)). It does not establish runtime support for any loader version.
 - **Release:** 0.2.15 is the current release. A held save now names what it is waiting for and why it stopped, and the
   log records each held save (X05, the post-combat save and door lock). **It does not fix that lock**, whose cause is
   not yet known. Nothing in 0.2.15 was run in the game before release ([notes](docs/RELEASE-NOTES-0.2.15.md)).
