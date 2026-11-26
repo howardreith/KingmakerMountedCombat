@@ -1,0 +1,6 @@
+Use case: precise-object-edit
+Edit target: Image 1 is the Mounted Shield icon. Image 2 is the user's Mounted Archery style/color reference only.
+The user likes Image 1's design and asks ONLY for the colors to be corrected. Preserve Image 1's exact layout and recognizable silhouette: the same complete circular ring, the same large kite-shield outline, the same right-facing horse head and mane inside it, same positions and proportions.
+Recolor the ENTIRE visible emblem to ONE uniform flat muted terra-cotta color sampled from the solid opaque areas of Image 2: RGB (155, 77, 58), hex #9B4D3A. This single identical ink must cover the ring, shield outline and horse. Remove ALL gold, yellow, highlights, gradient and shading. Do not make any element lighter or darker. Exactly one foreground RGB color; edge smoothness must come from alpha antialiasing only. No color texture, no scattered speckles.
+Preserve a real transparent background, including every internal empty area and the corners. Preserve the geometric shape and size of the shield outline; change its color only. Do not add the archer, bow or full horse body from Image 2. No new elements, no text, no background, no shadows, no cropped ring. This is a monochrome production combat-feat icon, not a painting.
+Output a clean square transparent PNG master, suitable for 64px reduction.

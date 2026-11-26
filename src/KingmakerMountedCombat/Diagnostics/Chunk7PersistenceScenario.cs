@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             break;
                         }
                         var acquisition = new JObject(); evidence["acquisition"] = acquisition;
-                        if (RidingDogCase || FeatDebtCase || ChargeCommitCase)
+                        if (RidingDogCase || FeatDebtCase || ShieldCase || ChargeCommitCase)
                         {
                             // Disclosed setup: enough native experience for the four ordinary levels. No level, feature or pet is granted.
                             var progression = secondRider.Descriptor.Progression;
@@ -313,6 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!checkpoint.Update()) return;
                         evidence["combatCheckpoint"] = checkpoint.Capture();
                         if (FeatDebtCase) CommitFeatDebtBeforeSave();
+                        if (ShieldCase) PrepareShieldBeforeSave();
                         if (ChargeCommitCase) { Next(60); break; }
                         RequestSave(); Next(4); break;
                     case 60:
@@ -331,6 +332,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         if (!checkpoint.UpdateContinuation()) return;
                         if (CurrentMigrationCase) VerifyCurrentMigrationInput();
                         evidence["combatContinuation"] = checkpoint.Capture();
+                        if (ShieldCase) ObserveShieldContinuation();
                         Pass("C7-persistence-native-combat-continuation");
                         if (FeatDebtCase && !IntegratedCase && Cold) { Next(21); break; }
                         if (ChargeCommitCase && Cold) { Next(62); break; }
@@ -871,6 +873,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 restoration == null && retention == null && saveBoundaryProbe == null && saveWorkerHold == null &&
                 mode == null && ummLease == null && checkpoint == null;
             if (!cleanupReady) { RetainCleanup("Native persistence cleanup postcondition still owns an obligation.", 45); return; }
+            var shieldEquipmentClear = false;
+            TryCleanup("Mounted Shield equipment", () => { shieldEquipmentClear = DrainShieldEquipment(); });
+            if (!shieldEquipmentClear) { RetainCleanup("The Mounted Shield fixture equipment has not been restored.", 45); return; }
             TryCleanup("immutable source archive", () =>
             {
                 if (RepeatedWorldCase && replayInput != null) RequireReplayInput();

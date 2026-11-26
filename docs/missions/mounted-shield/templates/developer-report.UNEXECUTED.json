@@ -1,0 +1,22 @@
+{
+  "schema_version": "agent-review.developer.v1",
+  "status": "blocked",
+  "checkpoint_id": "final",
+  "candidate_commit": null,
+  "summary": "UNEXECUTED TEMPLATE. Replace with the actual Mounted Shield candidate report; this file is not a gate receipt or completion claim.",
+  "validation": [
+    {
+      "command": "NOT RUN: choose the actual controller verify command after the focused production-path check exists.",
+      "required": true,
+      "result": "not_run",
+      "duration": "not_run",
+      "scope_and_limits": "No implementation, build, runtime, UI, or restoration evidence has been produced by this template."
+    }
+  ],
+  "dispositions": [],
+  "evidence_refs": [],
+  "runtime_restoration": "not_applicable",
+  "blocker": "Template only; implementation and verification have not run.",
+  "owner_decision_needed": null
+}
+

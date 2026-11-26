@@ -7,6 +7,61 @@ the current installed game. The baseline build and static API audit are recorded
 not run (prerequisites per loader in CURRENT.md). Do not transfer old 0.33.2 PASS records to this candidate or rewrite
 the historical environment fingerprint as if the runtime changed.
 
+# Mounted Shield private alpha (2026-11-24, owner amendment 2)
+
+Read CURRENT.md's first section, docs/mounted-shield/HANDOFF.md section 0 (private-alpha paragraph) and
+docs/mounted-shield/PRIVATE-ALPHA.md.
+
+- Done: amendment 2 recorded (revision 2, `d735f07d`); alpha version 0.2.16-alpha.1; closure review and targeted recheck PASS
+  on `bb903669` (controller round-1 to 3 corrections in `6fb53633`, `fedb7008`, `cc17fe36`); focused gate PASS; package `KingmakerMountedCombat-0.2.16-alpha.1-mounted-shield-cc17fe36-diagnostic.zip`
+  (`d7143ba3…`). No native work (zero guarded starts); no agent-generated save (save-backed routes need the historical
+  qualification suite; no desktop-control tool).
+- Next: the controller's final review on the records head; the owner's private-alpha playtest. A later live smoke first needs
+  qualified settings/profile protection on the no-save path.
+- Keep: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, budget `mounted-shield`, draft PR #61; no merge, release,
+  tag or installation.
+
+# Mounted Shield continuation (2026-11-23, owner amendment 1)
+
+Read CURRENT.md's first section and docs/mounted-shield/HANDOFF.md section 0.
+
+- Done: companion `5be0f737` imported; amendment recorded (revision 1, `8ee86965`); rollback, planned check totals and
+  the gameplay driver/readers in `cb74ad58`; focused Fast gate and package on `cb74ad58`.
+- Round 4 corrections in `bb0c53d5` (PN4-F1..F10).
+- Next, once the canonical qualified KMC_AUTOMATION_BASELINE/WORKING pair is back: guarded startup smoke, then
+  `sprint6-shield-rt`, `sprint6-shield-tb` and `mounted-shield-tb-manual`, restoring after each; then the final factory
+  review. Any production or safety change before that needs another supplemental review.
+- Keep: enrollment `kmc-codex-mounted-shield-20261123114646-4433`, budget id `mounted-shield`
+  (set `KMC_WORKFLOW_BUDGET_ID=mounted-shield` for verify), draft PR #61, no merge/release/installation.
+
+# UMM baseline follow-up (2026-11-23, owner decision)
+
+Read the first two sections of CURRENT.md and the 2026-11-23 entry in docs/CHUNK7-NATIVE-LOADER-IDENTITY.md.
+
+- Pin the distributable's build reference and declared minimum to **0.31.1** as the sibling mods do.
+- The selected installed Windows runtime remains a separate exact **0.33.0** identity. Its native evidence does not
+  establish native 0.31.1 or Linux/Proton acceptance.
+- Preserve older loader profiles and all frozen receipts. Import this companion commit through the existing
+  Mounted Shield enrollment; record the owner's amendment using the installed controller's supported route.
+- Rebuild and run focused binding/reader checks on Windows before native use. The previous feature DLL/gate does not
+  certify a build made with the changed reference.
+- Complete the Mounted Shield code review, gameplay driver and required native acceptance after fixture admission.
+  The pin decision alone does not create a qualified save or an accepted factory review.
+
+# Mounted Shield feat (retained f19c8333 run record, 2026-11-23, PR #61)
+
+Factory mission KMC-MOUNTED-SHIELD-2026-11-23 (foreground enrollment `kmc-codex-mounted-shield-20261123114646-4433`). Read
+CURRENT.md (its first section) and docs/mounted-shield/HANDOFF.md.
+
+- **Rules:**
+  - One calculation (`MountedShieldPolicy.Amount` over `MountedShieldService.ReadFacts`) serves the mount AC and the check;
+    never snapshot it, never read enhancement, never add a parallel test-only formula.
+  - The mount value is a native `Shield` modifier owned by `MountedShieldContributionLedger`; it is released by the fact's
+    turn-off (the native save path) and must never be written into a save or survive its pair.
+  - Mounted Archery and Mounted Shield are withdrawn independently by the one `KmcCombatFeatPublicationSet`.
+- **Open:** every native/UI acceptance row (UMM 0.33.0/0.33.2 pin and no KMC Working fixture; owner decisions).
+- **Not authorized:** merge, release, install.
+
 # Release 0.2.15 (owner order, 2026-11-22)
 
 0.2.15 releases PR #59 (merged as `d409bffc`): X05's save-wait diagnostics and accurate save messages. Read CURRENT.md
@@ -842,3 +897,4 @@ Facts for a successor:
 - The publishing helper registers images by exact path and SHA, and each new image needs owner approval; see docs/evidence/finalize-f1/publishing-authority.json.
 
 First command: Get-Content C:\Dev\KingmakerMountedCombatLab\runtime-state\workflow-budgets\finalize-f1.json.
+

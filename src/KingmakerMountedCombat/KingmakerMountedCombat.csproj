@@ -151,6 +151,9 @@
     <EmbeddedResource Include="Assets\MountedArcheryFeat.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedArcheryFeat.png</LogicalName>
     </EmbeddedResource>
+    <EmbeddedResource Include="Assets\MountedShieldFeat.png">
+      <LogicalName>KingmakerMountedCombat.Assets.MountedShieldFeat.png</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="Assets\MountedCombatReaction.png">
       <LogicalName>KingmakerMountedCombat.Assets.MountedCombatReaction.png</LogicalName>
     </EmbeddedResource>
@@ -456,6 +459,10 @@
     <Compile Include="Domain\MountedRangedMovementPolicy.cs" />
     <Compile Include="Domain\KmcCombatFeatPublication.cs" />
     <Compile Include="Domain\MountedArcheryFeatContract.cs" />
+    <Compile Include="Domain\MountedShieldPolicy.cs" />
+    <Compile Include="Domain\FixtureHandCustody.cs" />
+    <Compile Include="Domain\AttackCalculationSamples.cs" />
+    <Compile Include="Domain\PlannedAttempt.cs" />
     <Compile Include="Domain\MountedRiderFallPolicy.cs" />
     <Compile Include="Domain\HorseCompanionLifeTransitionPolicy.cs" />
     <Compile Include="Domain\HorseCompanionProgressionPolicy.cs" />
@@ -585,6 +592,7 @@
     <Compile Include="Integration\GameMountedRelationshipService.cs" />
     <Compile Include="Diagnostics\Sprint5SmallScenario.cs" />
     <Compile Include="Diagnostics\Sprint6FeatScenario.cs" />
+    <Compile Include="Diagnostics\Sprint6ShieldScenario.cs" />
     <Compile Include="Diagnostics\Sprint7ChargeScenario.cs" />
     <Compile Include="Diagnostics\Sprint8PaladinScenario.cs" />
     <Compile Include="Diagnostics\Finalize2ControlsScenario.cs" />
@@ -593,18 +601,21 @@
     <Compile Include="Diagnostics\Finalize3CleanupEscModePolicy.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.PaladinBond.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCombatFeat.cs" />
+    <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedShield.cs" />
     <Compile Include="Diagnostics\Chunk7PersistenceScenario.MountedCharge.cs" />
     <Compile Include="Diagnostics\Sprint5BootObservation.cs" />
     <Compile Include="Integration\HorseCompanionAddPet.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.MountedShieldFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />
     <Compile Include="Domain\FeatSelectorSelectionPolicy.cs" />
     <Compile Include="Integration\MountedCombatDefenseService.cs" />
     <Compile Include="Integration\MountedRangedMovementService.cs" />
+    <Compile Include="Integration\MountedShieldService.cs" />
     <Compile Include="Integration\MountedRiderFallService.cs" />
     <Compile Include="Integration\KingmakerMountedPairRuntime.cs" />
     <Compile Include="Integration\SupportedMountedProfile.cs" />
@@ -802,3 +813,4 @@
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\..\LoaderReferences.Final.targets" />
 </Project>
+

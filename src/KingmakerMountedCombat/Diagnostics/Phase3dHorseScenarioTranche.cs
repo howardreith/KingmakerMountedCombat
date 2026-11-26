@@ -468,7 +468,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // nothing recording why, so the outcome is now observed rather than assumed.
                 var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
                 if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
-                var scenarioBudget = IsFinalize3Economy ? Finalize3ScenarioDeadlineSeconds : IsFinalize2Controls ? Finalize2ScenarioDeadlineSeconds : IsSprint8Paladin ? Sprint8ScenarioDeadlineSeconds : IsSprint7Charge ? Sprint7ScenarioDeadlineSeconds : IsSprint6Feat ? Sprint6ScenarioDeadlineSeconds : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? (IsFinalize4Ai ? Finalize4AiScenarioDeadlineSeconds : Sprint4ScenarioDeadlineSeconds) : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
+                var scenarioBudget = IsFinalize3Economy ? Finalize3ScenarioDeadlineSeconds : IsFinalize2Controls ? Finalize2ScenarioDeadlineSeconds : IsSprint8Paladin ? Sprint8ScenarioDeadlineSeconds : IsSprint7Charge ? Sprint7ScenarioDeadlineSeconds : IsSprint6Feat ? (Sprint6Shield ? Sprint6ShieldScenarioDeadlineSeconds : Sprint6ScenarioDeadlineSeconds) : IsSprint5Small ? Sprint5ScenarioDeadlineSeconds : IsSprint4Natural ? (IsFinalize4Ai ? Finalize4AiScenarioDeadlineSeconds : Sprint4ScenarioDeadlineSeconds) : IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
                     FailCurrent("phase3d-horse-scenario-deadline", "Horse tranche exceeded its " + scenarioBudget + " second scenario budget at " + step + ".");
@@ -794,6 +794,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!completed || cleanupError)
             {
                 BestEffortCleanup();
+                // An interrupted child never reaches the polling drain: the shield fixture is drained now and any residue is
+                // reported in this child's errors with its exact actors, hands, items and modifiers (PN13-F1, PN14-F1).
+                try { TerminateSprint6Fixture(); }
+                catch (Exception exception) { AddCleanupError("Mounted Shield fixture after interruption", exception); }
             }
             ruleProbe?.Dispose();
             ruleProbe = null;
@@ -6198,6 +6202,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            // Sprint 6 and Mounted Shield diagnostic hooks, detached on every cleanup path (supplemental review PN13-F1). The
+            // ordinary cleanup then keeps the shield fixture pending through the polling drain's own retry bound (PN14-F1).
+            try { DetachSprint6Hooks(); }
+            catch (Exception exception) { AddCleanupError("Sprint 6 hooks", exception); }
             if (IsChunk6bCharge)
             {
                 MountedChargeAdmissionFault.AfterQueue = null;

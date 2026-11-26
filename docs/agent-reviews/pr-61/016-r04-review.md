@@ -1,0 +1,102 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mounted-shield-20261123114646-4433 key=r04-review part=1/1 sha256=149beac98e5a24e66c1d13ba4d27c9d38d78e6847c244c23400f5cd5249cbd74 -->
+### Codex GPT-6.2 Astra — review — round 4 — candidate `7dd2adc136`
+
+**Decision:** `ready_for_owner_review` — R3-F1 is fixed in both the scenario and its evidence reader. The focused gate passed on the reviewed commit, and the private-alpha ZIP contains the tested DLL. The candidate meets the private-alpha milestone defined by OWNER AMENDMENT 2. Native gameplay and UI acceptance remain with the owner.
+
+#### Findings
+
+None.
+
+#### Prior finding assessments
+
+- **R3-F1** — `fix_verified` — ShieldBandMiss and Assert-KmcShieldCheckRealTime now exclude AutoHit and require a d20 from 2 through 19. At AC 24 with an effective +3 shield contribution, the candidate gate accepted ShieldAC for 10 + 12, rejected 20 + 2 at the same total, and rejected the ordinary roll with AutoHit set. The positive controls for Miss, DodgeAC, ArmorAC and ShieldAC all passed.
+
+#### Evidence assessment
+
+- **Inspected:** The governing mission, both owner amendments, repository validation policy, developer report and prior-findings ledger. The supplied feature diff matched the Git diff from the stated merge base to the candidate.; The round-3 correction in Sprint6ShieldScenario.cs, Sprint6ShieldEvidence.ps1 and Test-Sprint6ShieldReaders.ps1, including the native attack observer that supplies the die and AutoHit flag.; The package manifest, private-alpha install and rollback guide, acceptance ledger, supplemental review records and workflow budget ledger.
+- **Executed verification:** The controller receipt and hash-verified log confirm that Fast with Test-MountedShieldFocused.ps1 passed on 7dd2adc1 in 66.5 seconds. Results included 1,525 component checks, 153 source checks and all 18 focused scripts. The Shield reader passed 220 checks, the compiled Shield contract passed 114, and selection rollback passed 68.; The gate built against UMM 0.31.1 and verified all 20 referenced loader members against both 0.31.1 and 0.33.0. It measured the same SHA-256 for the packet PNG, production PNG and embedded icon: fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0.; I verified the private-alpha ZIP is 4,283,262 bytes with SHA-256 d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545. It contains only Info.json and the DLL. The packaged DLL hashes to cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974, matching the gate build. The gate and manifest agree on MVID 103a44bc-6bd0-4ffa-b12f-a6d8318660b3.; Git confirms that only six documentation and ledger files changed between packaged source cc17fe36 and reviewed head 7dd2adc1. The current handoff and acceptance ledger identify the verified archive.
+- **Source inspection only:** I traced the C# miss selector from RuleAttackRoll through the recorded attack to the selected miss. The executed R3 regressions exercised the external reader with synthetic attack records. In-game selection of a qualifying miss remains a playtest observation.
+- **Required gaps:** none
+- **Limitations:** The workflow ledger records zero guarded game starts. No disposable save was created. Save-backed routes require the historical qualification suite, and the optional no-save smoke lacks the settings and profile snapshot needed for restoration.; The developer’s whole-session transcript was withheld. The controller receipt and log establish the current gate result. The supplemental targeted recheck applies to bb903669 and predates the three controller correction batches.; The earlier broad Candidate failures from missing historical artifacts remain recorded. The passing result on this head is the focused Fast gate.
+
+#### Summary
+
+- **Delivered behavior:** Private alpha 0.2.16-alpha.1 packages one passive rider feat requiring Mounted Combat and Shield Focus. Its two consumers share the active physical shield’s base defense plus applicable focus bonuses. The mount receives a native Shield AC bonus, and the rider’s existing hit-negation Mobility check receives the full eligible amount before resolution.
+- **Scope reviewed:** Final review of the amended private-alpha milestone, with the correction round focused on R3-F1, its producer and reader, the current gate, and the source-to-package handoff.
+- **Pending later-phase work:** none
+- **Unresolved questions:** none
+- **Remaining owner review:** Verify ordinary and fighter feat selection, prerequisite previews, icon appearance and character-sheet attribution.; Check +3 and +4 heavy-shield cases, enhancement exclusion, competing shield bonuses, and the separate Mobility contribution in real-time and turn-based combat.; Exercise equipment changes, dismount, multiple pairs, respec, death, area transitions, save/reload and compatibility in the owner’s play environment.; Decide gameplay and visual acceptance. Draft PR #61 remains under owner merge and release authority.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Owner guidance bound to this review: none.
+
+Owner amendments bound to this review: revision 2, sha256 `d735f07ddc3131f5d90ae6094232e474b958614c6f432696956166a25d7d5c73`.
+
+Codex CLI `0.170.0`, thread `01a20c28-582e-73b1-9de9-c624d6df5710`, duration 416.2s, response sha256 `9bedaf9cf1ec66a763a0c997b4b84ffd12afaf399a596eadc7e50aa5189140c8`, request `kmc-codex-mounted-shield-20261123114646-4433-r04-c07c51`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "7dd2adc136d334bc10f021c9d1469c2ed7354d33",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "ready_for_owner_review",
+  "decision_rationale": "R3-F1 is fixed in both the scenario and its evidence reader. The focused gate passed on the reviewed commit, and the private-alpha ZIP contains the tested DLL. The candidate meets the private-alpha milestone defined by OWNER AMENDMENT 2. Native gameplay and UI acceptance remain with the owner.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "The controller receipt and hash-verified log confirm that Fast with Test-MountedShieldFocused.ps1 passed on 7dd2adc1 in 66.5 seconds. Results included 1,525 component checks, 153 source checks and all 18 focused scripts. The Shield reader passed 220 checks, the compiled Shield contract passed 114, and selection rollback passed 68.",
+      "The gate built against UMM 0.31.1 and verified all 20 referenced loader members against both 0.31.1 and 0.33.0. It measured the same SHA-256 for the packet PNG, production PNG and embedded icon: fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0.",
+      "I verified the private-alpha ZIP is 4,283,262 bytes with SHA-256 d7143ba3d8b297f5eacc2a71e9c5f4fd0ae1df57a4cbbdb52ff515c656b91545. It contains only Info.json and the DLL. The packaged DLL hashes to cab993f6309cec06357c34f5e33bbfff963875c41e6371be26139d39afe2f974, matching the gate build. The gate and manifest agree on MVID 103a44bc-6bd0-4ffa-b12f-a6d8318660b3.",
+      "Git confirms that only six documentation and ledger files changed between packaged source cc17fe36 and reviewed head 7dd2adc1. The current handoff and acceptance ledger identify the verified archive."
+    ],
+    "inspected": [
+      "The governing mission, both owner amendments, repository validation policy, developer report and prior-findings ledger. The supplied feature diff matched the Git diff from the stated merge base to the candidate.",
+      "The round-3 correction in Sprint6ShieldScenario.cs, Sprint6ShieldEvidence.ps1 and Test-Sprint6ShieldReaders.ps1, including the native attack observer that supplies the die and AutoHit flag.",
+      "The package manifest, private-alpha install and rollback guide, acceptance ledger, supplemental review records and workflow budget ledger."
+    ],
+    "limitations": [
+      "The workflow ledger records zero guarded game starts. No disposable save was created. Save-backed routes require the historical qualification suite, and the optional no-save smoke lacks the settings and profile snapshot needed for restoration.",
+      "The developer\u2019s whole-session transcript was withheld. The controller receipt and log establish the current gate result. The supplemental targeted recheck applies to bb903669 and predates the three controller correction batches.",
+      "The earlier broad Candidate failures from missing historical artifacts remain recorded. The passing result on this head is the focused Fast gate."
+    ],
+    "required_gaps": [],
+    "source_inspection_only": [
+      "I traced the C# miss selector from RuleAttackRoll through the recorded attack to the selected miss. The executed R3 regressions exercised the external reader with synthetic attack records. In-game selection of a qualifying miss remains a playtest observation."
+    ]
+  },
+  "findings": [],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R3-F1",
+      "rationale": "ShieldBandMiss and Assert-KmcShieldCheckRealTime now exclude AutoHit and require a d20 from 2 through 19. At AC 24 with an effective +3 shield contribution, the candidate gate accepted ShieldAC for 10 + 12, rejected 20 + 2 at the same total, and rejected the ordinary roll with AutoHit set. The positive controls for Miss, DodgeAC, ArmorAC and ShieldAC all passed."
+    }
+  ],
+  "request_id": "kmc-codex-mounted-shield-20261123114646-4433-r04-c07c51",
+  "round": 4,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "Private alpha 0.2.16-alpha.1 packages one passive rider feat requiring Mounted Combat and Shield Focus. Its two consumers share the active physical shield\u2019s base defense plus applicable focus bonuses. The mount receives a native Shield AC bonus, and the rider\u2019s existing hit-negation Mobility check receives the full eligible amount before resolution.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "Verify ordinary and fighter feat selection, prerequisite previews, icon appearance and character-sheet attribution.",
+      "Check +3 and +4 heavy-shield cases, enhancement exclusion, competing shield bonuses, and the separate Mobility contribution in real-time and turn-based combat.",
+      "Exercise equipment changes, dismount, multiple pairs, respec, death, area transitions, save/reload and compatibility in the owner\u2019s play environment.",
+      "Decide gameplay and visual acceptance. Draft PR #61 remains under owner merge and release authority."
+    ],
+    "scope_reviewed": "Final review of the amended private-alpha milestone, with the correction round focused on R3-F1, its producer and reader, the current gate, and the source-to-package handoff.",
+    "unresolved_questions": []
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._
