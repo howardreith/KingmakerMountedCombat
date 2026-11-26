@@ -1,0 +1,26 @@
+{
+    "schemaVersion":  2,
+    "generator":  "scripts/Package.ps1",
+    "generatedAtUtc":  "2026-11-26T13:23:03.5450134Z",
+    "branch":  "codex/umm-0311-integration-20261126",
+    "commit":  "7a9861a5f56cd3f3fd9029b2f3373568b06d453a",
+    "worktreeClean":  true,
+    "qualificationEligible":  true,
+    "version":  "0.2.16-alpha.2",
+    "packagePath":  "<lab>\\artifacts\\KingmakerMountedCombat-0.2.16-alpha.2-release-diagnostic.zip",
+    "packageSha256":  "64a4317c5fcc6ce3a66e513788a120145120df5979d31d1243ccb26ae893a7ca",
+    "dllSha256":  "2105f305856a65c85b82e0294341462bf6ffe0e89420ea011ef860864fe5ddc8",
+    "dllMvid":  "34815fb3-3bd1-4d52-8571-46345f170bea",
+    "entries":  [
+                    {
+                        "path":  "KingmakerMountedCombat/Info.json",
+                        "length":  341,
+                        "sha256":  "553ef1902c981ddc2ba13f5456ee59ad5581dc0d63caf709ae1f9d8dbc2f9fd7"
+                    },
+                    {
+                        "path":  "KingmakerMountedCombat/KingmakerMountedCombat.dll",
+                        "length":  9656832,
+                        "sha256":  "2105f305856a65c85b82e0294341462bf6ffe0e89420ea011ef860864fe5ddc8"
+                    }
+                ]
+}
