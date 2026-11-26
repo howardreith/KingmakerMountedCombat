@@ -149,7 +149,9 @@ $admissionEstimate = if ($knownSeconds -gt 0) { [int][Math]::Ceiling($knownSecon
 $receiptLowerBound = $null
 if ($Tier -eq 'Full' -and $SkipBuild -and $null -eq (Get-KmcWorkflowStepHistorySeconds $budgetView 'FULL umbrella (scripts/Test.ps1)')) {
     $receiptHistory = Get-KmcWorkflowStepHistorySeconds $budgetView 'reuse check'
-    if ($null -ne $receiptHistory) {
+    # Only a strictly positive measurement is a bound: a zero-second record leaves the estimate unknown (null), so an
+    # interrupted unmeasured run still needs explicit reconciliation instead of being settled at zero.
+    if ($null -ne $receiptHistory -and $receiptHistory -gt 0) {
         $receiptLowerBound = [int][Math]::Ceiling($receiptHistory)
         if ($null -eq $admissionEstimate -or $admissionEstimate -lt $receiptLowerBound) { $admissionEstimate = $receiptLowerBound }
         $stepEstimates['FULL umbrella (scripts/Test.ps1)'] = $receiptLowerBound
