@@ -879,9 +879,9 @@ namespace KingmakerMountedCombat.Integration
                 }
                 if (automaticOrigin)
                 {
-                    // Review R4-F2: an automatic order's target must stay in the rider group's perception for any carrier,
-                    // before and after native start.
-                    command.AutomaticTargetPerceived = () => relationship.Rider?.Group?.Memory != null && relationship.Rider.Group.Memory.Contains(target);
+                    // Review R4-F2, PR-1 round 11: the automatic order's one current admission decision, asked by its own command at every
+                    // approach and pre-delivery boundary, before and after native start.
+                    command.AutomaticOrderAdmissionLost = RetireAutomaticOrderIfNotAdmitted;
                 }
                 if (ordinaryIntent && preStartApproach)
                 {
@@ -1455,10 +1455,10 @@ namespace KingmakerMountedCombat.Integration
         // natively; here it was refused as an unobserved command, so a rider idled after its target died.
         private void ObserveAutomaticProposal(UnitAttack proposal, bool ownerIsRider, bool turnBased)
         {
-            // PR-1 review R1-F9: a retained automatic intent on a target no longer perceived cannot refuse this proposal.
-            if (relationship.State == RelationshipState.Mounted) RetireAutomaticIntentIfUnperceived();
+            // PR-1 reviews R1-F9, R10-F4: a retained automatic order that is no longer admitted (target invalid, unperceived, or outside
+            // native admission with the action's current range) is retired by the same decision before it can refuse this proposal.
+            if (relationship.State == RelationshipState.Mounted) RetireAutomaticOrderIfNotAdmitted(null);
             AutomaticProposalCount++;
-            proposalNativeActionRange = float.NaN;
             // A move that arrived this frame holds the pair before this proposal is read, whichever controller ran first.
             ObservePlayerMoveOutcome();
             var rider = relationship.Rider;
@@ -1535,9 +1535,11 @@ namespace KingmakerMountedCombat.Integration
             // PR-1 review R1-F11: an automatic order inherits no ownership of an existing selection.
             riderSelection.Release();
             mountSelection.Release();
-            automaticNativeActionRange = proposalNativeActionRange;
             stockIntent.Begin(target, null, false, IsPairInCombat(), rider, mount, rider.GetFirstWeapon(), mount.GetFirstWeapon(),
                 (int)ResolveRiderPrimaryAction(), true);
+            // PR-1 round 11 (R10-F3): the order keeps the proposing native action (its identity, never a number), bound to this generation.
+            automaticOrderAction = proposal.AiAction;
+            automaticOrderActionGeneration = stockIntent.Generation;
             retainedOrder.Begin(stockIntent.Generation, true, ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderRanged);
             if (!turnBased && engagementNow.HasValue && IsPairInCombat())
                 engagement.ObserveProposal(engagementNow.Value, nativeProposed?.UniqueId, target.UniqueId, ranking, true, stockIntent.Generation, null);
@@ -1553,22 +1555,95 @@ namespace KingmakerMountedCombat.Integration
         internal long AutomaticTieBreakCount { get; private set; }
         internal string LastAutomaticTieBreak { get; private set; }
 
-        // PR-1 review R9-F1: the proposal action's native range read with the brain's ranking (NaN when unread), kept by the automatic order
-        // it starts so the order's later drive can recheck IsTargetValid's restricted rule against the target where it is then.
-        private float proposalNativeActionRange = float.NaN;
-        private float automaticNativeActionRange = float.NaN;
+        // PR-1 round 11 (R10-F3): the native action that proposed the current automatic order, and the generation it belongs to.
+        private Kingmaker.Controllers.Brain.Blueprints.BlueprintAiAction automaticOrderAction;
+        private long automaticOrderActionGeneration = -1;
 
-        // Native BlueprintAiAction.IsTargetValid (0x0600942A) for the retained automatic order's target now: restricted (the rider's
-        // AiMovementForbidden, or the target in AIData.UnreachableUnits), it is valid only within the action's range with both bodies
-        // (TargetInfo.Distance is Unit.DistanceTo) and in native line of sight. Unknown range (no ranking read) never retires.
-        private bool AutomaticTargetLeftNativeAdmission(UnitEntityData rider, UnitEntityData target)
+        // ---- PR-1 round 11 (R10-F1..F4): one current admission decision for the unreleased automatic order ----
+        // Every boundary that may advance, keep or let the automatic order refuse other work asks this one decision for the exact order
+        // (its generation, target and owned command): the proposal boundary (before the retained order may refuse a replacement), the
+        // controller drive (before dispatch), queued promotion (AdmitQueuedAutomaticRun through TryRetireStockIntent), and the order's own
+        // command at pre-start movement, native start, approach continuation and reissue, carrier creation and the windup before first
+        // delivery (EndIfAutomaticOrderNotAdmitted). The answer is typed, in one precedence: actual target invalidation first (the command's
+        // own invalidation test), then perception loss, then native ineligibility of a valid target (BlueprintAiAction.IsTargetValid's
+        // restricted rule with the action's current range); so the observer that happens to run first never changes the cause or reason.
+        private MountedAutomaticOrderAdmission DecideAutomaticOrderAdmission(MountedPairAttackCommand command)
         {
-            if (rider == null || target == null || float.IsNaN(automaticNativeActionRange)) return false;
+            var rider = relationship.Rider;
+            var target = stockIntentTarget;
+            if (AutomaticOrderTargetInvalid(command, rider, target)) return MountedAutomaticOrderAdmission.TargetInvalid;
+            var memory = rider?.Group?.Memory;
+            if (memory != null && !memory.Contains(target)) return MountedAutomaticOrderAdmission.TargetUnperceived;
+            if (!CombatController.IsInTurnBasedCombat() && AutomaticTargetOutsideNativeAdmission(rider, target))
+                return MountedAutomaticOrderAdmission.OutsideNativeAdmission;
+            return MountedAutomaticOrderAdmission.Admitted;
+        }
+
+        // The order's own command's invalidation test while it exists (the test its own observation applies); before dispatch, the same
+        // facts for the order's principal (the rider), with the order's own unconscious-target admission.
+        private bool AutomaticOrderTargetInvalid(MountedPairAttackCommand command, UnitEntityData rider, UnitEntityData target)
+        {
+            if (command != null && !command.IsFinished) return command.TargetInvalidNow();
+            var state = target?.Descriptor?.State;
+            return !UnifiedMountedStockAttackPolicy.IsValidTarget(
+                target != null,
+                target != null && target.IsInState,
+                state != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(state.IsConscious, state.IsDead, state.IsFinallyDead,
+                    stockIntent.TargetUnconsciousWhenOrdered),
+                rider != null && rider.IsEnemy(target),
+                rider != null && rider.CanAttack(target));
+        }
+
+        // Native BlueprintAiAction.IsTargetValid (0x0600942A) for the order's target now: restricted (the rider's AiMovementForbidden, or the
+        // target in AIData.UnreachableUnits), it is valid only within the proposing action's CURRENT range (read from native for the rider:
+        // its weapons or reach as they are now) plus both bodies (DecisionContext.ActionRangeWithCorpulence; TargetInfo.Distance is
+        // Unit.DistanceTo) and in native line of sight (range first, as native tests it). It never depends on the optional ranking. A
+        // restricted target whose action range cannot be read is not assumed admissible.
+        private bool AutomaticTargetOutsideNativeAdmission(UnitEntityData rider, UnitEntityData target)
+        {
+            if (rider == null || target == null) return false;
             var unreachable = rider.CombatState?.AIData?.UnreachableUnits;
             if (!rider.AiMovementForbidden && (unreachable == null || !unreachable.Contains(target))) return false;
-            var reach = automaticNativeActionRange + (rider.View != null ? rider.View.Corpulence : 0f) + (target.View != null ? target.View.Corpulence : 0f);
+            var range = automaticOrderActionGeneration == stockIntent.Generation
+                ? NativeBrainRankingReader.CurrentActionRange(rider, automaticOrderAction) : float.NaN;
+            if (float.IsNaN(range)) return true;
+            var reach = range + (rider.View != null ? rider.View.Corpulence : 0f) + (target.View != null ? target.View.Corpulence : 0f);
             return !(rider.DistanceTo(target) <= reach && NativeBrainRankingReader.NativeLos(rider, target));
         }
+
+        internal long AutomaticAdmissionRetiredCount { get; private set; }
+
+        // Retires the current automatic order when the decision says it is no longer admitted; returns true then. observer: the command
+        // asking (null for the controller's own boundaries). Bound to the exact order: a command that is not the current automatic order's
+        // own never inspects, retires or cleans up anything (a successor's work is untouched); a released strike keeps native completion.
+        // Retirement takes the one order path for each cause, so the order's own command and carrier are ended once, by the controller.
+        private bool RetireAutomaticOrderIfNotAdmitted(MountedPairAttackCommand observer)
+        {
+            if (!HasStockAttackIntent || !stockIntent.Automatic) return false;
+            var command = stockIntentCommand;
+            if (observer != null && (!ReferenceEquals(observer, command) || !ReferenceEquals(observer.TargetUnit, stockIntentTarget))) return false;
+            if (command != null && command.StrikeReleased) return false;
+            var admission = DecideAutomaticOrderAdmission(command);
+            if (admission == MountedAutomaticOrderAdmission.Admitted) return false;
+            AutomaticRetiredCount++;
+            AutomaticAdmissionRetiredCount++;
+            if (admission == MountedAutomaticOrderAdmission.TargetInvalid)
+            {
+                LastAutomaticRetirement = "automatic target invalid";
+                RetireOrderOnTargetInvalidation();
+                return true;
+            }
+            var unperceived = admission == MountedAutomaticOrderAdmission.TargetUnperceived;
+            var reason = unperceived ? "automatic target left perception" : "automatic target outside native admission";
+            LastAutomaticRetirement = reason;
+            if (command != null && !command.IsFinished)
+                command.RecordAutomaticAdmissionLoss(reason, unperceived ? "Automatic target left the rider group's perception."
+                    : "Automatic target left native admission (outside the action's current range or sight).");
+            ClearStockAttackIntent(reason, true);
+            RetireOrderWrapper(command, reason);
+            return true;
+        }
+        // ---- end of the automatic-order admission decision ----
 
         private UnitEntityData ResolveEqualRankTie(UnitEntityData rider, UnitEntityData proposed, UnitAttack proposal)
         {
@@ -1586,9 +1661,9 @@ namespace KingmakerMountedCombat.Integration
                 // PR-1 reviews R7-F2, R8-F1: native's own admission for the proposal's action (BlueprintAiAction.IsTargetValid, 0x0600942A):
                 // where the rider's movement is forbidden or the candidate is marked unreachable, only a candidate within the action's range
                 // (with both bodies) AND in native line of sight is valid; otherwise native admits it and ordinary approach follows. Restricted
-                // pair travel adds the stationary mounted-strike admission for a melee candidate (R6-F2). A disliked target is discounted, not
-                // excluded, by native scoring (NotImpatientConsideration 0.5): native's own disliked proposal stays admissible, while a disliked
-                // alternative, which native scored lower, never replaces the proposal.
+                // pair travel adds the stationary mounted-strike admission for a melee candidate (R6-F2). Dislike is not an admission rule
+                // (native scores a disliked target 0.5, not 0): among the admitted equal-ranked candidates the tie-break passes over a disliked
+                // one only while an admitted candidate that is not disliked exists; otherwise the disliked candidate is a legal choice (R9-F2).
                 var nativeAdmissionRestricted = rider.AiMovementForbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit);
                 var nativeValid = !nativeAdmissionRestricted || candidate.Distance <= candidate.ActionRangeWithCorpulence && candidate.InLos;
                 var eligible = unit != null && state != null && state.IsConscious && !state.IsDead && rider.CanAttack(unit) &&
@@ -1597,7 +1672,6 @@ namespace KingmakerMountedCombat.Integration
                 // PR-1 review R9-F2: dislike is a preference applied by the tie-break after admission, not an admission rule.
                 ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible,
                     Disliked = unit != null && ReferenceEquals(rider.CombatState?.AIData?.DislikedTarget, unit) });
-                if (float.IsNaN(proposalNativeActionRange)) proposalNativeActionRange = candidate.ActionRange;
             }
             return NativeAttackTieBreak.Choose(ranked, proposed,
                 HasStockAttackIntent && stockIntent.Automatic ? stockIntentTarget : null,
@@ -1783,6 +1857,9 @@ namespace KingmakerMountedCombat.Integration
                 if (!RetainedOrderSuperseded()) return false;
                 return RetireSupersededPlayerOrder();
             }
+            // PR-1 round 11 (R10-F2): the automatic order's typed admission decision comes first (target invalidation before perception
+            // and native eligibility), so every retirement reason below applies only to an order whose target is still valid.
+            if (stockIntent.Automatic && RetireAutomaticOrderIfNotAdmitted(null)) return true;
             var movementForbidden = stockIntent.Automatic && AutomaticMovementForbidden(rider);
             var reason = MountedAutomaticAttackPolicy.RetireReason(
                 !turnBased,
@@ -1796,30 +1873,9 @@ namespace KingmakerMountedCombat.Integration
                 !movementForbidden || StockIntentStrikeAdmissibleNow(),
                 MountedRetainedOrderLedger.NewerPlayerWork(stockIntent.Automatic,
                     stockIntent.Automatic && HasRiderPlayerOperation(rider, mount), retainedOrder.Superseded(stockIntent.Generation)));
-            // PR-1 review R9-F1: a retained real-time automatic order whose target-specific native restriction no longer holds (marked
-            // unreachable or the rider held, and now outside the action's range or sight) is released before any dispatch or approach,
-            // so a fresh proposal can follow; a released strike keeps native's completion.
-            if (reason == null && stockIntent.Automatic && !turnBased && !(stockIntentCommand != null && stockIntentCommand.StrikeReleased) &&
-                AutomaticTargetLeftNativeAdmission(rider, stockIntentTarget))
-                reason = "automatic target outside native admission";
             if (reason == null) return false;
             var automatic = stockIntent.Automatic;
             var command = stockIntentCommand;
-            // PR-1 review R8-F2: retirement solely for failed stationary geometry yields to the exact unreleased wrapper's own target
-            // invalidation, the precedence its pre-start tick and OnStart give it, so the drive, queued promotion (AdmitQueuedAutomaticRun)
-            // and the wrapper record the same cause and reason. A valid target that merely left reach keeps this retirement; a released
-            // strike and newer player work keep theirs.
-            if (reason == MountedAutomaticAttackPolicy.HoldOutOfReach && command != null && !command.IsFinished && !command.StrikeReleased &&
-                command.TargetInvalidNow())
-            {
-                RetireOrderOnTargetInvalidation();
-                if (automatic)
-                {
-                    AutomaticRetiredCount++;
-                    LastAutomaticRetirement = "automatic target invalid outside stationary reach";
-                }
-                return true;
-            }
             ClearStockAttackIntent(reason, true);
             if (automatic)
             {
@@ -1919,32 +1975,6 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        // PR-1 review R1-F9: an automatic intent whose target left the rider group's perception is released BEFORE any readiness or
-        // geometry probe and before it can refuse another proposal; an already released strike keeps native's handling.
-        private bool RetireAutomaticIntentIfUnperceived()
-        {
-            if (!HasStockAttackIntent || !stockIntent.Automatic) return false;
-            var memory = relationship.Rider?.Group?.Memory;
-            if (memory == null || memory.Contains(stockIntentTarget)) return false;
-            var command = stockIntentCommand;
-            if (command != null && command.StrikeReleased) return false;
-            // PR-1 review R6-F1 (round 8): a target that also became invalid is retired as target invalidation, the precedence the wrapper's
-            // own pre-start tick and OnStart give it, so either observer reports the same cause and reason.
-            if (command != null && !command.IsFinished && command.TargetInvalidNow())
-            {
-                RetireOrderOnTargetInvalidation();
-                AutomaticRetiredCount++;
-                LastAutomaticRetirement = "automatic target invalid and left perception";
-                return true;
-            }
-            const string reason = "automatic target left perception";
-            ClearStockAttackIntent(reason, true);
-            AutomaticRetiredCount++;
-            LastAutomaticRetirement = reason;
-            RetireOrderWrapper(command, reason);
-            return true;
-        }
-
         private void TryDriveStockAttackIntent()
         {
             if (chargeOwner != null) return; // A charge from admission to its end owns the pair's attack.
@@ -1953,7 +1983,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
-            if (relationship.State == RelationshipState.Mounted && RetireAutomaticIntentIfUnperceived()) return;
+            // PR-1 reviews R1-F9, R10-F1..F4: the automatic order's one admission decision, before any readiness or geometry probe.
+            if (relationship.State == RelationshipState.Mounted && RetireAutomaticOrderIfNotAdmitted(null)) return;
 
             var turnBased = CombatController.IsInTurnBasedCombat();
             if (turnBased)

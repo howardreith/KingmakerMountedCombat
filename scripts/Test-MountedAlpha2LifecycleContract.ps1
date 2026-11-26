@@ -165,9 +165,9 @@ $reader = KmcType 'KingmakerMountedCombat.Integration.NativeBrainRankingReader'
 Check ($reader.GetField('ContextField', $any).GetValue($null) -eq $contextField -and $reader.GetField('EnemiesField', $any).GetValue($null) -eq $enemiesField) 'R1-F11: the proposal ranking reader reads AiBrainController.s_Context and DecisionContext.m_Enemies (04005EC9, 04005ECF)'
 Check ((Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) ($reader.GetMethod('Describe', $any))) -eq 1) 'R1-F11: every real-time automatic proposal carries native''s own ranking'
 # ---- 6. Round-4 corrections (R4-F2, R4-F3, R4-F8, R1-F11) ---------------------------------------------------------------
-$endUnperceived = @(Method $pair 'EndIfAutomaticTargetUnperceived')[0]
-foreach ($name in @('OnStart', 'TickApproach', 'TickPreStartApproach', 'StartChildAttack')) { Check ((Calls (@(Method $pair $name)[0]) $endUnperceived) -ge 1) ('R4-F2: ' + $name + ' ends an automatic order whose target left perception before any destination') }
-Check ((Calls $tryExecute ($pair.GetField('AutomaticTargetPerceived', $any))) -ge 1) 'R4-F2: every automatic order carries the rider group''s perception check'
+$endUnperceived = @(Method $pair 'EndIfAutomaticOrderNotAdmitted')[0]
+foreach ($name in @('OnStart', 'TickApproach', 'TickPreStartApproach', 'StartChildAttack')) { Check ((Calls (@(Method $pair $name)[0]) $endUnperceived) -ge 1) ('R4-F2/R10-F1: ' + $name + ' asks the automatic order''s admission decision before any destination or strike') }
+Check ((Calls $tryExecute ($pair.GetField('AutomaticOrderAdmissionLost', $any))) -ge 1) 'R4-F2/R10-F1: every automatic order''s command carries the controller''s admission decision'
 Check ((Calls (@(Method $controller 'TryRetireStockIntent')[0]) ($ledger.GetMethod('NewerPlayerWork'))) -eq 1) 'R4-F3: retirement distinguishes work accepted after an explicit order from older occupied slots'
 Check ((Calls (@(Method $controller 'Update')[0]) ($ledger.GetMethod('ReleaseFinished'))) -eq 1) 'R4-F8: finished command identities are released every update'
 $tieBreak = (KmcType 'KingmakerMountedCombat.Domain.NativeAttackTieBreak').GetMethod('Choose')
@@ -182,7 +182,7 @@ $planDispatch = @(Method $controller 'PlanStockDispatch')[0]
 Check ((Calls $drive $planDispatch) -eq 1 -and (CallsWithin $controller 'PlanStockDispatch' (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0])) -eq 1 -and (Calls $planDispatch ($planner.GetMethod('Plan'))) -eq 1 -and (Calls ($planner.GetMethod('Plan')) ((KmcType 'KingmakerMountedCombat.Domain.UnifiedMountedStockAttackPolicy').GetMethod('MountJoinsIntent'))) -eq 1 -and (Calls (@(Method $controller 'FollowThroughStrikeAdmissibleNow')[0]) (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1 -and @((KmcType 'KingmakerMountedCombat.Domain.UnifiedMountedStockAttackPolicy').GetMethod('MountJoinsIntent').GetParameters()).Count -eq 9) 'PR-1 R1-F1/R3-F4/R3-F5/R4-F5: the drive dispatches through PlanStockDispatch and the production MountedDispatchPlanner.Plan, whose MountJoinsIntent reads the planned horse strike''s own admission'
 Check ((Calls (@(Method $controller 'SettleOrderTerminal')[0]) ($ledger.GetMethod('MarkRiderEnded'))) -ge 1 -and (Calls (@(Method $controller 'PlanStockDispatch')[0]) ($ledger.GetMethod('RiderEnded'))) -ge 1) 'PR-1 R1-F3: an actor-specific rider end keeps the order for the horse and is read at the next drive'
 Check ((Calls (@(Method $controller 'SweepOrphanedAutomaticCommand')[0]) ($controller.GetProperty('ExplicitOrphanReleasedCount', $any).GetSetMethod($true))) -ge 1) 'PR-1 R1-F5: an explicit wrapper dropped from slot and queue is released by the sweep'
-$retireHidden = @(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]
+$retireHidden = @(Method $controller 'RetireAutomaticOrderIfNotAdmitted')[0]
 Check ((Calls $drive $retireHidden) -ge 1 -and (FirstOffset $drive $retireHidden) -lt (FirstOffset $drive (@(Method $controller 'PlanStockDispatch')[0])) -and (Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) $retireHidden) -ge 1) 'PR-1 R1-F9: a hidden automatic target is released before any readiness or geometry probe and before it can refuse a proposal'
 $engageReport = (KmcType 'KingmakerMountedCombat.Domain.MountedEngagementRecord').GetProperty('Reported').GetGetMethod()
 Check ((Calls (@(Method $controller 'ObserveEngagementProgress')[0]) $engageReport) -ge 1) 'PR-1 R1-F13: a completed one-shot engagement record stops sampling'
@@ -216,7 +216,7 @@ $markRetired = @(Method $singleType 'MarkOrderRetired')[0]
 $collections = @($controller.GetFields($any) | Where-Object { $_.FieldType.IsGenericType -and @($_.FieldType.GetGenericArguments() | Where-Object { $singleType.IsAssignableFrom($_) }).Count -gt 0 })
 Check ((Calls $retireWrapper ($ledger.GetMethod('RetireWrapper'))) -eq 1 -and (Calls $retireWrapper $markRetired) -ge 2 -and (Calls $retireWrapper $released) -eq 1 -and
     (Calls (@(Method $controller 'TryRetireStockIntent')[0]) $retireWrapper) -eq 1 -and (Calls (@(Method $controller 'RetireSupersededPlayerOrder')[0]) $retireWrapper) -eq 1 -and
-    (Calls (@(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]) $retireWrapper) -eq 1 -and (Calls (@(Method $controller 'RetireOrderForCancel')[0]) $retireWrapper) -eq 2 -and
+    (Calls (@(Method $controller 'RetireAutomaticOrderIfNotAdmitted')[0]) $retireWrapper) -eq 1 -and (Calls (@(Method $controller 'RetireOrderForCancel')[0]) $retireWrapper) -eq 2 -and
     (Calls (@(Method $controller 'RetireOrderOnTargetInvalidation')[0]) $retireWrapper) -eq 1 -and $collections.Count -eq 0) ('PR-1 R2-F1/R3-F1/R3-F2/R4-F1: turn-based, real-time, perception, cancellation and invalidation retirement share RetireOrderWrapper; turn-based, real-time and perception retirement share RetireOrderWrapper (released strike left to native, retirement held on the wrapper); no controller collection holds wrappers (' + (($collections | ForEach-Object { $_.Name }) -join ',') + ')')
 Check ((Calls (@(Method $controller 'AdmitQueuedExplicitRun')[0]) $orderRetired) -eq 1 -and (Calls (@(Method $controller 'AdmitQueuedAutomaticRun')[0]) $orderRetired) -eq 1 -and
     (Calls (@(Method $patches 'InternalRunPrefix')[0]) (@(Method $patches 'AdmitExplicitPromotion')[0])) -eq 1 -and
@@ -283,9 +283,13 @@ Check ($installedOnClick.MetadataToken -eq 0x060093ED -and $setterSites -eq 1 -a
     ($hookParameters -join ',') -ceq 'Kingmaker.Controllers.Combat.UnitCombatState,Kingmaker.EntitySystem.Entities.UnitEntityData' -and $clickHook.ReturnType -eq [void] -and
     (Calls $clickHook $manualSetter) -eq 1 -and (Calls $clickHook $observeAssignment) -eq 1 -and $runPrefixObserves -eq 0 -and
     (TranspilerNames $clickTranspiler) -contains 'ClickManualTargetAssignment' -and (TranspilerNames $clickTranspiler) -contains 'ManualTarget') 'PR-1 R1-F11: installed ClickUnitHandler.OnClick has exactly one ManualTarget assignment site; the transpiler replaces it with ClickManualTargetAssignment (same stack: combat state, target), which performs the native assignment and reports it to ObserveClickTargetAssignment; no Run is taken as an assignment'
-$unperceived = @(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]
-Check ((Calls $unperceived (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and (Calls $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
-    (FirstOffset $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $unperceived (@(Method $controller 'ClearStockAttackIntent')[0]))) 'PR-1 R6-F1 (round 8): a perception loss that coincides with target invalidation is retired as target invalidation first, the wrapper''s own precedence'
+$unperceived = @(Method $controller 'RetireAutomaticOrderIfNotAdmitted')[0]
+$decideAdmission = @(Method $controller 'DecideAutomaticOrderAdmission')[0]
+$admissionInvalid = @(Method $controller 'AutomaticOrderTargetInvalid')[0]
+Check ((Calls $unperceived $decideAdmission) -eq 1 -and (Calls $decideAdmission $admissionInvalid) -eq 1 -and (Calls $admissionInvalid (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and
+    (FirstOffset $decideAdmission $admissionInvalid) -lt (FirstOffset $decideAdmission (@(Method $controller 'AutomaticTargetOutsideNativeAdmission')[0])) -and
+    (Calls $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
+    (FirstOffset $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $unperceived (@(Method $controller 'ClearStockAttackIntent')[0]))) 'PR-1 R6-F1/R10-F2: the automatic order''s one admission decision tests target invalidation (the command''s own test) before perception and native eligibility, and retires it as target invalidation first'
 $tie = @(Method $controller 'ResolveEqualRankTie')[0]
 $aiForbidden = $game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetProperty('AiMovementForbidden', $any).GetGetMethod($true)
 $rankingReader = KmcType 'KingmakerMountedCombat.Integration.NativeBrainRankingReader'
@@ -298,18 +302,22 @@ Check ($nativeIsTargetValid.MetadataToken -eq 0x0600942A -and $nativeInLos.Metad
     (Calls $readerCandidates $nativeInLos) -eq 1 -and (Calls $readerCandidates $nativeGetRange) -eq 1 -and (Calls $tie $readerCandidates) -eq 1 -and
     (Calls $tie $aiForbidden) -eq 1 -and (Calls $tie $hasLos) -eq 0 -and (Calls $tie (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R7-F2/R8-F1: the tie-break applies native admission for the proposal''s action (the reader takes BlueprintAiAction.GetRange and TargetInfo.InLos, the facts IsTargetValid 0x0600942A reads) where the rider is held or the candidate unreachable, and the stationary mounted strike under restricted travel'
 $tryRetire = @(Method $controller 'TryRetireStockIntent')[0]
-Check ((Calls $tryRetire (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and (Calls $tryRetire (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
-    (FirstOffset $tryRetire (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $tryRetire (@(Method $controller 'ClearStockAttackIntent')[0])) -and
-    (Calls (@(Method $controller 'AdmitQueuedAutomaticRun')[0]) $tryRetire) -eq 1) 'PR-1 R8-F2: geometry-only retirement yields to the unreleased wrapper''s target invalidation in the shared retirement used by the drive and queued promotion'
+Check ((Calls $tryRetire (@(Method $controller 'RetireAutomaticOrderIfNotAdmitted')[0])) -eq 1 -and
+    (FirstOffset $tryRetire (@(Method $controller 'RetireAutomaticOrderIfNotAdmitted')[0])) -lt (FirstOffset $tryRetire (@(Method $controller 'ClearStockAttackIntent')[0])) -and
+    (Calls (@(Method $controller 'AdmitQueuedAutomaticRun')[0]) $tryRetire) -eq 1) 'PR-1 R8-F2/R10-F2: every automatic retirement reason in the shared retirement (drive and queued promotion) follows the typed admission decision, so target invalidation takes precedence over geometry'
 $retireInvalid = @(Method $controller 'RetireOrderOnTargetInvalidation')[0]
 $recordInvalid = @(Method $pair 'RecordTargetInvalidation')[0]
 $retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]
 Check ($null -ne $recordInvalid -and (Calls $retireInvalid $recordInvalid) -eq 1 -and (FirstOffset $retireInvalid $recordInvalid) -lt (FirstOffset $retireInvalid $retireWrapper) -and
     (Calls (@(Method $pair 'TryEndExpectedTargetInvalidation')[0]) (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1 -and (Calls $recordInvalid (@(Method $pair 'TargetInvalidationReason')[0])) -eq 1) 'PR-1 R6-F1: controller-first loss records the wrapper''s own target-invalidation cause and reason (shared with its own observation) before retiring it'
 Check ((Calls (@(Method $controller 'ResolveEqualRankTie')[0]) (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R6-F2: under restricted travel the tie-break admits a melee candidate only through the stationary mounted-strike admission'
-$admissionLost = @(Method $controller 'AutomaticTargetLeftNativeAdmission')[0]
+$admissionLost = @(Method $controller 'AutomaticTargetOutsideNativeAdmission')[0]
+$currentRange = @(Method $rankingReader 'CurrentActionRange')[0]
 $nativeLos = @(Method $rankingReader 'NativeLos')[0]
 $checkLos = $game.GetType('Kingmaker.Designers.GameHelper', $true).GetMethod('CheckLOS', [Type[]]@($game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true), $game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true)))
+$decisionContextCtor = $game.GetType('Kingmaker.Controllers.Brain.DecisionContext', $true).GetConstructor([Type[]]@())
 Check ($checkLos.MetadataToken -eq 0x06008555 -and (Calls $nativeLos $checkLos) -eq 1 -and (Calls $admissionLost $nativeLos) -eq 1 -and (Calls $admissionLost $aiForbidden) -eq 1 -and
-    (Calls $tryRetire $admissionLost) -eq 1) 'PR-1 R9-F1: a retained automatic order rechecks native IsTargetValid''s restricted rule (held rider or unreachable target: action range with both bodies and GameHelper.CheckLOS 0x06008555) in the shared retirement before any dispatch or approach'
+    (Calls $admissionLost $currentRange) -eq 1 -and (Calls $admissionLost $readerCandidates) -eq 0 -and (Calls $currentRange $nativeGetRange) -eq 1 -and
+    $decisionContextCtor.MetadataToken -eq 0x0600941F -and (Calls $currentRange $decisionContextCtor) -eq 1 -and
+    (Calls $decideAdmission $admissionLost) -eq 1) 'PR-1 R9-F1/R10-F3: the automatic order''s decision rechecks native IsTargetValid''s restricted rule with the proposing action''s CURRENT range (BlueprintAiAction.GetRange on a fresh DecisionContext 0x0600941F for the rider), both bodies and GameHelper.CheckLOS 0x06008555, independent of the optional ranking reader'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

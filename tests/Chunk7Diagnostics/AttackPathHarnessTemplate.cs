@@ -830,7 +830,7 @@ namespace Harness
     // Native brain ranking (production NativeBrainRankingReader reads the rider brain's live candidate list as native ranked it).
     internal static class NativeBrainRankingReader
     {
-        internal struct Candidate { public UnitEntityData Unit; public float Weight; public float Distance; public float ActionRangeWithCorpulence; public bool InLos; public float ActionRange; }
+        internal struct Candidate { public UnitEntityData Unit; public float Weight; public float Distance; public float ActionRangeWithCorpulence; public bool InLos; }
         // Native GameHelper.CheckLOS from the engine model (cached sight).
         internal static bool NativeLos(UnitEntityData unit, UnitEntityData target) => unit != null && target != null && unit.HasLOS(target);
         public static List<Candidate> Ranked;
@@ -838,7 +838,11 @@ namespace Harness
         // both bodies (DecisionContext.ActionRangeWithCorpulence), and native line of sight (TargetInfo.InLos -> CheckLOS: cached sight).
         internal static List<Candidate> Candidates(UnitEntityData unit, Kingmaker.UnitLogic.Commands.AiActionFacade action) =>
             Ranked?.ConvertAll(c => new Candidate { Unit = c.Unit, Weight = c.Weight, Distance = c.Distance,
-                ActionRangeWithCorpulence = unit.WeaponRange + unit.View.Corpulence + c.Unit.View.Corpulence, InLos = unit.HasLOS(c.Unit), ActionRange = unit.WeaponRange });
+                ActionRangeWithCorpulence = unit.WeaponRange + unit.View.Corpulence + c.Unit.View.Corpulence, InLos = unit.HasLOS(c.Unit) });
+        // Native BlueprintAiAttack.GetRange for a fresh DecisionContext of the unit, from the engine model: the unit's current primary weapon range
+        // (read at every call, so a changed weapon or reach is seen); NaN without an action, as the production reader returns when unreadable.
+        internal static float CurrentActionRange(UnitEntityData unit, Kingmaker.UnitLogic.Commands.AiActionFacade action) =>
+            unit == null || action == null ? float.NaN : unit.WeaponRange;
         internal static string Describe(UnitEntityData rider, UnitEntityData proposed) => "harness-ranking;proposed=" + proposed?.UniqueId;
     }
     internal sealed class HarnessEngagement
@@ -937,7 +941,6 @@ namespace Harness
         /* CONTROLLER_IN_COMBAT */
         /* CONTROLLER_TRY_CONTAIN */
         /* CONTROLLER_CANCEL */
-        /* CONTROLLER_UNPERCEIVED */
         private string ChargeCleanupStatus => "none";
         private MountedDoorInteractionCommand activeDoorInteraction;
         private MountedDoorOccupancySettlement pendingDoorSettlement;
@@ -1044,6 +1047,7 @@ namespace Harness
             var generation = stockIntent.Generation;
             wrapper.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(generation, issued);
             wrapper.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(generation);   // exactly as TryExecuteAction wires it
+            if (stockIntent.Automatic) wrapper.AutomaticOrderAdmissionLost = RetireAutomaticOrderIfNotAdmitted;   // and an automatic order's decision
             activeCommand = wrapper; stockIntentCommand = wrapper;
             OwnManualTarget(actor, target, stockIntent.Automatic ? -1 : stockIntent.Generation);
         }
@@ -1058,9 +1062,14 @@ namespace Harness
         /* CONTROLLER_RETAINED_SUPERSEDED */
         /* CONTROLLER_ADMIT_EXPLICIT */
         /* CONTROLLER_ADMIT_AUTOMATIC */
-        private float proposalNativeActionRange = float.NaN;
-        private float automaticNativeActionRange = float.NaN;
-        /* CONTROLLER_NATIVE_ADMISSION_LOST */
+        // The production fields beside the decision (the proposing native action and its generation), typed on the facade's AI action.
+        private Kingmaker.UnitLogic.Commands.AiActionFacade automaticOrderAction;
+        private long automaticOrderActionGeneration = -1;
+        /* CONTROLLER_ADMISSION_DECISION */
+        // The production retirement entry an automatic wrapper is given (TryExecuteAction: command.AutomaticOrderAdmissionLost).
+        internal Func<MountedPairAttackCommand, bool> AdmissionHook => RetireAutomaticOrderIfNotAdmitted;
+        // ObserveAutomaticProposal's assignment at admission, for orders the harness begins directly (BeginOrder).
+        internal void AdoptProposalAction(Kingmaker.UnitLogic.Commands.AiActionFacade action) { automaticOrderAction = action; automaticOrderActionGeneration = stockIntent.Generation; }
         internal long AutomaticQueuedRunCount;
         // The production queue admission's binding of the pair's current automatic command (MountedCombatController, automaticRuns.Bind).
         internal void BindAutomaticRun(MountedPairSingleAttack command) => automaticRuns.Bind(command, relationship.MountedPairGeneration);
@@ -1217,7 +1226,16 @@ namespace Harness
         private static MountedPairAttackCommand Order(World world, MountedCombatActionKind action, bool automatic)
         {
             var command = new MountedPairAttackCommand(world.Rider, world.Horse, world.Target, action, world.Logger);
-            if (automatic) { command.MarkAutomaticOrigin(); command.AutomaticTargetPerceived = () => world.Perceived; }
+            if (automatic)
+            {
+                // The production admission decision of a controller holding this exact automatic order (its generation, target and command);
+                // the world's perception fact is the rider group's memory.
+                command.MarkAutomaticOrigin();
+                world.Rider.Group.Memory.Perceives = unit => world.Perceived || !ReferenceEquals(unit, world.Target);
+                var owner = new MountedCombatController(world.Rider, world.Horse);
+                owner.BeginOrder(world.Target, true);
+                owner.AcceptWrapper(command, action == MountedCombatActionKind.MountPrimaryNatural ? world.Horse : world.Rider, world.Target);
+            }
             command.PreStartMovementForbidden = () => false;
             return command;
         }
@@ -2933,8 +2951,10 @@ namespace Harness
                         UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && UnitAttack.Acts(world.Rider) == 0 && !controller.HasStockAttackIntent,
                         "PR-1 R8-F2 " + kase + ": an unconscious remembered target outside stationary reach is retired as target invalidation (cause, reason); no movement, no spending");
             }
-            Check(results.Count == 4 && results["controller first"] == results["wrapper first"] && results["queued promotion"] == results["controller first"] &&
-                results["controller first"].StartsWith("TargetInvalid|Expected target invalidation: target became unconscious|TargetInvalid", StringComparison.Ordinal),
+            // R9-F3: the complete result, compared with ordinal equality to the expected literal (an appended CommandCancelled code fails).
+            const string expectedInvalidation = "TargetInvalid|Expected target invalidation: target became unconscious|TargetInvalid";
+            Check(results.Count == 4 && string.Equals(results["controller first"], expectedInvalidation, StringComparison.Ordinal) &&
+                string.Equals(results["wrapper first"], expectedInvalidation, StringComparison.Ordinal) && string.Equals(results["queued promotion"], expectedInvalidation, StringComparison.Ordinal),
                 "PR-1 R8-F2/R9-F3 controller-first, wrapper-first and queued-promotion observation of the same invalid target emit the same cause, reason and controller rejection code (TargetInvalid)");
         }
 
@@ -2971,6 +2991,271 @@ namespace Harness
                 "PR-1 R6-F1 controller-first and wrapper-first target loss emit the same cause, terminal reason and rejection code, for explicit and automatic orders");
         }
 
+
+        private static UnitAttack Proposal(UnitEntityData target) =>
+            new UnitAttack(target) { AiAction = new Kingmaker.UnitLogic.Commands.AiActionFacade(), CreatedByPlayer = false };
+
+        private static List<Harness.NativeBrainRankingReader.Candidate> Rank(World world, params UnitEntityData[] units)
+        {
+            var list = new List<Harness.NativeBrainRankingReader.Candidate>();
+            foreach (var unit in units) list.Add(new Harness.NativeBrainRankingReader.Candidate { Unit = unit, Weight = 0f, Distance = world.Rider.DistanceTo(unit) });
+            return list;
+        }
+
+        private static MountedPairAttackCommand PairWrapperOn(World world, UnitEntityData target)
+        {
+            foreach (var actor in new[] { world.Rider, world.Horse })
+            {
+                var wrapper = actor.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper != null && wrapper.TargetUnit == target && !wrapper.IsFinished) return wrapper;
+            }
+            return null;
+        }
+
+        private static string Struck(World world)
+        {
+            var struck = (world.Rider.Commands.Standard as MountedPairAttackCommand)?.StruckTargets;
+            return struck == null ? "<none>" : string.Join(",", struck.ConvertAll(u => u.UniqueId).ToArray());
+        }
+
+        // Drives the order to its first native strike (controller drive, act events, native ticks of both actors).
+        private static void DriveToStrike(World world, MountedCombatController controller, int ticks)
+        {
+            for (var tick = 0; tick < ticks && UnitAttack.NativeAttackRules == 0 && controller.HasStockAttackIntent; tick++)
+            {
+                controller.Drive();
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper != null && wrapper.IsStarted && !wrapper.IsActed) wrapper.ActEventDue = true;
+                NativeTick(world, world.Rider); NativeTick(world, world.Horse);
+            }
+        }
+
+        // PR-1 round 11, owner instruction 2026-11-26d section 5, cases 1, 4 and 5 (R10-F4, R10-F3): a retained automatic order on unreachable B
+        // with no wrapper (both Standards cooling). B loses native admission while stationary and perceived, by moving out of the action's range,
+        // by the rider's effective reach shrinking, or with the optional ranking unavailable; the next replacement proposal of reachable A
+        // arrives BEFORE any controller drive. Controls: B still admitted keeps its order (a valid retained target is protected).
+        private static void Round11RetainedAdmission()
+        {
+            foreach (var kase in new[] { "B leaves range", "rider reach shortens", "ranking unavailable, B leaves range", "control: B still admitted" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.2f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;   // a mobile pair
+                var b = new UnitEntityData("hostile-b") { Position = new Vector3(0f, 0f, 1.6f) };
+                world.Rider.CachedSight = unit => true;
+                world.Rider.CombatState.AIData.UnreachableUnits.Add(b);
+                world.Rider.HasStandard = false; world.Horse.HasStandard = false;   // both Standards cooling: no dispatch, no wrapper
+                var noRanking = kase.StartsWith("ranking unavailable", StringComparison.Ordinal);
+                Harness.NativeBrainRankingReader.Ranked = noRanking ? null : Rank(world, b, world.Target);
+                controller.Propose(Proposal(noRanking ? b : world.Target), false);   // without a ranking native's own proposal is B
+                var selected = controller.IntentTarget;
+                controller.Drive(); NativeTick(world, world.Rider); NativeTick(world, world.Horse);
+                var waitingWrapper = PairWrapperOn(world, b);
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends; var horseBefore = world.Horse.Position;
+                var admittedBefore = controller.AutomaticAdmittedCount;
+                if (kase == "rider reach shortens") world.Rider.WeaponRange = 0.5f;   // B (1.6 m) now beyond 0.5 + both bodies (0.9 m)
+                else if (kase != "control: B still admitted") b.Position = new Vector3(0f, 0f, 4f);
+                // The replacement proposal arrives before the controller's drive.
+                Harness.NativeBrainRankingReader.Ranked = noRanking ? null : new List<Harness.NativeBrainRankingReader.Candidate>
+                {
+                    new Harness.NativeBrainRankingReader.Candidate { Unit = world.Target, Weight = 0f, Distance = world.Rider.DistanceTo(world.Target) },
+                    new Harness.NativeBrainRankingReader.Candidate { Unit = b, Weight = -0.004f, Distance = world.Rider.DistanceTo(b) }
+                };
+                controller.Propose(Proposal(world.Target), false);
+                var thisProposalAdmitted = controller.AutomaticAdmittedCount == admittedBefore + 1;
+                var after = controller.IntentTarget;
+                var retirement = controller.LastAutomaticRetirement;
+                var bWork = PairWrapperOn(world, b) != null;
+                var bMoves = UnitCommands.MoveSubmissions - moves; var bSpends = UnitAttack.StandardSpends - spends; var displaced = !world.Horse.Position.Equals(horseBefore);
+                world.Rider.HasStandard = true; world.Horse.HasStandard = true;
+                DriveToStrike(world, controller, 40);
+                Console.WriteLine("  R11 retained (" + kase + "): selected=" + selected?.UniqueId + " waitingWrapper=" + (waitingWrapper != null) + " proposalAdmitted=" + thisProposalAdmitted +
+                    " intent=" + after?.UniqueId + " retirement=" + retirement + " bWork=" + bWork + " moves=" + bMoves + " spends=" + bSpends + " displaced=" + displaced +
+                    " admissionRetired=" + controller.AutomaticAdmissionRetiredCount + " struck=" + Struck(world) + " refusal=" + controller.LastAutomaticRefusal);
+                if (kase == "control: B still admitted")
+                    Check(selected == b && waitingWrapper == null && !thisProposalAdmitted && after == b && controller.AutomaticAdmissionRetiredCount == 0 && bMoves == 0 && bSpends == 0,
+                        "PR-1 R10-F4 control: a retained automatic target still inside native admission keeps its order against the replacement proposal");
+                else
+                    Check(selected == b && waitingWrapper == null && thisProposalAdmitted && after == world.Target && retirement == "automatic target outside native admission" &&
+                        controller.AutomaticAdmissionRetiredCount == 1 && !bWork && bMoves == 0 && bSpends == 0 && !displaced && Struck(world).StartsWith(world.Target.UniqueId, StringComparison.Ordinal),
+                        "PR-1 " + (kase == "rider reach shortens" ? "R10-F3" : noRanking ? "R10-F3 (ranking unavailable)" : "R10-F4") + " " + kase +
+                        ": the same replacement proposal, arriving before any drive, is accepted; B gets no wrapper, movement or spending; reachable A is then struck");
+            }
+        }
+
+        // PR-1 round 11, section 5 cases 2 and 6 (R10-F1, binding): an automatic wrapper on unreachable B is installed and waiting for native start
+        // (both Standards available, the rider not ready). B then leaves the action's range while perceived and marked unreachable. A stale command
+        // that is not this order's own asks the decision first and changes nothing; then the wrapper's own pre-start tick runs BEFORE any controller
+        // drive. Controls: ordinary reachable approach (B not restricted) and an already released strike.
+        private static void Round11InstalledWrapper()
+        {
+            foreach (var kase in new[] { "restricted B leaves range", "control: reachable approach", "control: released strike" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.2f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;
+                var b = new UnitEntityData("hostile-b") { Position = new Vector3(0f, 0f, 1.6f) };
+                world.Rider.CachedSight = unit => true;
+                if (kase != "control: reachable approach") world.Rider.CombatState.AIData.UnreachableUnits.Add(b);
+                Harness.NativeBrainRankingReader.Ranked = Rank(world, b, world.Target);
+                world.Ready[world.Rider] = kase == "control: released strike";
+                controller.Propose(Proposal(world.Target), false);
+                var wrapper = PairWrapperOn(world, b);
+                if (wrapper == null) { Check(false, "PR-1 R10-F1 " + kase + ": no installed wrapper (" + controller.LastFeedback + ")"); continue; }
+                if (kase == "control: released strike") { Deliver(world, wrapper, world.Rider); }
+                else NativeTick(world, world.Rider);   // awaiting native start
+                var released = wrapper.StrikeReleased;
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends; var horseBefore = world.Horse.Position;
+                b.Position = new Vector3(0f, 0f, 4f);   // outside the action's range; still perceived
+                // A command that is not this order's own asks the decision: nothing is inspected, retired or cleaned up.
+                var stale = Order(world, MountedCombatActionKind.RiderMelee, false); stale.MarkAutomaticOrigin();
+                var staleRetired = controller.AdmissionHook(stale);
+                var orderAfterStale = controller.HasStockAttackIntent && !wrapper.IsFinished;
+                NativeTick(world, world.Rider);   // the wrapper's own tick, before any controller drive
+                var endedByOwnTick = wrapper.IsFinished;
+                var cause = wrapper.EndCause;
+                var ownTickMoves = UnitCommands.MoveSubmissions - moves; var ownTickDisplaced = !world.Horse.Position.Equals(horseBefore);
+                controller.Drive(); NativeTick(world, world.Rider); NativeTick(world, world.Horse); controller.Drive();
+                var outcome = wrapper.DeliveredOutcome;
+                Console.WriteLine("  R11 installed (" + kase + "): released=" + released + " staleRetired=" + staleRetired + " orderAfterStale=" + orderAfterStale + " endedByOwnTick=" + endedByOwnTick +
+                    " cause=" + cause + " reason=" + (outcome == null ? "<none>" : outcome.TerminalReason) + " ownTickMoves=" + ownTickMoves + " displaced=" + ownTickDisplaced +
+                    " moves=" + (UnitCommands.MoveSubmissions - moves) + " spends=" + (UnitAttack.StandardSpends - spends) + " retirement=" + controller.LastAutomaticRetirement +
+                    " admissionRetired=" + controller.AutomaticAdmissionRetiredCount + " intent=" + controller.HasStockAttackIntent);
+                if (kase == "restricted B leaves range")
+                    Check(!released && !staleRetired && orderAfterStale && endedByOwnTick && cause == MountedAttackEndCause.Cancelled && ownTickMoves == 0 && !ownTickDisplaced &&
+                        UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && UnitAttack.Acts(world.Rider) == 0 && !controller.HasStockAttackIntent &&
+                        controller.LastAutomaticRetirement == "automatic target outside native admission" && controller.AutomaticAdmissionRetiredCount == 1,
+                        "PR-1 R10-F1 an installed automatic wrapper awaiting start, ticking before the controller after B left native admission: no move submission, displacement, delivery or spending; retired once by the order's own decision; a stale command's query changed nothing");
+                else if (kase == "control: reachable approach")
+                    Check(!staleRetired && !endedByOwnTick && ownTickMoves >= 1 && controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 0,
+                        "PR-1 R10-F1 control: an unrestricted target that moved away is approached normally (pre-start move submitted, order kept)");
+                else
+                    Check(released && controller.AutomaticAdmissionRetiredCount == 0 && controller.LastAutomaticRetirement != "automatic target outside native admission" &&
+                        cause != MountedAttackEndCause.Cancelled,
+                        "PR-1 R10-F1 control: an already released strike keeps native completion; the admission decision does not retire it");
+            }
+        }
+
+        // PR-1 round 11, section 5 case 3 (R10-F1): a queued automatic wrapper on unreachable B; B leaves the action's range; native queue promotion
+        // (production AdmitQueuedAutomaticRun) runs BEFORE any controller drive: the wrapper is refused, never started, no movement or spending.
+        private static void Round11QueuedPromotion()
+        {
+            foreach (var restricted in new[] { true, false })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.6f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;
+                world.Rider.CachedSight = unit => true;
+                if (restricted) world.Rider.CombatState.AIData.UnreachableUnits.Add(world.Target);
+                controller.BeginOrder(world.Target, true);
+                controller.AdoptProposalAction(new Kingmaker.UnitLogic.Commands.AiActionFacade());
+                UnitCommands.PromotionPrefix = command => !(command is MountedPairSingleAttack) || (((MountedPairSingleAttack)command).IsAutomaticOrigin
+                    ? controller.AdmitQueuedAutomaticRun((MountedPairSingleAttack)command)
+                    : KingmakerMountedCombat.Integration.PatchMethods.AdmitExplicitPromotion((MountedPairSingleAttack)command, controller));
+                var blocker = new HarnessStationaryCommand();
+                world.Rider.Commands.Run(blocker);
+                var wrapper = Order(world, MountedCombatActionKind.RiderMelee, false);
+                wrapper.MarkAutomaticOrigin();
+                wrapper.AllowPreStartApproach();
+                world.Rider.Commands.Enqueue(wrapper);
+                controller.AcceptWrapper(wrapper, world.Rider, world.Target);
+                controller.BindAutomaticRun(wrapper);
+                wrapper.BindTerminal(controller.ProductionTerminal);
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends; var horseBefore = world.Horse.Position;
+                world.Target.Position = new Vector3(4f, 0f, 0f);
+                blocker.FinishSuccess();
+                world.Rider.Commands.RemoveFinishedAndUpdateQueue();   // native promotion, before any controller drive
+                var promoted = world.Rider.Commands.Standard == wrapper;
+                Console.WriteLine("  R11 queued (" + (restricted ? "restricted" : "control: unrestricted") + "): promoted=" + promoted + " finished=" + wrapper.IsFinished + " started=" + wrapper.IsStarted +
+                    " retirement=" + controller.LastAutomaticRetirement + " moves=" + (UnitCommands.MoveSubmissions - moves) + " intent=" + controller.HasStockAttackIntent);
+                if (restricted)
+                    Check(!promoted && wrapper.IsFinished && !wrapper.IsStarted && UnitCommands.MoveSubmissions == moves && world.Horse.Position.Equals(horseBefore) &&
+                        UnitAttack.StandardSpends == spends && !controller.HasStockAttackIntent && controller.LastAutomaticRetirement == "automatic target outside native admission" &&
+                        controller.AutomaticAdmissionRetiredCount == 1,
+                        "PR-1 R10-F1 queued promotion before the drive refuses the automatic wrapper whose restricted target left native admission: never started, no movement or spending, retired once");
+                else
+                    Check(promoted && !wrapper.IsFinished && controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 0,
+                        "PR-1 R10-F1 control: an unrestricted target that moved away is promoted for ordinary approach");
+            }
+        }
+
+        // PR-1 round 11, section 5 case 6 (R10-F2, R9-F3): a mobile pair, a remembered target marked unreachable and an unreleased automatic wrapper.
+        // The target becomes unconscious and at the same time leaves the action's range or native sight. Controller first (production drive), wrapper
+        // first (its own tick) and queued promotion (production AdmitQueuedAutomaticRun) must each produce exactly the literal
+        // TargetInvalid | "Expected target invalidation: target became unconscious" | [TargetInvalid] (ordinal equality; one rejection code),
+        // with no movement and no spending.
+        private static void Round11InvalidationWithAdmissionLoss()
+        {
+            const string expected = "TargetInvalid|Expected target invalidation: target became unconscious|TargetInvalid";
+            foreach (var loss in new[] { "range", "sight" })
+            foreach (var first in new[] { "controller first", "wrapper first", "queued promotion" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                controller.MovementForbidden = false;
+                world.Rider.CachedSight = unit => true;
+                world.Rider.CombatState.AIData.UnreachableUnits.Add(world.Target);
+                MountedPairAttackCommand wrapper;
+                if (first == "queued promotion")
+                {
+                    controller.BeginOrder(world.Target, true);
+                    controller.AdoptProposalAction(new Kingmaker.UnitLogic.Commands.AiActionFacade());
+                    UnitCommands.PromotionPrefix = command => !(command is MountedPairSingleAttack) || (((MountedPairSingleAttack)command).IsAutomaticOrigin
+                        ? controller.AdmitQueuedAutomaticRun((MountedPairSingleAttack)command)
+                        : KingmakerMountedCombat.Integration.PatchMethods.AdmitExplicitPromotion((MountedPairSingleAttack)command, controller));
+                    var blocker = new HarnessStationaryCommand();
+                    world.Rider.Commands.Run(blocker);
+                    wrapper = Order(world, MountedCombatActionKind.RiderMelee, false);
+                    wrapper.MarkAutomaticOrigin();
+                    world.Rider.Commands.Enqueue(wrapper);
+                    controller.AcceptWrapper(wrapper, world.Rider, world.Target);
+                    controller.BindAutomaticRun(wrapper);
+                    wrapper.BindTerminal(controller.ProductionTerminal);
+                    world.Rider.CombatState.ManualTarget = null;
+                    var moves0 = UnitCommands.MoveSubmissions; var spends0 = UnitAttack.StandardSpends;
+                    world.Target.Descriptor.State.IsConscious = false;
+                    if (loss == "range") world.Target.Position = new Vector3(4f, 0f, 0f); else world.Rider.CachedSight = unit => unit != world.Target;
+                    blocker.FinishSuccess();
+                    world.Rider.Commands.RemoveFinishedAndUpdateQueue();
+                    Record(world, controller, wrapper, loss + " " + first, expected, moves0, spends0);
+                    continue;
+                }
+                world.Ready[world.Rider] = false;   // installed and waiting for native start
+                Harness.NativeBrainRankingReader.Ranked = null;
+                controller.Propose(Proposal(world.Target), false);
+                wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R10-F2 " + loss + " " + first + ": no wrapper (" + controller.LastFeedback + ")"); continue; }
+                NativeTick(world, world.Rider);
+                var moves = UnitCommands.MoveSubmissions; var spends = UnitAttack.StandardSpends;
+                world.Target.Descriptor.State.IsConscious = false;   // unconscious, still remembered
+                if (loss == "range") world.Target.Position = new Vector3(4f, 0f, 0f); else world.Rider.CachedSight = unit => unit != world.Target;
+                if (first == "controller first") controller.Drive();
+                else { world.Ready[world.Rider] = true; NativeTick(world, world.Rider); }
+                Record(world, controller, wrapper, loss + " " + first, expected, moves, spends);
+            }
+        }
+
+        private static void Record(World world, MountedCombatController controller, MountedPairAttackCommand wrapper, string label, string expected, long moves, long spends)
+        {
+            var outcome = wrapper.DeliveredOutcome;
+            var codes = controller.LastRejectionCodes;
+            var triple = outcome == null ? "<no outcome>" : outcome.EndCause + "|" + outcome.TerminalReason + "|" +
+                (codes == null ? "<none>" : string.Join(",", Array.ConvertAll(codes, c => c.ToString())));
+            Console.WriteLine("  R11 invalidation (" + label + "): cause|reason|codes=" + triple + " moves=" + (UnitCommands.MoveSubmissions - moves) +
+                " spends=" + (UnitAttack.StandardSpends - spends) + " retirement=" + controller.LastAutomaticRetirement);
+            Check(string.Equals(triple, expected, StringComparison.Ordinal) && codes != null && codes.Length == 1 && codes[0] == MountedCombatRejectionCode.TargetInvalid &&
+                wrapper.IsFinished && UnitCommands.MoveSubmissions == moves && UnitAttack.StandardSpends == spends && UnitAttack.Acts(world.Rider) == 0 && !controller.HasStockAttackIntent,
+                "PR-1 R10-F2/R9-F3 " + label + ": an unconscious remembered target that also lost native admission ends exactly as TargetInvalid | target became unconscious | one TargetInvalid code; no movement, no spending");
+        }
+
+        // R9-F3: the exact-result assertion must reject an appended CommandCancelled code (the assertion itself, applied to a literal).
+        private static void Round11ExactAssertionRejectsAppendedCode()
+        {
+            const string expected = "TargetInvalid|Expected target invalidation: target became unconscious|TargetInvalid";
+            Check(!string.Equals(expected + ",CommandCancelled", expected, StringComparison.Ordinal) && string.Equals(expected, expected, StringComparison.Ordinal),
+                "PR-1 R9-F3 the ordinal full-result comparison rejects a TargetInvalid result with an appended CommandCancelled code");
+        }
+
         private static int Main()
         {
             try { R3F1(); } catch (Exception exception) { Check(false, "R3-F1 threw " + exception); }
@@ -3002,6 +3287,11 @@ namespace Harness
             try { Round9InvalidationBeforeGeometry(); } catch (Exception exception) { Check(false, "PR-1 round 9 invalidation before geometry threw " + exception); }
             try { Round10RetainedNativeAdmission(); } catch (Exception exception) { Check(false, "PR-1 round 10 retained native admission threw " + exception); }
             try { Round10DislikeAfterAdmission(); } catch (Exception exception) { Check(false, "PR-1 round 10 dislike after admission threw " + exception); }
+            try { Round11RetainedAdmission(); } catch (Exception exception) { Check(false, "PR-1 round 11 retained admission threw " + exception); }
+            try { Round11InstalledWrapper(); } catch (Exception exception) { Check(false, "PR-1 round 11 installed wrapper threw " + exception); }
+            try { Round11QueuedPromotion(); } catch (Exception exception) { Check(false, "PR-1 round 11 queued promotion threw " + exception); }
+            try { Round11InvalidationWithAdmissionLoss(); } catch (Exception exception) { Check(false, "PR-1 round 11 invalidation with admission loss threw " + exception); }
+            try { Round11ExactAssertionRejectsAppendedCode(); } catch (Exception exception) { Check(false, "PR-1 round 11 exact assertion threw " + exception); }
             try { Round7DeliveredOutcome(); } catch (Exception exception) { Check(false, "PR-1 round 7 delivered outcome threw " + exception); }
             try { Round7TerminalToDispatch(); } catch (Exception exception) { Check(false, "PR-1 round 7 terminal to dispatch threw " + exception); }
             try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }

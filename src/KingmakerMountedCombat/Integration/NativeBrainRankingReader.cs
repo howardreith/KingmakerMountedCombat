@@ -34,14 +34,23 @@ namespace KingmakerMountedCombat.Integration
             // unit's AiMovementForbidden, or the candidate in AIData.UnreachableUnits), so no line-of-sight probe native would not make.
             public float ActionRangeWithCorpulence;
             public bool InLos;
-            // The proposal action's own range (BlueprintAiAction.GetRange), kept for the retained order's later recheck (R9-F1).
-            public float ActionRange;
         }
 
         // PR-1 review R9-F1: native's line-of-sight test (GameHelper.CheckLOS(UnitEntityData, UnitEntityData), 0x06008555, the test
-        // TargetInfo.InLos caches) for a retained automatic order's drive-time recheck of IsTargetValid's restricted rule.
+        // TargetInfo.InLos caches) for a retained automatic order's recheck of IsTargetValid's restricted rule.
         internal static bool NativeLos(UnitEntityData unit, UnitEntityData target) =>
             unit != null && target != null && GameHelper.CheckLOS(unit, target);
+
+        // PR-1 round 11 (R10-F3): the supported action's CURRENT range for the deciding unit, read from native itself on every check:
+        // BlueprintAiAction.GetRange(DecisionContext) (BlueprintAiAttack 0x06009437 reads only context.Unit: its auto-use ability or its
+        // current primary, secondary or limb weapon), given a fresh DecisionContext (public parameterless constructor 0x0600941F) whose
+        // Unit is the deciding unit. Independent of the brain's static context and of whether a ranking was read. NaN when unreadable.
+        internal static float CurrentActionRange(UnitEntityData unit, BlueprintAiAction action)
+        {
+            if (unit == null || action == null) return float.NaN;
+            try { return action.GetRange(new DecisionContext { Unit = unit }); }
+            catch (Exception) { return float.NaN; }
+        }
 
         // The same live list, as native ranked it, for the pair's equal-rank tie-break (review R1-F11), with the native admission facts for
         // the proposal's own AI action (BlueprintAiAction.GetRange reads only the deciding unit: BlueprintAiAttack 0x06009437). Null when
@@ -67,7 +76,7 @@ namespace KingmakerMountedCombat.Integration
                     // sight-tested.
                     result.Add(new Candidate
                     {
-                        Unit = info.Unit, Weight = info.Weight, Distance = info.Distance, ActionRangeWithCorpulence = reach, ActionRange = range,
+                        Unit = info.Unit, Weight = info.Weight, Distance = info.Distance, ActionRangeWithCorpulence = reach,
                         InLos = sightRead && info.Distance <= reach && info.InLos(context)
                     });
                 }

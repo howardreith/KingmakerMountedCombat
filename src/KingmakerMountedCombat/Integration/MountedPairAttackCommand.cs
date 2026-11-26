@@ -441,9 +441,12 @@ namespace KingmakerMountedCombat.Integration
         // mount's movement, driven here from native TickApproaching (MountedAttackApproachPrefix). Native alone starts the
         // command; the delegated move is the same single movement owner the started approach uses and adopts at start.
         internal Func<bool> PreStartMovementForbidden;
-        // Review R4-F2: set for an automatic order only; an automatic target that left the rider group's perception produces no
-        // destination at any approach step (pre-start, native start, repath, carrier creation).
-        internal Func<bool> AutomaticTargetPerceived;
+        // Review R4-F2, PR-1 round 11 (R10-F1, R10-F2): set for an automatic order only. The controller's one current admission decision
+        // for this exact automatic order (MountedCombatController.RetireAutomaticOrderIfNotAdmitted: its generation, target and owned
+        // command): an order whose target became invalid, left the rider group's perception or left native admission (the brain's
+        // IsTargetValid restricted rule with the action's current range) is retired by the controller, which ends this command once, so
+        // no destination is produced at any approach step (pre-start, native start, repath, carrier creation) or strike before delivery.
+        internal Func<MountedPairAttackCommand, bool> AutomaticOrderAdmissionLost;
         private bool preStartApproachAllowed;
         // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
         private bool nativePreStartApproaching;
@@ -475,19 +478,25 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private bool AutomaticTargetUnperceived() =>
-            IsAutomaticOrigin && AutomaticTargetPerceived != null && !AutomaticTargetPerceived();
-
-        // Ends an automatic order whose target left perception, releasing its exact carrier; returns true when it ended.
-        private bool EndIfAutomaticTargetUnperceived()
+        // Asks the controller's decision for this unreleased automatic command; returns true when the order was retired and this command
+        // ended. A released strike keeps native completion; a command that is not its order's own is never inspected by it.
+        private bool EndIfAutomaticOrderNotAdmitted()
         {
-            if (!AutomaticTargetUnperceived()) return false;
+            if (!IsAutomaticOrigin || IsFinished || StrikeReleased || AutomaticOrderAdmissionLost == null) return false;
+            AutomaticOrderAdmissionLost(this);
+            return IsFinished;
+        }
+
+        // PR-1 round 11: the controller retires this unreleased automatic command's order for lost admission (perception or native
+        // eligibility): its own carrier and native pre-start approach are released (a successor's movement is kept) and the shared cause
+        // is recorded before the controller ends it (the first recorded cause stands).
+        internal void RecordAutomaticAdmissionLoss(string reason, string transactionReason)
+        {
+            if (IsFinished) return;
             StopDelegatedMove(false);
             StopNativePreStartApproach();
-            if (!transaction.IsTerminal) transaction.Cancel("Automatic target left the rider group's perception.");
-            RecordEndCause(MountedAttackEndCause.Cancelled, "automatic target left perception");
-            Interrupt();
-            return true;
+            if (!transaction.IsTerminal) transaction.Cancel(transactionReason);
+            RecordEndCause(MountedAttackEndCause.Cancelled, reason);
         }
 
         private void StopNativePreStartApproach()
@@ -512,7 +521,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 RequireLiveExactPair();
                 if (TryEndExpectedTargetInvalidation()) return false;
-                if (EndIfAutomaticTargetUnperceived()) return false;
+                if (EndIfAutomaticOrderNotAdmitted()) return false;
                 // PR-1 review R4-F4: once newer work was accepted, the unreleased generation issues no further destination.
                 if (!chargeMode && EndIfSupersededBeforeDelivery()) return false;
                 if (actionActor == mount) return TickNativePreStartApproach();
@@ -1211,7 +1220,7 @@ namespace KingmakerMountedCombat.Integration
                 if (TryEndExpectedTargetInvalidation()) { return; }
                 // Review R4-F2: an unreleased automatic strike is never started, approached or adopted for a target that left
                 // the rider group's perception (in-range start included).
-                if (EndIfAutomaticTargetUnperceived()) { return; }
+                if (EndIfAutomaticOrderNotAdmitted()) { return; }
                 NeedLoS = true;
                 CreateAndValidateChildAttack();
                 riderPositionAtCommandStart = rider.Position;
@@ -1329,7 +1338,7 @@ namespace KingmakerMountedCombat.Integration
                 // PR-1 review R2-F1: during the first strike's windup (child started, nothing delivered) perception loss of an
                 // automatic target and supersession still stop the strike before delivery.
                 if (!IsFinished && transaction.State == MountedCombatTransactionState.Attacking && !StrikeReleased &&
-                    (EndIfAutomaticTargetUnperceived() || EndIfSupersededBeforeDelivery())) return;
+                    (EndIfAutomaticOrderNotAdmitted() || EndIfSupersededBeforeDelivery())) return;
 
                 if (transaction.State == MountedCombatTransactionState.Attacking &&
                     transaction.ChildAttackStartCount == 0)
@@ -1525,7 +1534,7 @@ namespace KingmakerMountedCombat.Integration
         {
             var admission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(admission);
-            if (EndIfAutomaticTargetUnperceived()) return;
+            if (EndIfAutomaticOrderNotAdmitted()) return;
             if (admission == MountedPairNativeAdmissionState.Admitted)
             {
                 carrierDeferred = false;
@@ -1560,7 +1569,7 @@ namespace KingmakerMountedCombat.Integration
             if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
                 // Review R4-F2: perception is rechecked before arrival commits the strike.
-                if (EndIfAutomaticTargetUnperceived()) return;
+                if (EndIfAutomaticOrderNotAdmitted()) return;
                 if (delegatedMove == null)
                 {
                     throw new InvalidOperationException(
@@ -1645,7 +1654,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
-            if (EndIfAutomaticTargetUnperceived()) return;
+            if (EndIfAutomaticOrderNotAdmitted()) return;
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
@@ -2020,7 +2029,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
             // Review R4-F2: the last boundary before release.
-            if (EndIfAutomaticTargetUnperceived()) return;
+            if (EndIfAutomaticOrderNotAdmitted()) return;
             if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
             if (!childAttack.TryPrepareNativeStartAdmission())
