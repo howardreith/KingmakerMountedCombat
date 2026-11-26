@@ -1,0 +1,29 @@
+A: inclusive Full 200 s and receipt 120 s (Full -SkipBuild plan)
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=200s :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=200s from recorded durations
+B: receipt 600 s, no Full history (Full -SkipBuild plan)
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=unknown (admission lower bound 600s from the recorded reuse check) :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)
+C: neither recorded (Full -SkipBuild plan)
+    1. reuse check [receipt current: outputs reusable] timed within FULL umbrella :: build receipt <repo>\bin\Release\.loader-input-stamp
+    2. FULL umbrella (scripts/Test.ps1) [present] last=unknown :: Test.ps1 -AssemblyTarget Kingmaker -SkipBuild; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)
+D: receipt 600 s, Full with a build (plan)
+    1. FULL umbrella (scripts/Test.ps1) [present] last=unknown :: Test.ps1 -AssemblyTarget Kingmaker; task: probe
+    estimate=unknown (1 step(s) without a recorded duration)
+Fast -SkipBuild with receipt 600 s (plan)
+    1. reuse check [receipt current: outputs reusable] last=600s :: build receipt <repo>\bin\Release\.loader-input-stamp
+    estimate=unknown (2 step(s) without a recorded duration)
+B execution: 60 s allowance
+powershell.exe : Workflow budget refuses oversized work: tier "Full: reuse check, FULL umbrella (scripts/Test.ps1)" is 
+known to take 
+At <temp>\claude\c237366b8a8ea80b\e178a93b-ca53-4b6b-a4d2-a357d48eaa77\scratchpad\kmc_r9_pro
+be.ps1:22 char:8
++ $run = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -F ...
++        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Workflow budget... known to take :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Full history: absent | entries 0 | receipt 600
