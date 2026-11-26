@@ -1004,11 +1004,8 @@ namespace KingmakerMountedCombat.Integration
                 ";animatedSeatWriteResidual=" + (poseAdapter?.MaximumAnimatedSeatError ?? 0d).ToString("R") +
                 ";animatedSeatWorld=" + (poseAdapter?.LastAnimatedSeatPosition.ToString("F4") ?? "<none>") +
                 ";seatGeometry={" + (poseAdapter?.ObserveSeatGeometry() ?? "unavailable") + "}" +
-                ";seatCalibration=" + (poseAdapter == null ? "<none>" : (!poseAdapter.SeatCalibrationSettles ? "attachment" :
-                    poseAdapter.SeatCalibrationSettled ? "settled" : "provisional") +
-                    ";observedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationObservedSeatFromSource) +
-                    ";appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(poseAdapter.CalibrationAppliedSeatFromSource) +
-                    ";settleFrames=" + poseAdapter.SeatSettleFrames + ";seatIneligibleFrames=" + poseAdapter.SeatIneligibleFrames) +
+                // PR-3 review R1-F4: only what this adapter measured or applied (none, fixed basis, attachment, provisional/settled).
+                ";seatCalibration=" + MountedRiderPoseAdapter.FormatSeatCalibration(poseAdapter) +
                 ";attachmentLease=" + riderAttachmentLease.IsAcquired +
                 ";replacementReleased=" + replacementRiderViewReleaseVerified +
                 ";riderSelected=" + riderSelected +

@@ -90,7 +90,9 @@ namespace KingmakerMountedCombat.Domain
         // evaluated or not advancing). restEligible: whether this frame's pose is a resting reference.
         public SeatSampleOutcome Observe(PoseVector3 seatFromSource, float evaluatedAdvanceSeconds, bool restEligible)
         {
-            if (!Observing || !seatFromSource.IsFinite) return SeatSampleOutcome.None;
+            if (!Observing) return SeatSampleOutcome.None;
+            // PR-3 review R1-F3: an invalid sample breaks continuity; the next finite, evaluated, eligible sample starts a fresh window.
+            if (!seatFromSource.IsFinite) { hasWindow = false; return SeatSampleOutcome.None; }
             if (!(evaluatedAdvanceSeconds > 0f) || float.IsInfinity(evaluatedAdvanceSeconds))
             {
                 IgnoredFrames++;

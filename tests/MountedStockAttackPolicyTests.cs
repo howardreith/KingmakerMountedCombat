@@ -484,6 +484,21 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(paused.Settled && paused.IgnoredFrames == 120 && Exact(paused.SettledSample, idle), "A paused pose settled.");
             var nan = new SettledSeatSampler();
             TestRunner.True(nan.Observe(new PoseVector3(float.NaN, 0f, 0f), dt, true) == SeatSampleOutcome.None && nan.Frames == 0, "A non-finite sample was counted.");
+            // PR-3 review R1-F3: a non-finite frame inside a nearly complete high window breaks it: a brief return to the high pose cannot
+            // settle it; a later full stationary-idle window does.
+            var broken = new SettledSeatSampler();
+            var nanHigh = new PoseVector3(0f, 1.25f, 0f); var nanIdle = new PoseVector3(0f, 0.95f, 0f);
+            var t = 0;
+            for (; t * dt < SettledSeatSampler.MinimumAnimationSeconds; t++) broken.Observe(new PoseVector3(0f, 1.25f + 0.05f * (t % 2), 0f), dt, true);
+            var nearlyComplete = (int)((SettledSeatSampler.StableWindowSeconds - 0.0625f) / dt);   // without the break, the brief return below would complete it
+            for (var k = 0; k < nearlyComplete; k++) broken.Observe(nanHigh, dt, true);
+            broken.Observe(new PoseVector3(float.NaN, 0f, 0f), 0f, true);
+            var brief = 0;
+            for (var k = 0; k < (int)(0.125f / dt) + 1 && !broken.Settled; k++, brief++) broken.Observe(nanHigh, dt, true);
+            var settledHigh = broken.Settled;
+            for (var k = 0; k < (int)(SettledSeatSampler.StableWindowSeconds / dt) + 4 && !broken.Settled; k++) broken.Observe(nanIdle, dt, true);
+            TestRunner.True(!settledHigh && broken.Settled && (broken.SettledSample - nanIdle).Magnitude < 0.0001f,
+                "A non-finite frame did not break the open window (settledHigh " + settledHigh + ", settled " + broken.Settled + ").");
             // R5-F3: the normalized sample removes the Chest displacement at attachment.
             var anchorRelation = MountedRiderPoseProfiles.MediumHumanoidOnHorseMountRootPositionOffset;
             var riderLocalPelvis = new PoseVector3(0f, 0.95f, 0f);
@@ -506,8 +521,6 @@ namespace KingmakerMountedCombat.Tests
                 line.Contains("appliedSeatFromSource=") && line.Contains("anchorFromSource=") && line.Contains("seatCorrection=") &&
                 line.Contains("frames=46") && line.Contains("animationSeconds=2.500"), "The seat line lost a field: " + line);
         }
-
-        private sealed class LoadedUnit { public LoadedUnit(string id) { Id = id; } public string Id { get; } public int Stale = 1; }
 
         private static void AnimatedSaddleCleanup()
         {

@@ -38,6 +38,7 @@ $members=[ordered]@{
  'ADAPTER_UPDATE'=(Extract $adapter 'private void Update()')
  'ADAPTER_LATE_UPDATE'=(Extract $adapter 'private void LateUpdate()')
  'ADAPTER_SEAT'=(Extract $adapter 'private void ApplyAnimatedSeat()')
+ 'ADAPTER_APPLY_POSE'=(Extract $adapter 'private void ApplyPose()')
  'ADAPTER_VALIDATE'=(Extract $adapter 'private void ValidateLiveRig()')
  'ADAPTER_LATCH'=(Extract $adapter 'private void LatchFailure(string message, Exception exception)')
  'ADAPTER_RESOLVE'=(Extract $adapter 'private static bool TryResolveSupportedRig(')

@@ -39,6 +39,32 @@ namespace KingmakerMountedCombat.Integration
         public PoseVector3 CalibrationAppliedSeatFromSource { get; private set; }
         public bool SeatCalibrationSettled => seatSampler != null && seatSampler.Settled;
         public bool SeatCalibrationSettles => seatSampler != null;
+
+        // PR-3 review R1-F4: which seat basis this adapter actually applies: none (no animated saddle, e.g. the Mammoth), fixed (a Small
+        // fixed-from-source seat; CalibrationAppliedSeatFromSource is its fixed basis, nothing is measured), attachment (the posed pelvis
+        // sampled once), or settling (the Horse's provisional-then-settled sample).
+        public string SeatCalibrationKind { get; private set; } = "none";
+
+        // The presentation observation's seat-calibration fields, scoped to what this adapter measured or applied.
+        internal static string FormatSeatCalibration(MountedRiderPoseAdapter adapter)
+        {
+            if (adapter == null) return "<none>";
+            switch (adapter.SeatCalibrationKind)
+            {
+                case "fixed":
+                    return "fixed;observedSeatFromSource=<not-measured>;appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(adapter.CalibrationAppliedSeatFromSource);
+                case "attachment":
+                    return "attachment;observedSeatFromSource=" + AnimatedSaddleCalibration.Format(adapter.CalibrationObservedSeatFromSource) +
+                        ";appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(adapter.CalibrationAppliedSeatFromSource);
+                case "settling":
+                    return (adapter.SeatCalibrationSettled ? "settled" : "provisional") +
+                        ";observedSeatFromSource=" + AnimatedSaddleCalibration.Format(adapter.CalibrationObservedSeatFromSource) +
+                        ";appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(adapter.CalibrationAppliedSeatFromSource) +
+                        ";settleFrames=" + adapter.SeatSettleFrames + ";seatIneligibleFrames=" + adapter.SeatIneligibleFrames;
+                default:
+                    return "none(no animated saddle)";
+            }
+        }
         public int SeatSettleFrames => seatSampler == null ? 0 : seatSampler.FramesToSettle;
         public float SeatSettleAnimationSeconds => seatSampler == null ? 0f : seatSampler.AnimationSecondsToSettle;
         public int SeatIgnoredFrames => seatSampler == null ? 0 : seatSampler.IgnoredFrames;
@@ -197,7 +223,12 @@ namespace KingmakerMountedCombat.Integration
             var source = ToPose(saddleMountRoot.InverseTransformPoint(saddleSource.position));
             seatSampler = null;
             if (seatIsFixedFromSource)
+            {
                 animatedSaddle.Acquire(source, source + ToPose(anatomicalCorrection), new PoseVector3(0f, 0f, 0f));
+                SeatCalibrationKind = "fixed";
+                CalibrationObservedSeatFromSource = new PoseVector3(0f, 0f, 0f);
+                CalibrationAppliedSeatFromSource = ToPose(anatomicalCorrection);
+            }
             else if (settleSeatFromIdlePose)
             {
                 // Review R5-F3: the normalized sample (AnimatedSaddleCalibration.NormalizedSeatFromSource): the anchor relation
@@ -209,6 +240,7 @@ namespace KingmakerMountedCombat.Integration
                 CalibrationAppliedSeatFromSource = normalized;
                 animatedSaddle.Acquire(source, source + normalized, seatCorrection);
                 seatSampler = new SettledSeatSampler();
+                SeatCalibrationKind = "settling";
                 NotifySeatCalibration("attach", CalibrationObservedSeatFromSource, CalibrationAppliedSeatFromSource, 0, 0f);
             }
             else
@@ -218,6 +250,7 @@ namespace KingmakerMountedCombat.Integration
                 CalibrationObservedSeatFromSource = observed - source;
                 CalibrationAppliedSeatFromSource = observed - source;
                 animatedSaddle.Acquire(source, observed, seatCorrection);
+                SeatCalibrationKind = "attachment";
             }
         }
 
@@ -282,16 +315,25 @@ namespace KingmakerMountedCombat.Integration
         {
             var manager = riderView == null ? null : riderView.AnimationManager;
             if (manager == null || !manager.CanRunIdleAction()) return false;
+            // PR-3 review R1-F1: rest also needs the resting (base) animation to be contributing to the sampled rig: an active, unreleased,
+            // non-additive animation with positive weight. A newly attached or restored view whose graph plays but whose base animation does
+            // not yet contribute (the bind pose) is not rest, however long it holds; a constant-height idle that contributes is.
             var animations = manager.ActiveAnimations;
-            if (animations == null) return true;
+            if (animations == null) return false;
+            var baseContributing = false;
             foreach (var animation in animations)
             {
                 var handle = animation == null ? null : animation.Handle;
-                if (handle == null || !handle.IsReleased) continue;
-                if (handle.Action != null && handle.Action.IsAdditive) continue;
-                if (animation.GetWeight() > 0f) return false;
+                if (handle == null) continue;
+                var additive = handle.Action != null && handle.Action.IsAdditive;
+                if (handle.IsReleased)
+                {
+                    if (!additive && animation.GetWeight() > 0f) return false;
+                    continue;
+                }
+                if (!additive && animation.GetWeight() > 0f) baseContributing = true;
             }
-            return true;
+            return baseContributing;
         }
 
         private void NotifySeatCalibration(string phase, PoseVector3 observed, PoseVector3 applied, int frames, float animationSeconds)
@@ -333,6 +375,7 @@ namespace KingmakerMountedCombat.Integration
             animatedSaddle.Release();
             animatedSaddleRequired = false;
             seatSampler = null;
+            SeatCalibrationKind = "none";
             seatRiderAnchor = null;
             scaleCompensatedAnchor = null;
             saddleMountRoot = null;
