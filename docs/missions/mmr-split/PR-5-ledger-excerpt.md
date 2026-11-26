@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T17:06:44+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T17:34:32+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -104,6 +104,16 @@ SHA-256 `14aaef0f34324b09830aab13b1c185f7e23f4c2baaefad127205c7da348a5d07`
 ```
 SHA-256 `618d20ac683dca085cbf065a6e93ccf8ce72627d5c9d44a869c4c3fafb884514`
 
+```json
+{"candidate": "805ad398d55618abd613d6107a68b861fa82cad7", "controller_status": "ACTIVE (5 of 6)", "decision": "changes_required", "kind": "review_result", "open_blocking": ["R3-F2", "R4-F2", "R4-F3", "R5-F1", "R5-F2", "R5-F3"], "open_optional": [], "pr": "PR-5", "prev_sha256": "618d20ac683dca085cbf065a6e93ccf8ce72627d5c9d44a869c4c3fafb884514", "records": "decomposition/pr5/developer-report.r5.json, pr5/controller-review-r5.json", "rejected": ["R3-F2", "R4-F2", "R4-F3"], "round": 5, "seq": 75, "utc": "2026-11-26T17:34:32+00:00", "verified": ["R2-F2", "R3-F6", "R4-F1"]}
+```
+SHA-256 `06aea500d888b0603ae056a84203b4c245fb50f21f1fd393438678bd1a1223ad`
+
+```json
+{"budget": "budget record read at 2026-11-26T17:34:31Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 132.83 of 150 min; remaining 17.17 min; entries 200 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-horse-bite that regenerates docs/missions/mmr-split/PR-5-ledger-excerpt.md with this entry", "child_rounds": "5 of 6 used (round 6 is the last)", "kind": "pre_review_check", "pr": "PR-5", "prev_sha256": "06aea500d888b0603ae056a84203b4c245fb50f21f1fd393438678bd1a1223ad", "program_rounds": "29 of 38 lifetime (22 of 31 allocated child reviews)", "round": 6, "seq": 76, "utc": "2026-11-26T17:34:32+00:00"}
+```
+SHA-256 `b8cd88eea5a56a810e612c778c17296cfe7c3d32f97819823fcae326a00e4729`
+
 Applicable limits: seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`). It raised the shared validation allowance from 90 to 150 minutes
 (budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and set the program to 18 allocated child reviews / 25 lifetime;
@@ -114,4 +124,5 @@ in the final handoff (from blocks_readiness); seq 43 is the owner extension of 2
 PR-5 total ceiling 4, program 26 child / 33 lifetime reviews, validation unchanged at 150 minutes. Seq 52 is the resume to a ceiling
 of 4, seq 53 the authorized R1-F9 verification on b1c82f31, seq 54 the R2-F5 evidence runs, seq 55 the round-3 check and seq 56
 the round-3 result, seq 57 the round-4 check, seq 58 the round-4 result; seq 65 records owner instruction 2026-11-26c (total cap 6),
-seq 73 the resume to 6 and the last entry is the round-5 check for the candidate that adds this version.
+seq 73 the resume to 6, seq 74 the round-5 check, seq 75 the round-5 result; the last entry is the round-6 check for the candidate
+that adds this version.
