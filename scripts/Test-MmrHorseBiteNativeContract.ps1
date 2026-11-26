@@ -50,4 +50,4 @@ Check ($null -ne $handle.GetProperty('SpeedScale')) 'MMR-07: native handle Speed
 # docs/mounted-melee/HANDOFF.md: HorseAnimationSet_Bite -> clip BiteAttack, HorseAnimationSet_Hoof -> Right/Left_Hoof_Attack).
 $bundle = Join-Path $data 'StreamingAssets\Bundles\resource_2f17956095cd04b49a8f4c0bc88bb9ca'
 Check ((Get-FileHash -LiteralPath $bundle).Hash.ToLowerInvariant() -ceq '3edb2116adf8857e11e466613c3bde6376d6201910d6a21a3d8774ee8bf2b476') 'MMR-07: pinned native horse animation bundle identity'
-Write-Host ('Mounted alpha 2 native contract (bite) PASS=' + $script:passed + ' FAIL=0')
+Write-Host ('Mounted alpha 2 native contract (bite) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

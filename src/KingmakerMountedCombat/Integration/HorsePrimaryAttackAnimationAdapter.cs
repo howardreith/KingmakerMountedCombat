@@ -63,24 +63,29 @@ namespace KingmakerMountedCombat.Integration
             AttackHandInfo attack,
             UnitEntityData horse)
         {
-            var exact = IsExactHorsePrimaryContext(command, attack, horse);
-            var manager = exact ? horse.View?.AnimationManager : null;
-            var boundary = new HandleBoundary(
-                exact,
-                exact ? attack.AnimationHandle : null,
-                manager,
-                manager != null,
-                exact ? attack.Weapon.Blueprint.VisualParameters.SpecialAnimation : UnitAnimationSpecialAttackType.None,
-                manager?.ActionSet.OfType<UnitAnimationActionSpecialAttack>().Where(candidate => candidate != null),
-                handle => command.HasRecordedHorsePrimaryAnimation(handle),
-                () => command.RecordedHorsePrimaryAnimationAction,
-                () => command.HasAnyRecordedHorsePrimaryAnimation,
-                (handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source),
-                (handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action),
-                action => CreateNativeHandle(manager, action),
-                handle => attack.AnimationHandle = handle);
+            // The context test and the boundary's construction (weapon visual parameters, the manager's action set) are inside
+            // the same containment as the decision: this runs inside native handle creation, and nothing here may fault it.
             HorseStrikeHandleBindingResult<UnitAnimationActionHandle, UnitAnimationActionSpecialAttack> result;
-            try { result = HorseStrikeHandleBinding.Bind(boundary); }
+            try
+            {
+                var exact = IsExactHorsePrimaryContext(command, attack, horse);
+                var manager = exact ? horse.View?.AnimationManager : null;
+                var boundary = new HandleBoundary(
+                    exact,
+                    exact ? attack.AnimationHandle : null,
+                    manager,
+                    manager != null,
+                    exact ? attack.Weapon.Blueprint.VisualParameters.SpecialAnimation : UnitAnimationSpecialAttackType.None,
+                    manager?.ActionSet.OfType<UnitAnimationActionSpecialAttack>().Where(candidate => candidate != null),
+                    handle => command.HasRecordedHorsePrimaryAnimation(handle),
+                    () => command.RecordedHorsePrimaryAnimationAction,
+                    () => command.HasAnyRecordedHorsePrimaryAnimation,
+                    (handle, action, source) => command.RecordHorsePrimaryAnimation(handle, action, source),
+                    (handle, action) => command.RefreshStockCreatedHorsePrimaryAnimation(handle, action),
+                    action => CreateNativeHandle(manager, action),
+                    handle => attack.AnimationHandle = handle);
+                result = HorseStrikeHandleBinding.Bind(boundary);
+            }
             catch (Exception exception)
             {
                 // Presentation telemetry never faults the native strike (this runs inside native handle creation).

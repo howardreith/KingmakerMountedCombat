@@ -177,6 +177,20 @@ $supplyExact = $adapter.GetMethod('SupplyExact', $any)
 Check (Calls $patches 'AttackAnimationPostfix' $supplyHorse) 'the CreateAnimationHandleForAttack postfix reaches MountedAnimationAdapter.SupplyExactHorsePrimaryAnimation'
 Check (Calls $animation 'SupplyExactHorsePrimaryAnimation' $supplyExact) 'SupplyExactHorsePrimaryAnimation calls the Horse adapter''s SupplyExact'
 Check (Calls $adapter 'SupplyExact' $bindingType.GetMethod('Bind')) 'SupplyExact decides through HorseStrikeHandleBinding.Bind'
+# The context test, the boundary construction (weapon visual parameters, action-set enumeration) and the decision all lie in
+# SupplyExact's one catch-all region, so none of them can fault the native handle creation that calls it.
+$supplyBody = $supplyExact.GetMethodBody(); $supplyIl = $supplyBody.GetILAsByteArray()
+$boundaryCtor = @($adapter.GetNestedType('HandleBoundary', $any).GetConstructors($any))[0]
+$contextTest = $adapter.GetMethod('IsExactHorsePrimaryContext', $any)
+$offsets = @{}
+for ($i = 0; $i -le $supplyIl.Length - 5; $i++) {
+    if ($supplyIl[$i] -ne 0x28 -and $supplyIl[$i] -ne 0x6F -and $supplyIl[$i] -ne 0x73) { continue }
+    try { $member = $supplyExact.Module.ResolveMethod([BitConverter]::ToInt32($supplyIl, $i + 1)) } catch { continue }
+    if ($member -eq $boundaryCtor) { $offsets.ctor = $i } elseif ($member -eq $contextTest) { $offsets.context = $i } elseif ($member.Name -ceq 'Bind' -and $member.DeclaringType -eq $bindingType) { $offsets.bind = $i }
+}
+$catchAll = @($supplyBody.ExceptionHandlingClauses | Where-Object { $_.Flags -eq [Reflection.ExceptionHandlingClauseOptions]::Clause -and $_.CatchType -eq [Exception] })
+$inside = { param($at) foreach ($c in $catchAll) { if ($at -ge $c.TryOffset -and $at -lt $c.TryOffset + $c.TryLength) { return $true } }; $false }
+Check ($offsets.Count -eq 3 -and $catchAll.Count -eq 1 -and (& $inside $offsets.context) -and (& $inside $offsets.ctor) -and (& $inside $offsets.bind)) 'SupplyExact contains the context test, the boundary construction and the binding decision in one catch (Exception) region (no fault escapes into native handle creation)'
 $supplyClauses = @($supplyExact.GetMethodBody().ExceptionHandlingClauses | Where-Object { $_.Flags -eq [Reflection.ExceptionHandlingClauseOptions]::Clause -and $_.CatchType -eq [Exception] })
 Check ($supplyClauses.Count -ge 1) 'R4-F7: SupplyExact contains the binding in a catch-all, so no binding exception reaches the native handle-creation postfix'
 $controller = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController'
@@ -201,4 +215,4 @@ Check ($null -ne $onAction -and $null -ne $baseOnAction -and $unitAttack.IsAssig
 Check ((Calls $command 'OnAction' $observe -Count) -eq 1) 'OnAction calls ObserveHorseStrike exactly once'
 Check ((Calls $command 'OnAction' $baseOnAction -Count) -eq 1) 'OnAction calls its base OnAction exactly once (native attack event and damage count unchanged)'
 Check (Calls $command 'ObserveHorseStrike' ($kmc.GetType('KingmakerMountedCombat.Domain.HorseStrikeReader', $true).GetMethod('Read'))) 'ObserveHorseStrike reads through HorseStrikeReader'
-Write-Host ('Mounted alpha 2 bite contract PASS=' + $script:passed + ' FAIL=0')
+Write-Host ('Mounted alpha 2 bite contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
