@@ -1,0 +1,18 @@
+{
+ "source": "gh pr view 69 --repo howardreith/KingmakerMountedCombat --json number,title,state,isDraft,closed,closedAt,headRefName,headRefOid,url,comments (read-only; captured 2026-11-26; only the supersession comment kept)",
+ "number": 69,
+ "title": "[draft] UMM 0.31.1 baseline integrated with main; 0.2.16-alpha.2 prerelease",
+ "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/69",
+ "state": "CLOSED",
+ "closed": true,
+ "closedAt": "2026-11-26T16:44:56Z",
+ "isDraft": true,
+ "headRefName": "codex/umm-0311-integration-20261126",
+ "headRefOid": "ce89fe48d6d3d2ec0da0876b72b2401bffac2187",
+ "supersession_comment": {
+  "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/69#issuecomment-7198044825",
+  "createdAt": "2026-11-26T16:44:55Z",
+  "author": "howardreith",
+  "body": "Superseded: by owner authorization of 2026-11-26 (item 6), the integration and 0.2.16-alpha.2 release work continues through PR #62's existing enrollment. PR #62's branch was fast-forwarded to this PR's head ce89fe48 (no rewrite), so every commit here is carried by #62. This PR's agent-review enrollment was cancelled through the controller (it spent no review). Branch and discussion are kept."
+ }
+}

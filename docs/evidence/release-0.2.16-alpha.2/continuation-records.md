@@ -6,9 +6,12 @@ replaced as in `INDEX.md`). The owner's authorization of 2026-11-26 is the contr
 ## 1. Earlier automatic permission-review rejection (retrieved, not re-executed)
 
 From the Claude Code session transcript, tool use at 2026-11-26T13:27:27.068Z; preserved in the owner's mission folder as
-`<fleet>/release-20261126/kmc-permission-rejection-20261126T132727Z.md`. Command, verbatim:
+`<fleet>/release-20261126/kmc-permission-rejection-20261126T132727Z.md`. The complete tool call (command string,
+description, timeout) and the complete classifier response are in `permission-denial-20261126T132727Z.json` (transcript
+lines 31704-31705). Command, verbatim (the line below was shortened at its end in the first version of this record):
 
-    E=kmc-codex-umm-0311-baseline-20261123-20261123223744-7586; python agent_review.py status --enrollment $E 2>&1 | python -c "import json,sys;r=json.load(sys.stdin);print(r['status'],r['phase'],r['round_limit'],r['lock_holder'],r['pending_publications'])"; timeout 900 python agent_review.py resume --enrollment $E --reason "Owner authorization 2026-11-26 (release and resume): integrate PR #62 with current main and publish 0.2.16-alpha.2 as an alpha prerelease; up to three review submissions for this integration/release work (rounds 11-13); the 10/10 correction record and acceptance are preserved" --amend-mission <fleet>/owner-authorization-20261126-release-and-resume.md > /c/Dev/missions/kingmaker-umm-0311/release-20261126/kmc-amend.json 2>&1; echo exit=$?; (python summary of kmc-amend.json)
+    E=kmc-codex-umm-0311-baseline-20261123-20261123223744-7586; python agent_review.py status --enrollment $E 2>&1 | python -c "import json,sys;r=json.load(sys.stdin);print(r['status'],r['phase'],r['round_limit'],r['lock_holder'],r['pending_publications'])"; timeout 900 python agent_review.py resume --enrollment $E --reason "Owner authorization 2026-11-26 (release and resume): integrate PR #62 with current main and publish 0.2.16-alpha.2 as an alpha prerelease; up to three review submissions for this integration/release work (rounds 11-13); the 10/10 correction record and acceptance are preserved" --amend-mission <fleet>/owner-authorization-20261126-release-and-resume.md > <fleet>/release-20261126/kmc-amend.json 2>&1; echo exit=$?; python -c "
+    import json;r=json.load(open(r'<fleet>\release-20261126\kmc-amend.json',encoding='utf-8'));print(r.get('status'),'|',(r.get('status_reason') or '')[:300]);t=r.get('effective_task') or {};a=t.get('amendments') or {};print({k:a.get(k) for k in ('revision','sha256','report_citation')});print('parts',len(a.get('parts') or []))" 2>&1 || tail -20 <fleet>/release-20261126/kmc-amend.json
 
 Stated reason, verbatim:
 
@@ -49,4 +52,6 @@ The effective task then reports owner amendments revision 2, sha256
     rounds_completed: {}; pending_publications: []
 
 PR #69 was closed with a superseded comment at 2026-11-26T16:44:56Z (state CLOSED, still draft, head `ce89fe48`); its
-branch `codex/umm-0311-integration-20261126` and discussion are kept.
+branch `codex/umm-0311-integration-20261126` and discussion are kept. GitHub's read-only view of the PR is in
+`pr69-closure.json` (state CLOSED, closedAt 2026-11-26T16:44:56Z); the supersession comment naming #62 is
+https://github.com/howardreith/KingmakerMountedCombat/pull/69#issuecomment-7198044825 (2026-11-26T16:44:55Z).
