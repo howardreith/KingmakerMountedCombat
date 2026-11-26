@@ -1,0 +1,32 @@
+== C:/Dev/KingmakerMountedCombatLab/worktrees/mmr-horse-bite/docs/missions/mmr-split/evidence/PR-5-extraction-run-b1c82f31.log
+TOTAL PASS=1534 FAIL=0
+TOTAL PASS=153 FAIL=0
+Mounted alpha 2 native contract (bite) PASS=3 FAIL=0
+Mounted alpha 2 bite contract PASS=28 FAIL=0
+MOUNTED PRESENTATION CONTRACTS PASS=239 FAIL=0; detached, not native gameplay or visual evidence
+Mounted Shield native contract PASS=114 FAIL=0 
+TOTAL PASS=68 FAIL=0
+Mounted Archery feat contract PASS=54 FAIL=0 
+TOTAL PASS=183 FAIL=0
+REPLAY SUBSCRIBER CONTRACT PASS=29 FAIL=0 UNASSESSED=0; compiled metadata on the detached EventBus, not native
+FROZEN PRODUCT SOURCE PASS=23 FAIL=0; disposable fixture retained at C:\Dev\KingmakerMountedCombatLab\worktree
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+MMR-HORSE-BITE FOCUSED PASS (14 of 14 children)
+TIER FAST PASS=4 FAIL=0 (1.25 min; offline verification only, no native qualification)
+== C:/Dev/KingmakerMountedCombatLab/analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/pr5/r1f9-verify/run.log
+TOTAL PASS=1534 FAIL=0
+TOTAL PASS=153 FAIL=0
+Mounted alpha 2 native contract (bite) PASS=3 FAIL=0
+Mounted alpha 2 bite contract PASS=28 FAIL=0
+MOUNTED PRESENTATION CONTRACTS PASS=239 FAIL=0; detached, not native gameplay or visual evidence
+Mounted Shield native contract PASS=114 FAIL=0 
+TOTAL PASS=68 FAIL=0
+Mounted Archery feat contract PASS=54 FAIL=0 
+TOTAL PASS=183 FAIL=0
+REPLAY SUBSCRIBER CONTRACT PASS=29 FAIL=0 UNASSESSED=0; compiled metadata on the detached EventBus, not native
+FROZEN PRODUCT SOURCE PASS=23 FAIL=0; disposable fixture retained at C:\Dev\KingmakerMountedCombatLab\worktree
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+MMR-HORSE-BITE FOCUSED PASS (14 of 14 children)
+TIER FAST PASS=4 FAIL=0 (1.48 min; offline verification only, no native qualification)

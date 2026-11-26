@@ -1,0 +1,50 @@
+PASS built product present: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-bite\bin\Release\KingmakerMountedCombat.dll
+PASS genuine stock Bite handle of the Horse manager is adopted, not replaced
+PASS the same genuine handle is recorded exactly once
+PASS a later genuine stock handle of the same action refreshes the record
+PASS a later handle playing a different Bite action is refused; the record keeps the first
+PASS PR-5 R1-F1: a later handle playing the Hoof action is never taken for the Bite
+PASS a genuine handle from another animation manager is refused
+PASS no adoption without a live Horse manager
+PASS a Bite action outside the Horse action set is refused
+PASS PR-5 R1-F1: a hoof with and without a stock handle, a Hoof handle and an untyped weapon with only a Hoof candidate leave zero Bite records, creations and assignments
+PASS a missing stock handle gets exactly one handle of the single Bite action, assigned and recorded as kmc-supplied
+PASS the supplied handle is not supplied again
+PASS R4-F7: adopted, then a strike without a handle: no fallback, one record
+PASS PR-5 R1-F7: repeated missing-handle callbacks of one command report once (the flag is the command's, set through the boundary)
+PASS R4-F7: supplied, then a strike without a handle: no second fallback or record (a different command reports on its own)
+PASS R4-F7: a later hoof strike without a handle after a recorded bite is left untouched
+PASS two Bite actions: the fallback assigns nothing
+PASS PR-5 R1-F1/R2-F1: the Bite is the registered Horse body's first-limb weapon in the Horse's first runtime limb slot, also with SpecialAnimation None; hooves in limb1/limb2, a hoof weapon in limb0, an unrelated untyped weapon, a foreign slot and missing parts are not
+PASS PR-5 R2-F1: the registered Bite with SpecialAnimation None, no stock handle and one genuine Bite action gets exactly one supplied handle and a Bite observation
+PASS PR-5 R2-F1: only a Hoof candidate, or an unrelated untyped weapon in the Bite slot, writes nothing
+PASS reader source states a genuine handle's started/acted/interrupted, speedScale and variant
+PASS reader source reports no active animation for a handle that never played
+PASS reader source without a planned attack reports no handle (handle=none)
+PASS PR-5 R1-F5: reader source without a planned hand reports slot=none (the slot is resolved by HorseStrikeDiagnostic.Slot against the Horse body)
+PASS the CreateAnimationHandleForAttack postfix reaches MountedAnimationAdapter.SupplyExactHorsePrimaryAnimation
+PASS SupplyExactHorsePrimaryAnimation calls the Horse adapter's SupplyExact
+PASS PR-5 R1-F2: SupplyExact only calls HorseStrikeHandleBinding.SupplyContained (SupplyContained)
+PASS PR-5 R1-F2: SupplyContained runs build, Bind and report in one catch (Exception) and the fault report in a second catch (Exception) inside its handler (a throwing logger is absorbed)
+PASS PR-5 R1-F7: the adapter holds no command reference; the report-once flag is the command's ()
+PASS AttackHandInfo.CreateAnimationHandleForAttack is patched with AttackAnimationPostfix
+PASS MountedPairAttackCommand overrides OnAction above the native UnitAttack chain
+PASS OnAction calls ObserveHorseStrike exactly once
+PASS OnAction calls its base OnAction exactly once (native attack event and damage count unchanged)
+PASS ObserveHorseStrike reads through HorseStrikeReader
+PASS PR-5 R2-F2: ObserveHorseStrike hands the plan read, limb proof and strike line to HorseStrikeObservationStep.Observe (one call) and never reads PlannedAttack itself; OnAction swallows nothing
+PASS PR-5 R1-F4/R2-F2: ObserveHorseStrike classifies through IsHorseBiteSlot (a hoof never is a Bite) and its observation step records Observe or ObserveUnreadable
+PASS PR-5 R1-F4: the terminal horseBite fields come from HorseBiteTerminal.Describe over the observation
+  R2-F5 metadata fault: precondition passed=True; fault=System.Security.SecurityException: ECall methods must be packaged into a system module.; first engine call=get_name at IL 74; first record write at IL 68
+Mounted alpha 2 bite contract: PR-5 R1-F3/R2-F5: past the production precondition (a live-pointer action), the 
+metadata read (UnityEngine.Object.name) fails and RecordHorsePrimaryAnimation publishes no handle, action, source, 
+name or type
+At C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-bite\scripts\Test-MountedAlpha2BiteContract.ps1:27 char:67
++ ... t $Value) { throw ('Mounted alpha 2 bite contract: ' + $Label) }; $sc ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Mounted alpha 2...e, name or type:String) [], RuntimeException
+    + FullyQualifiedErrorId : Mounted alpha 2 bite contract: PR-5 R1-F3/R2-F5: past the production precondition (a liv 
+   e-pointer action), the metadata read (UnityEngine.Object.name) fails and RecordHorsePrimaryAnimation publishes no   
+  handle, action, source, name or type
+ 
+METERED PR-5 R2-F5 mutation demonstration: bite contract on the mutated build 1.0 s | get mounted-alpha2-melee-pose-20261124: spent 110.12 of 150 min; remaining 39.88 min; entries 134 (running 0, interrupted 0, unreconciled 0) 

@@ -21,3 +21,6 @@ worktree was returned to `codex/mmr-horse-bite` afterwards.
 
 The mission text says the run was "at the extraction commit"; precisely, it was on the tree that became that commit 42 seconds later,
 as the identical product shows.
+
+**Later verification (2026-11-26, owner-authorized).** A separately metered run of the same command on the committed `b1c82f31`, in an isolated
+worktree, is recorded with its own date and identity in `PR-5-b1c82f31-verification-2026-11-26.md`. The log above is unchanged.
