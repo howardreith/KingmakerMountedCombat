@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 # Focused selection for PR-3 MMR-01 (Horse seating lifecycle) (child of the Mounted Melee Repair decomposition; see the mission under
 # docs/missions/mmr-split/). It declares exactly these checks and nothing broader (docs/VALIDATION-POLICY.md 3):
 #   1. Test-MmrHorseSeatNativeContract.ps1: the compiled profile-to-adapter seat path, and the installed members behind the
@@ -31,12 +31,18 @@ $children=@(
     @('Test-UmmBuildReference.ps1'),@('Test-Chunk7NativeLoaderContracts.ps1'),@('Test-FrozenProductSource.ps1'),
     @('Test-UmmLoaderContracts.ps1','-Reference',$reference,'-Profile','umm-0.31.1','-IgnoreLocalProfile'),
     @('Test-UmmLoaderContracts.ps1','-Profile','umm-0.33.0','-IgnoreLocalProfile'))
+# The tier's Configuration reaches every child that declares one (the rule Test-Tiers applies to this wrapper); the forwarding is
+# printed per child.
+Write-Host ('MMR-HORSE-SEAT CONFIGURATION '+$Configuration)
 foreach($child in $children){
     $label=($child -join ' ')
-    Write-Host ('MMR-HORSE-SEAT CHILD '+$label)
-    $arguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot $child[0]))+@($child | Select-Object -Skip 1)
+    $path=Join-Path $PSScriptRoot $child[0]
+    $arguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$path)+@($child | Select-Object -Skip 1)
+    $forwarded=(Get-Command $path).Parameters.ContainsKey('Configuration')
+    if($forwarded){$arguments+=@('-Configuration',$Configuration)}
+    Write-Host ('MMR-HORSE-SEAT CHILD '+$label+$(if($forwarded){' (-Configuration '+$Configuration+')'}else{''}))
     & powershell.exe @arguments
     if($LASTEXITCODE -ne 0){$failed.Add($label)}
 }
-if($failed.Count -ne 0){Write-Host ('MMR-HORSE-SEAT FOCUSED FAIL: '+($failed -join ', '));exit 1}
-Write-Host ('MMR-HORSE-SEAT FOCUSED PASS ('+$children.Count+' of '+$children.Count+' children)')
+if($failed.Count -ne 0){Write-Host ('MMR-HORSE-SEAT FOCUSED FAIL: '+($failed -join ', ')+' nativeProof=false');exit 1}
+Write-Host ('MMR-HORSE-SEAT FOCUSED PASS ('+$children.Count+' of '+$children.Count+' children) nativeProof=false')

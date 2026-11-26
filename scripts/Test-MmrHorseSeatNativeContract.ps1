@@ -125,4 +125,4 @@ $rest = $adapterType.GetMethod('SeatRestEligible', [Reflection.BindingFlags]'Ins
 $animationBase = GameType 'Kingmaker.Visual.Animation.AnimationBase'
 Check ((CallsResolved $rest $canIdle) -and (CallsResolved $rest ($animationBase.GetMethod('GetWeight', [Type[]]@()))) -and (CallsResolved $rest ($handleType.GetProperty('IsReleased').GetGetMethod()))) 'MMR-01 (R7-F2/F3): the adapter''s rest eligibility is native CanRunIdleAction plus no released action still blending out'
 Check ((CallsResolved $advance ($animatorType.GetProperty('cullingMode').GetGetMethod())) -and (CallsResolved $advance ($graphType.GetMethod('IsPlaying'))) -and (CallsResolved $advance ($graphType.GetMethod('IsValid')))) 'MMR-01 (R5-F4): the adapter''s fresh-evaluation gate reads the Animator culling mode and the native graph''s IsValid/IsPlaying'
-Write-Host ('Mounted alpha 2 native contract (seat) PASS=' + $script:passed + ' FAIL=0')
+Write-Host ('Mounted alpha 2 native contract (seat) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
