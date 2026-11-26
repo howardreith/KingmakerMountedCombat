@@ -105,6 +105,12 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 10 (2026-11-26, scope freeze)
+
+- **Positive receipt bound only.** The Full `-SkipBuild` receipt lower bound applies only to a strictly positive recorded
+  receipt-check duration. A zero-second record leaves the estimate unknown (null), so an interrupted run that measured
+  nothing still requires explicit reconciliation; positive fractional durations keep their ceiling. Nothing else changed.
+
 ## Review round 9 (2026-11-26, scope freeze)
 
 - **Receipt lower bound for a first Full reuse run.** When a Full `-SkipBuild` run has no inclusive Full duration recorded
