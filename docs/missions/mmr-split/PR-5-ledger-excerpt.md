@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T13:47:57+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T17:06:44+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -84,6 +84,26 @@ SHA-256 `8eaf8e2f0f9030f1e9e4af60a9df97f672369d09f3c754ea0dc0b55d2ee2d1fa`
 ```
 SHA-256 `1d576f12f88c6b4d2842d99dd2e1febdb1d5131eb0b621ef7e838dd119044984`
 
+```json
+{"budget": "budget record read at 2026-11-26T14:05:42Z: budget mounted-alpha2-melee-pose-20261124: spent 115.22 of 150 min; remaining 34.78 min; entries 148 (running 0, interrupted 0, unreconciled 0)", "candidate": "4242dd3e7bc259e610f54f9975e7d3a2a955841e", "child_rounds": "4 of 4", "controller_status": "BLOCKED: no progress: R2-F2 open for 3 consecutive reviews; also round 4 of 4 (preserved; not resumed)", "decision": "changes_required", "kind": "review_result", "open_blocking": ["R2-F2 (missing first-limb entry still preserves a stale Bite)", "R3-F2 (missing current Mount Primary proof fields treated as historical)", "R3-F6 (replacement harness predicates still test spelling)", "R4-F1 P1 (an inherited case selector can make the full harness pass with zero or one test)", "R4-F2 (schema-8 reader rejects a valid supplied Bite after a stock refresh)", "R4-F3 (Horse registration rollback leaves the Bite GUID published)"], "pr": "PR-5", "prev_sha256": "1d576f12f88c6b4d2842d99dd2e1febdb1d5131eb0b621ef7e838dd119044984", "program_rounds": "24 of 33 lifetime (17 of 26 allocated child reviews)", "round": 4, "seq": 58, "utc": "2026-11-26T14:05:43+00:00"}
+```
+SHA-256 `c8e2555bce043d06b05bdf08e7856d8d68b51808de0d6c2c98165faa84244786`
+
+```json
+{"budget": "budget record read before this entry: budget mounted-alpha2-melee-pose-20261124: spent 121.44 of 150 min; remaining 28.57 min; entries 168 (running 0, interrupted 0, unreconciled 0)", "instruction": "owner-continuations/owner-continuation-2026-11-26c-continuation.md", "kind": "owner_decision", "prev_sha256": "d66eb124e73c85b5c939da75ecc16a8b1d48c85205e1e65c444ad69835395def", "seq": 65, "sha256": "cc5331e350c1b846ba798f34fc9b1d72cc274c07e3188ff6248117f9f04d3242", "summary": "PR-3 accepted for integration (H 8bfe701d, A 54311f1d); total caps PR-1 10, PR-2 3, PR-3 5 (unchanged), PR-4 5, PR-5 6, PR-6 2; program 31 child / 38 lifetime reviews (incl. 7 on PR #64); budget unchanged at 150 min; order #65 -> #67 -> #66 -> PR-2 -> PR-6; activate each child only when selected; a later stop is preserved and not repeatedly resumed", "utc": "2026-11-26T16:16:56+00:00"}
+```
+SHA-256 `d5c74ba8df5f472f99ea56ee7e899bde48461b715d627eada87598c1e3d850b5`
+
+```json
+{"after": "ACTIVE, 4 of 6", "authority": "owner instruction 2026-11-26c section 2 (docs/missions/mmr-split/owner-authorization-2026-11-26c.md)", "before": "BLOCKED (no progress: R2-F2; cap 4/4)", "enrollment": "kmc-codex-mmr-horse-bite-20261125221703-5f10", "kind": "resume", "operation": "agent_review.py resume --max-rounds 6", "pr": "PR-5", "prev_sha256": "9ca96d91b3ea55253197bc4fe4f541243922e507bbe7eea01cb9aac77b2f332f", "records": "decomposition/status/pr5-pre-resume-2-status.json, pr5-resume-2.out, pr5-post-resume-2-status.json", "seq": 73, "utc": "2026-11-26T17:06:44+00:00"}
+```
+SHA-256 `14aaef0f34324b09830aab13b1c185f7e23f4c2baaefad127205c7da348a5d07`
+
+```json
+{"budget": "budget record read at 2026-11-26T17:06:44Z (before this entry): budget mounted-alpha2-melee-pose-20261124: spent 128.94 of 150 min; remaining 21.05 min; entries 192 (running 0, interrupted 0, unreconciled 0)", "candidate": "the commit on codex/mmr-horse-bite that regenerates docs/missions/mmr-split/PR-5-ledger-excerpt.md with this entry", "child_rounds": "4 of 6 used", "kind": "pre_review_check", "pr": "PR-5", "prev_sha256": "14aaef0f34324b09830aab13b1c185f7e23f4c2baaefad127205c7da348a5d07", "program_rounds": "28 of 38 lifetime (21 of 31 allocated child reviews)", "round": 5, "seq": 74, "utc": "2026-11-26T17:06:44+00:00"}
+```
+SHA-256 `618d20ac683dca085cbf065a6e93ccf8ce72627d5c9d44a869c4c3fafb884514`
+
 Applicable limits: seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`). It raised the shared validation allowance from 90 to 150 minutes
 (budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and set the program to 18 allocated child reviews / 25 lifetime;
@@ -93,4 +113,5 @@ for the numbers). Seq 22 is the round-1 check; seq 23 corrects its budget figure
 in the final handoff (from blocks_readiness); seq 43 is the owner extension of 2026-11-26 (`docs/missions/mmr-split/owner-authorization-2026-11-26b.md`):
 PR-5 total ceiling 4, program 26 child / 33 lifetime reviews, validation unchanged at 150 minutes. Seq 52 is the resume to a ceiling
 of 4, seq 53 the authorized R1-F9 verification on b1c82f31, seq 54 the R2-F5 evidence runs, seq 55 the round-3 check and seq 56
-the round-3 result; the last entry is the round-4 check for the candidate that adds this version.
+the round-3 result, seq 57 the round-4 check, seq 58 the round-4 result; seq 65 records owner instruction 2026-11-26c (total cap 6),
+seq 73 the resume to 6 and the last entry is the round-5 check for the candidate that adds this version.
