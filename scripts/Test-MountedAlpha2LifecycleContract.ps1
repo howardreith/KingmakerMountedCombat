@@ -268,10 +268,28 @@ $tickApproach = @(Method $pair 'TickApproach')[0]
 Check ((FirstOffset $tickApproach (@(Method $pair 'EndIfMovementForbiddenAtApproach')[0])) -gt (FirstOffset $tickApproach (@(Method $singleType 'EvaluateCurrentNativeAdmission')[0]))) 'PR-1 R3-F3: movement revocation is applied only after the current strike admission is evaluated'
 Check ((Calls (@(Method $pair 'TryRiderSightGoal')[0]) (@(Method $pair 'NearFailedSightGoal')[0])) -eq 1 -and (Calls $tickApproach ($pair.GetField('failedSightGoals', $any))) -ge 1 -and (Calls (@(Method $pair 'NewApproachMove')[0]) ($pair.GetField('currentSightGoal', $any))) -ge 1) 'PR-1 R1-F7: sight goals needing no movement are skipped; a goal reached without admission is excluded with bounded alternatives'
 # PR-1 round 7 (R1-F11, R6-F1, R6-F2): compiled wiring of the source corrections.
-$observeRun = @(Method $controller 'ObserveClickRun')[0]
-$beginClick = @(Method $controller 'BeginClickObservation')[0]
-$enumerableContains = @(Refs $beginClick | Where-Object { $null -ne $_.Member -and $_.Member.Name -ceq 'Contains' })
-Check ($null -ne $observeRun -and (Calls (@(Method $patches 'UnitCommandRunPrefix')[0]) $observeRun) -eq 1 -and $enumerableContains.Count -eq 0) 'PR-1 R1-F11: the UnitCommands.Run prefix reports each Run to ObserveClickRun; the click bracket no longer infers a write from selection'
+# R1-F11 (round 8): the click's own ManualTarget assignment is observed at its installed call site.
+function TranspilerNames([Reflection.MethodBase]$Method) { $il = $Method.GetMethodBody().GetILAsByteArray(); $names = @(); for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x72) { try { $names += $Method.Module.ResolveString([BitConverter]::ToInt32($il, $i + 1)) } catch { } } }; , $names }
+$clickHook = @(Method $patches 'ClickManualTargetAssignment')[0]
+$clickTranspiler = @(Method $patches 'ClickAssignmentTranspiler')[0]
+$observeAssignment = @(Method $controller 'ObserveClickTargetAssignment')[0]
+$installedOnClick = $game.GetType('Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler', $true).GetMethod('OnClick', $any)
+$manualSetter = $game.GetType('Kingmaker.Controllers.Combat.UnitCombatState', $true).GetProperty('ManualTarget').GetSetMethod()
+$onClickIl = $installedOnClick.GetMethodBody().GetILAsByteArray(); $setterSites = 0
+for ($i = 0; $i -le $onClickIl.Length - 5; $i++) { if ($onClickIl[$i] -eq 0x6F -or $onClickIl[$i] -eq 0x28) { try { if ($installedOnClick.Module.ResolveMethod([BitConverter]::ToInt32($onClickIl, $i + 1)) -eq $manualSetter) { $setterSites++ } } catch { } } }
+$hookParameters = @($clickHook.GetParameters() | ForEach-Object { $_.ParameterType.FullName })
+$runPrefixObserves = @(Refs (@(Method $patches 'UnitCommandRunPrefix')[0]) | Where-Object { $null -ne $_.Member -and $_.Member.Name -like 'ObserveClick*' }).Count
+Check ($installedOnClick.MetadataToken -eq 0x060093ED -and $setterSites -eq 1 -and $null -ne $clickTranspiler -and $null -ne $observeAssignment -and
+    ($hookParameters -join ',') -ceq 'Kingmaker.Controllers.Combat.UnitCombatState,Kingmaker.EntitySystem.Entities.UnitEntityData' -and $clickHook.ReturnType -eq [void] -and
+    (Calls $clickHook $manualSetter) -eq 1 -and (Calls $clickHook $observeAssignment) -eq 1 -and $runPrefixObserves -eq 0 -and
+    (TranspilerNames $clickTranspiler) -contains 'ClickManualTargetAssignment' -and (TranspilerNames $clickTranspiler) -contains 'ManualTarget') 'PR-1 R1-F11: installed ClickUnitHandler.OnClick has exactly one ManualTarget assignment site; the transpiler replaces it with ClickManualTargetAssignment (same stack: combat state, target), which performs the native assignment and reports it to ObserveClickTargetAssignment; no Run is taken as an assignment'
+$unperceived = @(Method $controller 'RetireAutomaticIntentIfUnperceived')[0]
+Check ((Calls $unperceived (@(Method $pair 'TargetInvalidNow')[0])) -eq 1 -and (Calls $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -eq 1 -and
+    (FirstOffset $unperceived (@(Method $controller 'RetireOrderOnTargetInvalidation')[0])) -lt (FirstOffset $unperceived (@(Method $controller 'ClearStockAttackIntent')[0]))) 'PR-1 R6-F1 (round 8): a perception loss that coincides with target invalidation is retired as target invalidation first, the wrapper''s own precedence'
+$tie = @(Method $controller 'ResolveEqualRankTie')[0]
+$hasLos = @($game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetMethods($any) | Where-Object { $_.Name -ceq 'HasLOS' -and $_.GetParameters().Count -eq 1 })[0]
+$aiForbidden = $game.GetType('Kingmaker.EntitySystem.Entities.UnitEntityData', $true).GetProperty('AiMovementForbidden', $any).GetGetMethod($true)
+Check ((Calls $tie $hasLos) -eq 1 -and (Calls $tie $aiForbidden) -eq 1 -and (Calls $tie (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1) 'PR-1 R7-F2: the tie-break keeps native sight (rider.HasLOS when the rider is held or the candidate unreachable) and adds the stationary mounted strike under restricted pair travel'
 $retireInvalid = @(Method $controller 'RetireOrderOnTargetInvalidation')[0]
 $recordInvalid = @(Method $pair 'RecordTargetInvalidation')[0]
 $retireWrapper = @(Method $controller 'RetireOrderWrapper')[0]

@@ -123,11 +123,17 @@ namespace KingmakerMountedCombat.Domain
             bool riderMeleeProposal)
         {
             if (!riderMeleeProposal || ranked == null || proposed == null) return proposed;
-            var found = false; var weight = 0f; var bestDistance = 0f;
+            var found = false; var weight = 0f; var proposedDistance = 0f; var proposedEligible = false;
             foreach (var candidate in ranked)
-                if (ReferenceEquals(candidate.Unit, proposed)) { found = true; weight = candidate.Weight; bestDistance = candidate.Distance; break; }
+                if (ReferenceEquals(candidate.Unit, proposed))
+                {
+                    found = true; weight = candidate.Weight; proposedDistance = candidate.Distance; proposedEligible = candidate.Eligible; break;
+                }
             if (!found || ReferenceEquals(currentOrderTarget, proposed)) return proposed;
+            // PR-1 review R7-F1: the proposal is the distance to beat only when it is itself eligible; an ineligible proposal yields to the
+            // nearest eligible equal-ranked candidate, however far (if none is eligible the proposal is returned and refused as before).
             var best = proposed;
+            var bestDistance = proposedEligible ? proposedDistance : float.PositiveInfinity;
             foreach (var candidate in ranked)
             {
                 if (candidate.Unit == null || !SameRank(candidate.Weight, weight, currentOrderTarget) || ReferenceEquals(candidate.Unit, proposed) ||

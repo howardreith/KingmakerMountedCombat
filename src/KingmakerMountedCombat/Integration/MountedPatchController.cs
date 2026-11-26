@@ -126,7 +126,7 @@ namespace KingmakerMountedCombat.Integration
                 // bracketed so that assignment is attributed (observation only; native behavior unchanged).
                 PatchExact(typeof(Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler), "OnClick", 0x060093ED,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
-                    nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix));
+                    nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix), nameof(PatchMethods.ClickAssignmentTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
                 // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
@@ -950,6 +950,34 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click was not observed", error); }
             }
 
+            // PR-1 review R1-F11 (round 8): installed ClickUnitHandler.OnClick has exactly one call to UnitCombatState.set_ManualTarget (IL_0363,
+            // after each non-skipped unit's Run). It is replaced by ClickManualTargetAssignment (same stack: the unit's combat state, the clicked
+            // unit), which performs the identical native assignment and reports it. Any other count leaves OnClick unchanged (no assignment is
+            // then observed, so no ownership transfers) and is reported.
+            internal static IEnumerable<CodeInstruction> ClickAssignmentTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var code = instructions.ToList();
+                var setter = typeof(UnitCombatState).GetProperty(nameof(UnitCombatState.ManualTarget))?.GetSetMethod(true);
+                var hook = AccessTools.Method(typeof(PatchMethods), nameof(ClickManualTargetAssignment));
+                var sites = code.Where(instruction => (instruction.opcode == OpCodes.Callvirt || instruction.opcode == OpCodes.Call) &&
+                    Equals(instruction.operand, setter)).ToList();
+                if (sites.Count != 1 || hook == null)
+                {
+                    PatchBridge.Logger?.Error("Manual-target click assignment site not found exactly once (" + sites.Count + "); click ownership is not transferred.");
+                    return code;
+                }
+                sites[0].opcode = OpCodes.Call;
+                sites[0].operand = hook;
+                return code;
+            }
+
+            internal static void ClickManualTargetAssignment(UnitCombatState combatState, UnitEntityData target)
+            {
+                combatState.ManualTarget = target;   // the native assignment, unchanged
+                try { foreach (var combat in ClickControllers()) combat.ObserveClickTargetAssignment(combatState, target); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click assignment was not observed", error); }
+            }
+
             private static IEnumerable<MountedCombatController> ClickControllers()
             {
                 var pairs = PatchBridge.Pairs;
@@ -1259,9 +1287,6 @@ namespace KingmakerMountedCombat.Integration
                 // Bind a same-frame native hostile click to the exact command its own Run carries,
                 // before any refusal below, so no later command can borrow or erase that click.
                 PatchBridge.CombatFor(__instance)?.BindObservedStockRequest(__instance, cmd);
-                // PR-1 review R1-F11 (round 7): inside a click bracket, the click's own Run for this pair's actor (installed OnClick
-                // assigns that actor's ManualTarget right after it); a skipped actor has no Run.
-                PatchBridge.CombatFor(__instance)?.ObserveClickRun(__instance);
                 if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
                 // While an owned archive worker can still commit, no unit -- owned pair
                 // or not -- may run or queue a command: the worker is serializing the

@@ -1149,11 +1149,11 @@ namespace KingmakerMountedCombat.Integration
         // an actor that was selected at the click can have been assigned by it.
         // PR-1 review R1-F11 (round 6): a simulated click (prediction or pointer simulation) runs no player assignment and is not bracketed;
         // an unhandled click assigned nothing.
-        // PR-1 review R1-F11 (round 7): installed ClickUnitHandler.OnClick (0x060093ED, IL_01D3..IL_036F) visits each selected unit and
-        // either skips it (IL_0207 to MoveNext) or calls unit.Commands.Run(command) (IL_0341) and then assigns
-        // unit.CombatState.ManualTarget = clicked (IL_0363). Selection and the handled result therefore do not prove a write to this
-        // actor; the click's own Run for this actor does. The UnitCommands.Run prefix reports each Run (ObserveClickRun) while the
-        // bracket is open, and only an actor so reported received the click's assignment.
+        // PR-1 review R1-F11 (round 8): installed ClickUnitHandler.OnClick (0x060093ED) assigns unit.CombatState.ManualTarget = clicked at one
+        // call site (IL_0363) for each selected unit its loop does not skip. That call site itself is observed: the OnClick transpiler
+        // (PatchMethods.ClickAssignmentTranspiler) replaces it with PatchMethods.ClickManualTargetAssignment, which performs the same
+        // assignment and reports the assigned combat state and target (ObserveClickTargetAssignment). Selection, a handled result, an
+        // unchanged value or any other Run on the actor prove nothing; only this assignment to this actor transfers ownership.
         internal void BeginClickObservation(IEnumerable<UnitEntityData> selected, bool simulated)
         {
             if (disposed || simulated) { activeClick = -1; return; }
@@ -1162,13 +1162,12 @@ namespace KingmakerMountedCombat.Integration
             mountCommandedByClick = false;
         }
 
-        // Called by the UnitCommands.Run prefix for every Run on this pair's actors; inside an open click bracket it records that the
-        // click's loop reached this actor's Run, which the installed handler follows with the actor's ManualTarget assignment.
-        internal void ObserveClickRun(UnitCommands commands)
+        // The click's own ManualTarget assignment (from the transpiled OnClick call site) inside the open bracket.
+        internal void ObserveClickTargetAssignment(Kingmaker.Controllers.Combat.UnitCombatState combatState, UnitEntityData target)
         {
-            if (disposed || activeClick < 0 || commands == null) return;
-            if (relationship.Rider != null && ReferenceEquals(relationship.Rider.Commands, commands)) riderCommandedByClick = true;
-            if (relationship.Mount != null && ReferenceEquals(relationship.Mount.Commands, commands)) mountCommandedByClick = true;
+            if (disposed || activeClick < 0 || combatState == null || target == null) return;
+            if (relationship.Rider != null && ReferenceEquals(relationship.Rider.CombatState, combatState)) riderCommandedByClick = true;
+            if (relationship.Mount != null && ReferenceEquals(relationship.Mount.CombatState, combatState)) mountCommandedByClick = true;
         }
 
         internal void EndClickObservation(UnitEntityData clicked, bool handled)
@@ -1565,10 +1564,14 @@ namespace KingmakerMountedCombat.Integration
             {
                 var unit = candidate.Unit;
                 var state = unit?.Descriptor?.State;
+                // PR-1 review R7-F2: native's own sight rule stays (rider.HasLOS where the rider's movement is forbidden or the candidate is
+                // marked unreachable: BlueprintAiAction.IsTargetValid), and restricted pair travel adds the stationary mounted-strike admission
+                // for a melee candidate (R6-F2).
+                var nativeSightRequired = rider.AiMovementForbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit);
                 var eligible = unit != null && state != null && state.IsConscious && !state.IsDead && rider.CanAttack(unit) &&
                     rider.CombatState?.AIData?.DislikedTarget != unit &&
-                    (!(forbidden || rider.CombatState.AIData.UnreachableUnits.Contains(unit)) ||
-                     (forbidden && melee ? StationaryStrikeAdmissible(unit) : rider.HasLOS(unit)));
+                    (!nativeSightRequired || rider.HasLOS(unit)) &&
+                    (!(forbidden && melee) || StationaryStrikeAdmissible(unit));
                 ranked.Add(new NativeRankedCandidate { Unit = unit, Weight = candidate.Weight, Distance = candidate.Distance, Eligible = eligible });
             }
             return NativeAttackTieBreak.Choose(ranked, proposed,
@@ -1879,6 +1882,15 @@ namespace KingmakerMountedCombat.Integration
             if (memory == null || memory.Contains(stockIntentTarget)) return false;
             var command = stockIntentCommand;
             if (command != null && command.StrikeReleased) return false;
+            // PR-1 review R6-F1 (round 8): a target that also became invalid is retired as target invalidation, the precedence the wrapper's
+            // own pre-start tick and OnStart give it, so either observer reports the same cause and reason.
+            if (command != null && !command.IsFinished && command.TargetInvalidNow())
+            {
+                RetireOrderOnTargetInvalidation();
+                AutomaticRetiredCount++;
+                LastAutomaticRetirement = "automatic target invalid and left perception";
+                return true;
+            }
             const string reason = "automatic target left perception";
             ClearStockAttackIntent(reason, true);
             AutomaticRetiredCount++;

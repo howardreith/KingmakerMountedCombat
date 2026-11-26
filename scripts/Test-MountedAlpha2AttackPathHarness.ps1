@@ -21,6 +21,7 @@ $commandPath=Join-Path $integration 'MountedPairAttackCommand.cs';$command=[IO.F
 $childPath=Join-Path $integration 'MountedPairSingleAttack.cs';$child=[IO.File]::ReadAllText($childPath)
 $patchPath=Join-Path $integration 'MountedPatchController.cs';$patch=[IO.File]::ReadAllText($patchPath)
 $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
+$terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
 $members=[ordered]@{
  'ADMISSION_ENUM'=(Extract $child 'internal enum MountedPairNativeAdmissionState')
@@ -94,6 +95,14 @@ $members=[ordered]@{
  'COMMAND_OPTIONAL_RANGED'=(Extract $command 'private static string DescribeOptionalRangedState(object weapon, params string[] terms)')
  'COMMAND_ADMIT_UNCONSCIOUS'=(Extract $command 'internal void AdmitTargetUnconsciousWhenOrdered()')
  'COMMAND_RECORD_NATIVE_TERMINAL'=(Extract $command 'internal void RecordNativeTerminal(MountedNativeTerminalBranch branch, MountedActorCapabilityBlock block)')
+ 'COMMAND_TARGET_INVALID_NOW'=(Extract $command 'internal bool TargetInvalidNow()')
+ 'COMMAND_CREATE_VALIDATE_CHILD'=(Extract $command 'private void CreateAndValidateChildAttack()')
+ 'CONTROLLER_EVALUATE_ACTOR'=(Extract $controller 'private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target)')
+ 'CLICK_ASSIGNMENT_HOOK'=(Extract $patch 'internal static void ClickManualTargetAssignment(UnitCombatState combatState, UnitEntityData target)')
+ 'TERMINAL_CAPTURE_CAN_ACT'=(ExtractExpression $terminalBranches 'internal static int CaptureCanAct(bool canAct) =>')
+ 'TERMINAL_TB_FORCE_FINISH'=(Extract $terminalBranches 'internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result, int canActObservation)')
+ 'TERMINAL_RUNNING_SITE'=(Extract $terminalBranches 'internal static void InterruptAtRunningSite(UnitCommand command, bool raiseEvent, int canActObservation)')
+ 'TERMINAL_RECORD'=(Extract $terminalBranches 'private static void Record(UnitCommand command, MountedNativeTerminalBranch branch)')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

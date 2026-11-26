@@ -234,6 +234,20 @@ namespace KingmakerMountedCombat.Tests
                 new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = true }
             };
             TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(manual, farther, null, true), farther), "A manual target was outranked.");
+            // PR-1 review R7-F1: an ineligible proposal is not the distance to beat; the farther eligible equal-ranked candidate wins;
+            // with both ineligible the proposal is returned (and refused by the proposal policy).
+            var proposedBlocked = new List<NativeRankedCandidate>
+            {
+                new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = false },
+                new NativeRankedCandidate { Unit = farther, Weight = 0f, Distance = 3f, Eligible = true }
+            };
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(proposedBlocked, nearer, null, true), farther), "R7-F1: an ineligible proposal kept a farther legal target from selection.");
+            var bothBlocked = new List<NativeRankedCandidate>
+            {
+                new NativeRankedCandidate { Unit = nearer, Weight = 0f, Distance = 1.5f, Eligible = false },
+                new NativeRankedCandidate { Unit = farther, Weight = 0f, Distance = 3f, Eligible = false }
+            };
+            TestRunner.True(ReferenceEquals(NativeAttackTieBreak.Choose(bothBlocked, nearer, null, true), nearer), "R7-F1: with no eligible candidate the proposal was not returned.");
             var ineligible = new List<NativeRankedCandidate>
             {
                 new NativeRankedCandidate { Unit = farther, Weight = 1f, Distance = 3f, Eligible = true },

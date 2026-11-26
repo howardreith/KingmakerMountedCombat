@@ -1377,12 +1377,21 @@ namespace KingmakerMountedCombat.Integration
             RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
         }
 
+        // PR-1 review R6-F1 (round 8): whether this command's target is no longer valid for it (its own invalidation test), for the controller
+        // to give a coinciding perception loss the same precedence.
+        internal bool TargetInvalidNow()
+        {
+            var inState = attackTarget != null && attackTarget.IsInState;
+            var hostile = inState && actionActor.IsEnemy(attackTarget);
+            return !(inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget));
+        }
+
         private bool TryEndExpectedTargetInvalidation()
         {
             var targetState = attackTarget?.Descriptor?.State;
             var inState = attackTarget != null && attackTarget.IsInState;
             var hostile = inState && actionActor.IsEnemy(attackTarget);
-            var targetValid = inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget);
+            var targetValid = !TargetInvalidNow();
             var decision = MountedTargetTerminationPolicy.Decide(
                 targetValid, inState, hostile,
                 childAttack != null && childAttack.IsActed && childAttack.LastAttackRule != null,
