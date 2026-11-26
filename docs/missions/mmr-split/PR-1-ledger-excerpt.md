@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T04:49:57+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-26T05:21:49+00:00.
 
 ```json
 {"branch": "codex/mmr-attack-orders", "enrollment": "kmc-codex-mmr-attack-orders-20261125103400-6cef", "extraction_commit": "95c26e59", "extraction_proof": "build clean; components 1539/0; Validate-Source 153/0; orders native contract 4/0; lifecycle contract 49/0; attack-path harness 16/0 (metered rerun after removing a PR-2 helper); whole-file identity of 6 owned files with 46444b30; shared-file residuals only PR-2/PR-5 pieces", "initial_push": "audited ordinary push (AGENTS.md; no project helper on main); receipt push-audits/codex_mmr-attack-orders-95c26e59-2026-11-25T153350+0000.json", "kind": "enrollment", "max_rounds": 3, "mission": "docs/missions/mmr-split/PR-1-attack-orders.md", "mission_commit": "f29a45e3", "pr": "PR-1", "pr_number": 65, "prev_sha256": "4ecc6180bebafa14b800701c0c0b66d2a6a255353a0ce6f517bb10c37081dd8a", "program_rounds": {"cap": 22, "child_allocated_so_far": 3, "spent_before": 7}, "seq": 7, "target": "main", "utc": "2026-11-25T15:34:13+00:00"}
@@ -49,8 +49,18 @@ SHA-256 `f13e6ebe116587958065b1d8cadf10dd257366f2f27517780adc5face37d73e0`
 ```
 SHA-256 `649732af9c13330552370c886b85393ae0977ae925f85d8c84296dcdd1b4c3a2`
 
+```json
+{"candidate": "e9ef7f6fc129ae242e89580b401bea4e7432abe8", "child_rounds": "4 of 6 used", "decision": "changes_required", "kind": "review_result", "open_findings": ["R3-F1", "R1-F11", "R2-F4", "R3-F4", "R3-F5", "R4-F1", "R4-F2", "R4-F3", "R4-F4", "R4-F5", "R4-F6"], "pr": "PR-1", "prev_sha256": "649732af9c13330552370c886b85393ae0977ae925f85d8c84296dcdd1b4c3a2", "program_rounds": "15 of 25 lifetime (8 of 18 allocated child reviews)", "round": 4, "seq": 30, "utc": "2026-11-26T05:07:46+00:00", "verified_fixed": ["R1-F3", "R1-F7", "R2-F1", "R2-F3", "R3-F2", "R3-F3"]}
+```
+SHA-256 `c64519c4e64866e42ef975a92e4534e3249c0800dfbc7cd1b6e456465863c0bf`
+
+```json
+{"applicable_limits": "owner instruction 2026-11-26 (seq 14): PR-1 ceiling 6, validation 150 min, program 18 allocated child reviews / 25 lifetime", "budget": "budget record read at 2026-11-26T05:21:36Z (before this entry): spent 90.88 of 150 min, remaining 59.12, 93 entries, 0 running/interrupted/unreconciled; the round-5 gate follows", "candidate": "the commit on codex/mmr-attack-orders whose parent is 125f8989 and which regenerates docs/missions/mmr-split/PR-1-ledger-excerpt.md with this entry", "child_rounds": "4 of 6 used (round 5 next)", "kind": "pre_review_check", "pr": "PR-1", "prev_sha256": "c64519c4e64866e42ef975a92e4534e3249c0800dfbc7cd1b6e456465863c0bf", "program_rounds": "15 of 25 lifetime (8 of 18 allocated child reviews)", "round": 5, "seq": 31, "utc": "2026-11-26T05:21:49+00:00"}
+```
+SHA-256 `e20446dd89e3e1e109b5bca68fc23b1e63cf9ad07d71400053b11214dbba47fa`
+
 Controller facts for cross-checking: the r01 request comment on PR #65 was created 2026-11-25T15:35:59Z (after seq 8);
 the r02 request followed gate receipt gate-focused-49b1c7b94e9a-d43d449b6c4-af2513083e1-20261125T164039504028Z (after seq 11).
 Seq 14 is the owner decision of 2026-11-26 (verbatim text committed as docs/missions/mmr-split/owner-authorization-2026-11-26.md):
 PR-1 ceiling 3 -> 6, validation 90 -> 150 minutes, program 18 allocated child reviews / 25 lifetime. Seq 28 records the resume
-by the supported controller operation with that ceiling; the last entry is the round-4 check for the candidate adding this version.
+by the supported controller operation with that ceiling; seq 30 is the round-4 result; the last entry is the round-5 check for the candidate adding this version.
