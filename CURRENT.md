@@ -22,7 +22,8 @@ PR #63's parallel fixes are reconciled here ([record](docs/UMM-0311-BASELINE.md#
   - Fast and Candidate check the receipt in their first admitted step (nothing is hashed before budget admission); Full
     checks it once, through `scripts/Test.ps1 -SkipBuild` inside its admitted umbrella step, and a direct
     `scripts/Test.ps1 -SkipBuild` checks it the same way before any runner starts. A Full run refused there is charged
-    to its budget entry, but a failed step never shortens the recorded Full-suite duration used for later admission. `-Plan` reports the receipt state, read-only, on
+    to its budget entry and leaves the recorded Full-suite duration as it was (an established duration, or unknown):
+    the Full duration is recorded only after a successful Full run. `-Plan` reports the receipt state, read-only, on
     both the reuse-check line and the artifact line.
 - `scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1`: the guarded native launcher. It checks that the measured owner
   profile (`umm-0.33.0`) is the installed loader before any admission, compares the installed UnityModManager and
@@ -70,7 +71,10 @@ included a commit). The four gate entries, including the failed round-4 gate, ar
 the round-5 evidence is `docs/evidence/umm-0311/workflow-budget-umm-0311-baseline-r5.json`; the round-4 copy keeps its
 original identity.
 
-**Offline checks.** Round 6 (counted in the budget): `Test-FrozenProductSource` 37/0 (committing
+**Offline checks.** Round 7 (counted in the budget): `Test-FrozenProductSource` 41/0 (a committed mixed-case
+`tools/directory.BUILD.Targets` rejects the archived observer and keeps main-only reuse; a mixed-case root
+`directory.BUILD.Props` requires another candidate) and `Test-TierSelection` 29/0 (the real receipt helper with a
+current Debug receipt). Round 6 (counted in the budget): `Test-FrozenProductSource` 37/0 (committing
 `tools/Directory.Build.targets` or `.props` rejects the archived observer and keeps main-only reuse; removing it restores
 the observer) and a step-history probe; `Test-PackageAdmissionAndReuse` runs in the controller gate. Round 5
 (`d5268152`, counted in the budget): `Test-BaseGameIsolation` 121/0 (owner-profile

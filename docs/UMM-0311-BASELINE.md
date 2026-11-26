@@ -105,12 +105,23 @@ Windows results on this branch (Kingmaker 2.1.7b managed assemblies, Visual Stud
 Not run: native game execution on any loader. The native harness targets the installed 0.33.0 identity; a native 0.31.1,
 0.32.4 or 0.33.4 run needs its own guarded environment and exact identities.
 
+## Review round 7 (2026-11-25, scope freeze)
+
+- **Windows filename semantics.** The archived comparisons match the inherited MSBuild files with case-insensitive exact
+  Git pathspecs (`:(icase)Directory.Build.props`, `:(icase)Directory.Build.targets`, and the `tools/` pair for the
+  observer), so a differently capitalized committed file is detected; main-only reuse still ignores the `tools/` pair.
+- **Full history.** The round-6 `-Failed` history switch is removed. `Test-Tiers.ps1` records the Full umbrella's
+  duration only after the umbrella succeeds; a refused or failed Full attempt only heartbeats and is charged through its
+  entry, so the Full duration stays established or unknown. The receipt is still checked once.
+- **Tier-selection fixture.** `Test-TierSelection.ps1` copies the real `LoaderInputStamp.ps1` (no tracing stub), creates
+  the Debug output placeholders and writes a current Debug receipt with the real receipt functions.
+
 ## Review round 6 (2026-11-25, scope freeze)
 
 - **Observer inputs.** The removal observer inherits `tools/Directory.Build.props` and `tools/Directory.Build.targets`.
   Both are local reuse-receipt inputs whether or not Git tracks them, and part of the archived observer comparison
   (`Assert-KmcFrozenProductManifest`); main-only reuse does not depend on them.
-- **Full duration after a refusal.** `Update-KmcWorkflowEntry -Failed` (used by `Test-Tiers.ps1` for a failed step) keeps
+- **Full duration after a refusal** (replaced in round 7). `Update-KmcWorkflowEntry -Failed` (used by `Test-Tiers.ps1` for a failed step) keeps
   a longer recorded step duration, so a Full run refused by the receipt before its runner is charged to its entry but
   does not replace the established Full-suite duration; a later admission with less remaining time is still refused.
   The receipt is still checked once.
