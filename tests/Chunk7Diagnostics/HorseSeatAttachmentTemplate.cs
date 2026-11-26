@@ -15,8 +15,10 @@ using UnityEngine.SceneManagement;
 // real Domain sources (ScopedTransformAttachmentLease, ScopedPoseBaselineLease, AnimatedSaddlePosition,
 // AnimatedSaddleCalibration with SettledSeatSampler, MountedRiderPoseProfile, PoseVector3) and the actual
 // SupportedMountedProfile settled-seat expression. Only Unity itself is a facade: the hierarchy semantics of AttachmentSlotRuntimeTemplate.cs plus
-// translation-only world positions. The one adapter member that is not actual is ApplyPose (its pelvis profile offsets and
-// leg IK need Unity rotation math); its stub performs only the actual animated-seat write. Offline evidence only: it
+// translation-only world positions. ApplyPose is actual (profile pelvis offsets, the animated seat, then the legs); the one
+// adapter member that is not actual is ApplyLeg (two-bone leg IK needs Unity rotation math): its stub only counts calls. The
+// native animation stages the rest predicate reads (no locomotion handle, zero weight, the contributing idle) follow the
+// installed contract pinned by Test-MmrHorseSeatNativeContract.ps1. Offline evidence only: it
 // proves the attachment wiring and seat arithmetic, never the rendered pose.
 
 namespace UnityEngine
@@ -334,11 +336,30 @@ namespace KingmakerMountedCombat.Integration
         public bool ActionActive;
         public bool CanRunIdleAction() => !(Speed > 0f) && !ActionActive;
         public float BlendingOutWeight;
-        // PR-3 R1-F1: a newly attached view whose graph plays but whose base animation does not yet contribute (no active animations).
-        public bool NoBaseAnimation;
-        public List<HarnessAnimation> ActiveAnimations => NoBaseAnimation ? new List<HarnessAnimation>() : BlendingOutWeight > 0f
-            ? new List<HarnessAnimation> { HarnessAnimation.Locomotion, new HarnessAnimation(new HarnessHandle(true, false), BlendingOutWeight) }
-            : new List<HarnessAnimation> { HarnessAnimation.Locomotion };
+        // PR-3 R1-F1: the installed stages before the resting animation contributes (see BaseStage).
+        public BaseStage Stage;
+        public List<HarnessAnimation> ActiveAnimations
+        {
+            get
+            {
+                switch (Stage)
+                {
+                    case BaseStage.Absent: return new List<HarnessAnimation>();
+                    case BaseStage.ZeroWeight: return new List<HarnessAnimation> { new HarnessAnimation(new HarnessHandle(false, false), 0f) };
+                    case BaseStage.NullAction: return new List<HarnessAnimation> { new HarnessAnimation(new HarnessHandle(false, false, UnitAnimationType.LocoMotion, false), 1f) };
+                    case BaseStage.NonLocomotion: return new List<HarnessAnimation> { new HarnessAnimation(new HarnessHandle(false, false, UnitAnimationType.Clip), 1f) };
+                    case BaseStage.Stale:
+                        // The handle's earlier composition still at weight, then the composition that replaced it (its ActiveAnimation) at zero.
+                        var replaced = new HarnessHandle(false, false);
+                        var earlier = new HarnessAnimation(replaced, 1f);
+                        var current = new HarnessAnimation(replaced, 0f);
+                        return new List<HarnessAnimation> { earlier, current };
+                }
+                return BlendingOutWeight > 0f
+                    ? new List<HarnessAnimation> { HarnessAnimation.Locomotion, new HarnessAnimation(new HarnessHandle(true, false), BlendingOutWeight) }
+                    : new List<HarnessAnimation> { HarnessAnimation.Locomotion };
+            }
+        }
     }
 
     internal sealed class HarnessAnimator
@@ -356,20 +377,33 @@ namespace KingmakerMountedCombat.Integration
         public bool IsPlaying() => playing;
     }
 
-    internal sealed class HarnessAction { public bool IsAdditive; }
+    // Installed stages of the native resting animation (Test-MmrHorseSeatNativeContract.ps1): Absent, before TickInternal binds an
+    // AnimationSet and executes the locomotion handle; ZeroWeight, the idle composition added (handle.ActiveAnimation set) at the
+    // start of its TransitionIn; Contributing, its weight ramped above zero. NullAction, NonLocomotion and Stale are the shapes the
+    // predicate must not count: an unreleased handle without an action, a non-locomotion base action, and a composition its
+    // locomotion handle has replaced.
+    internal enum BaseStage { Contributing, Absent, ZeroWeight, NullAction, NonLocomotion, Stale }
+    internal enum UnitAnimationType { Clip = 0, LocoMotion = 1 }
+    internal class UnitAnimationAction { public bool IsAdditive; public UnitAnimationType Type; }
 
     internal sealed class HarnessHandle
     {
-        public HarnessHandle(bool released, bool additive) { IsReleased = released; Action = new HarnessAction { IsAdditive = additive }; }
+        public HarnessHandle(bool released, bool additive, UnitAnimationType type = UnitAnimationType.LocoMotion, bool hasAction = true)
+        {
+            IsReleased = released;
+            Action = hasAction ? new UnitAnimationAction { IsAdditive = additive, Type = type } : null;
+        }
         public bool IsReleased { get; }
-        public HarnessAction Action { get; }
+        public UnitAnimationAction Action { get; }
+        public HarnessAnimation ActiveAnimation { get; set; }
     }
 
     internal sealed class HarnessAnimation
     {
         public static readonly HarnessAnimation Locomotion = new HarnessAnimation(new HarnessHandle(false, false), 1f);
         private readonly float weight;
-        public HarnessAnimation(HarnessHandle handle, float weight) { Handle = handle; this.weight = weight; }
+        // The handle's ActiveAnimation is its latest composition (installed AddAnimationClip sets it on each add).
+        public HarnessAnimation(HarnessHandle handle, float weight) { Handle = handle; this.weight = weight; handle.ActiveAnimation = this; }
         public HarnessHandle Handle { get; }
         public float GetWeight() => weight;
     }
@@ -677,8 +711,9 @@ internal static class Program
     private struct RigFrame
     {
         public float Pelvis, ChestY, Delta, Blend;
-        public bool Unevaluated, Action, Moving, NoBase;
-        public RigFrame(float pelvis, float chestY, float delta) { Pelvis = pelvis; ChestY = chestY; Delta = delta; Blend = 0f; Unevaluated = false; Action = false; Moving = false; NoBase = false; }
+        public bool Unevaluated, Action, Moving;
+        public KingmakerMountedCombat.Integration.BaseStage Stage;
+        public RigFrame(float pelvis, float chestY, float delta) { Pelvis = pelvis; ChestY = chestY; Delta = delta; Blend = 0f; Unevaluated = false; Action = false; Moving = false; Stage = KingmakerMountedCombat.Integration.BaseStage.Contributing; }
     }
 
     private static void Apply(KingmakerMountedCombat.Integration.HarnessAnimationManager manager, RigFrame frame)
@@ -687,7 +722,7 @@ internal static class Program
         manager.ActionActive = frame.Action;
         manager.Speed = frame.Moving ? 1f : 0f;
         manager.BlendingOutWeight = frame.Blend;
-        manager.NoBaseAnimation = frame.NoBase;
+        manager.Stage = frame.Stage;
     }
 
     // The rider view's native animation manager facade: the nearest UnitEntityView above the pelvis.
@@ -1218,15 +1253,24 @@ internal static class Program
             return refused && stillOne && Adapters(rider.Unit.View.gameObject) == 0;
         });
 
-        Check("PR-3 R1-F1: a high bind pose held beyond the settle interval with the graph playing, positive game delta and no contributing base animation never settles; the contributing stationary idle then settles and matches a remount", () =>
+        Check("PR-3 R1-F1: the high bind pose held beyond the settle interval (graph playing, positive game delta) through each installed stage before the locomotion idle contributes (no handle, zero weight) and each shape that is not the resting contributor (missing action, non-locomotion base, replaced composition) never settles; the contributing stationary idle then settles and matches a remount", () =>
         {
             var mount = NewMount("horse-b1", "Chest", mountRoot);
             var rider = NewRider("rider-b1", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), 1.30f);
             var runtime = NewRuntime();
             runtime.Seed(rider.Unit, mount.Unit, Horse());
             runtime.AttachPresentation(PairOf(rider, mount));
-            Drive(runtime, rider.Pelvis, mount, Rig(1.30f, ChestLocal.y, settleBudget * 3).Select(f => { f.NoBase = true; return f; }));
-            var heldSettled = runtime.PoseAdapter.SeatCalibrationSettled;
+            var stagesIneligible = true;
+            foreach (var stage in new[] { KingmakerMountedCombat.Integration.BaseStage.Absent, KingmakerMountedCombat.Integration.BaseStage.ZeroWeight,
+                KingmakerMountedCombat.Integration.BaseStage.NullAction, KingmakerMountedCombat.Integration.BaseStage.NonLocomotion, KingmakerMountedCombat.Integration.BaseStage.Stale })
+            {
+                var before = runtime.PoseAdapter.SeatIneligibleFrames;
+                Drive(runtime, rider.Pelvis, mount, Rig(1.30f, ChestLocal.y, settleBudget * 2).Select(f => { f.Stage = stage; return f; }));
+                var counted = runtime.PoseAdapter.SeatIneligibleFrames - before;
+                Console.WriteLine("  stage " + stage + ": frames=" + (settleBudget * 2) + " ineligible=" + counted + " settled=" + runtime.PoseAdapter.SeatCalibrationSettled);
+                stagesIneligible &= counted == settleBudget * 2 && !runtime.PoseAdapter.SeatCalibrationSettled;
+            }
+            var heldSettled = !stagesIneligible || runtime.PoseAdapter.SeatCalibrationSettled;
             Drive(runtime, rider.Pelvis, mount, Rig(IdleHeight, ChestLocal.y, settleBudget));
             var idle = pelvisFromChest(mount, rider);
             var settled = runtime.PoseAdapter.SeatCalibrationSettled;
@@ -1237,7 +1281,7 @@ internal static class Program
             return !heldSettled && settled && NearSeat(idle, control);
         });
 
-        Check("PR-3 R1-F2: the shipping ApplyPose order on first mount, remount and replacement: native pelvis plus the Horse profile offset once, the calibration, the seat as the final pelvis write before the legs; dismount restores the local pelvis", () =>
+        Check("PR-3 R1-F2: repeated attachment of one rider view (three times) through the actual ApplyPose: the Horse profile pelvis offset is applied exactly once beneath the settled seat, the seat is the final pelvis write, the actual leg calls are reached, and dismount restores the original local pelvis (view replacement: the replacement cases above)", () =>
         {
             var mount = NewMount("horse-b2", "Chest", mountRoot);
             var rider = NewRider("rider-b2", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
@@ -1256,13 +1300,13 @@ internal static class Program
                 runtime.RestorePresentation(PairOf(rider, mount));
                 Engine.EndOfFrame();
                 var restored = Near(rider.Pelvis.localPosition, new Vector3(0f, IdleHeight, 0f));
-                Console.WriteLine("  attach" + attach + ": seat=" + seat + " expected(offset once)=" + expected + " finalWrite=" + finalWrite + " legWrites=" + legs + " restored=" + restored);
+                Console.WriteLine("  attach" + attach + ": seat=" + seat + " expected(offset once)=" + expected + " finalWrite=" + finalWrite + " legCalls=" + legs + " restored=" + restored);
                 ok &= settledHere && NearSeat(seat, expected) && finalWrite && legs > 0 && legs % 2 == 0 && restored;
             }
             return ok;
         });
 
-        Check("PR-3 R1-F4: the presentation seat-calibration fields: a settled Medium Horse reports its measured values, a Small fixed seat its nonzero fixed basis, the Mammoth no animated saddle", () =>
+        Check("PR-3 R1-F4: the presentation seat-calibration fields: a settled Medium Horse prints the seat-from-Chest basis projected from the posed fixture, a Small fixed seat prints exactly its fixed basis (SmallCorrection), the Mammoth no animated saddle", () =>
         {
             var mount = NewMount("horse-b4", "Chest", mountRoot);
             var rider = NewRider("rider-b4", MountedRiderPoseProfiles.MediumHumanoidOnHorse, new Vector3(9f, 0f, 4f), IdleHeight);
@@ -1271,6 +1315,10 @@ internal static class Program
             runtime.AttachPresentation(PairOf(rider, mount));
             Frames(runtime, rider.Pelvis, Hold(IdleHeight, settleBudget));
             var horse = KingmakerMountedCombat.Integration.MountedRiderPoseAdapter.FormatSeatCalibration(runtime.PoseAdapter);
+            // Projected from the posed fixture (unrotated): the settled pelvis (rider frame idle plus the profile offset) relative to the Chest.
+            var seatFromChest = rider.Pelvis.parent.position + new Vector3(0f, IdleHeight, 0f) + U(MountedRiderPoseProfiles.MediumHumanoidOnHorse.PelvisPositionOffset) - mount.Chest.position;
+            var horseBasis = AnimatedSaddleCalibration.Format(new PoseVector3(seatFromChest.x, seatFromChest.y, seatFromChest.z));
+            var horseExpected = "settled;observedSeatFromSource=" + horseBasis + ";appliedSeatFromSource=" + horseBasis + ";";
             runtime.RestorePresentation(PairOf(rider, mount));
             Engine.EndOfFrame();
             var small = NewMount("small-b4", "Chest", mountRoot);
@@ -1292,9 +1340,9 @@ internal static class Program
             var mammothText = KingmakerMountedCombat.Integration.MountedRiderPoseAdapter.FormatSeatCalibration(mammothRuntime.PoseAdapter);
             mammothRuntime.RestorePresentation(PairOf(mammothRider, mammoth));
             Engine.EndOfFrame();
-            Console.WriteLine("  horse=" + horse + " small=" + smallText + " mammoth=" + mammothText);
-            return horse.StartsWith("settled;observedSeatFromSource=", StringComparison.Ordinal) && smallText.StartsWith("fixed;observedSeatFromSource=<not-measured>;appliedSeatFromSource=", StringComparison.Ordinal) &&
-                smallBasis.Magnitude > 0.01f && mammothText == "none(no animated saddle)";
+            var smallExpected = "fixed;observedSeatFromSource=<not-measured>;appliedSeatFromSource=" + AnimatedSaddleCalibration.Format(SmallCorrection);
+            Console.WriteLine("  horse=" + horse + " expected prefix=" + horseExpected + " small=" + smallText + " expected=" + smallExpected + " mammoth=" + mammothText);
+            return horse.StartsWith(horseExpected, StringComparison.Ordinal) && smallText == smallExpected && smallBasis.Magnitude > 0.01f && mammothText == "none(no animated saddle)";
         });
 
         Check("unaffected profiles: the Mammoth has no animated saddle (the pelvis keeps its animation) and a Small profile keeps its fixed-from-source seat", () =>

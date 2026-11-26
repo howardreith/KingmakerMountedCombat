@@ -125,4 +125,47 @@ $rest = $adapterType.GetMethod('SeatRestEligible', [Reflection.BindingFlags]'Ins
 $animationBase = GameType 'Kingmaker.Visual.Animation.AnimationBase'
 Check ((CallsResolved $rest $canIdle) -and (CallsResolved $rest ($animationBase.GetMethod('GetWeight', [Type[]]@()))) -and (CallsResolved $rest ($handleType.GetProperty('IsReleased').GetGetMethod()))) 'MMR-01 (R7-F2/F3): the adapter''s rest eligibility is native CanRunIdleAction plus no released action still blending out'
 Check ((CallsResolved $advance ($animatorType.GetProperty('cullingMode').GetGetMethod())) -and (CallsResolved $advance ($graphType.GetMethod('IsPlaying'))) -and (CallsResolved $advance ($graphType.GetMethod('IsValid')))) 'MMR-01 (R5-F4): the adapter''s fresh-evaluation gate reads the Animator culling mode and the native graph''s IsValid/IsPlaying'
+# ---- PR-3 review R1-F1 (round 2): the native resting animation the rest predicate counts --------------------------------
+$declared = [Reflection.BindingFlags]'Instance,Static,Public,NonPublic,DeclaredOnly'
+$tickInternal = $unitAnimation.GetMethod('TickInternal', $declared)
+$tickIl = $tickInternal.GetMethodBody().GetILAsByteArray()
+$locoField = $unitAnimation.GetField('m_LocoMotionHandle', $any)
+$unitType = GameType 'Kingmaker.Visual.Animation.Kingmaker.UnitAnimationType'
+$createByType = $unitAnimation.GetMethod('CreateHandle', $any, $null, [Type[]]@($unitType, [bool]), $null)
+$execute = $nativeAnimation.GetMethod('Execute', [Type[]]@($handleType))
+$createsLoco = $false
+for ($i = 2; $i -le $tickIl.Length - 10; $i++) {
+    if ($tickIl[$i] -eq 0x28 -and $tickIl[$i - 2] -eq 0x17 -and [int][Enum]::Parse($unitType, 'LocoMotion') -eq 1) {
+        try { if ($tickInternal.Module.ResolveMethod([BitConverter]::ToInt32($tickIl, $i + 1)) -eq $createByType -and $tickIl[$i + 5] -eq 0x7D -and $tickInternal.Module.ResolveField([BitConverter]::ToInt32($tickIl, $i + 6)) -eq $locoField) { $createsLoco = $true } } catch { }
+    }
+}
+Check ($createsLoco -and (CallsResolved $tickInternal $execute) -and (CallsResolved $tickInternal ($nativeAnimation.GetProperty('AnimationSet').GetGetMethod()))) 'MMR-01 (PR-3 R1-F1): installed UnitAnimationManager.TickInternal, once an AnimationSet is bound, creates m_LocoMotionHandle with CreateHandle(UnitAnimationType.LocoMotion = 1) and Executes it'
+$unitAction = GameType 'Kingmaker.Visual.Animation.Kingmaker.UnitAnimationAction'
+$typeGetter = $unitAction.GetProperty('Type').GetGetMethod()
+$locoActions = @()
+foreach ($t in $game.GetTypes()) {
+    if ($t.IsAbstract -or -not $unitAction.IsAssignableFrom($t)) { continue }
+    $g = $t.GetMethod('get_Type', [Reflection.BindingFlags]'Instance,Public,NonPublic'); if ($null -eq $g -or $null -eq $g.GetMethodBody()) { continue }
+    $il = $g.GetMethodBody().GetILAsByteArray(); if ($il.Length -eq 2 -and $il[0] -eq 0x17 -and $il[1] -eq 0x2A) { $locoActions += $t.Name }
+}
+Check ($typeGetter.IsPublic -and (($locoActions | Sort-Object) -join ',') -ceq 'UnitAnimationActionLocoMotion,UnitAnimationActionLocoMotionHuman') ('MMR-01 (PR-3 R1-F1): installed public UnitAnimationAction.Type is LocoMotion for exactly the locomotion actions: ' + ($locoActions -join ', '))
+$human = GameType 'Kingmaker.Visual.Animation.Kingmaker.Actions.UnitAnimationActionLocoMotionHuman'
+$humanStart = $human.GetMethod('OnStart', $declared); $humanClips = $human.GetMethod('UpdateCurrentClips', $declared)
+$addClip = @($nativeAnimation.GetMethods($any) | Where-Object { $_.Name -ceq 'AddAnimationClip' })
+$addControllers = @($nativeAnimation.GetMethods($declared) | Where-Object { $_.Name -ceq 'AddAnimatorController' -and $null -ne $_.GetMethodBody() })
+$setActive = $handleType.GetProperty('ActiveAnimation').GetSetMethod($true)
+$activeList = $nativeAnimation.GetField('m_ActiveAnimations', $any)
+function StoresActive([Reflection.MethodBase]$Method) { (CallsResolved $Method $setActive) -and (IlTokens $Method).ContainsKey($activeList.MetadataToken) }
+$clipAdds = @($addClip | Where-Object { $null -ne $_.GetMethodBody() -and (StoresActive $_) })
+$controllerStores = @($addControllers | Where-Object { StoresActive $_ })
+# Each overload either stores the composition itself or delegates to the overload that does.
+function ReachesStore([Reflection.MethodBase]$Method, $Stores) { (StoresActive $Method) -or @($Stores | Where-Object { CallsResolved $Method $_ }).Count -gt 0 }
+$clipsCalled = @($addClip | Where-Object { CallsResolved $humanClips $_ })
+$locoStart = (GameType 'Kingmaker.Visual.Animation.Kingmaker.Actions.UnitAnimationActionLocoMotion').GetMethod('OnStart', $declared)
+$startController = @($handleType.GetMethods($declared) | Where-Object { $_.Name -ceq 'StartController' }) | Select-Object -First 1
+Check ((CallsResolved $humanStart $humanClips) -and $clipsCalled.Count -gt 0 -and @($clipsCalled | Where-Object { -not (ReachesStore $_ $clipAdds) }).Count -eq 0 -and (IlTokens $humanClips).ContainsKey($human.GetNestedType('ActionData', $any).GetField('IsIdle', $any).MetadataToken) -and
+    $controllerStores.Count -gt 0 -and (CallsResolved $locoStart $startController) -and @($addControllers | Where-Object { (CallsResolved $startController $_) -and (ReachesStore $_ $controllerStores) }).Count -gt 0) 'MMR-01 (PR-3 R1-F1): installed UnitAnimationActionLocoMotionHuman.OnStart selects its clips (ActionData.IsIdle while stationary) and adds them through AnimationManager.AddAnimationClip; UnitAnimationActionLocoMotion.OnStart reaches AddAnimatorController through handle.StartController; both paths reach the overload that puts the composition in ActiveAnimations and sets handle.ActiveAnimation'
+$updateInternal = $animationBase.GetMethod('UpdateInternal', $declared)
+Check ((CallsResolved $updateInternal ($animationBase.GetMethod('SetWeight', [Type[]]@([single])))) -and (CallsResolved $updateInternal ($animationBase.GetProperty('TransitionIn', $any).GetGetMethod($true)))) 'MMR-01 (PR-3 R1-F1): installed AnimationBase.UpdateInternal ramps the animation weight in over TransitionIn (weight 0 contributes nothing)'
+Check ((CallsResolved $rest $typeGetter) -and (CallsResolved $rest ($handleType.GetProperty('ActiveAnimation').GetGetMethod())) -and (CallsResolved $rest ($animationBase.GetMethod('GetWeight', [Type[]]@())))) 'MMR-01 (PR-3 R1-F1): the adapter''s rest eligibility counts only the unreleased locomotion handle''s own current animation (UnitAnimationAction.Type, handle.ActiveAnimation) with weight above zero'
 Write-Host ('Mounted alpha 2 native contract (seat) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

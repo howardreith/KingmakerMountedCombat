@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Kingmaker.View;
+using Kingmaker.Visual.Animation.Kingmaker;
 using KingmakerMountedCombat.Domain;
 using UnityEngine;
 
@@ -315,12 +316,19 @@ namespace KingmakerMountedCombat.Integration
         {
             var manager = riderView == null ? null : riderView.AnimationManager;
             if (manager == null || !manager.CanRunIdleAction()) return false;
-            // PR-3 review R1-F1: rest also needs the resting (base) animation to be contributing to the sampled rig: an active, unreleased,
-            // non-additive animation with positive weight. A newly attached or restored view whose graph plays but whose base animation does
-            // not yet contribute (the bind pose) is not rest, however long it holds; a constant-height idle that contributes is.
+            // PR-3 reviews R1-F1/R2: rest also needs the native resting animation to contribute to the sampled rig. Installed contract
+            // (pinned by Test-MmrHorseSeatNativeContract.ps1): UnitAnimationManager.TickInternal returns while no AnimationSet is bound,
+            // then creates m_LocoMotionHandle once with CreateHandle(UnitAnimationType.LocoMotion) and Executes it; the locomotion
+            // action's OnStart (UnitAnimationActionLocoMotionHuman.UpdateCurrentClips, which selects the idle clip while Speed is idle, or
+            // UnitAnimationActionLocoMotion's controller) adds its composition through AddAnimationClip/AddAnimatorController, which put
+            // it in ActiveAnimations and set handle.ActiveAnimation; AnimationBase.UpdateInternal then ramps its weight in over
+            // TransitionIn. So the resting contributor is the unreleased handle whose action is a UnitAnimationAction of Type LocoMotion
+            // (installed: only UnitAnimationActionLocoMotion and UnitAnimationActionLocoMotionHuman) and whose own current animation this
+            // is, with weight above zero. Before that (no handle, zero weight, a missing or non-locomotion action, a stale composition the
+            // handle has replaced) the rig holds no resting pose, however long it holds; a constant-height idle that contributes is rest.
             var animations = manager.ActiveAnimations;
             if (animations == null) return false;
-            var baseContributing = false;
+            var restingContributes = false;
             foreach (var animation in animations)
             {
                 var handle = animation == null ? null : animation.Handle;
@@ -331,9 +339,12 @@ namespace KingmakerMountedCombat.Integration
                     if (!additive && animation.GetWeight() > 0f) return false;
                     continue;
                 }
-                if (!additive && animation.GetWeight() > 0f) baseContributing = true;
+                var locomotion = handle.Action as UnitAnimationAction;
+                if (locomotion != null && locomotion.Type == UnitAnimationType.LocoMotion && ReferenceEquals(handle.ActiveAnimation, animation) &&
+                    animation.GetWeight() > 0f)
+                    restingContributes = true;
             }
-            return baseContributing;
+            return restingContributes;
         }
 
         private void NotifySeatCalibration(string phase, PoseVector3 observed, PoseVector3 applied, int frames, float animationSeconds)
