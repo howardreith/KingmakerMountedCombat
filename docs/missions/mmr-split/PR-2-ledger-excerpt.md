@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T15:50:39+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T21:10:33+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -123,6 +123,36 @@ SHA-256 `c1a82cfa2782bff9a179739104da629e6f18b499b459e3f259855ddd5909c604`
 {"authority": "owner instructions 2026-11-27a section 6 and 2026-11-27b section 3 (the last allowed PR-2 execution)", "budget": "spent 287.6 of 360 min", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-2-ledger-excerpt.md with this entry", "checks": "harness 325/0, components 1545/0, lifecycle contract 99/0, approach native contract 19/0", "child_usage": "PR-2 4 of 5 before; 5 of 5 after", "counterexamples": "R1-F6 restricted single move at 1/60 s and 0.1 s incl. the 0.12 m opening and an unaffordable new target with a prior order; R4-F1 cancel before the first tick then an affordable ground move; R1-F7 throwing dispatch (transpiler executed under installed Harmony 1.2); R4-F2 unscoped read and scoped direct input; R4-F3 heading-independent farther flank; R1-F10 both roster orders through production SuppressPairedCandidate", "executions": "product child 41 -> 42 of 51; lifetime 48 -> 49 of 58; infrastructure 5 of 6; combined 53 -> 54 of 64", "kind": "pre_review_check", "pr": "PR-2", "prev_sha256": "c1a82cfa2782bff9a179739104da629e6f18b499b459e3f259855ddd5909c604", "round": 5, "seq": 161, "utc": "2026-11-27T15:50:39+00:00"}
 ```
 SHA-256 `c4790df7597eeb27fb35fa5481793741cc4ed3c8d7f58427a4aa13ed4fc9ee1f`
+
+```json
+{"candidate": "e1a24af85890f10ae4e738e09de7ad333c62db31", "controller_status": "BLOCKED: review-round cap reached for final (5/5)", "decision": "changes_required", "disposition": "cap stop preserved (allowance 5 exhausted; no further resume authorized)", "executions": "PR-2 5 of 5; product child 42 of 51; lifetime 49 of 58; infrastructure 6 of 6; combined 55 of 64", "kind": "child_stop", "open_blocking": ["R1-F6", "R5-F1", "R5-F2", "R5-F3"], "pr": "PR-2", "prev_sha256": "dcea2a73404a06c285c6d4c5ed4d60fa9642f897a6f6c37ec9bd651d36ac6698", "round": 5, "seq": 164, "utc": "2026-11-27T16:07:51+00:00", "verified_this_round": ["R1-F10", "R1-F7", "R4-F1", "R4-F2", "R4-F3"]}
+```
+SHA-256 `747ead57126b56f43a494a33edf69b33539cde4269d60ddfba5384a41a213dac`
+
+```json
+{"authority": "owner instruction 2026-11-27c (new authority beyond 27b)", "budget": "360 -> 390", "ceilings": "55 child / 62 lifetime (incl. PR #64 seven) / 8 infrastructure; 70 combined", "execution_allowances": {"PR-1": 15, "PR-2": 7, "PR-3": 5, "PR-4": 16, "PR-5": "completed-round cap 9, execution ceiling 10", "PR-6": 2, "transport": 8}, "file": "owner-continuations/owner-continuation-2026-11-27c-continuation.md", "file_sha256": "4f0719e8d3c8f37a229d11a5842c9568afbf483bf80fe1cc93494b9da6d40348", "kind": "owner_instruction", "prev_sha256": "51cd5492cddfec905c2fd89e9585e548073b3b4a216bcbdd2d729b29b32ef174", "resumes_authorized": ["PR-4 no-progress stop 14/14 -> cap 16", "PR-2 cap stop 5/5 -> cap 7"], "seq": 173, "tracked_record": "docs/missions/mmr-split/owner-authorization-2026-11-27c.md on the PR-2 and PR-4 branches", "utc": "2026-11-27T17:47:25+00:00"}
+```
+SHA-256 `9271b94f526c92eb26ba1aad032df758b5532517efade3aebb230bca63eefd6f`
+
+```json
+{"after": "ACTIVE, 5 of 7; open findings unchanged; rounds_open still 2,1,1,1 (a cap-only resume does NOT reset the consecutive-open streak: a round-6 candidate leaving R1-F6 open would reach 3 and be stopped for no progress)", "authority": "owner instruction 2026-11-27c section 2", "before": "BLOCKED review-round cap 5 of 5, open R1-F6 R5-F1 R5-F2 R5-F3 with rounds_open 2,1,1,1; no lock, no developer, no pending publications", "enrollment": "kmc-codex-mmr-tb-approach-20261126213805-50cc", "kind": "resume", "operation": "agent_review.py resume --max-rounds 7 --reason ... (a first invocation without --reason was refused by argparse before any state change: resume-pr2-27c-argparse-refused.txt)", "pr": "PR-2", "prev_sha256": "021917c45a93dd2e366fa58e6c2b398f990dfa7fbe6b54b573f52383ca7c15e4", "records": "owner-continuations/pre-resume-pr2-27c-status.json, resume-pr2-27c-output.txt, post-resume-pr2-27c-status.json", "seq": 175, "utc": "2026-11-27T17:48:31+00:00"}
+```
+SHA-256 `56e31907813dfbde8458dedb04c4976336dc331ccccea6c91bbde6f8873a5680`
+
+```json
+{"authority": "owner instruction 2026-11-27d (follows 27c)", "budget": "390 -> 450", "file": "owner-continuations/owner-continuation-2026-11-27d-continuation.md", "file_sha256": "eac6a0b8efe28d477e86f0f8fe639a726735b1ac7399aee097a52515274903ac", "frozen": "PR-1 aa15e1f2/f7edd298, PR-3 8bfe701d/54311f1d, PR-4 d615d1d5/78c9bae4, PR-5 1253836a/dc5ef19d, transport 55ce73c", "kind": "owner_instruction", "prev_sha256": "9bbb9a0abcffabdf8d4a1a2048aa01639e0da8dcde9cc06dacbe2ed6c0015f28", "review_allocations": "unchanged: PR-2 cap 7 (5 spent), PR-6 cap 2; ceilings 55 child / 62 lifetime / 8 infrastructure / 70 combined", "seq": 196, "tracked_record": "docs/missions/mmr-split/owner-authorization-2026-11-27d.md on the PR-2 branch", "utc": "2026-11-27T20:26:55+00:00"}
+```
+SHA-256 `2de3bf4c38736abdb1cb847997f2aeb5f384ef8523be4515aafc336a81325691`
+
+```json
+{"after": "spent 368.14 of 450; remaining 81.85; entries 439", "authority": "owner instruction 2026-11-27d section 2", "before": "spent 368.14 of 390; remaining 21.85; entries 439", "budget_id": "mounted-alpha2-melee-pose-20261124", "from_minutes": 390, "kind": "budget_adjustment", "mechanism": "WorkflowBudget.ps1 Update-KmcWorkflowBudgetRecord (locked)", "prev_sha256": "bc3ebcea391b2909b9ebd541c307e7b9ec5a101f2b7be6e9b30b67d433424b16", "seq": 198, "to_minutes": 450, "utc": "2026-11-27T20:27:10+00:00"}
+```
+SHA-256 `02efe26d0261a8c972b0bc376281a348394b1ab0b804b8778fbba624403bc3e9`
+
+```json
+{"authority": "owner instruction 2026-11-27d sections 3-4 (cap 7; 5 spent)", "budget": "spent ~373.1 of 450 min", "candidate": "the records commit adding owner-authorization-2026-11-27d.md and the regenerated PR-2 excerpt (source commits b748099d, 2ab72b8d, d8be2f26)", "checks": "attack-path harness 343/0, components 1545/0, approach native contract 26/0, lifecycle contract 99/0, presentation 239/0, Validate-Source 153/0 (built DLL sha256 01ec974f..., MVID afa472f2...)", "executions": "product child 49 -> 50 of 55; lifetime 56 -> 57 of 62; combined 64 -> 65 of 70", "implementation": "a delegated in-session developer agent implemented the corrections under this session; R1-F6: provisional replacement request with its own carrier, decided at that carrier first TickDelegated from the actual DeltaTime (installed scheduler order TimeController < DefaultPointerController < UnitMoveController < UnitActionController verified from IL); commit retires the previous order once through the normal path; refusal zeroes the tick before any debit and preserves the previous order, carrier and spending; TwoActions workaround removed", "kind": "pre_review_check", "open_counters_before": "R1-F6 2, R5-F1 1, R5-F2 1, R5-F3 1 (all four claimed fixed)", "pr": "PR-2", "prev_sha256": "d52875b053bd08a2a7c50da356381ac52e6fa971c5669fbc926217ecb9a37f5c", "round": 6, "seq": 200, "utc": "2026-11-27T21:10:33+00:00"}
+```
+SHA-256 `9e2070b2a47fc48dffc523f9e298c7f8c4cada0527bdc01f5587d6484f452636`
 
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
