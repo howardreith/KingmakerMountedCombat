@@ -10,6 +10,8 @@ param([string]$RepositoryRoot,[string]$TemplatePath,[string]$OutputDirectory)
 # RiderMeleeClickAdmitted and the fresh target-life rule; PairedActivationControls.AdmitPairedAttackClick;
 # PairedActivationLifecycle.PairedMountGrantedMetres; MountedMovementStateAdapter's allocation, Get, TickDelegated, RemainingOrderMetres
 # and HasGrantedMovement
+# PR #70 round 7 (R1-F6): MountedCombatController.OwnsExactPairedNativeCommand/OwnsExactUnifiedMountCommand, TryOverrideMountTurnMovement,
+# NativeRunKeepsHold and CommitAcceptedProvisional; PairedActivationLifecycle.NativeActorEligibleForCommand
 # into tests/Chunk7Diagnostics/AttackPathHarnessTemplate.cs, compiles them with every real Domain source and runs the
 # reviewers' counterexamples with controls on a facade of the native command surface. Offline evidence only (nativeProof=false).
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
@@ -150,6 +152,12 @@ $members=[ordered]@{
  'BEGIN_SCOPED_DISPATCH'=(Extract $patch 'internal static void BeginScopedInputDispatch(UnitEntityData target, object turn)')
  'END_SCOPED_DISPATCH'=(ExtractExpression $patch 'internal static void EndScopedInputDispatch() =>')
  'NATIVE_INPUT_CLICK'=(Extract $directInput 'internal bool Click(bool respectNativeAdmission = true, int button = 0)')
+ 'CONTROLLER_OWNS_UNIFIED'=(Extract $controller 'internal bool OwnsExactUnifiedMountCommand(UnitCommand command)')
+ 'CONTROLLER_OWNS_PAIRED'=(Extract $controller 'internal bool OwnsExactPairedNativeCommand(UnitCommand command)')
+ 'CONTROLLER_OVERRIDE_MOUNT'=(Extract $controller 'public bool TryOverrideMountTurnMovement(')
+ 'CONTROLLER_RUN_KEEPS_HOLD'=(Extract $controller 'internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)')
+ 'CONTROLLER_COMMIT_PROVISIONAL'=(Extract $controller 'private bool CommitAcceptedProvisional(')
+ 'PAIR_ELIGIBLE'=(Extract $lifecycle 'internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

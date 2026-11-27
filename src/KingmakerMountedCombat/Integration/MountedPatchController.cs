@@ -1032,8 +1032,15 @@ namespace KingmakerMountedCombat.Integration
                 return code;
             }
 
+            // PR #70 R6-F1 (round 7): the assignment for a pending provisional order of this exact click (the rider, its clicked target) is deferred
+            // to that order's acceptance, which applies it once (MountedCombatController.DefersClickTargetAssignment); every other assignment is
+            // native's, unchanged.
             internal static void ClickManualTargetAssignment(UnitCombatState combatState, UnitEntityData target)
             {
+                var deferred = false;
+                try { foreach (var combat in ClickControllers()) deferred |= combat.DefersClickTargetAssignment(combatState, target); }
+                catch (Exception error) { deferred = false; PatchBridge.Logger?.Exception("Provisional manual-target deferral failed; the native assignment stands", error); }
+                if (deferred) return;
                 combatState.ManualTarget = target;   // the native assignment, unchanged
                 try { foreach (var combat in ClickControllers()) combat.ObserveClickTargetAssignment(combatState, target); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click assignment was not observed", error); }

@@ -834,13 +834,16 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData abilityCaster,
             bool allowApproach = true,
             bool preStartApproach = false,
-            bool nativeStartGatesReadiness = false)
+            bool nativeStartGatesReadiness = false,
+            FirstTickProposal provisional = null)
         {
             NativeSingleAttackWeaponSelection mountPrimary;
-            var automaticOrigin = inputSurface == AutomaticInputSurface && stockIntent.Automatic;
-            var ordinaryIntent = (inputSurface == "stock-hostile-click" || automaticOrigin) && target == stockIntentTarget;
-            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent, abilityCaster != null,
-                ordinaryIntent && nativeStartGatesReadiness);
+            var automaticOrigin = provisional == null && inputSurface == AutomaticInputSurface && stockIntent.Automatic;
+            // PR #70 R1-F6 (round 7): a provisional order is evaluated as the fresh explicit click it is (its own target-life fact), and is
+            // wired to no intent or generation until its first tick commits it.
+            var ordinaryIntent = provisional == null && (inputSurface == "stock-hostile-click" || automaticOrigin) && target == stockIntentTarget;
+            var context = CaptureContext(action, target, out mountPrimary, false, ordinaryIntent || provisional != null, abilityCaster != null,
+                ordinaryIntent && nativeStartGatesReadiness, provisional != null);
             var availability = MountedCombatActionEvaluator.Evaluate(context);
             if (!availability.IsAllowed)
             {
@@ -866,7 +869,8 @@ namespace KingmakerMountedCombat.Integration
                     logger,
                     HandleCommandTerminal,
                     allowApproach,
-                    !ordinaryIntent);
+                    // PR #70 R1-F6 (round 7): a provisional order is the ordinary order it may become (the plan its click proved).
+                    !ordinaryIntent && provisional == null);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
                 if (ordinaryIntent)
                 {
@@ -878,6 +882,23 @@ namespace KingmakerMountedCombat.Integration
                     command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(orderGeneration);
                     // Review R4-F1, PR #70 R1-F7: a turn-based rider melee order admitted by the click probe follows the proof bound to it.
                     AttachClickProof(command, action, target);
+                }
+                if (provisional != null)
+                {
+                    // PR #70 R1-F6 (round 7): the provisional order follows its click's proof (route, plan, revalidator from the current origin)
+                    // exactly as an accepted route-bound order does; its manual-target write waits for its commit; its carrier's first tick
+                    // decides (FirstTickCarrierIssued), and a strike reached without a decided tick commits only in place (ProvisionalStrikeGate).
+                    provisional.Command = command;
+                    command.MarkProvisionalOrder();
+                    var proof = provisional.Proof;
+                    command.ValidatedApproachRoute = proof.Route;
+                    command.ClickPlan = proof.Plan;
+                    var established = proof.Route.Count >= 2 ? proof.Route[proof.Route.Count - 1] : (Vector3?)null;
+                    var plan = proof.Plan;
+                    command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
+                    command.FirstTickCarrierIssued = carrier => BindFirstTickCarrier(command, carrier);
+                    command.ProvisionalStrikeGate = () => AdmitProvisionalStrike(command);
+                    if (provisional.TargetUnconsciousAtClick) command.AdmitTargetUnconsciousWhenOrdered();
                 }
                 if (automaticOrigin)
                 {
@@ -940,7 +961,7 @@ namespace KingmakerMountedCombat.Integration
                     LastRejectionCodes = new[] { MountedCombatRejectionCode.CommandAdmissionFailure };
                     return MountedCombatClickResult.HandledRejected;
                 }
-                if (!automaticOrigin) OwnManualTarget(actionActor, target, ordinaryIntent ? stockIntent.Generation : -1);
+                if (!automaticOrigin && provisional == null) OwnManualTarget(actionActor, target, ordinaryIntent ? stockIntent.Generation : -1);
                 LastFeedback = "Mounted pair command accepted: " + action + ".";
                 logger.Info("Mounted combat command accepted: action=" + action +
                     "; inputSurface=" + inputSurface +
@@ -1126,8 +1147,9 @@ namespace KingmakerMountedCombat.Integration
                 !HasStockAttackIntent || !retainedOrder.IsCurrent(stockIntent.Generation)) return;
             var onRider = container == relationship.Rider?.Commands;
             if (!onRider && container != relationship.Mount?.Commands) return;
-            // PR #70 R1-F6 (round 6): a provisional request's own carrier is not newer work against the order it may replace.
-            if (IsFirstTickProposalCarrier(command)) return;
+            // PR #70 R1-F6 (rounds 6-7): a pending provisional order's own command and carrier are not newer work against the order it may
+            // replace.
+            if (IsPendingReplacementWork(command)) return;
             var facts = new MountedAcceptedWorkFacts
             {
                 PairCommand = command is MountedPairSingleAttack,
@@ -1260,7 +1282,7 @@ namespace KingmakerMountedCombat.Integration
 
         // The pair's own exact carrier moves: the retained order's, and the active pair command's (a charge included).
         internal bool IsOwnDelegatedMove(UnitCommand command) => command is UnitMoveTo &&
-            (retainedOrder.IsRetainedOwn(command) || activeCommand != null && activeCommand.IsOwnDelegatedMove(command) || IsFirstTickProposalCarrier(command));
+            (retainedOrder.IsRetainedOwn(command) || activeCommand != null && activeCommand.IsOwnDelegatedMove(command));
 
         // Review R1-F8: UnitMoveTo.OnAction sets a player-faction executor's Hold in real-time combat. For the pair's own
         // delegated move that write is undone (an unmounted attacker's approach sets none); every other move keeps it.
@@ -1424,48 +1446,69 @@ namespace KingmakerMountedCombat.Integration
             var established = proof.Route.Count >= 2 ? proof.Route[proof.Route.Count - 1] : (Vector3?)null;
             var plan = proof.Plan;
             command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
+            // PR #70 R1-F6 (round 7, R6-F4): a carrier revalidated in the first-tick state is decided at its first tick.
+            command.FirstTickCarrierIssued = carrier => BindFirstTickCarrier(command, carrier);
             LastClickProofDisposition = "attached:#" + proof.Sequence;
         }
 
-        // PR #70 R1-F6 (round 6): the first-tick replacement boundary (docs/missions/mmr-split/PR-2-first-tick-boundary.md). A turn-based
-        // rider click admitted on the restricted single-action move's ONE tick (proof.FirstTick) is a PROVISIONAL request: neither its
-        // admission nor its handler retires the previous order, intent, retained-order ledger or manual-target ownership. The request
-        // installs its own carrier on the mount and binds its gate to that exact carrier; the carrier's first delegated movement tick
-        // (MountedMovementStateAdapter.TickDelegated, before any debit) supplies the actual allowance. There the request re-proves an
-        // affordable, strike-admissible stopping position with the production probe (route, arrival disc and actual headings) under that
-        // allowance and commits through the normal acceptance path (AcceptStockRequest: the previous order is retired once by CancelCore),
-        // or refuses: the tick is zeroed, the previous order is untouched and the carrier is retired at the next sweep. Every other end of
-        // the carrier, the turn, the target or the rider's eligibility settles a pending request as refused (SweepFirstTickProposal), so a
-        // request waits only for a carrier it installed itself.
+        // PR #70 R1-F6 (rounds 6-7): the first-tick boundary (docs/missions/mmr-split/PR-2-first-tick-boundary.md). The restricted single-action
+        // move grants ONE movement tick whose length is known only at that tick. A turn-based rider click admitted in that state (proof.FirstTick)
+        // is a PROVISIONAL ORDER (round 7): an ordinary pair attack command run on the RIDER for the clicked target through the real action
+        // evaluation (TryExecuteAction), carrying the click's proof (route, plan, revalidator) but no intent, generation, manual-target or Hold
+        // effect. Being the rider's own command it fills the rider turn's command container, so native TurnController.Tick moves a Preparing
+        // turn to Acting (Status 2 -> 3 when !m_Commands.Empty, m_Commands = Unit.Commands); it is the active pair command, so native command
+        // eligibility admits its carrier (OwnsExactPairedNativeCommand: activeCommand.DelegatedMove) and TryOverrideMountTurnMovement drives
+        // that carrier on the Acting turn. Its carrier is created by its own BeginDelegatedMove from a route revalidated from the CURRENT
+        // origin; the gate is bound to that exact carrier only after it holds the mount's Move slot (FirstTickCarrierIssued). The carrier's
+        // first TickDelegated decides from live state, before any debit: commit (the previous intent is retired, intent B starts with the
+        // click's facts, the provisional command becomes B's own wrapper and keeps its exact carrier, and the deferred manual target and Hold
+        // are applied unless the player assigned newer ones), commit in place, or refuse (the tick is zeroed; the provisional command and its
+        // exact carrier are retired at the next sweep and the previous order resumes). The same gate binds the carrier of an ACCEPTED
+        // route-bound order whose revalidation ran in the first-tick state (R6-F4): its search ceiling never becomes an executable grant.
         internal sealed class FirstTickProposal : IMountedFirstTickGate
         {
             public MountedCombatController Owner;
+            // true: a provisional replacement (the click is not yet an order); false: the carrier of an accepted order.
+            public bool Replacement;
             public UnitAttack StockAttack;
             public UnitEntityData Principal, Target;
             public TurnController Turn;
-            public bool OwnerIsMount;
             public ClickProof Proof;
+            // The click's immutable target-life fact (R6-F3): an enemy already unconscious when clicked stays a valid explicit target.
+            public bool TargetUnconsciousAtClick;
+            public long ClickSerial = -1;
+            // The provisional order (Replacement) or the accepted order's wrapper; its exact carrier once its BeginDelegatedMove issued one.
+            public MountedPairAttackCommand Command;
             public UnitMoveTo CarrierMove;
             public MountedFirstTickProposalState State;
+            public bool Retired;
             public string Detail = "<pending>";
             public float AllowedMetres = float.NaN;
+            // R6-F1: the player's state the provisional order must not change before it commits.
+            public UnitEntityData TargetBeforeClick;
+            public bool TargetWriteDeferred, RiderHoldAtClick, RiderHoldDeferred, MountHoldDeferred;
+            public long CommittedGeneration = -1;
             public object Carrier => CarrierMove;
             public MountedFirstTickVerdict Decide(float allowedMetres, float deltaTime, out string detail) =>
-                Owner.DecideFirstTickProposal(this, allowedMetres, deltaTime, out detail);
+                Owner.DecideFirstTickProposal(this, allowedMetres, deltaTime, false, out detail);
         }
 
         private FirstTickProposal firstTickProposal;
         private bool committingFirstTickProposal;
+        private MountedPairAttackCommand evaluatingFirstTickCommand;
         internal FirstTickProposal FirstTickProposalForDiagnostics => firstTickProposal;
         internal FirstTickProposal LastFirstTickProposal { get; private set; }
         internal int FirstTickCommitCount { get; private set; }
         internal int FirstTickRefusalCount { get; private set; }
+        internal int FirstTickRetiredCommandCount { get; private set; }
+        internal int DeferredClickTargetWriteCount { get; private set; }
+        internal int DeferredHoldWriteCount { get; private set; }
         internal string LastFirstTickDecision { get; private set; } = "<none>";
-        private bool IsFirstTickProposalCarrier(UnitCommand command) => command != null && firstTickProposal != null &&
-            ReferenceEquals(firstTickProposal.CarrierMove, command);
-        internal bool FirstTickProposalCarrierLive => firstTickProposal?.CarrierMove != null && !firstTickProposal.CarrierMove.IsFinished;
+        private bool PendingReplacement => firstTickProposal != null && firstTickProposal.Replacement && firstTickProposal.State == MountedFirstTickProposalState.Pending;
+        private bool IsPendingReplacementWork(UnitCommand command) => command != null && PendingReplacement && firstTickProposal.Command != null &&
+            (ReferenceEquals(command, firstTickProposal.Command) || firstTickProposal.Command.IsOwnDelegatedMove(command));
 
-        // Work on the mount other than the request's own carrier (finished commands are gone for this purpose).
+        // Work on the mount other than the given carrier (finished commands are gone for this purpose).
         private bool MountHoldsOtherWork(UnitCommand except)
         {
             var commands = relationship.Mount?.Commands;
@@ -1476,48 +1519,104 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        private void BeginFirstTickProposal(UnitAttack stockAttack, UnitEntityData principal, UnitEntityData target, TurnController turn, bool ownerIsMount,
-            ClickProof proof)
+        // The provisional order's installation (TryRouteMountedStockAttack). Refused before anything is installed when any rider or mount work
+        // is live. The proposal is published before the native Run so the Run's Hold seam and the click's manual-target seam recognize it; any
+        // failure settles it completely (no gate is bound before a carrier holds the mount's Move slot).
+        private void BeginProvisionalOrder(UnitAttack stockAttack, UnitEntityData principal, UnitEntityData target, TurnController turn, ClickProof proof)
         {
-            RefuseFirstTickProposal("a newer click");
-            SweepFirstTickProposal();
+            RetirePendingReplacement("a newer click");
+            var rider = relationship.Rider;
             var mount = relationship.Mount;
-            var proposal = new FirstTickProposal { Owner = this, StockAttack = stockAttack, Principal = principal, Target = target, Turn = turn,
-                OwnerIsMount = ownerIsMount, Proof = proof };
+            var state = target?.Descriptor?.State;
+            var proposal = new FirstTickProposal
+            {
+                Owner = this, Replacement = true, StockAttack = stockAttack, Principal = principal, Target = target, Turn = turn, Proof = proof,
+                TargetUnconsciousAtClick = state != null && state.IsUnconscious, ClickSerial = activeClick,
+                TargetBeforeClick = rider?.CombatState?.ManualTarget, RiderHoldAtClick = rider != null && rider.HoldState
+            };
             LastFirstTickProposal = proposal;
-            // A previous order (or anything else) holding a live mount command: installing a carrier would displace it, so the request is
-            // refused before it installs anything (the previous order, its mount command and every expenditure stay as they are).
             string refusal = null;
-            if (mount == null || MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
+            if (rider == null || mount == null) refusal = "pair-unavailable";
+            else if (HasActiveCommand || activeDoorInteraction != null && !activeDoorInteraction.IsFinished || chargeOwner != null) refusal = "pair-work-live";
+            else if (!rider.Commands.Empty) refusal = "rider-holds-live-work";
+            else if (MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
             else if (proof.Route == null || proof.Route.Count < 2 || !(proof.ArrivalRadius > 0f)) refusal = "no-route";
+            else if (ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderMelee) refusal = "not-a-melee-order";
             if (refusal != null)
             {
                 proposal.State = MountedFirstTickProposalState.Refused;
+                proposal.Retired = true;
                 proposal.Detail = refusal;
                 FirstTickRefusalCount++;
                 LastFirstTickDecision = "refused:" + refusal;
                 LastStockAttackObservation = "first-tick-proposal-refused;" + refusal;
                 return;
             }
-            var endpoint = proof.Route[proof.Route.Count - 1];
-            proposal.CarrierMove = new UnitMoveTo(endpoint, proof.ArrivalRadius) { CreatedByPlayer = true, ShowTargetMarker = false, NeedLoS = false };
-            proposal.CarrierMove.ForcedPath = new Pathfinding.ForcedPath(new List<Vector3>(proof.Route));
             firstTickProposal = proposal;
-            unifiedTurn.BindMountFirstTickGate(proposal, true);
-            mount.Commands.Run(proposal.CarrierMove);
-            if (!ReferenceEquals(mount.Commands.GetCommand(UnitCommand.CommandType.Move), proposal.CarrierMove) || proposal.CarrierMove.IsFinished)
+            var result = MountedCombatClickResult.HandledRejected;
+            try { result = TryExecuteAction(MountedCombatActionKind.RiderMelee, target, "stock-hostile-click", rider, true, false, false, proposal); }
+            catch (Exception error) { TryLogException("Turn-based provisional order installation failed; it is settled", error); }
+            if (result != MountedCombatClickResult.HandledAccepted || proposal.Command == null || proposal.Command.IsFinished ||
+                !ReferenceEquals(activeCommand, proposal.Command) || !ReferenceEquals(rider.Commands.Standard, proposal.Command))
             {
-                RefuseFirstTickProposal("carrier-not-installed");
+                RefuseFirstTickProposal("provisional-order-not-installed(" + result + ")");
                 SweepFirstTickProposal();
                 return;
             }
             LastFirstTickDecision = "pending:#" + proof.Sequence;
             LastStockAttackObservation = "first-tick-proposal;target=" + target.UniqueId;
-            TryLog(() => "Turn-based rider attack on the restricted single move's one tick: provisional request #" + proof.Sequence + " installed its carrier; " +
-                "the previous order is unchanged until the carrier's first tick decides.");
+            TryLog(() => "Turn-based rider attack on the restricted single move's one tick: provisional order #" + proof.Sequence +
+                " runs on the rider; the previous order, manual target and Hold are unchanged until its carrier's first tick decides.");
         }
 
-        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, float allowedMetres, float deltaTime, out string detail)
+        // BeginDelegatedMove of a route-bound wrapper whose revalidation ran in the first-tick state, after its carrier holds the Move slot. A
+        // request of the same command keeps deciding every carrier that command issues (a replan included): a pending one decides its first
+        // tick, a refused one refuses it until the sweep settles the command, so no carrier of a first-tick route ever moves ungated.
+        private void BindFirstTickCarrier(MountedPairAttackCommand command, UnitMoveTo carrier)
+        {
+            if (disposed || command == null || carrier == null) return;
+            var p = firstTickProposal;
+            if (p != null && ReferenceEquals(p.Command, command) && !p.Retired)
+            {
+                p.CarrierMove = carrier;
+                unifiedTurn.BindMountFirstTickGate(p, true);
+                return;
+            }
+            // Another command's carrier now holds the Move slot: a pending provisional order lost its carrier and is settled; an earlier gate is released.
+            if (p != null && p.Replacement) RetireFirstTickProposal("another carrier took the mount's Move slot");
+            else if (p != null) unifiedTurn.BindMountFirstTickGate(p, false);
+            var ordinary = new FirstTickProposal
+            {
+                Owner = this, Replacement = false, Command = command, CarrierMove = carrier, Target = stockIntentTarget,
+                Turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn,
+                TargetUnconsciousAtClick = stockIntent.TargetUnconsciousWhenOrdered, CommittedGeneration = stockIntent.Generation
+            };
+            firstTickProposal = ordinary;
+            LastFirstTickProposal = ordinary;
+            unifiedTurn.BindMountFirstTickGate(ordinary, true);
+        }
+
+        // The target's validity under the click's own target-life fact (R6-F3).
+        private bool FirstTickTargetValid(FirstTickProposal p)
+        {
+            var target = p.Target;
+            var state = target?.Descriptor?.State;
+            return target != null && target.IsInState && state != null && relationship.Rider != null && relationship.Rider.IsEnemy(target) &&
+                UnifiedMountedStockAttackPolicy.TargetLifeAdmits(state.IsConscious, state.IsDead, state.IsFinallyDead, p.TargetUnconsciousAtClick);
+        }
+
+        // The rider's current entitlement to the strike (Standard, action eligibility, attack capability): the dispatcher's own admission,
+        // with the proposal's command counted as the pair's own transaction.
+        private bool FirstTickRiderEntitled(FirstTickProposal p)
+        {
+            evaluatingFirstTickCommand = p.Command;
+            try { return RiderMeleeClickAdmitted(p.Target); }
+            finally { evaluatingFirstTickCommand = null; }
+        }
+
+        // The decision. inPlaceOnly: the provisional command reached its strike without a decided tick (StartChildAttack); only a strike
+        // admissible where the pair stands commits there.
+        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, float allowedMetres, float deltaTime, bool inPlaceOnly, out string detail)
         {
             if (p == null || !ReferenceEquals(p, firstTickProposal) || p.State != MountedFirstTickProposalState.Pending)
             {
@@ -1527,56 +1626,103 @@ namespace KingmakerMountedCombat.Integration
             p.AllowedMetres = allowedMetres;
             var rider = relationship.Rider;
             var mount = relationship.Mount;
-            var target = p.Target;
             var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var carrierPath = p.CarrierMove?.ForcedPath?.vectorPath;
             PairedAttackClickProbe.Result probe = null;
             string refusal = null;
-            if (disposed || rider == null || mount == null) refusal = "pair-unavailable";
+            if (disposed || rider == null || mount == null || relationship.State != RelationshipState.Mounted) refusal = "pair-unavailable";
             else if (!ReferenceEquals(turn, p.Turn)) refusal = "turn-changed";
-            else if (target == null || !FreshExplicitClickTargetLifeAdmits(target) || !rider.IsEnemy(target)) refusal = "target-invalid";
-            else if (!rider.Commands.Empty) refusal = "newer-rider-work";
-            else if (MountHoldsOtherWork(p.CarrierMove)) refusal = "newer-mount-work";
+            else if (!unifiedTurn.CanAddressActor(mount, turn)) refusal = "mount-not-addressable";
+            else if (p.Command == null || p.Command.IsFinished || !ReferenceEquals(activeCommand, p.Command) || !ReferenceEquals(rider.Commands.Standard, p.Command))
+                refusal = "order-not-active";
+            else if (!inPlaceOnly && (p.CarrierMove == null || p.CarrierMove.IsFinished ||
+                !ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), p.CarrierMove))) refusal = "carrier-not-held";
+            else if (MountHoldsOtherWork(inPlaceOnly ? null : p.CarrierMove)) refusal = "newer-mount-work";
+            else if (!FirstTickTargetValid(p)) refusal = "target-invalid-under-click-facts";
+            else if (!FirstTickRiderEntitled(p)) refusal = "rider-not-entitled";
             else
             {
-                try { probe = PairedAttackClickProbe.EvaluateFirstTick(rider, mount, target, p.Proof.Route, p.Proof.ArrivalRadius, allowedMetres); }
+                try { probe = PairedAttackClickProbe.EvaluateFirstTick(rider, mount, p.Target, inPlaceOnly ? null : carrierPath,
+                    inPlaceOnly ? 0f : p.CarrierMove.ApproachRadius, inPlaceOnly ? 0f : allowedMetres); }
                 catch (Exception error) { TryLogException("Turn-based first-tick decision probe failed; the request is refused", error); }
                 if (probe == null) refusal = "probe-failed";
-                else if (!probe.Plan.Matches(p.Proof.Plan)) refusal = "plan-changed";
-                else if (!probe.AdmissibleNow && !probe.RouteProven) refusal = "no-affordable-strike-position(" + probe.Detail + ")";
+                else if (p.Command.ClickPlan.Valid && !probe.Plan.Matches(p.Command.ClickPlan)) refusal = "plan-changed";
+                else if (!probe.AdmissibleNow && (inPlaceOnly || !probe.RouteProven)) refusal = "no-affordable-strike-position(" + probe.Detail + ")";
             }
             var tick = ";allowedMetres=" + allowedMetres.ToString("R") + ";tick=" + deltaTime.ToString("R");
-            if (refusal != null)
+            if (refusal == null)
             {
-                p.State = MountedFirstTickProposalState.Refused;
-                p.Detail = refusal;
-                FirstTickRefusalCount++;
-                detail = LastFirstTickDecision = "refused:" + refusal + tick;
-                LastStockAttackObservation = "first-tick-proposal-refused;" + refusal;
-                LastFeedback = "Mounted attack not started: the single-action move's one step cannot reach a legal strike position.";
-                TryLog(() => "Turn-based first-tick request #" + p.Proof.Sequence + " refused before any debit: " + LastFirstTickDecision + "; the previous order is unchanged.");
-                return MountedFirstTickVerdict.Refuse;
+                var inPlace = probe.AdmissibleNow;
+                // The tick ends at the predicted stop; the carrier's path is cut there (never past the next waypoint the native mover steers
+                // to), so this tick's actual displacement is the predicted one and the carrier completes where it ends.
+                if (!inPlace && p.CarrierMove != null) p.CarrierMove.ForcedPath = new Pathfinding.ForcedPath(new List<Vector3>(probe.Route));
+                p.Detail = inPlace ? "in-range" : probe.Detail;
+                string failure;
+                if (!p.Replacement || CommitProvisionalOrder(p, out failure))
+                {
+                    p.State = MountedFirstTickProposalState.Committed;
+                    p.Retired = true;
+                    unifiedTurn.BindMountFirstTickGate(p, false);
+                    if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
+                    FirstTickCommitCount++;
+                    detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + tick;
+                    TryLog(() => "Turn-based first-tick decision committed: " + LastFirstTickDecision + ".");
+                    return inPlace ? MountedFirstTickVerdict.CommitInPlace : MountedFirstTickVerdict.Commit;
+                }
+                refusal = failure;
             }
-            var inPlace = probe.AdmissibleNow;
-            var route = inPlace ? new List<Vector3>() : new List<Vector3>(probe.Route);
-            // The tick ends at the stopping position; the carrier's route is cut there, so it completes where its one tick ends (native
-            // would end it on the next, zero-length tick anyway). The agent's motion in this tick is unchanged by the cut.
-            if (!inPlace && probe.RouteMetres < PairedAttackClickProbe.RouteLength(p.Proof.Route) - 1e-4f)
-                p.CarrierMove.ForcedPath = new Pathfinding.ForcedPath(new List<Vector3>(route));
-            p.State = MountedFirstTickProposalState.Committed;
-            p.Detail = inPlace ? "in-range" : probe.Detail;
-            var committed = new ClickProof
+            p.State = MountedFirstTickProposalState.Refused;
+            p.Detail = refusal;
+            FirstTickRefusalCount++;
+            detail = LastFirstTickDecision = "refused:" + refusal + tick;
+            LastStockAttackObservation = "first-tick-proposal-refused;" + refusal;
+            LastFeedback = "Mounted attack not started: the single-action move's one step cannot reach a legal strike position.";
+            TryLog(() => "Turn-based first-tick decision refused before any debit: " + LastFirstTickDecision +
+                (p.Replacement ? "; the previous order is unchanged." : "; the order ends without movement or expenditure."));
+            return MountedFirstTickVerdict.Refuse;
+        }
+
+        // The commit of a provisional order: success is read from the actual accepted generation and owner, never from a routing result.
+        // A failure before the previous intent was retired leaves everything as it was; a failure after it records the actual state.
+        private bool CommitProvisionalOrder(FirstTickProposal p, out string failure)
+        {
+            failure = null;
+            var priorGeneration = stockIntent.Generation;
+            var priorIntent = HasStockAttackIntent;
+            try
             {
-                Target = p.Proof.Target, Turn = p.Proof.Turn, Frame = p.Proof.Frame, Sequence = p.Proof.Sequence, ClickSerial = p.Proof.ClickSerial,
-                Dispatch = p.Proof.Dispatch, Route = route, Plan = probe.Plan, ArrivalRadius = probe.ArrivalRadius
-            };
-            committingFirstTickProposal = true;
-            try { AcceptStockRequest(p.StockAttack, p.Principal, target, p.Turn, p.OwnerIsMount, rider, mount, committed); }
-            finally { committingFirstTickProposal = false; }
-            unifiedTurn.BindMountFirstTickGate(p, false);
-            FirstTickCommitCount++;
-            detail = LastFirstTickDecision = "committed:" + p.Detail + tick;
-            TryLog(() => "Turn-based first-tick request #" + p.Proof.Sequence + " committed: " + LastFirstTickDecision + ".");
-            return inPlace ? MountedFirstTickVerdict.CommitInPlace : MountedFirstTickVerdict.Commit;
+                AcceptStockRequest(p.StockAttack, p.Principal, p.Target, p.Turn, false, relationship.Rider, relationship.Mount, null, p);
+            }
+            catch (Exception error)
+            {
+                TryLogException("Turn-based provisional order commit failed", error);
+                failure = "commit-failed(" + error.GetType().Name + ")";
+            }
+            var accepted = HasStockAttackIntent && stockIntent.Generation != priorGeneration && stockIntent.Owns(p.Target, stockIntent.Generation) &&
+                ReferenceEquals(stockIntentCommand, p.Command) && ReferenceEquals(activeCommand, p.Command) && retainedOrder.IsCurrent(stockIntent.Generation) &&
+                !p.Command.IsFinished;
+            if (accepted) { p.CommittedGeneration = stockIntent.Generation; failure = null; return true; }
+            if (failure == null) failure = "commit-not-accepted";
+            failure += ";previousIntent=" + (priorIntent ? (stockIntent.Generation == priorGeneration && HasStockAttackIntent ? "kept" : "retired") : "none") +
+                ";generation=" + priorGeneration + "->" + stockIntent.Generation;
+            // An intent the failed commit already started is not left behind without its wrapper.
+            if (stockIntent.Generation != priorGeneration && HasStockAttackIntent && ReferenceEquals(stockIntentTarget, p.Target))
+            {
+                if (ReferenceEquals(stockIntentCommand, p.Command)) stockIntentCommand = null;
+                ClearStockAttackIntent("provisional commit failed", true);
+            }
+            return false;
+        }
+
+        // A provisional order reached its strike start without a decided tick (no carrier was needed, or the target came into reach).
+        private bool AdmitProvisionalStrike(MountedPairAttackCommand command)
+        {
+            var p = firstTickProposal;
+            if (p == null || !p.Replacement || !ReferenceEquals(p.Command, command)) return !command.ProvisionalOrder;
+            if (p.State == MountedFirstTickProposalState.Committed) return true;
+            if (p.State != MountedFirstTickProposalState.Pending) return false;
+            string detail;
+            return DecideFirstTickProposal(p, 0f, 0f, true, out detail) != MountedFirstTickVerdict.Refuse;
         }
 
         private void RefuseFirstTickProposal(string why)
@@ -1589,28 +1735,79 @@ namespace KingmakerMountedCombat.Integration
             LastFirstTickDecision = "refused:" + why;
         }
 
-        // Settles and retires the request outside the movement tick: a pending request whose carrier, turn, target or rider eligibility ended
-        // is refused; a refused request's live carrier is interrupted; a committed request keeps its carrier (now the order's own movement)
-        // until that carrier ends. The gate is released whenever the request is retired.
+        // A newer click retires only a pending provisional order (an accepted order's gate stays with its carrier: a same-target continuation
+        // keeps that carrier, and a replacement retires the order through CancelCore, which releases the gate).
+        private void RetirePendingReplacement(string why)
+        {
+            if (firstTickProposal != null && firstTickProposal.Replacement) RetireFirstTickProposal(why);
+        }
+
+        // A cancellation retires a pending provisional order and its exact carrier; an accepted order's gate is only released (the order's own
+        // retirement handles its wrapper).
+        private void RetireFirstTickProposal(string why)
+        {
+            var p = firstTickProposal;
+            if (p == null) return;
+            if (!p.Replacement)
+            {
+                unifiedTurn.BindMountFirstTickGate(p, false);
+                if (p.State == MountedFirstTickProposalState.Pending) { p.State = MountedFirstTickProposalState.Refused; p.Detail = why; }
+                p.Retired = true;
+                firstTickProposal = null;
+                return;
+            }
+            RefuseFirstTickProposal(why);
+            SweepFirstTickProposal();
+        }
+
+        // Settles and retires the request outside the movement tick (the controller's per-frame drive). A pending request whose command, carrier,
+        // turn or target ended is refused; a refused request's exact command and carrier are ended (only if they are still the request's own and
+        // still held); a committed request needs nothing (its order owns command and carrier). Idempotent: a retired request is never revived.
         internal void SweepFirstTickProposal()
         {
             var p = firstTickProposal;
             if (p == null) return;
-            var carrier = p.CarrierMove;
             if (p.State == MountedFirstTickProposalState.Pending)
             {
+                var mount = relationship.Mount;
                 string why = null;
-                if (carrier == null || carrier.IsFinished) why = "carrier-ended-before-first-tick";
+                if (p.Command == null || p.Command.IsFinished) why = "order-ended-before-first-tick";
+                else if (p.Replacement && !ReferenceEquals(activeCommand, p.Command)) why = "order-replaced";
                 else if (!ReferenceEquals(Game.Instance?.TurnBasedCombatController?.CurrentTurn, p.Turn)) why = "turn-changed";
-                else if (p.Target == null || !FreshExplicitClickTargetLifeAdmits(p.Target)) why = "target-invalid";
-                else if (relationship.Rider == null || !relationship.Rider.Commands.Empty) why = "newer-rider-work";
+                else if (!FirstTickTargetValid(p)) why = "target-invalid-under-click-facts";
+                else if (p.CarrierMove != null && (p.CarrierMove.IsFinished || mount == null ||
+                    !ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), p.CarrierMove))) why = "carrier-lost-before-first-tick";
                 if (why == null) return;
                 RefuseFirstTickProposal(why);
             }
-            if (p.State == MountedFirstTickProposalState.Committed && carrier != null && !carrier.IsFinished) return;
-            if (p.State == MountedFirstTickProposalState.Refused && carrier != null && !carrier.IsFinished) carrier.Interrupt();
             unifiedTurn.BindMountFirstTickGate(p, false);
             if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
+            if (p.State != MountedFirstTickProposalState.Refused || p.Retired) return;
+            p.Retired = true;
+            var command = p.Command;
+            if (command != null && !command.IsFinished && (p.Replacement ? !ReferenceEquals(stockIntentCommand, command) : ReferenceEquals(stockIntentCommand, command)))
+            {
+                command.MarkOrderRetired();
+                InterruptOwnedCommand(command, MountedAttackEndCause.Cancelled, "first-tick decision refused: " + p.Detail);
+                FirstTickRetiredCommandCount++;
+            }
+            var carrier = p.CarrierMove;
+            var slot = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            if (carrier != null && !carrier.IsFinished && ReferenceEquals(slot, carrier)) carrier.Interrupt(false);
+            if (command != null && command.IsFinished && ReferenceEquals(activeCommand, command)) activeCommand = null;
+        }
+
+        // R6-F1: the click's own post-Run manual-target assignment for a pending provisional order of this exact click is deferred to the
+        // order's acceptance (MountedPatchController.ClickManualTargetAssignment).
+        // A provisional request this same click refused (at its installation) leaves no target either: the click is not an accepted order.
+        internal bool DefersClickTargetAssignment(Kingmaker.Controllers.Combat.UnitCombatState combatState, UnitEntityData target)
+        {
+            var p = LastFirstTickProposal;
+            if (disposed || p == null || !p.Replacement || activeClick < 0 || p.ClickSerial != activeClick || relationship.Rider == null ||
+                !ReferenceEquals(relationship.Rider.CombatState, combatState) || !ReferenceEquals(target, p.Target) ||
+                p.State == MountedFirstTickProposalState.Committed) return false;
+            if (!p.TargetWriteDeferred) { p.TargetWriteDeferred = true; DeferredClickTargetWriteCount++; }
+            return true;
         }
 
         // Review R4-F1: the proof for a carrier of a click-admitted turn-based order, recomputed from the CURRENT origin with the
@@ -1642,11 +1839,14 @@ namespace KingmakerMountedCombat.Integration
                 LastRouteRevalidation = "proven=True;in-range;" + LastRoutePlans;
                 return new PairedAttackClickProbe.Approach { Route = new List<Vector3> { mount.Position, mount.Position }, ArrivalRadius = PairedAttackClickProbe.ArrivalRadii[0], Plan = probe.Plan };
             }
+            // PR #70 R6-F4 (round 7): in the first-tick state the grant is only the route-search ceiling; the route it proves is executable only
+            // through the first-tick decision of the carrier made from it (Approach.FirstTick -> BindFirstTickCarrier), never as a grant.
+            var firstTick = reason == "single-move-first-tick";
             var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteProven, probe.RouteMetres, grant);
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
-                ";mountGrant=" + reason + ";probe=" + probe.Detail + ";" + LastRoutePlans;
+                ";mountGrant=" + reason + ";firstTick=" + firstTick + ";probe=" + probe.Detail + ";" + LastRoutePlans;
             TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
-            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan } : null;
+            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan, FirstTick = firstTick } : null;
         }
 
         internal string LastRouteRevalidation { get; private set; }
@@ -1671,9 +1871,9 @@ namespace KingmakerMountedCombat.Integration
             }
             if (chargeOwner != null && !TryDrainChargeOwnership(reason))
                 throw new InvalidOperationException("Mounted charge cleanup remains owned: " + ChargeCleanupStatus);
-            // PR #70 R1-F6 (round 6): a pending provisional request ends refused with its carrier; the committing request's own carrier is
-            // the new order's movement and is kept.
-            if (!committingFirstTickProposal) { RefuseFirstTickProposal("cancelled: " + reason); SweepFirstTickProposal(); }
+            // PR #70 R1-F6 (rounds 6-7): a pending provisional order ends refused with its exact command and carrier; the committing order's
+            // own command and carrier are the new order's and are kept.
+            if (!committingFirstTickProposal) RetireFirstTickProposal("cancelled: " + reason);
             RetireOrderForCancel(reason, ordinaryRetarget);
             ClearObservedStockRequest();
             ArmedAction = MountedCombatActionKind.None;
@@ -1834,21 +2034,27 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            // PR #70 R1-F6 (round 6): a click proven on the restricted single move's one tick is a provisional request; nothing of the
-            // previous order is touched here (BeginFirstTickProposal; its carrier's first tick commits through AcceptStockRequest).
-            if (turnBased && !ownerIsMount && clickProof != null && clickProof.FirstTick)
+            // PR #70 R1-F6 (rounds 6-7): a click proven on the restricted single move's one tick that would replace the current state is a
+            // provisional order on the rider; nothing of the previous order, manual target or Hold is touched here (BeginProvisionalOrder; its
+            // carrier's first tick commits through AcceptStockRequest). A click continuing the retained order on the same target is the
+            // normal acceptance; its carrier is decided at its first tick as well (BindFirstTickCarrier).
+            if (turnBased && !ownerIsMount && clickProof != null && clickProof.FirstTick && !(HasStockAttackIntent && ReferenceEquals(target, stockIntentTarget)))
             {
-                BeginFirstTickProposal(stockAttack, principal, target, turn, ownerIsMount, clickProof);
+                BeginProvisionalOrder(stockAttack, principal, target, turn, clickProof);
                 return false;
             }
             return AcceptStockRequest(stockAttack, principal, target, turn, ownerIsMount, rider, mount, clickProof);
         }
 
-        // The accepted player request's normal path (the replacement of the previous order included); PR #70 R1-F6 (round 6): also the
-        // commit of a provisional first-tick request.
+        // The accepted player request's normal path (the replacement of the previous order included); PR #70 R1-F6 (rounds 6-7): also the
+        // commit of a provisional first-tick order (committing).
         private bool AcceptStockRequest(UnitAttack stockAttack, UnitEntityData principal, UnitEntityData target, TurnController turn, bool ownerIsMount,
-            UnitEntityData rider, UnitEntityData mount, ClickProof clickProof)
+            UnitEntityData rider, UnitEntityData mount, ClickProof clickProof, FirstTickProposal committing = null)
         {
+            // PR #70 R6-F5 (round 7): every newer accepted click (the same-target continuation included) retires a pending provisional order and
+            // its exact carrier before it is classified; the proposal's own commit is the only acceptance that keeps it.
+            if (committing != null) return CommitAcceptedProvisional(principal, target, turn, rider, mount, committing);
+            RetirePendingReplacement("a newer accepted click");
             // The native effect of a new order on the unit it was given to, which a routed click never reaches.
             ObserveDeliberateOrder();
             principal.HoldState = false;
@@ -1902,6 +2108,47 @@ namespace KingmakerMountedCombat.Integration
                 ";turnBased=" + CombatController.IsInTurnBasedCombat() +
                 ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered;
             TryDriveStockAttackIntent();
+            return false;
+        }
+
+        // PR #70 R1-F6 (round 7, R6-F7/R6-F1/R6-F6): the provisional order's commit. Only the previous INTENT is retired (the provisional command
+        // is detached from the active slot for that one retirement); intent B starts with the click's facts (its target-life fact included);
+        // the provisional command becomes B's own wrapper with its exact carrier; the deferred manual target and Hold are applied unless the
+        // player assigned newer ones. The caller reads success from the accepted generation and owner.
+        private bool CommitAcceptedProvisional(UnitEntityData principal, UnitEntityData target, TurnController turn, UnitEntityData rider, UnitEntityData mount,
+            FirstTickProposal p)
+        {
+            var command = p.Command;
+            if (command == null || command.IsFinished || !ReferenceEquals(activeCommand, command)) return false;
+            var newerTarget = !ReferenceEquals(rider.CombatState?.ManualTarget, p.TargetBeforeClick);
+            ObserveDeliberateOrder();
+            if (rider.HoldState == p.RiderHoldAtClick) rider.HoldState = false;
+            var actionContext = ResolveRiderPrimaryAction();
+            committingFirstTickProposal = true;
+            activeCommand = null;
+            try { CancelCore("first-tick provisional order accepted", true); }
+            finally { activeCommand = command; committingFirstTickProposal = false; }
+            stockIntent.Begin(target, turn, false, IsPairInCombat(), rider, mount, principal.GetFirstWeapon(), mount.GetFirstWeapon(), (int)actionContext,
+                targetUnconsciousWhenOrdered: p.TargetUnconsciousAtClick);
+            var generation = stockIntent.Generation;
+            retainedOrder.Begin(generation, false, actionContext != MountedCombatActionKind.RiderRanged);
+            BindClickProof(null, "first-tick-commit");
+            StockAttackIntentStartCount++;
+            retainedOrder.RecordOwnIssued(generation, command);
+            if (command.DelegatedMove != null) retainedOrder.RecordOwnIssued(generation, command.DelegatedMove);
+            if (p.CarrierMove != null && !ReferenceEquals(p.CarrierMove, command.DelegatedMove)) retainedOrder.RecordOwnIssued(generation, p.CarrierMove);
+            command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(generation, issued);
+            command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(generation);
+            command.CommitProvisionalOrder();
+            stockIntentCommand = command;
+            stockIntent.ObserveDispatch(false);
+            StockAttackRiderDispatchCount++;
+            if (newerTarget) riderSelection.Release(); else OwnManualTarget(principal, target, generation);
+            if (p.MountHoldDeferred && mount.HoldState) mount.HoldState = false;
+            LastRejectionCodes = new MountedCombatRejectionCode[0];
+            LastFeedback = "Mounted stock attack intent accepted: rider principal, " + MountDisplayName + " movement authority.";
+            LastStockAttackObservation = "intent-start;target=" + target.UniqueId + ";firstTickCommit=True;generation=" + generation +
+                ";newerTargetKept=" + newerTarget + ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered;
             return false;
         }
 
@@ -2483,9 +2730,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void TryDriveStockAttackIntent()
         {
-            // PR #70 R1-F6 (round 6): while a provisional request is pending, the previous order is neither retired nor advanced.
+            // PR #70 R1-F6 (rounds 6-7): while a provisional order is pending (its command and carrier live, its turn current), the previous
+            // order is neither retired nor advanced; every end of that state settles it here first.
             SweepFirstTickProposal();
-            if (firstTickProposal != null && firstTickProposal.State == MountedFirstTickProposalState.Pending) return;
+            if (PendingReplacement) return;
             if (chargeOwner != null) return; // A charge from admission to its end owns the pair's attack.
             var target = stockIntentTarget;
             if (disposed || target == null)
@@ -2915,6 +3163,17 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)
         {
             if (disposed || owner == null || owner != relationship.Rider && owner != relationship.Mount) return false;
+            // PR #70 R6-F1 (round 7): the Run of a pending provisional order's command or carrier keeps the actor's Hold; the order applies it once
+            // when it commits (CommitAcceptedProvisional), and a refusal leaves it as it was.
+            if (IsPendingReplacementWork(command))
+            {
+                if (owner.HoldState)
+                {
+                    if (owner == relationship.Rider) firstTickProposal.RiderHoldDeferred = true; else firstTickProposal.MountHoldDeferred = true;
+                    DeferredHoldWriteCount++;
+                }
+                return true;
+            }
             // Review R1-F8: an automatic order's exact delegated move does not clear the mount's Hold.
             var keeps = owner == relationship.Mount &&
                 MountedHoldProvenance.NativeRunKeepsMountHold(retainedOrder.IsRetainedOwn(command), retainedOrder.Automatic) ||
@@ -3020,9 +3279,9 @@ namespace KingmakerMountedCombat.Integration
             var attackApproachActive = activeCommand != null && !activeCommand.IsFinished;
             // The door's occupancy recovery move is driven exactly like its approach: on the rider's acting turn.
             // The carried approach's delegated move is admitted exactly like the door approach: on the rider's acting turn.
-            // PR #70 R1-F6 (round 6): a provisional request's carrier is driven exactly like the door approach: on the rider's acting turn.
+            // PR #70 R1-F6 (round 7): a provisional order is the active pair command, so its carrier is admitted as the attack approach is.
             var doorApproachActive = activeDoorInteraction != null && !activeDoorInteraction.IsFinished ||
-                pendingDoorSettlement?.RecoveryMove != null || HasLiveCarriedApproachMove || FirstTickProposalCarrierLive;
+                pendingDoorSettlement?.RecoveryMove != null || HasLiveCarriedApproachMove;
             var riderGroundMoveActive = activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished;
             if (disposed || !attackApproachActive && !doorApproachActive && !riderGroundMoveActive ||
                 agent == null || agent.Unit?.EntityData != relationship.Mount)
@@ -3447,7 +3706,8 @@ namespace KingmakerMountedCombat.Integration
                         mountPrimary.AdditionalLimbIndex,
                         mountPrimary.Weapon.Blueprint.IsNatural,
                         mountPrimary.Weapon.Blueprint.IsRanged),
-                TransactionIdle = !HasFaultedChargeCleanupOwner && (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) &&
+                TransactionIdle = !HasFaultedChargeCleanupOwner && (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand) ||
+                    evaluatingFirstTickCommand != null && ReferenceEquals(activeCommand, evaluatingFirstTickCommand)) &&
                     !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
                     !MountedGameModePolicy.CanQueueMountedAction(Game.Instance.CurrentMode.ToString()),

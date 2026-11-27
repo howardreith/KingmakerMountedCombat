@@ -28,8 +28,11 @@ namespace KingmakerMountedCombat.Integration
         private float pairApproachRadius;
         private bool automaticOrigin;
 
-        // UnitCommands.UpdateCombatTarget marks a command without AiAction as the player's manual target.
-        public override bool MarkManualTarget => !automaticOrigin;
+        // UnitCommands.UpdateCombatTarget marks a command without AiAction as the player's manual target. PR #70 R6-F1 (round 7): a provisional
+        // order (not yet accepted) writes no manual target at its Run; its acceptance makes the write once (MountedCombatController).
+        public override bool MarkManualTarget => !automaticOrigin && !manualTargetWriteDeferred;
+        private bool manualTargetWriteDeferred;
+        internal void DeferManualTargetWrite(bool deferred) { manualTargetWriteDeferred = deferred; }
 
         internal bool IsAutomaticOrigin => automaticOrigin;
 

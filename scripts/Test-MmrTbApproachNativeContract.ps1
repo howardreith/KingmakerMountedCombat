@@ -186,4 +186,21 @@ $adapterType = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateA
 $controllerType = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
 Check ($null -eq $participantType.GetMethod('ExcludeFirstTickOnlySingleMove', $any) -and $null -eq $adapterType.GetMethod('SingleMoveTruncatesRestrictedMove', $any) -and
     $null -ne $adapterType.GetField('FirstTickGate', $any) -and $null -ne $controllerType.GetMethod('DecideFirstTickProposal', $any) -and $null -ne $controllerType.GetMethod('SweepFirstTickProposal', $any)) 'PR-2 R1-F6 (round 6): the product decides a restricted single-action replacement at its own carrier''s first TickDelegated (MountedMovementStateAdapter.FirstTickGate, MountedCombatController.DecideFirstTickProposal/SweepFirstTickProposal) and no longer rewrites the selected single-action limit (ExcludeFirstTickOnlySingleMove and SingleMoveTruncatesRestrictedMove absent)'
+# ---- PR-2 R1-F6 / R5-F3 (round 7): the installed turn-phase progression the provisional order relies on ----------------------------------
+# A provisional order is the RIDER's own pair command: installed TurnController.Tick moves a Preparing turn to Acting only when IsActed(), when
+# its own m_Commands (the turn unit's command container) is not Empty, or when the unit cannot act; a bare mount UnitMoveTo is in none of these.
+$turnStatus = $turnType.GetNestedType('TurnStatus', $any)
+Check ([int][Enum]::Parse($turnStatus, 'Preparing') -eq 2 -and [int][Enum]::Parse($turnStatus, 'Acting') -eq 3) 'PR-2 R1-F6 (round 7): installed TurnController.TurnStatus has Preparing = 2 and Acting = 3'
+$isActing = $turnType.GetProperty('IsActing', $any).GetGetMethod($true)
+Check ($isActing.MetadataToken -eq 0x06000C24 -and (IlText $isActing) -ceq ';ldarg.0;call get_Status;ldc.i4.3;ceq;ret;') 'PR-2 R5-F3 (round 7): installed TurnController.get_IsActing (06000C24) is exactly Status == Acting (an Acting turn whose IsActing is false cannot exist)'
+$turnTick = $turnType.GetMethod('Tick', [Reflection.BindingFlags]'Instance,Public,NonPublic,DeclaredOnly', $null, [Type[]]@(), $null)
+Check ($turnTick.MetadataToken -eq 0x06000C34 -and (IlText $turnTick).Contains(';ldarg.0;call get_Status;ldc.i4.2;bne.un.s;ldarg.0;call IsActed;brtrue.s;ldarg.0;ldfld m_Commands;callvirt get_Empty;brfalse.s;ldarg.0;ldfld Unit;callvirt IsAbleToAct;brtrue.s;ldarg.0;ldc.i4.3;call set_Status;')) 'PR-2 R1-F6 (round 7): installed TurnController.Tick (06000C34) sets a Preparing turn Acting only when IsActed(), its m_Commands is not Empty, or its unit is not IsAbleToAct'
+$turnCtor = @($turnType.GetConstructors($any) | Where-Object { $_.GetParameters().Count -eq 1 })[0]
+Check ($null -ne $turnCtor -and (IlText $turnCtor).Contains(';ldarg.0;ldarg.1;callvirt get_Commands;stfld m_Commands;')) 'PR-2 R1-F6 (round 7): installed TurnController(UnitEntityData) sets m_Commands to that unit''s own Commands (the rider''s container, not the mount''s)'
+$commandType = KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+$approachType = KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach'
+Check ($null -ne $controllerType.GetMethod('BeginProvisionalOrder', $any) -and $null -ne $controllerType.GetMethod('CommitAcceptedProvisional', $any) -and
+    $null -ne $controllerType.GetMethod('DefersClickTargetAssignment', $any) -and $null -ne $controllerType.GetMethod('BindFirstTickCarrier', $any) -and
+    $null -eq $controllerType.GetMethod('BeginFirstTickProposal', $any) -and $null -ne $commandType.GetField('FirstTickCarrierIssued', $any) -and
+    $null -ne $commandType.GetField('ProvisionalStrikeGate', $any) -and $null -ne $approachType.GetField('FirstTick', $any)) 'PR-2 R1-F6 (round 7): the provisional request is a rider pair command (BeginProvisionalOrder/CommitAcceptedProvisional), its gate is bound by its own carrier creation (FirstTickCarrierIssued -> BindFirstTickCarrier; Approach.FirstTick), the click''s native assignment is deferred (DefersClickTargetAssignment), and round 6''s bare mount carrier (BeginFirstTickProposal) is absent'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
