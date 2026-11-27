@@ -260,6 +260,13 @@ namespace KingmakerMountedCombat.Integration
             var rider = activation.Principal;
             var mount = activation.Partner;
             var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
+            // PR #70 R5-F2 (round 6): a scoped direct input dispatches its own target in its own turn; an override proven for another
+            // highlighted/predicted hostile (or in another turn) keeps native's refusal, so its handler never runs on that order.
+            if (!combat.DispatchCarriesOverrideFor(target, Game.Instance?.TurnBasedCombatController?.CurrentTurn))
+            {
+                LastAttackClickDecision = "NativeDecision:dispatch-target-mismatch";
+                return;
+            }
             var predicted = (NativePredictionCommands.GetValue(context) as UnitCommands)?.GetCommand(UnitCommand.CommandType.Standard) as UnitAttack;
             var weapon = rider?.GetFirstWeapon();
             var meleeOnTarget = rider != null && mount != null && predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&

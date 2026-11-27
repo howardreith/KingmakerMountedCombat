@@ -172,10 +172,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Candidate positions on a ring just inside pair reach around the target. PR #70 R2-F3/R4-F3 (round 5): the rider's admission depends
-        // on the heading the pair arrives with, which only the returned path establishes, so no guessed heading EXCLUDES a candidate. But a
+        // on the heading the pair arrives with, which only the returned path establishes, so no guessed heading EXCLUDES a candidate. A
         // candidate where the strike is already admitted under some sampled heading (in particular a flank whose sight does not depend on the
-        // heading) is queried before candidates no sampled heading admits; within each tier the order is the distance from the mount. The
-        // MaxLateralQueries cap applies across both tiers, and the walk of each returned path decides with its actual headings (TryApproach).
+        // heading) forms one tier; candidates no sampled heading admits (whose legal heading only a returned route can establish) the other;
+        // each tier is ordered by distance from the mount. PR #70 R5-F1 (round 6): neither tier may crowd the other out of the bounded query
+        // set. The tiers are merged by distance, but each tier is guaranteed half of MaxLateralQueries while the other still has candidates
+        // (LateralTierShare): sampled-visible but unpathable endpoints cannot spend every query before a nearby unknown-heading candidate,
+        // and nearby blind endpoints cannot spend every query before a heading-independent flank (R4-F3). The MaxLateralQueries cap applies
+        // across both tiers, and the walk of each returned path decides with its actual headings (TryApproach).
+        internal const int LateralTierShare = MaxLateralQueries / 2;
         private static IEnumerable<Vector3> LateralCandidates(Vector3 mount, Vector3 target, float pairRadius, Func<Vector3, Vector3, Vector3, bool> admits)
         {
             var ring = pairRadius - LateralInsetMetres;
@@ -196,8 +201,17 @@ namespace KingmakerMountedCombat.Integration
             }
             sampled.Sort((a, b) => a.Key.CompareTo(b.Key));
             unsampled.Sort((a, b) => a.Key.CompareTo(b.Key));
-            foreach (var candidate in sampled) yield return candidate.Value;
-            foreach (var candidate in unsampled) yield return candidate.Value;
+            int s = 0, u = 0;
+            while (s < sampled.Count || u < unsampled.Count)
+            {
+                bool takeSampled;
+                if (s >= sampled.Count) takeSampled = false;
+                else if (u >= unsampled.Count) takeSampled = true;
+                else if (s >= LateralTierShare && u < LateralTierShare) takeSampled = false;
+                else if (u >= LateralTierShare && s < LateralTierShare) takeSampled = true;
+                else takeSampled = sampled[s].Key <= unsampled[u].Key;
+                yield return takeSampled ? sampled[s++].Value : unsampled[u++].Value;
+            }
         }
 
         // The bounded walk over openings on one complete route (PR #70 R1-F3); fills the result on success.

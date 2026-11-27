@@ -30,6 +30,7 @@ $lifecyclePath=Join-Path $integration 'PairedActivationLifecycle.cs';$lifecycle=
 $adapterPath=Join-Path $integration 'MountedMovementStateAdapter.cs';$adapter=[IO.File]::ReadAllText($adapterPath)
 $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
 $terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
+$directInputPath=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/NativeOrdinaryAttackInput.cs';$directInput=[IO.File]::ReadAllText($directInputPath)
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
 $members=[ordered]@{
  'ADMISSION_ENUM'=(Extract $child 'internal enum MountedPairNativeAdmissionState')
@@ -143,6 +144,12 @@ $members=[ordered]@{
  'TERMINAL_TB_FORCE_FINISH'=(Extract $terminalBranches 'internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result, int canActObservation)')
  'TERMINAL_RUNNING_SITE'=(Extract $terminalBranches 'internal static void InterruptAtRunningSite(UnitCommand command, bool raiseEvent, int canActObservation)')
  'TERMINAL_RECORD'=(Extract $terminalBranches 'private static void Record(UnitCommand command, MountedNativeTerminalBranch branch)')
+ 'POINTER_TICK_PREFIX'=(Extract $patch 'internal static void PointerTickPrefix()')
+ 'POINTER_TICK_POSTFIX'=(Extract $patch 'internal static void PointerTickPostfix()')
+ 'BIND_SCOPED_TARGET'=(Extract $patch 'internal static void BindScopedDispatchTarget(UnitEntityData target, object turn)')
+ 'BEGIN_SCOPED_DISPATCH'=(Extract $patch 'internal static void BeginScopedInputDispatch(UnitEntityData target, object turn)')
+ 'END_SCOPED_DISPATCH'=(ExtractExpression $patch 'internal static void EndScopedInputDispatch() =>')
+ 'NATIVE_INPUT_CLICK'=(Extract $directInput 'internal bool Click(bool respectNativeAdmission = true, int button = 0)')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)
@@ -154,7 +161,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

@@ -480,7 +480,13 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // PR #70 R4-F2 (round 5): the admission-aware direct input's scoped dispatch (the same bracket as native PointerController.Tick).
-        internal static void BeginScopedInputDispatch() => PatchMethods.PointerTickPrefix();
+        // PR #70 R5-F2 (round 6): the scope is bound to the target its handler will receive and to the turn it was opened in, so an override
+        // proven for the highlighted/predicted hostile can only reach a handler call on that same hostile in that same turn.
+        internal static void BeginScopedInputDispatch(UnitEntityData target, object turn)
+        {
+            PatchMethods.PointerTickPrefix();
+            PatchMethods.BindScopedDispatchTarget(target, turn);
+        }
         internal static void EndScopedInputDispatch() => PatchMethods.PointerTickPostfix();
 
         // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own submission is guarded.
@@ -942,6 +948,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 try { foreach (var combat in ClickControllers()) combat.BeginPointerDispatch(); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch was not observed", error); }
+            }
+
+            // PR #70 R5-F2 (round 6): the direct input's dispatch target and turn (native PointerController.Tick binds none).
+            internal static void BindScopedDispatchTarget(UnitEntityData target, object turn)
+            {
+                try { foreach (var combat in ClickControllers()) combat.BindDispatchTarget(target, turn); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Scoped input dispatch target was not bound", error); }
             }
 
             internal static int PointerDispatchClosures;

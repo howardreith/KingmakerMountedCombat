@@ -30,6 +30,15 @@ namespace UnityEngine
     }
 
     public static class Time { public static int frameCount; }
+
+    // PR #70 R5-F2 (round 6): a unit view's GameObject, the identity native ClickUnitHandler.OnClick receives (engine boundary).
+    public sealed class GameObject { }
+}
+
+namespace Kingmaker.Controllers.Clicks
+{
+    // Native IClickEventHandler.OnClick(GameObject, Vector3, int button, bool simulate, bool muteEvents) (engine boundary).
+    public interface IClickEventHandler { bool OnClick(UnityEngine.GameObject gameObject, UnityEngine.Vector3 worldPosition, int button, bool simulate, bool muteEvents); }
 }
 
 // Native PathCompleteState (Assembly-CSharp-firstpass, global namespace): the outcome of a path request.
@@ -133,6 +142,10 @@ namespace TurnBased.Controllers
         private bool m_NeedNewPredictions;
         public void SetNativeClick(Kingmaker.EntitySystem.Entities.UnitEntityData highlighted, Kingmaker.UnitLogic.Commands.UnitCommands predictions, bool needNew)
         { m_HighlightedUnit = highlighted; m_PredictionCommands = predictions; m_NeedNewPredictions = needNew; }
+        // PR #70 R5-F2 (round 6): native IgnoreClick on this context with the product's postfix (engine boundary: the case supplies native's
+        // own result and runs the ACTUAL AdmitPairedAttackClick on it).
+        public Func<bool> IgnoreClickHook;
+        public bool IgnoreClick() => IgnoreClickHook != null && IgnoreClickHook();
     }
 }
 
@@ -218,6 +231,7 @@ namespace Kingmaker.View
         public bool IsMoving() => Moving;
         public int StopMovingCount;
         public UnitMovementAgent AgentASP;
+        public readonly UnityEngine.GameObject gameObject = new UnityEngine.GameObject();
         public void StopMoving() { StopMovingCount++; }
     }
 }
@@ -657,7 +671,54 @@ namespace KingmakerMountedCombat.Integration
         internal static List<Harness.MountedCombatController> Controllers = new List<Harness.MountedCombatController>();
         private static IEnumerable<Harness.MountedCombatController> ClickControllers() => Controllers;
         /* CLICK_ASSIGNMENT_HOOK */
+        // PR #70 R5-F2 (round 6): the ACTUAL pointer dispatch bracket and the direct input's target binding.
+        /* POINTER_TICK_PREFIX */
+        internal static int PointerDispatchClosures;
+        /* POINTER_TICK_POSTFIX */
+        /* BIND_SCOPED_TARGET */
     }
+
+    // PR #70 R5-F2 (round 6): the ACTUAL MountedPatchController members the admission-aware direct input calls.
+    internal static class MountedPatchController
+    {
+        /* BEGIN_SCOPED_DISPATCH */
+        /* END_SCOPED_DISPATCH */
+    }
+}
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    using Kingmaker;
+    using Kingmaker.Controllers.Clicks;
+    using Kingmaker.EntitySystem.Entities;
+
+    // PR #70 R5-F2 (round 6): the ACTUAL NativeOrdinaryAttackInput.Click over the adapter's stored target and native simulated handler
+    // (engine boundary: the handler slot the adapter's constructor selected through native pointer priority).
+    internal sealed class NativeOrdinaryAttackInput
+    {
+        internal sealed class HandlerSlot { public IClickEventHandler Handler; public object GetValue(object owner) => Handler; }
+        private readonly HandlerSlot SimulatedHandler = new HandlerSlot();
+        private readonly object pointer = new object();
+        private readonly UnitEntityData target;
+        private readonly Vector3 point;
+        internal NativeOrdinaryAttackInput(UnitEntityData target, IClickEventHandler handler) { this.target = target; point = target.Position; SimulatedHandler.Handler = handler; }
+        /* NATIVE_INPUT_CLICK */
+    }
+}
+
+namespace KingmakerMountedCombat.Integration
+{
+    using Kingmaker.Controllers.Combat;
+    using System.Reflection;
+    using Kingmaker.EntitySystem.Entities;
+    using Kingmaker.UnitLogic.Commands;
+    using Kingmaker.UnitLogic.Commands.Base;
+    using Kingmaker.Utility;
+    using Kingmaker.Visual.FogOfWar;
+    using KingmakerMountedCombat.Logging;
+    using TurnBased.Controllers;
+    using Kingmaker;
+    using Harness;
 
     /* PROBE_CLASS */
 
@@ -5201,6 +5262,136 @@ namespace Harness
                 " m within the grant, exact release at " + world.Horse.Position + ", one strike");
         }
 
+        // R5-F1 (round 6): the reviewer's R4F3Heading variation. All path outcomes kept; sight is added wherever the projected eye's x is at
+        // least 4.5 m, so the farther ring points pass the sampled headings (their paths all return Error), while the only reachable endpoint
+        // (1.413, 1.072) admits only on its actual 101.25-degree arrival. The tier share keeps nearby unknown-heading candidates inside the
+        // six-query set. Control: every path closed (refusal within the cap).
+        private static void R6F1Interleave()
+        {
+            foreach (var closed in new[] { false, true })
+            {
+                var candidate = new Vector3(4f - 2.8f * (float)Math.Cos(Math.PI / 8d), 0f, 2.8f * (float)Math.Sin(Math.PI / 8d));
+                var heading = 101.25d * Math.PI / 180d;
+                var corner = candidate - new Vector3((float)Math.Sin(heading), 0f, (float)Math.Cos(heading));
+                var eye = candidate + new Vector3(-0.4f * (float)Math.Cos(heading), 0f, 0.4f * (float)Math.Sin(heading));
+                Func<Vector3, Vector3, bool> blocked = (from, to) => Math.Sqrt((from.x - eye.x) * (from.x - eye.x) + (from.z - eye.z) * (from.z - eye.z)) > 0.025 && from.x < 4.5f;
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), blocked, true);
+                world.Horse.Orientation = 0f;
+                world.Rider.Position = world.Horse.Position + new Vector3(-0.4f, 0f, 0f);
+                var agent = world.Horse.View.AgentASP;
+                agent.Route = (from, to) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, candidate) < 1e-3f ? new List<Vector3> { from, corner, to } : new List<Vector3> { from, to };
+                agent.Outcome = (from, to) => !closed && Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, candidate) < 1e-3f ? PathCompleteState.Complete : PathCompleteState.Error;
+                // The sampled-visible tier, computed with the production strike admission over the probe's own ring and 16 headings.
+                var sampler = new MountedPairSingleAttack(world.Target, world.Rider, world.Horse, true, false);
+                sampler.Init(world.Rider);
+                var ring = sampler.PairApproachRadius - PairedAttackClickProbe.LateralInsetMetres;
+                var visible = new List<Vector3>();
+                for (var k = 0; k < PairedAttackClickProbe.LateralDirections; k++)
+                {
+                    var angle = k * 2d * Math.PI / PairedAttackClickProbe.LateralDirections;
+                    var point = new Vector3(4f + ring * (float)Math.Cos(angle), 0f, ring * (float)Math.Sin(angle));
+                    for (var h = 0; h < 16; h++)
+                    {
+                        var a = h * 2d * Math.PI / 16;
+                        if (sampler.EvaluateNativeAdmissionAtMountPosition(point, new Vector3((float)Math.Sin(a), 0f, (float)Math.Cos(a))) == MountedPairNativeAdmissionState.Admitted) { visible.Add(point); break; }
+                    }
+                }
+                var candidateSampled = visible.Any(p => Kingmaker.Utility.GeometryUtils.MechanicsDistance(p, candidate) < 1e-3f);
+                var c = Connect(world, false);
+                var click = ClickTick(c, world.Target);
+                var probe = c.Combat.LastAttackClickProbe;
+                var lateralEndpoints = agent.Endpoints.Skip(1).ToList();   // the first query is the target-centred route
+                var candidateIndex = lateralEndpoints.FindIndex(p => Kingmaker.Utility.GeometryUtils.MechanicsDistance(p, candidate) < 0.05f);
+                var visibleBefore = (candidateIndex < 0 ? lateralEndpoints : lateralEndpoints.Take(candidateIndex).ToList()).Count(p => visible.Any(v => Kingmaker.Utility.GeometryUtils.MechanicsDistance(v, p) < 0.05f));
+                var queried = string.Join(" ", lateralEndpoints.Select(p => p.ToString()).ToArray());
+                if (closed)
+                {
+                    Check(!click.Admitted && click.Order == null && probe != null && probe.LateralQueries == PairedAttackClickProbe.MaxLateralQueries && c.World.Rider.HasStandard,
+                        "R5-F1 (round 6) control: every path closed: native refusal kept after " + probe?.LateralQueries + " bounded queries (" + queried + "; " + probe?.Detail + ")");
+                    continue;
+                }
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
+                Check(visible.Count > PairedAttackClickProbe.MaxLateralQueries && !candidateSampled && click.Admitted && probe.Lateral && candidateIndex >= 0 &&
+                    probe.LateralQueries == candidateIndex + 1 && probe.LateralQueries <= PairedAttackClickProbe.MaxLateralQueries && visibleBefore <= PairedAttackClickProbe.LateralTierShare &&
+                    admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && atRelease != null &&
+                    Kingmaker.Utility.GeometryUtils.MechanicsDistance(world.Horse.Position, candidate) <= probe.ArrivalRadius + 1e-3f,
+                    "R5-F1 (round 6): " + visible.Count + " sampled-visible ring points (the pre-round-6 order queried all of them first, exhausting the cap); the unknown-heading candidate " +
+                    candidate + " was lateral query " + (candidateIndex + 1) + " of at most " + PairedAttackClickProbe.MaxLateralQueries + " after " + visibleBefore +
+                    " visible-but-unpathable endpoints (queried: " + queried + "); " + probe.Detail + "; exact carrier release at " + world.Horse.Position + " (radius " +
+                    probe.ArrivalRadius.ToString("0.###") + " m); one strike; " + Spend3(atRelease, atStrike));
+            }
+        }
+
+        private static string Spend3(Spend atRelease, Spend atStrike) => "release{" + atRelease + "} strike{" + atStrike + "}";
+
+        // R5-F2 (round 6): the ACTUAL NativeOrdinaryAttackInput.Click(true) with highlighted/predicted A and the adapter's stored target B: the
+        // scoped dispatch is bound to B, so A's paired override is refused before dispatch and B receives no order. Controls: a matching target
+        // gets a route-bound order whose carrier revalidates and strikes once; Click(false) is ordinary unscoped input.
+        private sealed class DelegateClickHandler : Kingmaker.Controllers.Clicks.IClickEventHandler
+        {
+            public Func<UnityEngine.GameObject, bool> Handle;
+            public bool OnClick(UnityEngine.GameObject gameObject, Vector3 worldPosition, int button, bool simulate, bool muteEvents) => Handle(gameObject);
+        }
+
+        private static void R6F2DirectTarget()
+        {
+            foreach (var kase in new[] { "predicted A, stored B", "predicted A, stored A", "Click(false) on B" })
+            {
+                var world = Corner();
+                var c = Connect(world, false);
+                var a = world.Target;
+                var b = new UnitEntityData("hostile-b") { Position = new Vector3(3.6f, 0f, -1.6f) };
+                b.View.Corpulence = 0.5f;
+                var predictions = new UnitCommands(world.Rider);
+                var predicted = new UnitAttack(a);
+                predicted.Init(world.Rider);
+                predictions.Raw[(int)UnitCommand.CommandType.Standard] = predicted;
+                c.Context.SetNativeClick(a, predictions, false);
+                // Native IgnoreClick drops the click (its path check fails); the ACTUAL postfix decides on native's result.
+                c.Context.IgnoreClickHook = () => { var result = true; c.Pair.AdmitPairedAttackClick(c.Context, ref result); return result; };
+                var outcome = new ClickOutcome();
+                var handled = new List<string>();
+                var handler = new DelegateClickHandler { Handle = go =>
+                {
+                    var unit = ReferenceEquals(go, a.View.gameObject) ? a : ReferenceEquals(go, b.View.gameObject) ? b : null;
+                    handled.Add(unit == null ? "<none>" : unit.UniqueId);
+                    Request(c, unit, true, outcome);
+                    return true;
+                } };
+                var before = Observe(c);
+                var generation = c.Combat.StockAttackIntentStartCount;
+                var closures = PatchMethods.PointerDispatchClosures;
+                var input = new KingmakerMountedCombat.Diagnostics.NativeOrdinaryAttackInput(kase.Contains("stored A") ? a : b, handler);
+                var dispatched = input.Click(!kase.StartsWith("Click(false)"));
+                var decision = c.Pair.LastAttackClickDecision;
+                if (kase == "predicted A, stored B")
+                {
+                    var after = Observe(c);
+                    Check(!dispatched && handled.Count == 0 && outcome.Order == null && world.Rider.Commands.Standard == null && c.Combat.StockAttackIntentStartCount == generation &&
+                        decision == "NativeDecision:dispatch-target-mismatch" && c.Combat.PendingClickProofForDiagnostics == null && c.Combat.IntentClickProofForDiagnostics == null &&
+                        PatchMethods.PointerDispatchClosures == closures + 1 && after.RiderStandard && after.MountMove == before.MountMove,
+                        "R5-F2 (round 6) " + kase + ": production Click(true) bound its dispatch to B; A's override refused before dispatch (" + decision + "); handler calls " +
+                        handled.Count + ", no order, intent starts " + generation + " -> " + c.Combat.StockAttackIntentStartCount + ", no proof; " + after);
+                    continue;
+                }
+                if (kase == "predicted A, stored A")
+                {
+                    var order = outcome.Order;
+                    Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                    RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                    Check(dispatched && handled.SequenceEqual(new[] { a.UniqueId }) && order != null && order.RouteBound && admission == MountedPairNativeAdmissionState.Admitted &&
+                        UnitAttack.NativeAttackStarts == 1 && (c.Combat.LastRouteRevalidation ?? "").StartsWith("proven=True") && PatchMethods.PointerDispatchClosures == closures + 1,
+                        "R5-F2 (round 6) " + kase + ": the matching target's override reached its own handler as a route-bound order (" + c.Combat.LastClickProofDisposition +
+                        "); carrier revalidation " + (c.Combat.LastRouteRevalidation ?? "<none>").Split(';')[0] + "; one strike; " + Spend3(atRelease, atStrike));
+                    continue;
+                }
+                Check(dispatched && handled.SequenceEqual(new[] { b.UniqueId }) && outcome.Order != null && !outcome.Order.RouteBound && PatchMethods.PointerDispatchClosures == closures,
+                    "R5-F2 (round 6) " + kase + ": unscoped ordinary input dispatched B's own click (no IgnoreClick read, no dispatch bracket, order route-bound=" +
+                    (outcome.Order == null ? "none" : outcome.Order.RouteBound.ToString()) + ")");
+            }
+        }
+
         private static int Main()
         {
             try { R3F1(); } catch (Exception exception) { Check(false, "R3-F1 threw " + exception); }
@@ -5276,6 +5467,8 @@ namespace Harness
             try { R5F3Crowding(); } catch (Exception exception) { Check(false, "PR-2 R4-F3 (round 5) threw " + exception); }
             try { R4F9LivePlan(); } catch (Exception exception) { Check(false, "PR-2 R1-F9 (round 4) threw " + exception); }
             try { R4F3Heading(); } catch (Exception exception) { Check(false, "PR-2 R2-F3 (round 4) threw " + exception); }
+            try { R6F1Interleave(); } catch (Exception exception) { Check(false, "PR-2 R5-F1 (round 6) threw " + exception); }
+            try { R6F2DirectTarget(); } catch (Exception exception) { Check(false, "PR-2 R5-F2 (round 6) threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }

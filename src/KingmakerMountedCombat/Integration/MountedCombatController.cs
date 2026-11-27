@@ -1186,13 +1186,30 @@ namespace KingmakerMountedCombat.Integration
             if (pendingClickProof != null) DiscardClickProof("a new pointer dispatch began");
             pointerDispatch++;
             inPointerDispatch = true;
+            dispatchTargetBound = false; dispatchTarget = null; dispatchTurn = null;
         }
 
         internal void EndPointerDispatch()
         {
             inPointerDispatch = false;
+            dispatchTargetBound = false; dispatchTarget = null; dispatchTurn = null;
             if (pendingClickProof != null) DiscardClickProof("its pointer dispatch ended without its click taking it");
         }
+
+        // PR #70 R5-F2 (round 6): a scoped direct-input dispatch names the target its handler will receive and the turn it was opened in
+        // (MountedPatchController.BeginScopedInputDispatch). An override may be applied in it only for that exact target and turn; native
+        // PointerController.Tick binds none (its handler receives the hovered object native IgnoreClick read).
+        private bool dispatchTargetBound;
+        private UnitEntityData dispatchTarget;
+        private object dispatchTurn;
+        internal void BindDispatchTarget(UnitEntityData target, object turn)
+        {
+            if (!inPointerDispatch) return;
+            dispatchTargetBound = true; dispatchTarget = target; dispatchTurn = turn;
+        }
+
+        internal bool DispatchCarriesOverrideFor(UnitEntityData target, object turn) => inPointerDispatch &&
+            (!dispatchTargetBound || target != null && ReferenceEquals(dispatchTarget, target) && turn != null && ReferenceEquals(dispatchTurn, turn));
 
         internal void BeginClickObservation(IEnumerable<UnitEntityData> selected, bool simulated)
         {
