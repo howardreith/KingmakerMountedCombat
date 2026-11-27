@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T03:42:24+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T06:43:07+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -154,6 +154,21 @@ SHA-256 `9f3d1e4dae2efaa889c83166c137232e81dc9a5cc1d7f646f29950bb8761a448`
 ```
 SHA-256 `700b439ec9cdb6d88162700b620091864546faf3116c05a7d2d3173a6ffe0f4b`
 
+```json
+{"accepted_source": {"PR-1": "H aa15e1f2 A f7edd298", "PR-3": "H 8bfe701d A 54311f1d"}, "authority": "owner instruction 2026-11-26f", "budget": "210 -> 270", "execution_allowances": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 10, "PR-5": 10, "PR-6": 2}, "file": "owner-continuations/owner-continuation-2026-11-26f-continuation.md", "file_sha256": "dddeea571f7e09ab1026929b3565b5195db75f6a3e04828fd7273b5c7e186a8a", "kind": "owner_instruction", "pr4": "supported resume of the 8/8 cap stop to completed-round cap 10", "pr5": "transport activation invalidates round 7; completed-round cap 9, execution ceiling 10; one conditional R4-F2 no-progress resume", "prev_sha256": "4cb4c278ca4abcdd063e16c18437d65c63b399e1152bf0ecdacaac2ce6ebae60", "product_ceilings": "45 child / 52 lifetime executions; plus at most 2 infrastructure reviews (combined 54)", "seq": 119, "utc": "2026-11-27T04:52:35+00:00"}
+```
+SHA-256 `9092246a73e2b3a3eaa3f003d7cf4048a11143cc38273201db147cda5158bda5`
+
+```json
+{"authority": "owner instruction 2026-11-26f section 3", "before": "spent 180.6 of 210 min; remaining 29.4 min; entries 267", "budget_id": "mounted-alpha2-melee-pose-20261124", "from_minutes": 210, "kind": "budget_adjustment", "mechanism": "WorkflowBudget.ps1 Update-KmcWorkflowBudgetRecord (locked), allowanceAdjustments entry appended", "prev_sha256": "9092246a73e2b3a3eaa3f003d7cf4048a11143cc38273201db147cda5158bda5", "result": "budget mounted-alpha2-melee-pose-20261124: spent 180.6 of 270 min; remaining 89.4 min; entries 267 (running 0, interrupted 0, unreconciled 0)", "seq": 120, "to_minutes": 270, "utc": "2026-11-27T04:52:35+00:00"}
+```
+SHA-256 `55b58e38294a4d42524eb50c4dc832c2c86072f7b6685b5b2a706bf406bb11c3`
+
+```json
+{"authority": "owner instruction 2026-11-26f sections 2 and 7 (completed-round cap 10, supported resume from the 8/8 stop recorded in owner-continuations/resume-pr4-26f-output.txt)", "blocking_evidence": "R4-F3, R5-F1 (pathname branch, Windows fallback execution), R8-F1 (Windows handle branch; actual junctions and a simulated symbolic-link boundary); components 1563/0; operation/failure table committed", "budget": "budget mounted-alpha2-melee-pose-20261124: spent 220.8 of 270 min; remaining 49.2 min; entries 322 (running 0, interrupted 0, unreconciled 0)", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-4-ledger-excerpt.md with this entry (source commit 9871ac2d)", "child_rounds": "8 of 10 before this round; 9 of 10 after", "kind": "pre_review_check", "pr": "PR-4", "prev_sha256": "0f366ba8fc2dee098724f77110c50fd8cd67a67877fe9e11a1ed3b017d752278", "program": "before: product child 37 of 45, lifetime 44 of 52, infrastructure 2 of 2 (combined 46 of 54); after: 38 / 45, 45 / 52, combined 47 / 54", "round": 9, "seq": 132, "utc": "2026-11-27T06:43:07+00:00"}
+```
+SHA-256 `35cebc8879c29af965a22b637bfe7980a6356816d956e0a0a33432ef63423f57`
+
 Reconciliation (PR-4 review R1-F8): seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`, SHA-256 in seq 18). It raised the validation allowance of the
 shared budget from 90 to 150 minutes (recorded in the budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and the program
@@ -166,4 +181,4 @@ validation unchanged at 150 minutes. Seq 49 is the resume to a ceiling of 4, seq
 seq 65 records owner instruction 2026-11-26c (total cap 5), seq 78 the resume to 5, seq 79 the round-4 check, seq 80 the round-4
 result, seq 81 the round-5 check, seq 82 the round-5 result (cap stop at 5/5); seq 84-85 record owner instruction 2026-11-26d
 (docs/missions/mmr-split/owner-authorization-2026-11-26d.md: PR-4 total cap 8, program 39 child / 46 lifetime, validation 210 minutes);
-seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; seq 113 the round-7 check, seq 114 the round-8 check, seq 115 the round-7 result (appended late), seq 116 the correction of that order; the round-8 check is seq 114; the last entry is the round-8 result (cap stop at 8/8).
+seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; seq 113 the round-7 check, seq 114 the round-8 check, seq 115 the round-7 result (appended late), seq 116 the correction of that order; the round-8 check is seq 114; seq 117 the round-8 result (cap stop at 8/8); seq 119-120 owner instruction 2026-11-26f (PR-4 resume to a completed-round cap of 10; validation 270 minutes); the last entry is the round-9 check.
