@@ -1099,6 +1099,12 @@ namespace Harness
         /* CONTROLLER_ADMIT_AUTOMATIC */
         // The production fields beside the decision (the proposing native action and its generation), typed on the facade's AI action.
         private Kingmaker.UnitLogic.Commands.AiActionFacade automaticOrderAction;
+        // PR-2 reconciliation on PR-1's accepted source: the production turn-based click-route members that the spliced TryExecuteAction and
+        // ClearStockAttackIntent touch. This real-time controller facade never admits a turn-based click (RememberValidatedClickRoute is not
+        // reached), so no route is ever set here; the actual revalidation is exercised by HarnessController above.
+        private List<Vector3> stockIntentValidatedRoute;
+        private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established) =>
+            throw new InvalidOperationException("turn-based click route revalidation is not reached by the real-time controller facade");
         private long automaticOrderActionGeneration = -1;
         /* CONTROLLER_ADMISSION_DECISION */
         // The production retirement entry an automatic wrapper is given (TryExecuteAction: command.AutomaticOrderAdmissionLost).

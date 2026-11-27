@@ -180,7 +180,9 @@ Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -e
 $invoke = [Func`1].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
 $moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
 $moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
-Check ($moveCtorOffsets.Count -eq 2 -and $moveCtorOffsets[1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'
+# PR-2 reconciliation: on PR-1's accepted source the ordinary carrier is built by NewApproachMove, so the route-bound point command is the
+# last (and only direct) UnitMoveTo(Vector3, float) construction in BeginDelegatedMove.
+Check ($moveCtorOffsets.Count -ge 1 -and $moveCtorOffsets[-1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[-1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'
 Check ((FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -ge 0 -and (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R4-F1: a route-bound carrier revalidates before its route is set; there is no unchecked fallback'
 $visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
 Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'
