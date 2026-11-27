@@ -208,82 +208,33 @@ namespace KingmakerMountedCombat
 
         internal MountedPersistenceService Persistence => persistence;
 
+        // PR-4 round 15 (R12-F1): the enable, successful-disable and failure-cleanup transitions are ServiceLifecycleSequence (moved there
+        // unchanged); this root supplies its live services through LifecycleBoundary, the offline tests supply a substitute engine side.
         public bool SetEnabled(bool enabled)
         {
             ThrowIfDisposed();
-            if (enabled)
-            {
-                if (IsEnabled) { return true; }
-                if (!horseCompanion.SetSelectionEnabled(true))
-                {
-                    logger.Error("Mounted combat services could not enable the exact Ranger horse selection transaction.");
-                    return false;
-                }
-                IsEnabled = true;
-                horseCompanion.OnServicesStarted();   // PR-4 round 14 (R12-F1): the repair action accepts intent again after re-enable
-                mountedCombatDefense.Enabled = true;
-                mountedRangedMovement.Enabled = true;
-                mountedShield.Enable();
-                horseCompanion.ResumeMountedShieldOffers();
-                pairPresentation.Enabled = true;
-                persistence.Enabled = true;
-                nativeControls.SetEnabled(true);
-                var overlayEnabled = settings.EnableDiagnosticOverlay ||
-                    (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
-                playerAction.SetOverlayEnabled(overlayEnabled);
-                logger.Info("Mounted combat services and native mounted abilities enabled; diagnostic overlay=" +
-                    overlayEnabled + ".");
-                return true;
-            }
+            return enabled ? ServiceLifecycleSequence.Enable(lifecycleBoundary) : ServiceLifecycleSequence.Disable(lifecycleBoundary);
+        }
 
-            // Disabling runs a full mounted cleanup over the exact live Player
-            // and cross-scene graphs an owned archive worker serializes on its
-            // own thread. Nothing can cancel a started worker, so refuse the
-            // disable instead of mutating the write in flight; the save always
-            // settles, and its drain keeps running because persistence.Update
-            // is deliberately not gated on IsEnabled.
-            if (persistence.SaveSuspended || world.AnyChargeFenced || !relationship.AllTeardownOwnersReady)
-            {
-                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
-                    "retry once it finishes.");
-                return false;
-            }
+        // The rest of the enable and successful-disable bodies, unchanged, run by ServiceLifecycleSequence after the repair action starts or stops.
+        private void EnableRemainingServices()
+        {
+            mountedCombatDefense.Enabled = true;
+            mountedRangedMovement.Enabled = true;
+            mountedShield.Enable();
+            horseCompanion.ResumeMountedShieldOffers();
+            pairPresentation.Enabled = true;
+            persistence.Enabled = true;
+            nativeControls.SetEnabled(true);
+            var overlayEnabled = settings.EnableDiagnosticOverlay ||
+                (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
+            playerAction.SetOverlayEnabled(overlayEnabled);
+            logger.Info("Mounted combat services and native mounted abilities enabled; diagnostic overlay=" +
+                overlayEnabled + ".");
+        }
 
-            // The same argument for the other live operation: cleanup during an
-            // owned world replacement would tear the pair down across a world
-            // being replaced underneath it. Bounded by the load finishing.
-            if (persistence.LoadInFlight)
-            {
-                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being loaded; " +
-                    "retry once the area has finished loading.");
-                return false;
-            }
-
-            // Always execute idempotent cleanup on a disable request. A prior
-            // update failure may already have cleared IsEnabled while a partial
-            // runtime operation still needs best-effort cleanup.
-            if (!lifecycle.HandleModDisable())
-            {
-                logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
-                return false;
-            }
-            // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted. A
-            // contribution that could not be removed keeps the services enabled, as other retained residue does. A refused
-            // disable below restores the service exactly as it was before this call (enabled or not).
-            var shieldWasEnabled = mountedShield.Enabled;
-            if (!mountedShield.Disable("services disabled"))
-            {
-                logger.Error("Diagnostic services could not be disabled because a Mounted Shield contribution remained on a mount.");
-                return false;
-            }
-            if (!horseCompanion.SetSelectionEnabled(false))
-            {
-                if (shieldWasEnabled) mountedShield.Enable();
-                logger.Error("Mounted combat services could not disable without overwriting an externally changed Ranger selection.");
-                return false;
-            }
-            IsEnabled = false;
-            horseCompanion.OnServicesStopped();   // PR-4 rounds 13-14 (R12-F1): no Horse Trip repair consent survives a stop
+        private void DisableRemainingServices()
+        {
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
             pairPresentation.Enabled = false;
@@ -296,7 +247,51 @@ namespace KingmakerMountedCombat
             Integration.MountedNativeRunScope.Reset();
             Integration.NativeCommandTerminalBranches.Reset();
             logger.Info("Mounted combat services disabled; native control facts and transient UI removed with no mounted state retained.");
-            return true;
+        }
+
+        private LifecycleBoundary lifecycleBoundaryInstance;
+        private LifecycleBoundary lifecycleBoundary => lifecycleBoundaryInstance ?? (lifecycleBoundaryInstance = new LifecycleBoundary(this));
+
+        private sealed class LifecycleBoundary : IServiceLifecycleBoundary
+        {
+            private readonly CompositionRoot root;
+            internal LifecycleBoundary(CompositionRoot root) { this.root = root; }
+            public bool IsEnabled { get => root.IsEnabled; set => root.IsEnabled = value; }
+            public bool FailureCleanupPending { set => root.failureCleanupPending = value; }
+            public bool EnableSelection() => root.horseCompanion.SetSelectionEnabled(true);
+            public void StartRepair() => root.horseCompanion.OnServicesStarted();
+            public void EnableServices() => root.EnableRemainingServices();
+            public bool SaveOrTeardownBusy => root.persistence.SaveSuspended || root.world.AnyChargeFenced || !root.relationship.AllTeardownOwnersReady;
+            public bool LoadInFlight => root.persistence.LoadInFlight;
+            public bool HandleModDisable() => root.lifecycle.HandleModDisable();
+            public bool ShieldEnabled => root.mountedShield.Enabled;
+            public bool DisableShield(string reason) => root.mountedShield.Disable(reason);
+            public void EnableShield() => root.mountedShield.Enable();
+            public bool DisableSelection() => root.horseCompanion.SetSelectionEnabled(false);
+            public void StopRepair() => root.horseCompanion.OnServicesStopped();
+            public void DisableServices() => root.DisableRemainingServices();
+            public void Error(string message) => root.logger.Error(message);
+            public Exception[] VisitPairsForFailureCleanup(out int awaitingStickMovement)
+            {
+                var awaiting = 0;
+                var errors = root.world.Visit(pair =>
+                {
+                    pair.Combat.Cancel("world update failure");
+                    var cleanup = pair.Relationship.Dismount(CleanupTrigger.Exception);
+                    // Ordinary updates are stopped only when every pair's cleanup left nothing behind; a retained obligation keeps them,
+                    // and with them its recovery, running.
+                    if (!MountedCleanupCompletionPolicy.IsWithoutResidue(cleanup))
+                    {
+                        if (pair.Relationship.LastCleanupHeldOnlyByStickMovement) awaiting++;
+                        throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+                    }
+                });
+                awaitingStickMovement = awaiting;
+                return errors;
+            }
+            public void SuspendShieldOffers() => root.horseCompanion.SuspendMountedShieldOffers();
+            public void ReleaseRetainedPendingReentry() => root.persistence.ReleaseRetainedPendingReentry();
+            public void DropRetainedIntent(string reason) => root.persistence.DropRetainedIntent(reason);
         }
 
         public void HandleUpdateFailure(Exception exception)
@@ -342,41 +337,7 @@ namespace KingmakerMountedCombat
             }
         }
 
-        private void PerformFailureCleanup()
-        {
-            var awaitingStickMovement = 0;
-            var errors = world.Visit(pair =>
-            {
-                pair.Combat.Cancel("world update failure");
-                var cleanup = pair.Relationship.Dismount(CleanupTrigger.Exception);
-                // Ordinary updates are stopped below only when every pair's cleanup left nothing behind; a retained
-                // obligation keeps them, and with them its recovery, running.
-                if (!MountedCleanupCompletionPolicy.IsWithoutResidue(cleanup))
-                {
-                    if (pair.Relationship.LastCleanupHeldOnlyByStickMovement) awaitingStickMovement++;
-                    throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
-                }
-            });
-            // The Mounted Shield stop closes its selection and both benefits together and releases every contribution,
-            // verified. It never runs while an owned load replaces the world (the outgoing world's stats are not touched).
-            var shieldStopped = errors.Length == 0 && !persistence.LoadInFlight && mountedShield.Disable("update failure cleanup");
-            if (errors.Length != 0 || !shieldStopped)
-            {
-                // Held back by retained stick-movement cleanup alone, or by a Mounted Shield stop that must wait (a
-                // contribution not yet removed, or an owned load in progress), the stop is not abandoned: Update takes it
-                // again once that is settled.
-                if (awaitingStickMovement == errors.Length) failureCleanupPending = true;
-                if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);
-                throw new InvalidOperationException("Update-failure cleanup is waiting for the Mounted Shield stop (retained contribution or owned load); it is retried.");
-            }
-            // With its benefits stopped, Mounted Shield's offers close too (reopened by an explicit enable).
-            horseCompanion.SuspendMountedShieldOffers();
-            persistence.ReleaseRetainedPendingReentry();
-            // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
-            persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
-            IsEnabled = false;
-            horseCompanion.OnServicesStopped();   // PR-4 rounds 13-14 (R12-F1): no Horse Trip repair consent survives a stop
-        }
+        private void PerformFailureCleanup() => ServiceLifecycleSequence.FailureCleanup(lifecycleBoundary);
 
         internal void ObserveStartupCallbackEntry() => runtimeAutomation?.ObserveStartupCallbackEntry();
         internal void ObserveStartupCallbackExit() => runtimeAutomation?.ObserveStartupCallbackExit();

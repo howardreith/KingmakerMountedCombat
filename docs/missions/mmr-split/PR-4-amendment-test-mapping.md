@@ -1,4 +1,4 @@
-# PR-4 amendment test mapping (rounds 12-14)
+# PR-4 amendment test mapping (rounds 12-15)
 
 OWNER AMENDMENT revision 1 (owner instruction 2026-11-27b section 4; report citation: prepared under owner amendments revision 1 sha256
 `f9410bf809e35a83f8293bb5b54cfd344594aa0c2e5b90e633468c216e761b28`) withdraws the requirement to start the existing-horse repair through a
@@ -11,9 +11,9 @@ Each test of the earlier component suite (`tests/HorseTripRepairPolicyTests.cs` 
   correct or that its failing review scenarios passed; the findings stay in the review history.
 - **Kept:** unchanged.
 - **Successor:** the underlying requirement (exact removal, classification, idempotence, gates, protected neighbours) is now established
-  by the named round-14 test on the confirmed-action path (HorseTripRepairUpdater.Run).
+  by the named round-15 test on the confirmed-action path (HorseTripRepairUpdater.Run).
 
-| Earlier test | Disposition | Round-14 successor |
+| Earlier test | Disposition | Round-15 successor |
 |---|---|---|
 | `CandidatePredicate`: MMR-06: a candidate needs the exact Horse, the stock identity and shape, and no provenance | Kept | `CandidatePredicate` |
 | `RequestParsing`: R4-F4: the whole request is validated; two horses or extra content select nothing | Retired (file protocol); requirement kept | `SourcedModifiedAmbiguous / IneligibleRowText (more than one candidate is never offered)` |
@@ -62,8 +62,8 @@ Each test of the earlier component suite (`tests/HorseTripRepairPolicyTests.cs` 
 | `BlockedRetirementCommitsOnce`: PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `ReplacementDuringRetirement`: PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once | Retired (file protocol) | (none: withdrawn by the amendment) |
 
-Round-14 tests (all through HorseTripRepairUpdater.Run): `DiscoveryIsReadOnly`, `TwoHorsesAndCancellation`, `RepeatedClicksAndUpdates`, `ReloadInvalidatesConsent`,
-`DisableAndFailureStop`, `SessionLookupFailure`, `PresentationFailureStillReports`, `ClosedPanelSessionChange`, `ObjectOnlyReplacement`, `IneligibleRowText`,
+Round-15 tests (all through HorseTripRepairUpdater.Run; the Select and Confirm clicks are separate interactions with an update between): `DiscoveryIsReadOnly`, `TwoHorsesAndCancellation`, `RepeatedClicksAndUpdates`, `SelectionSurvivesUpdates`, `ReloadInvalidatesConsent`,
+`DisableAndFailureStop` (through the production ServiceLifecycleSequence), `SessionLookupFailure`, `PresentationFailureStillReports`, `ClosedPanelSessionChange`, `ObjectOnlyReplacement`, `IneligibleRowText`,
 `UmmPanelClassification`, `PartyUnavailable`, `StableIdAndRename`, `RefreshCannotEraseConsent`, `GatesRefuse`, `SourcedModifiedAmbiguous`, `RemovalOutcomes`,
 `ReportingFailureDoesNotRepeat`, `OldRequestFilesAreInert` and `NeighboursStay`. The verified
 new-horse filter, the candidate predicate and the stock data contract stay in `Test-MmrHorseTripNativeContract.ps1`.

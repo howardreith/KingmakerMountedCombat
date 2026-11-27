@@ -23,8 +23,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 round 13: discovery presents stable snapshots only while the panel is drawn; nothing is removed without a confirmation", DiscoveryIsReadOnly);
             runner.Run("PR-4 round 13: two horses: selecting, switching and cancelling change nothing; the confirmed horse alone is repaired once", TwoHorsesAndCancellation);
             runner.Run("PR-4 round 13: repeated clicks and updates consume one confirmation once (one removal)", RepeatedClicksAndUpdates);
+            runner.Run("PR-4 round 15 (R14-F1): a selected horse survives ordinary updates until a later confirmation; one exact removal, no replay; cancel, replacement, session and stop still drop it", SelectionSurvivesUpdates);
             runner.Run("PR-4 round 13: a reload (same stable id, new unit object, new session) or a new visit to the same area invalidates the consent and token", ReloadInvalidatesConsent);
-            runner.Run("PR-4 round 14 (R12-F1): disable/re-enable and a failure stop (the console Stop/Start transitions the composition root calls) drop the consent; a fresh confirmation repairs once", DisableAndFailureStop);
+            runner.Run("PR-4 round 15 (R12-F1): the production disable and failure-cleanup sequences, then re-enable, drop the authorization; refused disables keep it; a fresh confirmation repairs once", DisableAndFailureStop);
             runner.Run("PR-4 round 14 (R12-F4): a failing session lookup is a terminal record for the confirmed horse; nothing executes on recovery", SessionLookupFailure);
             runner.Run("PR-4 round 14 (R12-F4): a failing presentation refresh after a valid removal still reports the stored outcome exactly once", PresentationFailureStillReports);
             runner.Run("PR-4 round 14 (R12-F2): a session change retires old offers and tokens while the panel is closed; reopening offers a fresh token", ClosedPanelSessionChange);
@@ -117,7 +118,8 @@ namespace KingmakerMountedCombat.Tests
                 return HorseTripRepairUpdater.Run(Console, this);
             }
             public HorseTripRepairOffer Offer(Horse horse) => Console.Offers.Single(o => o.HorseId == IdOf(horse));
-            public void ConfirmOffer(Horse horse) { var t = Offer(horse).Token; Console.Select(t); Console.Confirm(t); }
+            // PR-4 round 15 (R14-F1): the two clicks are separate interactions with an ordinary update/presentation cycle between them.
+            public void ConfirmOffer(Horse horse) { var t = Offer(horse).Token; Console.Select(t); Update(); Console.Confirm(t); }
         }
 
         private static void CandidatePredicate()
@@ -159,6 +161,42 @@ namespace KingmakerMountedCombat.Tests
                 "Selection, switching or cancellation changed a horse, or the confirmed horse was not the only one repaired.");
         }
 
+        private static void SelectionSurvivesUpdates()
+        {
+            var host = new Host(); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+            host.Update();
+            var tokenA = host.Offer(a).Token; var tokenB = host.Offer(b).Token;
+            var distinct = tokenA != tokenB && host.Offer(a).Eligible && host.Offer(b).Eligible;
+            host.Console.Select(tokenA);
+            var stillSelected = true;
+            for (var i = 0; i < 5; i++) { host.Update(i % 2 == 0); stillSelected &= host.Console.SelectedToken == tokenA && !host.Console.Armed; }
+            var removalsBeforeConfirm = host.NativeCalls;
+            var confirmed = host.Console.Confirm(tokenA);   // a later interaction
+            var record = host.Update();
+            var replay = 0;
+            for (var i = 0; i < 4; i++) if (host.Update() != null) replay++;
+            TestRunner.True(distinct && stillSelected && removalsBeforeConfirm == 0 && confirmed && record != null && record.HorseId == "horse-A" && record.Disposition == "removed" &&
+                host.NativeCalls == 1 && Candidates(a).Count == 0 && Candidates(b).Count == 1 && b.Facts.Count == 6 && replay == 0 && host.Console.RemovalCount == 1,
+                "PR-4 round 15 (R14-F1): the selection did not survive ordinary updates, a removal happened before confirmation, or the confirmed removal was wrong or replayed.");
+
+            foreach (var kase in new[] { "cancel", "candidate replaced", "session replaced", "stopped" })
+            {
+                var h = new Host(); var x = LegacyHorse("horse-A"); h.Loaded.Add(x);
+                h.Update();
+                var token = h.Offer(x).Token;
+                h.Console.Select(token); h.Update();
+                if (kase == "cancel") h.Console.Cancel();
+                if (kase == "candidate replaced") x.Facts[0] = StockGrant();
+                if (kase == "session replaced") h.Marker = new object();
+                if (kase == "stopped") h.Console.Stop();
+                h.Update(); h.Update();
+                var confirmAccepted = h.Console.Confirm(token);
+                var after = h.Update();
+                TestRunner.True(h.Console.SelectedToken != token && !confirmAccepted && after == null && h.NativeCalls == 0 && Candidates(x).Count == 1,
+                    "PR-4 round 15 (R14-F1 control: " + kase + "): the old selection survived and could be confirmed.");
+            }
+        }
+
         private static void RepeatedClicksAndUpdates()
         {
             var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
@@ -194,38 +232,90 @@ namespace KingmakerMountedCombat.Tests
             }
         }
 
+        // PR-4 round 15 (R12-F1): the engine/teardown side of the composition root's transitions. ServiceLifecycleSequence (the production
+        // code CompositionRoot.SetEnabled and PerformFailureCleanup delegate to) runs unchanged; StopRepair and StartRepair act on the repair
+        // console exactly as HorseCompanionBlueprintService.OnServicesStopped/OnServicesStarted do (Stop/Start of its console).
+        private sealed class Lifecycle : IServiceLifecycleBoundary
+        {
+            private readonly Host host;
+            public readonly List<string> Calls = new List<string>();
+            public bool Busy, Loading, CleanupResidue, ShieldStops = true, SelectionChanges = true, ShieldOn = true;
+            public bool Pending;
+            public Lifecycle(Host host) { this.host = host; IsEnabled = true; }
+            public bool IsEnabled { get; set; }
+            public bool FailureCleanupPending { set { Pending = value; } }
+            public bool EnableSelection() { Calls.Add("selection:on"); return true; }
+            public void StartRepair() { Calls.Add("repair:start"); host.Console.Start(); }
+            public void EnableServices() { Calls.Add("services:on"); ShieldOn = true; }
+            public bool SaveOrTeardownBusy { get { return Busy; } }
+            public bool LoadInFlight { get { return Loading; } }
+            public bool HandleModDisable() { Calls.Add("cleanup"); return !CleanupResidue; }
+            public bool ShieldEnabled { get { return ShieldOn; } }
+            public bool DisableShield(string reason) { Calls.Add("shield:off(" + reason + ")"); if (ShieldStops) ShieldOn = false; return ShieldStops; }
+            public void EnableShield() { Calls.Add("shield:on"); ShieldOn = true; }
+            public bool DisableSelection() { Calls.Add("selection:off"); return SelectionChanges; }
+            public void StopRepair() { Calls.Add("repair:stop"); host.Console.Stop(); }
+            public void DisableServices() { Calls.Add("services:off"); }
+            public void Error(string message) { Calls.Add("error:" + message); }
+            public Exception[] VisitPairsForFailureCleanup(out int awaitingStickMovement) { Calls.Add("pairs"); awaitingStickMovement = 0; return new Exception[0]; }
+            public void SuspendShieldOffers() { Calls.Add("offers:off"); }
+            public void ReleaseRetainedPendingReentry() { Calls.Add("reentry:release"); }
+            public void DropRetainedIntent(string reason) { Calls.Add("intent:drop"); }
+        }
+
         private static void DisableAndFailureStop()
         {
-            foreach (var kase in new[] { "disable and re-enable (CompositionRoot.SetEnabled -> OnServicesStopped / OnServicesStarted)", "failure stop (PerformFailureCleanup -> OnServicesStopped), then re-enable" })
+            foreach (var kase in new[] { "successful disable (ServiceLifecycleSequence.Disable)", "failure cleanup (ServiceLifecycleSequence.FailureCleanup)" })
             {
                 var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var life = new Lifecycle(host);
                 host.Update();
                 var oldToken = host.Offer(a).Token;
                 host.ConfirmOffer(a);
-                host.Console.Stop();   // the stop transition HorseCompanionBlueprintService.OnServicesStopped performs
-                var whileStopped = host.Update();
-                var offersWhileStopped = host.Console.Offers.Count;
-                var intentWhileStopped = host.Console.Select(oldToken) || host.Console.Confirm(oldToken);
-                host.Console.Start();  // the enable transition (OnServicesStarted), BEFORE any further repair update
-                var afterRestart = host.Update();
-                var oldTokenWorks = host.Console.Select(oldToken);
+                var armed = host.Console.Armed;
+                var stopped = true;
+                if (kase.StartsWith("successful", StringComparison.Ordinal)) stopped = ServiceLifecycleSequence.Disable(life); else ServiceLifecycleSequence.FailureCleanup(life);
+                var enabledAfterStop = life.IsEnabled;
+                var reenabled = ServiceLifecycleSequence.Enable(life);   // re-enable BEFORE any repair update
+                var first = host.Update();                                // the first repair update after the stop
+                var oldTokenWorks = host.Console.Select(oldToken) || host.Console.Confirm(oldToken);
+                var removalsAfterStop = host.NativeCalls;
                 var fresh = host.Offer(a);
                 host.ConfirmOffer(a);
                 var applied = host.Update();
-                TestRunner.True(whileStopped == null && offersWhileStopped == 0 && !intentWhileStopped && afterRestart == null && !oldTokenWorks && fresh.Token != oldToken &&
-                    applied != null && applied.Disposition == "removed" && host.NativeCalls == 1,
-                    "PR-4 round 14 (" + kase + "): a consent or token survived the stop, intent was accepted while stopped, or a fresh confirmation did not repair once.");
+                var order = string.Join(",", life.Calls.Where(c => !c.StartsWith("error:", StringComparison.Ordinal)).ToArray());
+                TestRunner.True(armed && stopped && !enabledAfterStop && reenabled && life.IsEnabled && first == null && removalsAfterStop == 0 && !oldTokenWorks &&
+                    fresh.Token != oldToken && applied != null && applied.Disposition == "removed" && host.NativeCalls == 1 &&
+                    order.IndexOf("repair:stop", StringComparison.Ordinal) >= 0 &&
+                    order.IndexOf("repair:stop", StringComparison.Ordinal) < order.IndexOf("repair:start", StringComparison.Ordinal),
+                    "PR-4 round 15 (" + kase + "): the authorization survived the production stop and re-enable, or a fresh confirmation did not repair once (" + order + ").");
+            }
+            // Refusal and rollback semantics: a refused disable (save or teardown in flight, a load in flight, cleanup residue, a Mounted Shield
+            // contribution, an externally changed selection) changes nothing for the repair action: the confirmation stays armed and executes.
+            foreach (var refusal in new[] { "save in flight", "load in flight", "cleanup residue", "shield contribution", "selection changed" })
+            {
+                var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var life = new Lifecycle(host);
+                if (refusal == "save in flight") life.Busy = true;
+                if (refusal == "load in flight") life.Loading = true;
+                if (refusal == "cleanup residue") life.CleanupResidue = true;
+                if (refusal == "shield contribution") life.ShieldStops = false;
+                if (refusal == "selection changed") life.SelectionChanges = false;
+                host.Update();
+                host.ConfirmOffer(a);
+                var result = ServiceLifecycleSequence.Disable(life);
+                var record = host.Update();
+                TestRunner.True(!result && life.IsEnabled && !life.Calls.Contains("repair:stop") && record != null && record.Disposition == "removed" &&
+                    (refusal != "selection changed" || (life.ShieldOn && life.Calls.Contains("shield:on"))),
+                    "PR-4 round 15 (refused disable: " + refusal + "): the refusal stopped the repair action or did not roll back Mounted Shield.");
             }
             {
-                // A confirmation armed and executed in the same update in which the service had stopped is a terminal refusal, not a removal.
-                var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
-                host.Update();
-                var token = host.Offer(a).Token; host.Console.Select(token); host.Console.Confirm(token);
-                var taken = host.Console.TakeConsent();
-                host.Console.Stop();
-                var record = host.Console.ExecuteTaken(taken, host.Marker, null, host);
-                TestRunner.True(record != null && record.Disposition.StartsWith("not removed: Mounted Combat was stopped", StringComparison.Ordinal) && host.NativeCalls == 0,
-                    "A confirmation dispatched after the stop removed the fact.");
+                // A failure cleanup that must wait (Mounted Shield not stopped) leaves the services enabled and the stop pending; the repair
+                // action is not stopped until the cleanup completes.
+                var host = new Host(); var life = new Lifecycle(host) { ShieldStops = false };
+                var threw = false;
+                try { ServiceLifecycleSequence.FailureCleanup(life); } catch (InvalidOperationException) { threw = true; }
+                TestRunner.True(threw && life.IsEnabled && life.Pending && !life.Calls.Contains("repair:stop"), "A waiting failure cleanup stopped the repair action or lost its retry.");
             }
         }
 

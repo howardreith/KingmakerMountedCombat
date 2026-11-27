@@ -569,6 +569,7 @@
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="Domain\HorseTripRepairPolicy.cs" />
+    <Compile Include="Domain\ServiceLifecycleSequence.cs" />
     <Compile Include="Domain\MountedWorldWriteGate.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />

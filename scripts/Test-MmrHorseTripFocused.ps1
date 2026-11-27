@@ -1,13 +1,14 @@
 [CmdletBinding()]
-param()
+param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 # Focused selection for PR-4 MMR-06 (Horse Trip construction and existing-save repair) (child of the Mounted Melee Repair decomposition; see the mission under
 # docs/missions/mmr-split/). It declares exactly these checks and nothing broader (docs/VALIDATION-POLICY.md 3):
 #   1. Test-MmrHorseTripNativeContract.ps1: MMR-06 installed data (the stock Mammoth's AddFacts carry TrippingBite =
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter, repair-candidate
 #      predicate, the single native removal boundary of the confirmed in-game repair action, its intent-only UI, its lifecycle
 #      invalidation and the absence of the withdrawn file-request protocol (OWNER AMENDMENT revision 1), on genuine Kingmaker objects.
-#   2. Test-Finalize5CompanionReaders.ps1 (PR-4 round 14, R12-F6/R13-F1): the companion-name evidence reader with the UMM panel fields
-#      derived by the production classifier (Domain.UmmPanelPolicy) from real single and multicast callbacks.
+#   2. Test-Finalize5CompanionReaders.ps1 (PR-4 rounds 14-15, R12-F6/R13-F1/R14-F2): the companion-name evidence reader fed by the compiled
+#      product's observer (Chunk7PersistenceScenario.UmmPanelObservation over a delegate bound to the compiled Main.OnMaintenanceGui, single
+#      and mixed with an unrelated handler). Both product-bound children receive the -Configuration that Test-Tiers.ps1 forwards here.
 #   The confirmed action itself (snapshots, intent, consent, guarded dispatch, classified outcome, stale/gate/reload/reporting cases, inert
 #   legacy files) is exercised by the component runner (tests/HorseTripRepairPolicyTests.cs) through the shared HorseTripRepairUpdater.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
@@ -26,7 +27,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MmrHorseTripNativeContract.ps1'),@('Test-Finalize5CompanionReaders.ps1'),
+    @('Test-MmrHorseTripNativeContract.ps1','-Configuration',$Configuration),@('Test-Finalize5CompanionReaders.ps1','-Configuration',$Configuration),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

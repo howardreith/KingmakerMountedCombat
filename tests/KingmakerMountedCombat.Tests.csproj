@@ -213,6 +213,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\AnimatedSaddlePosition.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseInheritedFactRepairPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\HorseTripRepairPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\ServiceLifecycleSequence.cs" />
     <Compile Include="HorseTripRepairPolicyTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedWorldWriteGate.cs" />
     <Compile Include="OptionalPublicPropertyReaderTests.cs" />

@@ -324,10 +324,13 @@ namespace KingmakerMountedCombat.Domain
             Offers = new HorseTripRepairOffer[0];
         }
 
-        // PR-4 round 14 (R12-F4): the pending confirmation, taken (and so consumed) before any read of the game.
+        // PR-4 round 14 (R12-F4): the pending confirmation, taken (and so consumed) before any read of the game. PR-4 round 15 (R14-F1):
+        // the selection is cleared only when an actual confirmation is consumed; a selected but unconfirmed horse survives ordinary updates
+        // (cancellation, candidate replacement, a session change and a stop still drop it).
         public object TakeConsent()
         {
             var consent = confirmed;
+            if (consent == null) return null;
             confirmed = null; selected = null;
             return consent;
         }

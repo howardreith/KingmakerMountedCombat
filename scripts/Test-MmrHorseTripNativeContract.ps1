@@ -243,9 +243,12 @@ Check (@($processCalls | Where-Object { $_ -ceq 'HorseTripRepairUpdater.Run' }).
 $rootType = KmcType 'KingmakerMountedCombat.CompositionRoot'
 $setEnabledCalls = CalleeNames ($rootType.GetMethod('SetEnabled', $any)); $cleanupCalls = CalleeNames ($rootType.GetMethod('PerformFailureCleanup', $any)); $disposeCalls = CalleeNames ($service.GetMethod('Dispose', $any))
 $stopCalls = CalleeNames ($service.GetMethod('OnServicesStopped', $any)); $startCalls = CalleeNames ($service.GetMethod('OnServicesStarted', $any))
-Check (@($setEnabledCalls | Where-Object { $_ -like '*.OnServicesStopped' }).Count -ge 1 -and @($setEnabledCalls | Where-Object { $_ -like '*.OnServicesStarted' }).Count -ge 1 -and
-    @($cleanupCalls | Where-Object { $_ -like '*.OnServicesStopped' }).Count -ge 1 -and @($disposeCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and
-    @($stopCalls | Where-Object { $_ -like '*.Stop' }).Count -eq 1 -and @($startCalls | Where-Object { $_ -like '*.Start' }).Count -eq 1) 'PR-4 rounds 13-14 (R12-F1): SetEnabled stops and restarts the repair console (HorseTripRepairConsole.Stop/Start, the transitions the component tests drive), the failure stop stops it and Dispose invalidates it'
+$boundaryType = @($rootType.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'LifecycleBoundary' })[0]
+$boundaryStop = CalleeNames ($boundaryType.GetMethod('StopRepair', $any)); $boundaryStart = CalleeNames ($boundaryType.GetMethod('StartRepair', $any))
+Check (@($setEnabledCalls | Where-Object { $_ -like '*ServiceLifecycleSequence.Disable' }).Count -eq 1 -and @($setEnabledCalls | Where-Object { $_ -like '*ServiceLifecycleSequence.Enable' }).Count -eq 1 -and
+    @($cleanupCalls | Where-Object { $_ -like '*ServiceLifecycleSequence.FailureCleanup' }).Count -eq 1 -and @($disposeCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and
+    @($boundaryStop | Where-Object { $_ -like '*.OnServicesStopped' }).Count -eq 1 -and @($boundaryStart | Where-Object { $_ -like '*.OnServicesStarted' }).Count -eq 1 -and
+    @($stopCalls | Where-Object { $_ -like '*.Stop' }).Count -eq 1 -and @($startCalls | Where-Object { $_ -like '*.Start' }).Count -eq 1) 'PR-4 round 15 (R12-F1): CompositionRoot.SetEnabled and PerformFailureCleanup delegate to ServiceLifecycleSequence (the sequences the component tests execute), whose repair stop/start reach HorseCompanionBlueprintService.OnServicesStopped/OnServicesStarted (console Stop/Start); Dispose invalidates'
 $guiCalls = CalleeNames ($service.GetMethod('DrawTripRepairGui', $any))
 Check (@($guiCalls | Where-Object { $_ -like '*.RemoveFact' -or $_ -like '*.Execute' -or $_ -like '*.Observe' -or $_ -like '*RemoveTripFact' -or $_ -like '*get_Progression' -or $_ -like '*get_Descriptor' }).Count -eq 0 -and
     @($guiCalls | Where-Object { $_ -like '*.Select' -or $_ -like '*.Confirm' -or $_ -like '*.Cancel' }).Count -ge 3) ('the maintenance surface (DrawTripRepairGui) records intent only (Select/Confirm/Cancel) and never reads or changes a unit or fact (' + ($guiCalls -join ',') + ')')
