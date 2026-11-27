@@ -419,6 +419,344 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
+
+        // Review R3-F3: every exact delegated move this command submits (the first, each repath replacement and each pre-start
+        // move) is announced before native Run sees it, so the controller recognizes the order's own movement by identity.
+        internal Action<UnitCommand> OwnCommandIssuing;
+        private readonly System.Collections.Generic.List<UnitMoveTo> issuedMoves = new System.Collections.Generic.List<UnitMoveTo>();
+
+        internal bool IsOwnDelegatedMove(UnitCommand command) =>
+            command != null && (ReferenceEquals(command, delegatedMove) || issuedMoves.Exists(move => ReferenceEquals(move, command)));
+
+        private void AnnounceOwnMove(UnitMoveTo move)
+        {
+            // Review R4-F8: finished moves (their callbacks have run) are released; the live carrier is kept.
+            issuedMoves.RemoveAll(issued => issued.IsFinished && !ReferenceEquals(issued, delegatedMove));
+            issuedMoves.Add(move);
+            OwnCommandIssuing?.Invoke(move);
+        }
+
+        // MMR-05 (review R3-F1): pre-start approach. Native UnitActionController ticks an unstarted command's approach while
+        // ShouldStartCommand still refuses it (initiative wait, cooldown, busy hands); for this command that approach is the
+        // mount's movement, driven here from native TickApproaching (MountedAttackApproachPrefix). Native alone starts the
+        // command; the delegated move is the same single movement owner the started approach uses and adopts at start.
+        internal Func<bool> PreStartMovementForbidden;
+        // Review R4-F2, PR-1 round 11 (R10-F1, R10-F2): set for an automatic order only. The controller's one current admission decision
+        // for this exact automatic order (MountedCombatController.RetireAutomaticOrderIfNotAdmitted: its generation, target and owned
+        // command): an order whose target became invalid, left the rider group's perception or left native admission (the brain's
+        // IsTargetValid restricted rule with the action's current range) is retired by the controller, which ends this command once, so
+        // no destination is produced at any approach step (pre-start, native start, repath, carrier creation) or strike before delivery.
+        internal Func<MountedPairAttackCommand, bool> AutomaticOrderAdmissionLost;
+        private bool preStartApproachAllowed;
+        // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
+        private bool nativePreStartApproaching;
+        private int preStartFailedRoutes;
+        private TimeSpan preStartRetryAt;
+
+        internal int PreStartMoveIssueCount { get; private set; }
+        internal int PreStartMoveStopCount { get; private set; }
+        internal bool PreStartMoveAdoptedAtStart { get; private set; }
+        internal int PreStartFailedRoutes => preStartFailedRoutes;
+
+        internal void AllowPreStartApproach()
+        {
+            if (!chargeMode && (action == MountedCombatActionKind.RiderMelee && actionActor == rider ||
+                action == MountedCombatActionKind.MountPrimaryNatural && actionActor == mount))
+                preStartApproachAllowed = true;
+        }
+
+        // Review R1-F11: the exact command that owns the mount's movement for this order right now: its live delegated move
+        // while it holds the mount's Move slot, or this command itself while the horse approaches natively before its start.
+        internal object CurrentMovementOwner
+        {
+            get
+            {
+                var commands = mount?.Commands;
+                if (delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
+                    ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove)) return delegatedMove;
+                return nativePreStartApproaching && !IsStarted && !IsFinished ? this : null;
+            }
+        }
+
+        // Asks the controller's decision for this unreleased automatic command; returns true when the order was retired and this command
+        // ended. A released strike keeps native completion; a command that is not its order's own is never inspected by it.
+        private bool EndIfAutomaticOrderNotAdmitted()
+        {
+            if (!IsAutomaticOrigin || IsFinished || StrikeReleased || AutomaticOrderAdmissionLost == null) return false;
+            AutomaticOrderAdmissionLost(this);
+            return IsFinished;
+        }
+
+        // PR-1 round 11: the controller retires this unreleased automatic command's order for lost admission (perception or native
+        // eligibility): its own carrier and native pre-start approach are released (a successor's movement is kept) and the shared cause
+        // is recorded before the controller ends it (the first recorded cause stands).
+        internal void RecordAutomaticAdmissionLoss(string reason, string transactionReason)
+        {
+            if (IsFinished) return;
+            StopDelegatedMove(false);
+            StopNativePreStartApproach();
+            if (!transaction.IsTerminal) transaction.Cancel(transactionReason);
+            RecordEndCause(MountedAttackEndCause.Cancelled, reason);
+        }
+
+        private void StopNativePreStartApproach()
+        {
+            if (!nativePreStartApproaching) return;
+            nativePreStartApproaching = false;
+            ApproachRadius = InfiniteRange;
+            NeedLoS = false;
+            // PR-1 review R2-F2: a successor already steering the horse keeps its movement.
+            var commands = mount?.Commands;
+            var slotMove = commands?.GetCommand(CommandType.Move);
+            var successor = slotMove != null && !slotMove.IsFinished || SuccessorSteersMount(commands, null);
+            if (!successor) mount?.View?.StopMoving();
+            PreStartMoveStopCount++;
+        }
+
+        // Returns true when native's own approach of this command should run this tick (the horse striker's case).
+        internal bool TickPreStartApproach()
+        {
+            if (!preStartApproachAllowed || IsStarted || IsFinished) return false;
+            try
+            {
+                RequireLiveExactPair();
+                if (TryEndExpectedTargetInvalidation()) return false;
+                if (EndIfAutomaticOrderNotAdmitted()) return false;
+                // PR-1 review R4-F4: once newer work was accepted, the unreleased generation issues no further destination.
+                if (!chargeMode && EndIfSupersededBeforeDelivery()) return false;
+                if (actionActor == mount) return TickNativePreStartApproach();
+                var now = Kingmaker.Game.Instance.TimeController.GameTime;
+                var admissible = PreStartStrikeAdmissible();
+                if (delegatedMove != null && delegatedMove.IsFinished)
+                {
+                    // The route ended (arrived, failed, or replaced by a newer order): release our reference exactly. A route
+                    // that ended out of reach waits before the next bounded attempt.
+                    if (!admissible)
+                    {
+                        preStartFailedRoutes++;
+                        preStartRetryAt = now + TimeSpan.FromSeconds(MountedPreStartApproachPolicy.RetrySeconds);
+                        // PR-1 review R4-F2: a sight destination that ended without admission is not chosen again before start either.
+                        if (currentSightGoal.HasValue) { failedSightGoals.Add(currentSightGoal.Value); currentSightGoal = null; }
+                    }
+                    StopDelegatedMove(false);
+                }
+                var commands = mount.Commands;
+                var live = delegatedMove != null && !delegatedMove.IsFinished;
+                var decision = MountedPreStartApproachPolicy.Decide(
+                    actionActor.Commands != null && actionActor.Commands.Contains(this),
+                    !TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
+                    allowApproach && !chargeCleanupRequested,
+                    IsStarted,
+                    IsFinished,
+                    true,
+                    PreStartMovementForbidden != null && PreStartMovementForbidden(),
+                    admissible,
+                    live,
+                    live && commands != null && ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove),
+                    live && HorizontalDistance(targetSnapshot, attackTarget.Position) > TargetRepathDistance,
+                    MountSlotsFreeForPreStartMove(),
+                    preStartFailedRoutes,
+                    now >= preStartRetryAt);
+                switch (decision)
+                {
+                    case MountedPreStartApproachAction.Stop:
+                        StopDelegatedMove(false);
+                        PreStartMoveStopCount++;
+                        break;
+                    case MountedPreStartApproachAction.Reissue:
+                        StopDelegatedMove(false);
+                        if (!BeginPreStartMove()) PreStartRouteRefused(now);
+                        break;
+                    case MountedPreStartApproachAction.Issue:
+                        if (!BeginPreStartMove()) PreStartRouteRefused(now);
+                        break;
+                }
+            }
+            catch (Exception exception)
+            {
+                EndAfterFault(exception, "Mounted pair pre-start approach");
+            }
+            return false;
+        }
+
+        // The horse is this command's executor: before native start, native's own UnitAttack approach moves it, with the
+        // strike's real admission radius and line of sight (EvaluateCurrentNativeAdmission sets them for a horse strike), so
+        // native starts it only once it is both close and ready, as for an unmounted attacker. Leaving the pre-start phase
+        // (Hold, turn-based, approach no longer permitted) restores the unbounded start radius and stops the horse.
+        private bool TickNativePreStartApproach()
+        {
+            var applies = MountedPreStartApproachPolicy.Decide(
+                actionActor.Commands != null && actionActor.Commands.Contains(this),
+                !TurnBased.Controllers.CombatController.IsInTurnBasedCombat(),
+                allowApproach && !chargeCleanupRequested, IsStarted, IsFinished, true,
+                PreStartMovementForbidden != null && PreStartMovementForbidden(), false, false, false, false, true, 0, true)
+                == MountedPreStartApproachAction.Issue;
+            if (!applies)
+            {
+                StopNativePreStartApproach();
+                return false;
+            }
+            // Review R3-F1: the strike's own sight gate is set BEFORE classifying, so the classification and the native approach
+            // that runs this tick read the same inputs (EvaluateCurrentNativeAdmission sets the strike radius for a horse strike).
+            NeedLoS = true;
+            var admitted = childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+            if (!admitted && !nativePreStartApproaching) PreStartMoveIssueCount++;
+            nativePreStartApproaching = !admitted;
+            return true;
+        }
+
+        private void PreStartRouteRefused(TimeSpan now)
+        {
+            preStartFailedRoutes++;
+            preStartRetryAt = now + TimeSpan.FromSeconds(MountedPreStartApproachPolicy.RetrySeconds);
+        }
+
+        // The strike's own admission (mount origin for the rider's melee, planned weapon range, native command LOS), evaluated
+        // with this unstarted command's native start inputs restored afterwards (it starts with an unbounded radius, no LOS).
+        private bool PreStartStrikeAdmissible()
+        {
+            var savedRadius = ApproachRadius;
+            var savedLineOfSight = NeedLoS;
+            try
+            {
+                NeedLoS = true;
+                return childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+            }
+            finally
+            {
+                ApproachRadius = savedRadius;
+                NeedLoS = savedLineOfSight;
+            }
+        }
+
+        // PR-1 review R1-F7 (round 2): when the point carrier's distance-only arrival is already satisfied while the rider's planned
+        // strike is not admitted, the carrier instead targets a mount position from which the RIDER's strike is admitted: candidate
+        // positions around the target (24 directions at 95/75/50 % of the pair reach) are tested with the strike's own production
+        // admission at that mount position (MountedPairSingleAttack.EvaluateNativeAdmissionAtMountPosition: rider and eye offsets
+        // turned to the travel heading, native distance and command sight with the target's own blocker identity), and the nearest
+        // admitted one is the goal. Native pathing finds the route; the exact native strike gate at release is unchanged.
+        internal const float SightGoalArrivalMetres = 0.1f;
+        // PR-1 review R1-F7 (round 4): a goal the carrier would accept without moving (inside its arrival radius plus this margin)
+        // cannot change the rider's heading or eye; it is never chosen. A goal whose carrier ended without strike admission is
+        // excluded (with this radius), and at most MaximumFailedSightGoals alternatives are tried.
+        internal const float SightGoalMinimumTravelMetres = SightGoalArrivalMetres + 0.05f;
+        internal const float FailedSightGoalExclusionMetres = 0.25f;
+        internal const int MaximumFailedSightGoals = 3;
+        private readonly List<Vector3> failedSightGoals = new List<Vector3>();
+        private Vector3? currentSightGoal;
+        internal int SightGoalCount { get; private set; }
+        internal int FailedSightGoalCount => failedSightGoals.Count;
+
+        private bool TryRiderSightGoal(out Vector3 goal)
+        {
+            goal = default(Vector3);
+            if (childAttack == null || actionActor != rider || attackTarget == null) return false;
+            var reach = childAttack.PairApproachRadius;
+            if (float.IsNaN(reach) || reach <= 0f || failedSightGoals.Count >= MaximumFailedSightGoals) return false;
+            var found = false; var best = float.MaxValue;
+            foreach (var factor in new[] { 0.95f, 0.75f, 0.5f })
+                for (var k = 0; k < 24; k++)
+                {
+                    var angle = k * Math.PI / 12d;
+                    var candidate = attackTarget.Position + new Vector3((float)Math.Cos(angle), 0f, (float)Math.Sin(angle)) * (reach * factor);
+                    candidate.y = mount.Position.y;
+                    if (childAttack.EvaluateNativeAdmissionAtMountPosition(candidate, candidate - mount.Position) != MountedPairNativeAdmissionState.Admitted)
+                        continue;
+                    var distance = GeometryUtils.MechanicsDistance(candidate, mount.Position);
+                    if (distance <= SightGoalMinimumTravelMetres || NearFailedSightGoal(candidate)) continue;
+                    if (distance < best) { best = distance; goal = candidate; found = true; }
+                }
+            if (found) SightGoalCount++;
+            return found;
+        }
+
+        private bool NearFailedSightGoal(Vector3 candidate)
+        {
+            foreach (var failed in failedSightGoals)
+                if (GeometryUtils.MechanicsDistance(candidate, failed) <= FailedSightGoalExclusionMetres) return true;
+            return false;
+        }
+
+        private UnitMoveTo NewApproachMove(float radius)
+        {
+            Vector3 goal;
+            currentSightGoal = null;
+            if (!chargeMode && PointArrivalWithoutStrike(radius) && TryRiderSightGoal(out goal))
+            {
+                currentSightGoal = goal;
+                return new UnitMoveTo(goal, SightGoalArrivalMetres) { CreatedByPlayer = true, ShowTargetMarker = false, NeedLoS = false };
+            }
+            return new UnitMoveTo(targetSnapshot, radius)
+            {
+                CreatedByPlayer = true,
+                ShowTargetMarker = false,
+                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
+            };
+        }
+
+        // PR-1 review R4-F3: the order's strike admission from the current position (the controller's restricted-movement retirement).
+        internal void AttachActorCharges(MountedPairAttackOutcome outcome)
+        {
+            var charge = DescribeStandardCharge();
+            outcome.ActorId = charge.ActorId;
+            outcome.RiderStandardCharged = charge.RiderStandardCharged;
+            outcome.ActionStandardCharged = charge.ActionStandardCharged;
+        }
+
+        internal MountedStandardCharge DescribeStandardCharge() => new MountedStandardCharge
+        {
+            ActorId = actionActor?.UniqueId,
+            RiderStandardCharged = StrikeReleased && actionActor == rider,
+            ActionStandardCharged = StrikeReleased
+        };
+
+        internal bool StrikeAdmissibleNow() =>
+            !IsFinished && (IsStarted ? childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted : PreStartStrikeAdmissible());
+
+        private bool PointArrivalWithoutStrike(float radius)
+        {
+            if (GeometryUtils.SqrMechanicsDistance(targetSnapshot, mount.Position) > radius * radius) return false;
+            return !(IsStarted ? childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted : PreStartStrikeAdmissible());
+        }
+
+        private bool MountSlotsFreeForPreStartMove()
+        {
+            var commands = mount.Commands;
+            if (commands == null || commands.Queue.Count != 0 || commands.GroupCommand != null || commands.PreviousCommand != null) return false;
+            foreach (var command in commands.Raw)
+                if (command != null && !command.IsFinished) return false;
+            return true;
+        }
+
+        // Returns whether the exact move now owns the mount's Move slot. A refused or queued submission is released at once.
+        private bool BeginPreStartMove()
+        {
+            var commands = mount.Commands;
+            if (commands == null || !MountSlotsFreeForPreStartMove()) return false;
+            var radius = childAttack.DelegatedMoveApproachRadius;
+            if (radius < 0f) return false;
+            delegatedMoveApproachRadius = radius;
+            targetSnapshot = attackTarget.Position;
+            var move = NewApproachMove(radius);
+            delegatedMove = move;
+            AnnounceOwnMove(move);
+            delegatedMoveStartCount++;
+            delegatedMoveOrigin = mount.Position;
+            delegatedMoveDrivenByStockController = true;
+            mountMoveSlotRestoredAfterApproach = false;
+            commands.Run(move);
+            if (IsFinished || actionActor.Commands.Standard != this)
+                throw new InvalidOperationException("Attack owner was replaced during pre-start approach admission.");
+            if (!ReferenceEquals(commands.GetCommand(CommandType.Move), move) || commands.Queue.Contains(move))
+            {
+                if (!move.IsFinished) move.Interrupt(false);
+                commands.Queue.Remove(move);
+                delegatedMove = null;
+                return false;
+            }
+            PreStartMoveIssueCount++;
+            return true;
+        }
         // A Hold that arrived while this command waited in the native queue: it attacks from where the pair stands or not at all.
         internal void ForbidApproach() { allowApproach = false; }
 
@@ -697,8 +1035,35 @@ namespace KingmakerMountedCombat.Integration
         internal bool NativeMeleeTailRangeRejected => nativeMeleeTailRangeRejected;
 
         // F4: the routine has not struck yet and still approaches its target (native IsMoveUnit for an approaching attack).
-        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && transaction.State == MountedCombatTransactionState.Approaching &&
-            transaction.ChildAttackStartCount == 0;
+        // PR-1 review R1-F8: also before native start, while this command's own pre-start movement is live (the rider's carrier or
+        // the horse's native approach); a stationary windup has no movement and is not included.
+        internal bool IsApproachingBeforeAttack => !IsFinished && !IsActed && (transaction.State == MountedCombatTransactionState.Approaching &&
+            transaction.ChildAttackStartCount == 0 || !IsStarted && (delegatedMove != null && !delegatedMove.IsFinished || nativePreStartApproaching));
+
+        // PR-1 reviews R1-F2, R1-F9, R2-F1, R1-F3: the strike has been DELIVERED to native: this wrapper's own OnAction ran (native
+        // UnitCommand.Tick calls it at the act and sets IsActed only afterwards), an attack rule was raised, or the routine advanced.
+        // IsActed alone is not delivery: UnitCommand.ForceFinish (ForceFinishForTurnBased) sets it without calling OnAction.
+        private bool strikeDelivered;
+        internal bool StrikeReleased => strikeDelivered || childAttack != null && (childAttack.LastAttackRule != null || GetAttackIndex() > 0);
+
+        // PR-1 round 14 (R13-F1): the released routine has no planned attack left (native UnitAttack.PlannedAttack is null once m_AttackIndex
+        // reached the plan's count); native keeps the command running until its animation finishes (UnitCommand.Tick ends it only then).
+        internal bool AttackPlanExhausted => StrikeReleased && childAttack != null && childAttack.PlannedAttack == null;
+
+        // PR-1 review R2-F1: set by the controller for an ordinary order: its retained generation was superseded by newer
+        // accepted player work. Checked at start, before release and during windup, so an installed wrapper stops too.
+        internal Func<bool> RetainedOrderSupersededCheck;
+
+        private bool EndIfSupersededBeforeDelivery()
+        {
+            if (StrikeReleased || RetainedOrderSupersededCheck == null || !RetainedOrderSupersededCheck()) return false;
+            StopDelegatedMove(false);
+            StopNativePreStartApproach();
+            if (!transaction.IsTerminal) transaction.Cancel("Newer accepted player work supersedes this order.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, "superseded before delivery");
+            Interrupt();
+            return true;
+        }
 
         internal bool ValidateNativeSequenceTarget()
         {
@@ -857,6 +1222,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 RequireLiveExactPair();
                 if (TryEndExpectedTargetInvalidation()) { return; }
+                // Review R4-F2: an unreleased automatic strike is never started, approached or adopted for a target that left
+                // the rider group's perception (in-range start included).
+                if (EndIfAutomaticOrderNotAdmitted()) { return; }
                 NeedLoS = true;
                 CreateAndValidateChildAttack();
                 riderPositionAtCommandStart = rider.Position;
@@ -868,10 +1236,16 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(initialNativeAdmissionState);
                 var requiresApproach = initialNativeAdmissionState != MountedPairNativeAdmissionState.Admitted;
                 approachRequiredAtStart = requiresApproach;
+                // PR-1 review R2-F1: a wrapper installed before the controller saw newer accepted work stops at its start.
+                if (EndIfSupersededBeforeDelivery()) return;
                 if (requiresApproach && !allowApproach)
                 {
-                    throw new InvalidOperationException(
-                        "Mounted stock ranged intent forbids automatic mount melee approach.");
+                    // PR-1 review R1-F1: an order without approach authority (a ranged order's horse, or a turn-based horse
+                    // follow-through whose target left its reach) settles here: no carrier, no strike, no fault.
+                    if (!transaction.IsTerminal) transaction.Cancel("The strike is out of reach and this order has no approach authority.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "out of reach without approach authority");
+                    Interrupt();
+                    return;
                 }
                 if (!transaction.AcceptTarget(attackTarget.UniqueId, requiresApproach))
                 {
@@ -883,6 +1257,40 @@ namespace KingmakerMountedCombat.Integration
 
                 if (requiresApproach)
                 {
+                    StopNativePreStartApproach();
+                    // PR-1 review R1-F4: the current movement permission is rechecked BEFORE a live carrier is adopted or a new
+                    // one admitted; ending here releases the exact owned approach (successors keep theirs). PR-1 round 13 (R12-F3): an
+                    // automatic order's own decision answers first (its movement boundary included), then the generic restriction.
+                    if (!chargeMode && (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach())) return;
+                    // PR-1 review R4-F4: and the generation's supersession.
+                    if (!chargeMode && EndIfSupersededBeforeDelivery()) return;
+                    var commands = mount.Commands;
+                    if (!chargeMode && delegatedMove != null && !delegatedMove.IsFinished && commands != null &&
+                        ReferenceEquals(commands.GetCommand(CommandType.Move), delegatedMove) && commands.Queue.Count == 0)
+                    {
+                        // MMR-05: the live pre-start move becomes this approach's carrier (one movement owner throughout).
+                        PreStartMoveAdoptedAtStart = true;
+                        return;
+                    }
+                    if (delegatedMove != null) StopDelegatedMove(false);
+                    var slotMove = commands?.GetCommand(CommandType.Move);
+                    if (!chargeMode && slotMove != null && !slotMove.IsFinished && !IsOwnDelegatedMove(slotMove))
+                    {
+                        // A newer order holds the mount: this older attack ends quietly and leaves that order untouched.
+                        transaction.Cancel("A newer mount order holds the mount.");
+                        RecordEndCause(MountedAttackEndCause.Cancelled, "newer mount order holds the mount");
+                        Interrupt();
+                        return;
+                    }
+                    // PR-1 review R1-F4: an older compatible action still holding a mount slot or the queue delays the carrier: the
+                    // order stays pending instead of failing the click. Review R2-F3: the wait is not chase time.
+                    if (!chargeMode && !DelegatedCarrierAdmissible())
+                    {
+                        carrierDeferred = true;
+                        deferralStartedAt = TimeSinceStart;
+                        CarrierDeferralCount++;
+                        return;
+                    }
                     // Every call of the approach helpers consumes their outcome: a charge terminated
                     // inside the helper must not be followed by anything in the same tick.
                     if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null)
@@ -892,6 +1300,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
+                    nativePreStartApproaching = false;
                     StartChildAttack();
                 }
             }
@@ -904,6 +1313,7 @@ namespace KingmakerMountedCombat.Integration
         protected override void OnTick()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            HoldClockWhileDeferred();
             try
             {
                 RequireLiveExactPair();
@@ -911,7 +1321,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
-                if (TimeSinceStart > MaximumElapsedSeconds + approachAllowanceSeconds)
+                if (ChaseElapsed > MaximumElapsedSeconds + approachAllowanceSeconds)
                 {
                     const string bounded = "Mounted pair command exceeded its bounded execution time.";
                     // Still approaching after a delegated move began: the approach failed. Any other overrun is a fault.
@@ -930,6 +1340,10 @@ namespace KingmakerMountedCombat.Integration
                 {
                     TickApproach();
                 }
+                // PR-1 review R2-F1: during the first strike's windup (child started, nothing delivered) perception loss of an
+                // automatic target and supersession still stop the strike before delivery.
+                if (!IsFinished && transaction.State == MountedCombatTransactionState.Attacking && !StrikeReleased &&
+                    (EndIfAutomaticOrderNotAdmitted() || EndIfSupersededBeforeDelivery())) return;
 
                 if (transaction.State == MountedCombatTransactionState.Attacking &&
                     transaction.ChildAttackStartCount == 0)
@@ -955,12 +1369,43 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // PR-1 review R6-F1: the bounded reason this command states for its target's loss, shared by its own observation and the
+        // controller's retirement of it.
+        private string TargetInvalidationReason()
+        {
+            var targetState = attackTarget?.Descriptor?.State;
+            var inState = attackTarget != null && attackTarget.IsInState;
+            var hostile = inState && actionActor.IsEnemy(attackTarget);
+            return !inState ? "target despawned" : !hostile ? "target hostility changed" :
+                targetState == null ? "target state unavailable" :
+                targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
+                "target became unconscious" : "target no longer attackable";
+        }
+
+        // PR-1 review R6-F1: the controller observed the loss first; record exactly what this command records when it observes it.
+        internal void RecordTargetInvalidation()
+        {
+            if (IsFinished) return;
+            var reason = TargetInvalidationReason();
+            transaction?.Cancel("Expected target invalidation: " + reason);   // refused once terminal
+            RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
+        }
+
+        // PR-1 review R6-F1 (round 8): whether this command's target is no longer valid for it (its own invalidation test), for the controller
+        // to give a coinciding perception loss the same precedence.
+        internal bool TargetInvalidNow()
+        {
+            var inState = attackTarget != null && attackTarget.IsInState;
+            var hostile = inState && actionActor.IsEnemy(attackTarget);
+            return !(inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget));
+        }
+
         private bool TryEndExpectedTargetInvalidation()
         {
             var targetState = attackTarget?.Descriptor?.State;
             var inState = attackTarget != null && attackTarget.IsInState;
             var hostile = inState && actionActor.IsEnemy(attackTarget);
-            var targetValid = inState && TargetLifeAdmits(attackTarget) && hostile && actionActor.CanAttack(attackTarget);
+            var targetValid = !TargetInvalidNow();
             var decision = MountedTargetTerminationPolicy.Decide(
                 targetValid, inState, hostile,
                 childAttack != null && childAttack.IsActed && childAttack.LastAttackRule != null,
@@ -971,28 +1416,34 @@ namespace KingmakerMountedCombat.Integration
                 // A released shot/strike may finish its native animation after target death.
                 return false;
             }
+            // PR-1 round 12 (R11-F4): an unreleased automatic command's own observation of its target's loss is answered by its order's one
+            // admission decision, which retires the order (cause, reason, diagnostics) once; a command that is not its order's own falls
+            // through to its own handling below.
+            if (!StrikeReleased && EndIfAutomaticOrderNotAdmitted()) return true;
             // F4 review MINOR-4: a released routine whose target left the field (despawn, hostility) continues natively
             // on the next target exactly as for a target that died in place; only without one is it cancelled as before.
             var continuations = transaction.ContinuationTargetCount;
             TryContinueRoutineOnNextTarget();
             if (transaction.ContinuationTargetCount != continuations) return false;
-            var reason = !inState ? "target despawned" : !hostile ? "target hostility changed" :
-                targetState == null ? "target state unavailable" :
-                targetState.IsFinallyDead ? "target died" : !targetState.IsConscious ?
-                "target became unconscious" : "target no longer attackable";
+            var reason = TargetInvalidationReason();
             transaction.Cancel("Expected target invalidation: " + reason);
             RecordEndCause(MountedAttackEndCause.TargetInvalid, reason);
             Interrupt();
             return true;
         }
 
+        // Native UnitCommand.Tick runs OnTick (where an unreleased windup is stopped by supersession or perception loss) and returns
+        // if the command finished, before it calls OnAction; reaching here is therefore the delivery itself.
         protected override ResultType OnAction()
         {
+            strikeDelivered = true;
             return base.OnAction();
         }
 
         protected override void OnEnded(bool raiseEvent = true)
         {
+            // PR-1 review R2-F2: whoever ends this wrapper (the controller included) releases its own native pre-start approach.
+            try { StopNativePreStartApproach(); } catch (Exception) { }
             if (chargeMode)
             {
                 // Interrupt stamps Result before invoking OnEnded and cannot be replayed after an
@@ -1055,13 +1506,81 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // PR-1 review R1-F4: a carrier waiting behind older work.
+        private bool carrierDeferred;
+        private float deferralStartedAt;
+        internal int CarrierDeferralCount { get; private set; }
+        // PR-1 review R2-F3: native UnitCommand.Tick interrupts any started command (UnitMoveContiniously aside) once TimeSinceStart
+        // exceeds 9 s, after OnTick. While the carrier waits, OnTick holds TimeSinceStart where the wait began, so neither that
+        // deadline nor the KMC bound counts the wait; the attack's own clock restarts at StartChildAttack with nothing carried over.
+        internal float DeferredSeconds { get; private set; }
+        private float ChaseElapsed => TimeSinceStart;
+        internal bool CarrierDeferred => carrierDeferred;
+
+        private void HoldClockWhileDeferred()
+        {
+            if (!carrierDeferred) return;
+            DeferredSeconds += Math.Max(0f, TimeSinceStart - deferralStartedAt);
+            SetTimeSinceStart(deferralStartedAt);
+        }
+
+        private bool DelegatedCarrierAdmissible() => MountedCombatSpatialPolicy.CanAdmitDelegatedMove(mount.Commands?.Raw,
+            (int)CommandType.Standard, (int)CommandType.Move, this, actionActor == mount,
+            IsStarted && !IsFinished && transaction.State == MountedCombatTransactionState.Approaching,
+            mount.Commands != null && mount.Commands.Queue.Count == 0,
+            mount.Commands?.GroupCommand == null, mount.Commands?.PreviousCommand == null);
+
+        private bool EndIfMovementForbiddenAtApproach()
+        {
+            if (PreStartMovementForbidden == null || !PreStartMovementForbidden()) return false;
+            if (!transaction.IsTerminal) transaction.Cancel("Mount movement is forbidden for this approach.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, "mount movement forbidden at the approach");
+            Interrupt();
+            return true;
+        }
+
+        private void TickDeferredCarrier()
+        {
+            var admission = childAttack.EvaluateCurrentNativeAdmission();
+            ObserveNativeAdmission(admission);
+            if (EndIfAutomaticOrderNotAdmitted()) return;
+            if (admission == MountedPairNativeAdmissionState.Admitted)
+            {
+                carrierDeferred = false;
+                if (!transaction.Arrive(attackTarget.UniqueId))
+                    throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
+                StartChildAttack();
+                return;
+            }
+            if (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach()) return;
+            if (!DelegatedCarrierAdmissible()) return;
+            carrierDeferred = false;
+            // PR-1 review R2-F3: legal movement starts from the target's current position.
+            targetSnapshot = attackTarget.Position;
+            if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null) return;
+        }
+
         private void TickApproach()
         {
+            // PR-1 review R4-F4: no carrier is issued, adopted or replaced for a superseded unreleased generation.
+            if (!chargeMode && EndIfSupersededBeforeDelivery()) return;
+            if (carrierDeferred && delegatedMove == null)
+            {
+                TickDeferredCarrier();
+                return;
+            }
             ObserveApproachInvariants();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
+            // PR-1 review R3-F3: revoked movement cancels only an approach that still needs movement; a strike admissible from the
+            // current position releases the exact carrier below and starts (the out-of-range case still ends here).
+            // PR-1 round 13 (R12-F3): an automatic order's own decision answers first, so its retirement records its reason once.
+            if (nativeAdmission != MountedPairNativeAdmissionState.Admitted && !chargeMode &&
+                (EndIfAutomaticOrderNotAdmitted() || EndIfMovementForbiddenAtApproach())) return;
             if (nativeAdmission == MountedPairNativeAdmissionState.Admitted)
             {
+                // Review R4-F2: perception is rechecked before arrival commits the strike.
+                if (EndIfAutomaticOrderNotAdmitted()) return;
                 if (delegatedMove == null)
                 {
                     throw new InvalidOperationException(
@@ -1088,6 +1607,12 @@ namespace KingmakerMountedCombat.Integration
                     delegatedMoveResultBeforeLegalRangeStop = delegatedMove.Result.ToString();
                     delegatedMovePairDistanceAtLegalRangeStop =
                         GeometryUtils.MechanicsDistance(mount.Position, attackTarget.Position);
+                    StopDelegatedMove(false);
+                }
+                else if (!chargeMode && delegatedMove.Result != ResultType.Success)
+                {
+                    // PR-1 review R4-F3: an ordinary strike that is admissible settles an exact carrier that already ended without success
+                    // (interrupted when movement was revoked); supersession was checked at the top of this tick. Charges keep the strict check.
                     StopDelegatedMove(false);
                 }
                 else
@@ -1140,6 +1665,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            if (EndIfAutomaticOrderNotAdmitted()) return;
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
@@ -1190,6 +1716,8 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(finishedMoveAdmission);
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
+                    // PR-1 review R1-F7: a sight goal reached without admission is not chosen again.
+                    if (currentSightGoal.HasValue) { failedSightGoals.Add(currentSightGoal.Value); currentSightGoal = null; }
                     if (Repath("unadmitted-after-move;admission=" + finishedMoveAdmission) ||
                         ChargeTransactionStopped() || delegatedMove == null)
                     {
@@ -1299,12 +1827,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Mount approach conflicts with an existing command or queue.");
             }
             delegatedMoveApproachRadius = childAttack.DelegatedMoveApproachRadius;
-            delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)
-            {
-                CreatedByPlayer = true,
-                ShowTargetMarker = false,
-                NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
-            };
+            delegatedMove = NewApproachMove(delegatedMoveApproachRadius);
             if (chargeMode)
             {
                 // The native turn-based approach would request its own path and so drop the forced line, the cause of the
@@ -1315,6 +1838,7 @@ namespace KingmakerMountedCombat.Integration
                 chargeCarrierAgent = mount.View?.AgentASP;
                 chargeCarrierMotionOwned = true;
             }
+            AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
             delegatedMoveDrivenByStockController =
@@ -1428,6 +1952,21 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
+        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)
+        {
+            if (commands == null) return false;
+            foreach (var command in commands.Raw)
+            {
+                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, this) ||
+                    command is UnitMoveTo) continue;
+                bool close;
+                try { close = command.IsUnitEnoughClose; }
+                catch (Exception) { close = false; }
+                if (!command.IsStarted && !close) return true;
+            }
+            return false;
+        }
+
         private void StopDelegatedMove(bool requireSuccess)
         {
             if (delegatedMove == null)
@@ -1472,7 +2011,14 @@ namespace KingmakerMountedCombat.Integration
             mountMoveSlotRestoredAfterApproach = commands != null &&
                 commands.GetCommand(UnitCommand.CommandType.Move) == null &&
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
-            mount.View?.StopMoving();
+            // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced
+            // carrier's motion is stopped.
+            // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard
+            // approaching its target), including one the sweep just promoted; such a successor keeps its movement.
+            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
+            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
+                SuccessorSteersMount(commands, exactMove);
+            if (!successorSteers) mount.View?.StopMoving();
             delegatedMove = null;
         }
 
@@ -1493,6 +2039,9 @@ namespace KingmakerMountedCombat.Integration
         private void StartChildAttack()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            // Review R4-F2: the last boundary before release.
+            if (EndIfAutomaticOrderNotAdmitted()) return;
+            if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
@@ -1527,7 +2076,10 @@ namespace KingmakerMountedCombat.Integration
             }
 
             NeedLoS = true;
+            // PR-1 review R2-F3: the attack phase gets its own ordinary bound: the clock restarts and no approach allowance or wait
+            // is carried into it.
             SetTimeSinceStart(0f);
+            approachAllowanceSeconds = 0f;
             if (ObserveChargeStep(MountedChargeTransactionStep.AttackStarted))
             {
                 return;
@@ -1717,6 +2269,9 @@ namespace KingmakerMountedCombat.Integration
             // run twice. The controller's handler settles ownership, retirement and the outcome before anything fallible and
             // contains every diagnostic, so nothing is expected to escape; anything unexpected is contained here, and the
             // controller's finished-command sweep still owns the finished command.
+            // PR-1 review R4-F6: the actor and its Standard charges are assigned to the outcome actually delivered, on both paths.
+            try { AttachActorCharges(outcome); }
+            catch (Exception exception) { TryLogException("Mounted pair terminal attribution", exception); }
             terminalReported = true;
             try { terminal(this, outcome); }
             catch (Exception exception) { TryLogException("Mounted pair terminal handler", exception); }
@@ -1758,8 +2313,9 @@ namespace KingmakerMountedCombat.Integration
                 InitialTargetId = initialTargetId,
                 ContinuationTargetIds = string.Join(",", continuationTargetIds.ToArray()),
                 RepathObservations = string.Join(" | ", repathObservations.ToArray()),
-                RiderStandardCharged = IsActed && actionActor == rider,
-                ActionStandardCharged = IsActed,
+                // PR-1 review R4-F6: native spends the Standard at the first native act (OnAction); a force-finish marks IsActed
+                // without it and spends nothing (DescribeStandardCharge).
+
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,
                 AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId,
                 AttackWeaponIsNatural = retainedAttackWeaponIsNatural,

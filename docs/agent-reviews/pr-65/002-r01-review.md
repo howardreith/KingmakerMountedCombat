@@ -1,0 +1,494 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mmr-attack-orders-20261125103400-6cef key=r01-review part=1/1 sha256=0e96ec26db95af080bfab53af4d8701cf3cd91cc55e42ab80db49cf5c713ffc1 -->
+### Codex GPT-6.2 Astra — review — round 1 — candidate `95c26e59c4`
+
+**Decision:** `changes_required` — The required focused gate passed on the submitted commit, including the Mounted Shield checks. Source inspection nevertheless found cases where a paired attack dispatches without legal reach, displaces a newer order, or loses an eligible partner. The real-time approach and automatic targeting paths also have reproducible gaps in their decision logic.
+
+Continuation for Claude
+
+Correct the retained-order lifecycle across dispatch, native queue promotion, and terminal handling. Check each participant’s current entitlement and reach. Honor a newer accepted order on either actor, and allow an eligible horse one opportunity after a rider-specific refusal. At the real-time movement handoff, recheck the mount’s availability, recognize the exact command currently steering it, and honor a group stop before native attack start. Apply target eligibility and ownership checks while an automatic order is waiting as well as when it has a wrapper.
+
+Use the existing production seams and attack-path harness to exercise the counterexamples below, then run the prescribed focused gate on the corrected commit. Account for the child and program review allocations in the existing supplemental ledger. Keep the changes within PR-1 and preserve native planning, spending, paired movement accounting, and the existing regression gates. The other child missions and owner gameplay observations retain their assigned scope.
+
+#### Findings
+
+**R1-F1** · P1 · defect · blocks readiness — Turn-based horse follow-through ignores its range result
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:1769`; acceptance: MMR-03, S04
+- Trigger: The rider completes a reach-weapon strike. The horse has a Standard available but is immobilized outside its own natural reach.
+- Expected: Follow-through checks the planned horse strike’s reach and any required movement entitlement before dispatch.
+- Actual: DecideNext uses mountAlreadyInMeleeRange only when riderWeaponIsRanged is true. For ordinary melee it can select the horse even when IsMountAlreadyInPrimaryRange returned false. CaptureContext also sets WithinSupportedRangeEnvelope to true, and the dispatch permits approach.
+- Why it blocks / does not: A retained rider order can install a horse Standard command when the horse has no legal way to attack the target.
+- Requested correction: Gate turn-based horse follow-through on current legal reach. If a lawful approach is supported, establish its movement entitlement separately. Preserve explicit actor orders and the native single/full attack decision.
+- Requested evidence: Exercise a reach-weapon rider with a prepared horse outside natural reach and unable to move. Show zero horse dispatches, alongside one legal dispatch for the in-reach control.
+
+**R1-F2** · P1 · defect · blocks readiness — A newer turn-based order suppresses only the horse leg
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:1628`; acceptance: MMR-03, S04
+- Trigger: A rider attack is waiting to dispatch or is queued when either pair member accepts a newer competing player command.
+- Expected: A competing acceptance supersedes unreleased work from the older pair order on either participant.
+- Actual: TryRetireStockIntent returns immediately for a player-owned turn-based order. The selector passes Superseded only to MountJoinsIntent, leaving the rider eligible. InternalRunPrefix also allows an explicit queued wrapper to promote without rechecking the override.
+- Why it blocks / does not: The older rider attack can execute after the newer order was accepted. A fresh native Run can also clear the successor’s queue.
+- Requested correction: Apply the retained generation’s override to pending rider dispatch and queued promotion. Retire only the older owned work and preserve a strike already released.
+- Requested evidence: Queue a rider wrapper, accept a later competing horse command, then advance the rider queue during the same activation. Show that the old wrapper never strikes and the later command survives. Also cover a rider-ready decision with the override already latched.
+
+**R1-F3** · P1 · defect · blocks readiness — A rider-specific terminal also cancels the eligible horse
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:2657`; acceptance: MMR-03, S04
+- Trigger: A rider accepted for an ordinary turn-based attack becomes dazed before release. The target remains valid and the prepared horse is in range.
+- Expected: A rider-specific refusal ends that rider’s attempt. An independently eligible horse can still follow through once on the valid target during the same activation.
+- Actual: The controller tests both actors before selecting the rider. If the rider subsequently ends for an actor-specific capability block, HandleCommandTerminal clears the whole generation on failure or EndedWithoutExecution. The horse never reaches the next selection.
+- Why it blocks / does not: The same ordinary order reaches the horse if the rider’s condition is present at selection, but loses the horse if that condition arrives before the rider’s first strike.
+- Requested correction: Handle an evidenced actor-specific terminal separately from target invalidation, replacement, and pair-wide cancellation. Prevent redispatch of the failed rider and recheck the horse’s full eligibility.
+- Requested evidence: Apply a rider-only capability block after admission and before release. Show zero rider strikes, one eligible horse attempt, and zero attempts for an ended or spent horse.
+
+**R1-F4** · P1 · defect · blocks readiness — Native start turns a temporary mount conflict into a failed rider click
+- Location: `src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs:1135`; acceptance: MMR-05, S05
+- Trigger: An out-of-reach real-time rider attack becomes ready while an older stationary horse cast still occupies Standard.
+- Expected: An older compatible action delays the carrier until it can be admitted. The handoff to native start rechecks current movement permission.
+- Actual: The pre-start path waits while mount slots are occupied. At native start the rider wrapper has an unbounded start radius, checks only the mount’s Move slot for a foreign command, then calls BeginDelegatedMove. That method rejects an occupied Standard slot by throwing. EndAfterFault and the terminal handler then discard the rider order. OnStart likewise uses the previously captured allowApproach without rechecking the current mount movement restriction.
+- Why it blocks / does not: A stationary horse action that predates the click can cause the newer rider click to fail. The start handoff can also issue a carrier after movement became forbidden.
+- Requested correction: Use consistent mount availability and movement checks across pre-start and OnStart. Keep the newer rider order pending behind older work and continue to respect genuinely later competing orders.
+- Requested evidence: Drive the actual start handoff with an older stationary horse Standard, including older queued work promoted before start. Show the original action survives and the rider order progresses after it clears. Cover movement becoming forbidden during the wait.
+
+**R1-F5** · P1 · defect · blocks readiness — A dropped explicit queue entry can leave the pair permanently busy
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:2099`; acceptance: MMR-05, S05
+- Trigger: Native queues the rider attack behind an uninterruptible command. A fresh noncompeting Run clears the queue before promotion.
+- Expected: Losing both slot and queue membership ends the controller’s claim on an unstarted wrapper.
+- Actual: TryExecuteAction accepts queue-only admission. A fresh native Run can clear a queued command without interrupting it. SweepOrphanedAutomaticCommand ignores player-origin wrappers, while HasActiveCommand treats the missing, unfinished wrapper as active. A coexisting in-range Free or Swift action does not latch an override that would otherwise retire it.
+- Why it blocks / does not: The controller can wait indefinitely for a wrapper that native no longer holds, preventing the pair from progressing.
+- Requested correction: Reconcile membership for an explicit retained wrapper, including an automatic wrapper promoted to player ownership. Release stale command state without touching the command that now occupies the container.
+- Requested evidence: Admit an explicit attack only into the queue, clear it through a fresh coexisting native Run, and advance controller updates. Show that the successor survives and the missing wrapper cannot keep HasActiveCommand true.
+
+**R1-F6** · P1 · defect · blocks readiness — Carrier cleanup can stop a successor approaching from Standard
+- Location: `src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs:1740`; acceptance: MMR-04, MMR-05, S05
+- Trigger: An out-of-range horse command replaces the delegated Move or becomes active during RemoveFinishedAndUpdateQueue.
+- Expected: Releasing the pair’s carrier preserves every successor command that now steers the mount.
+- Actual: After interrupting or sweeping the exact carrier, StopDelegatedMove checks only the Move slot before calling mount.View.StopMoving(). Native also steers the mount from an unstarted out-of-range Standard or other action slot. The sweep itself can promote such a successor.
+- Why it blocks / does not: Cleanup of an old rider order can stop the path of a newer player command even though that command owns the movement.
+- Requested correction: Inspect movement ownership after the sweep across the relevant native slots. Reuse the existing carried-approach ownership logic where applicable.
+- Requested evidence: Exercise a directly installed and a queue-promoted out-of-range Standard successor. Show that cleanup releases the old carrier without calling StopMoving on the successor’s path. Retain the existing Move-slot control.
+
+**R1-F7** · P1 · defect · blocks readiness — The rider’s carrier can repeatedly finish behind an obstruction
+- Location: `src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs:633`; acceptance: MMR-04, MMR-05, S05
+- Trigger: The horse is within the point carrier’s arrival radius, but an obstruction blocks the rider’s strike line and a nearby position has clear sight.
+- Expected: The rider’s delegated real-time approach makes progress toward a position from which the planned strike is admissible.
+- Actual: PreStartStrikeAdmissible correctly rejects blocked strike sight. BeginPreStartMove then sends a UnitMoveTo to the enemy’s position with a distance-only arrival radius and NeedLoS false. A carrier already within that radius completes without moving. Both the pre-start retry and the started repath can issue the same already-satisfied destination.
+- Why it blocks / does not: A reachable enemy can exhaust the rider’s approach attempts while the mount remains stationary. The obstruction harness exercises the horse as striker, which uses a different approach.
+- Requested correction: When point arrival and strike admission disagree, give the rider’s carrier a reachable destination or route that can clear the obstruction. Keep the native strike sight check at release.
+- Requested evidence: Run the rider-striker counterpart to the obstructed horse case, starting inside point-arrival distance with a reachable lateral route. Show nonzero carrier travel, zero strikes while obstructed or cooling, and one start after sight and readiness allow it.
+
+**R1-F8** · P2 · defect · blocks readiness — A native trap group stop misses pre-start rider movement
+- Location: `src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs:936`; acceptance: MMR-04, MMR-05, S05
+- Trigger: The party selects a trap interactor while the mounted rider is approaching during cooldown.
+- Expected: An accepted group stop ends the selected rider’s exact active approach, including movement before strike readiness.
+- Actual: The forwarded trap stop calls InterruptRiderApproachingOrders. Its IsApproachingBeforeAttack predicate requires transaction state Approaching, which the rider wrapper enters only at OnStart. During pre-start movement the transaction is still Armed and the rider skips native TickApproaching. Stopping the mount therefore leaves the wrapper live, and its next tick can retry the carrier.
+- Why it blocks / does not: The pair can resume chasing immediately after a native group stop that should end its approaching order.
+- Requested correction: Include the rider wrapper’s live pre-start carrier in the existing group-stop decision. Preserve stationary windups and unrelated party members’ commands.
+- Requested evidence: Forward a trap group stop while another party member receives the disarm and the selected rider has a live pre-start carrier. Advance beyond the retry period and show zero replacement carriers or child strikes.
+
+**R1-F9** · P1 · defect · blocks readiness — A hidden automatic target remains retained while no wrapper exists
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:1696`; acceptance: MMR-04, S05
+- Trigger: An automatic target leaves group memory between attacks while the pair is waiting for readiness.
+- Expected: An automatic order releases a target that leaves perception before consulting its position or refusing another legitimate proposal.
+- Actual: Group-memory membership is checked by a callback installed on a dispatched wrapper. A retained order with no wrapper checks life and hostility, then can probe the target’s current geometry while both Standards cool. If it stays within strike range, the order waits and FirstRefusal rejects a replacement proposal because the automatic intent still holds its target.
+- Why it blocks / does not: An enemy outside the pair’s awareness can continue blocking acquisition of a perceived, eligible enemy.
+- Requested correction: Validate perception on the retained automatic intent before the readiness/geometry probe and before that intent can veto a replacement proposal. Preserve explicit orders and native handling of an already released strike.
+- Requested evidence: With both Standards cooling and no wrapper, remove an in-range target from group memory and propose a second perceived enemy. Show the old generation retires without another geometry probe and the new proposal can be admitted.
+
+**R1-F10** · P2 · defect · blocks readiness — A previous target can outrank the nearer enemy on fresh acquisition
+- Location: `src/KingmakerMountedCombat/Domain/MountedEngagementDiagnostic.cs:133`; acceptance: MMR-04, S05
+- Trigger: The idle pair has no current order or manual target. The farther of two perceived, reachable in-range enemies is the rider’s LastTarget.
+- Expected: Fresh idle melee acquisition selects the nearer eligible enemy. A current player target or live order retains its priority.
+- Actual: The documented native ranking gives an in-range LastTarget weight 1 and another in-range enemy weight 0. Choose skips every candidate whose weight differs from the proposal, so it keeps the farther previous target even on fresh acquisition with no manual target or live order.
+- Why it blocks / does not: A recency preference can defeat the required nearest eligible initial selection when both enemies are equally attackable.
+- Requested correction: Distinguish native last-target weighting from a current manual target or retained order when comparing otherwise equally eligible in-reach melee candidates. Keep native awareness, restrictions, and ranged behavior.
+- Requested evidence: Feed the production selection seam a farther in-range LastTarget at weight 1 and a nearer eligible enemy at weight 0. Verify the fresh melee choice and retain the manual-target, live-order and ranged controls.
+
+**R1-F11** · P2 · defect · blocks readiness — Intent cleanup clears manual targets solely by enemy identity
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:1913`; acceptance: MMR-03, MMR-04, S04, S05
+- Trigger: An automatic intent retires while its target is still an actor’s pre-existing manual target, or a newer accepted command has selected that same enemy.
+- Expected: Retirement releases only the manual-target assignment owned by the retiring order.
+- Actual: ClearStockAttackIntent clears both actors’ ManualTarget whenever the target object matches the retiring generation. Automatic wrappers explicitly avoid marking a manual target. Object equality cannot identify a pre-existing player selection or a same-target assignment made by a newer command.
+- Why it blocks / does not: Retiring one order can erase a legitimate player target belonging to another order or the other actor.
+- Requested correction: Track which actor’s manual-target assignment the order owns and relinquish that ownership when a later command takes it. Preserve native Stop’s deliberate target clearing.
+- Requested evidence: Retire an automatic order that inherited a player’s manual target, and retire an explicit order after a newer command sets the same target. Show the current owner’s selection survives both cases.
+
+**R1-F12** · P2 · evidence_gap · blocks readiness — The formal-round allocation check lacks evidence
+- Location: `docs/missions/mmr-split/PR-1-attack-orders.md:181`; acceptance: Mission §7, Mission §8
+- Trigger: The candidate is submitted for its first formal review under the shared program allowance.
+- Expected: The developer checks both formal-round allocations against the supplemental ledger before submission.
+- Actual: The receipt records 67.17 of 90 validation minutes consumed. The transcript notice, report and supplied evidence contain no observation of the separate check of this child’s round allocation and the program round total.
+- Why it blocks / does not: The mandatory pre-review allocation check cannot be verified from the submitted evidence.
+- Requested correction: Supply an attributable record of the round-1 check if available. Otherwise record the omission accurately and perform the required check before resubmission using the existing ledger.
+- Requested evidence: A dated ledger excerpt or read-only check output showing the child and program counts against their limits, tied to the review submission.
+
+**R1-F13** · P3 · optional_polish · non-blocking — The one-shot engagement report keeps sampling after publication
+- Location: `src/KingmakerMountedCombat/Integration/MountedCombatController.cs:1056`; acceptance: MMR-04
+- Trigger: Real-time combat continues after its initial engagement report has been emitted.
+- Expected: Sampling for the one-shot report ends when the report is complete.
+- Actual: After the engagement report has been emitted, ObserveEngagementProgress still calls HasRiderPlayerOperation, allocates a slot list, can format command details, and samples movement every combat update. The record discards those observations once Reported is true.
+- Why it blocks / does not: This is avoidable diagnostic work. No frame-time regression was measured.
+- Requested correction: Return after the combat-boundary reset check when the engagement record has already been reported.
+- Requested evidence: Source inspection showing that the next combat still opens a new record and completed windows skip slot and displacement sampling.
+
+#### Evidence assessment
+
+- **Inspected:** Controller mission, request, developer report, transcript notice, prior-findings ledger, gate receipt and log. The prior ledger is empty.; AGENTS.md, validation policy, current handoff, full 20-file feature diff, and the relevant paired activation, attack, movement, target-selection and command-container contracts.; Production dispatch and terminal paths, Harmony hooks, retained-order and movement policies, focused component cases, and the spliced attack-path harness.
+- **Executed verification:** Read-only Git checks confirmed the supplied head and merge base. The six designated whole-file extractions match commit 46444b30, and git diff --check passed for the feature range.; Controller receipt gate-focused-95c26e59c465-d43d449b6c4-af2513083e1-20261125T153534161716Z binds the focused Fast run to this candidate. It records exit 0, 69.1 seconds, an unchanged worktree, and 15 of 15 focused children passing. The supplied log matches its recorded SHA-256.; The log records 1539 component checks and 153 source checks passing, plus 4 attack contract checks, 49 lifecycle checks, 16 attack-path harness checks, and 239 presentation checks. Mounted Shield passed 114 contract checks and 68 rollback checks, including the output icon comparison. Both UMM binding profiles passed 25 checks.
+- **Source inspection only:** Ordinary pair commands retain native attack planning and the native first-action expenditure path. The candidate adds no Prepare call or resource refund in the reviewed dispatch path.; The findings about native command ordering use the candidate’s production code and the repository’s documented Kingmaker 2.1.7b slot, queue and approach contracts. They are source conclusions, not observed gameplay failures.
+- **Required gaps:** The passing checks leave the dispatch, queue, movement-ownership and targeting counterexamples in the findings unresolved.; The supplied records establish validation minutes consumed. Evidence of the separate pre-review check of child and program round allocations is missing.
+- **Limitations:** This was a read-only review. Executed build and test results come from the controller’s candidate-bound receipt and log. The foreground developer command history was withheld.; The harness models the engine boundary. N04, N05 and N06 require owner gameplay observations for attack attribution, acquisition, and comparative movement timing.
+
+#### Summary
+
+- **Delivered behavior:** The candidate adds ordinary melee horse follow-through, native-brain proposal comparison, early real-time approach, and retained-order bookkeeping. The focused gate and Mounted Shield regression evidence passed. Required corrections concern which actor may proceed, which command owns movement or selection, and when an automatic target remains eligible.
+- **Scope reviewed:** Final PR-1 checkpoint for MMR-03, MMR-04 and MMR-05, including S04, S05, S08, the inherited regression obligations and the candidate-bound focused gate.
+- **Pending later-phase work:** none
+- **Unresolved questions:** Whether the required supplemental round-ledger check took place before the round-1 submission.
+- **Remaining owner review:** N04: observe horse-attributed attacks, rolls and damage, native routine cardinality, and both initiative arrangements.; N05: observe idle real-time acquisition with eligible enemies and the AI-off, Stop, Hold and selected-target controls.; N06: compare first movement and first legal strike with an equivalent unmounted actor under the same readiness conditions.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Owner guidance bound to this review: none.
+
+Owner amendments bound to this review: none.
+
+Codex CLI `0.170.0`, thread `01a21359-92a2-7553-87c5-0f57899bbc43`, duration 1720.4s, response sha256 `45415276181d4509cf055e090fca300aadd06dad2708fbacf1512e82611529c0`, request `kmc-codex-mmr-attack-orders-20261125103400-6cef-r01-49dfc7`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "95c26e59c4657bd42f56153f817d23c0c89d82d9",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The required focused gate passed on the submitted commit, including the Mounted Shield checks. Source inspection nevertheless found cases where a paired attack dispatches without legal reach, displaces a newer order, or loses an eligible partner. The real-time approach and automatic targeting paths also have reproducible gaps in their decision logic.\n\nContinuation for Claude\n\nCorrect the retained-order lifecycle across dispatch, native queue promotion, and terminal handling. Check each participant\u2019s current entitlement and reach. Honor a newer accepted order on either actor, and allow an eligible horse one opportunity after a rider-specific refusal. At the real-time movement handoff, recheck the mount\u2019s availability, recognize the exact command currently steering it, and honor a group stop before native attack start. Apply target eligibility and ownership checks while an automatic order is waiting as well as when it has a wrapper.\n\nUse the existing production seams and attack-path harness to exercise the counterexamples below, then run the prescribed focused gate on the corrected commit. Account for the child and program review allocations in the existing supplemental ledger. Keep the changes within PR-1 and preserve native planning, spending, paired movement accounting, and the existing regression gates. The other child missions and owner gameplay observations retain their assigned scope.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Read-only Git checks confirmed the supplied head and merge base. The six designated whole-file extractions match commit 46444b30, and git diff --check passed for the feature range.",
+      "Controller receipt gate-focused-95c26e59c465-d43d449b6c4-af2513083e1-20261125T153534161716Z binds the focused Fast run to this candidate. It records exit 0, 69.1 seconds, an unchanged worktree, and 15 of 15 focused children passing. The supplied log matches its recorded SHA-256.",
+      "The log records 1539 component checks and 153 source checks passing, plus 4 attack contract checks, 49 lifecycle checks, 16 attack-path harness checks, and 239 presentation checks. Mounted Shield passed 114 contract checks and 68 rollback checks, including the output icon comparison. Both UMM binding profiles passed 25 checks."
+    ],
+    "inspected": [
+      "Controller mission, request, developer report, transcript notice, prior-findings ledger, gate receipt and log. The prior ledger is empty.",
+      "AGENTS.md, validation policy, current handoff, full 20-file feature diff, and the relevant paired activation, attack, movement, target-selection and command-container contracts.",
+      "Production dispatch and terminal paths, Harmony hooks, retained-order and movement policies, focused component cases, and the spliced attack-path harness."
+    ],
+    "limitations": [
+      "This was a read-only review. Executed build and test results come from the controller\u2019s candidate-bound receipt and log. The foreground developer command history was withheld.",
+      "The harness models the engine boundary. N04, N05 and N06 require owner gameplay observations for attack attribution, acquisition, and comparative movement timing."
+    ],
+    "required_gaps": [
+      "The passing checks leave the dispatch, queue, movement-ownership and targeting counterexamples in the findings unresolved.",
+      "The supplied records establish validation minutes consumed. Evidence of the separate pre-review check of child and program round allocations is missing."
+    ],
+    "source_inspection_only": [
+      "Ordinary pair commands retain native attack planning and the native first-action expenditure path. The candidate adds no Prepare call or resource refund in the reviewed dispatch path.",
+      "The findings about native command ordering use the candidate\u2019s production code and the repository\u2019s documented Kingmaker 2.1.7b slot, queue and approach contracts. They are source conclusions, not observed gameplay failures."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "MMR-03",
+        "S04"
+      ],
+      "actual": "DecideNext uses mountAlreadyInMeleeRange only when riderWeaponIsRanged is true. For ordinary melee it can select the horse even when IsMountAlreadyInPrimaryRange returned false. CaptureContext also sets WithinSupportedRangeEnvelope to true, and the dispatch permits approach.",
+      "blocking_rationale": "A retained rider order can install a horse Standard command when the horse has no legal way to attack the target.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Follow-through checks the planned horse strike\u2019s reach and any required movement entitlement before dispatch.",
+      "id": "R1-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 1769
+      },
+      "priority": "P1",
+      "requested_correction": "Gate turn-based horse follow-through on current legal reach. If a lawful approach is supported, establish its movement entitlement separately. Preserve explicit actor orders and the native single/full attack decision.",
+      "requested_evidence": "Exercise a reach-weapon rider with a prepared horse outside natural reach and unable to move. Show zero horse dispatches, alongside one legal dispatch for the in-reach control.",
+      "title": "Turn-based horse follow-through ignores its range result",
+      "trigger": "The rider completes a reach-weapon strike. The horse has a Standard available but is immobilized outside its own natural reach."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-03",
+        "S04"
+      ],
+      "actual": "TryRetireStockIntent returns immediately for a player-owned turn-based order. The selector passes Superseded only to MountJoinsIntent, leaving the rider eligible. InternalRunPrefix also allows an explicit queued wrapper to promote without rechecking the override.",
+      "blocking_rationale": "The older rider attack can execute after the newer order was accepted. A fresh native Run can also clear the successor\u2019s queue.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A competing acceptance supersedes unreleased work from the older pair order on either participant.",
+      "id": "R1-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 1628
+      },
+      "priority": "P1",
+      "requested_correction": "Apply the retained generation\u2019s override to pending rider dispatch and queued promotion. Retire only the older owned work and preserve a strike already released.",
+      "requested_evidence": "Queue a rider wrapper, accept a later competing horse command, then advance the rider queue during the same activation. Show that the old wrapper never strikes and the later command survives. Also cover a rider-ready decision with the override already latched.",
+      "title": "A newer turn-based order suppresses only the horse leg",
+      "trigger": "A rider attack is waiting to dispatch or is queued when either pair member accepts a newer competing player command."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-03",
+        "S04"
+      ],
+      "actual": "The controller tests both actors before selecting the rider. If the rider subsequently ends for an actor-specific capability block, HandleCommandTerminal clears the whole generation on failure or EndedWithoutExecution. The horse never reaches the next selection.",
+      "blocking_rationale": "The same ordinary order reaches the horse if the rider\u2019s condition is present at selection, but loses the horse if that condition arrives before the rider\u2019s first strike.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A rider-specific refusal ends that rider\u2019s attempt. An independently eligible horse can still follow through once on the valid target during the same activation.",
+      "id": "R1-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 2657
+      },
+      "priority": "P1",
+      "requested_correction": "Handle an evidenced actor-specific terminal separately from target invalidation, replacement, and pair-wide cancellation. Prevent redispatch of the failed rider and recheck the horse\u2019s full eligibility.",
+      "requested_evidence": "Apply a rider-only capability block after admission and before release. Show zero rider strikes, one eligible horse attempt, and zero attempts for an ended or spent horse.",
+      "title": "A rider-specific terminal also cancels the eligible horse",
+      "trigger": "A rider accepted for an ordinary turn-based attack becomes dazed before release. The target remains valid and the prepared horse is in range."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-05",
+        "S05"
+      ],
+      "actual": "The pre-start path waits while mount slots are occupied. At native start the rider wrapper has an unbounded start radius, checks only the mount\u2019s Move slot for a foreign command, then calls BeginDelegatedMove. That method rejects an occupied Standard slot by throwing. EndAfterFault and the terminal handler then discard the rider order. OnStart likewise uses the previously captured allowApproach without rechecking the current mount movement restriction.",
+      "blocking_rationale": "A stationary horse action that predates the click can cause the newer rider click to fail. The start handoff can also issue a carrier after movement became forbidden.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "An older compatible action delays the carrier until it can be admitted. The handoff to native start rechecks current movement permission.",
+      "id": "R1-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "line": 1135
+      },
+      "priority": "P1",
+      "requested_correction": "Use consistent mount availability and movement checks across pre-start and OnStart. Keep the newer rider order pending behind older work and continue to respect genuinely later competing orders.",
+      "requested_evidence": "Drive the actual start handoff with an older stationary horse Standard, including older queued work promoted before start. Show the original action survives and the rider order progresses after it clears. Cover movement becoming forbidden during the wait.",
+      "title": "Native start turns a temporary mount conflict into a failed rider click",
+      "trigger": "An out-of-reach real-time rider attack becomes ready while an older stationary horse cast still occupies Standard."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-05",
+        "S05"
+      ],
+      "actual": "TryExecuteAction accepts queue-only admission. A fresh native Run can clear a queued command without interrupting it. SweepOrphanedAutomaticCommand ignores player-origin wrappers, while HasActiveCommand treats the missing, unfinished wrapper as active. A coexisting in-range Free or Swift action does not latch an override that would otherwise retire it.",
+      "blocking_rationale": "The controller can wait indefinitely for a wrapper that native no longer holds, preventing the pair from progressing.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Losing both slot and queue membership ends the controller\u2019s claim on an unstarted wrapper.",
+      "id": "R1-F5",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 2099
+      },
+      "priority": "P1",
+      "requested_correction": "Reconcile membership for an explicit retained wrapper, including an automatic wrapper promoted to player ownership. Release stale command state without touching the command that now occupies the container.",
+      "requested_evidence": "Admit an explicit attack only into the queue, clear it through a fresh coexisting native Run, and advance controller updates. Show that the successor survives and the missing wrapper cannot keep HasActiveCommand true.",
+      "title": "A dropped explicit queue entry can leave the pair permanently busy",
+      "trigger": "Native queues the rider attack behind an uninterruptible command. A fresh noncompeting Run clears the queue before promotion."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04",
+        "MMR-05",
+        "S05"
+      ],
+      "actual": "After interrupting or sweeping the exact carrier, StopDelegatedMove checks only the Move slot before calling mount.View.StopMoving(). Native also steers the mount from an unstarted out-of-range Standard or other action slot. The sweep itself can promote such a successor.",
+      "blocking_rationale": "Cleanup of an old rider order can stop the path of a newer player command even though that command owns the movement.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Releasing the pair\u2019s carrier preserves every successor command that now steers the mount.",
+      "id": "R1-F6",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "line": 1740
+      },
+      "priority": "P1",
+      "requested_correction": "Inspect movement ownership after the sweep across the relevant native slots. Reuse the existing carried-approach ownership logic where applicable.",
+      "requested_evidence": "Exercise a directly installed and a queue-promoted out-of-range Standard successor. Show that cleanup releases the old carrier without calling StopMoving on the successor\u2019s path. Retain the existing Move-slot control.",
+      "title": "Carrier cleanup can stop a successor approaching from Standard",
+      "trigger": "An out-of-range horse command replaces the delegated Move or becomes active during RemoveFinishedAndUpdateQueue."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04",
+        "MMR-05",
+        "S05"
+      ],
+      "actual": "PreStartStrikeAdmissible correctly rejects blocked strike sight. BeginPreStartMove then sends a UnitMoveTo to the enemy\u2019s position with a distance-only arrival radius and NeedLoS false. A carrier already within that radius completes without moving. Both the pre-start retry and the started repath can issue the same already-satisfied destination.",
+      "blocking_rationale": "A reachable enemy can exhaust the rider\u2019s approach attempts while the mount remains stationary. The obstruction harness exercises the horse as striker, which uses a different approach.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The rider\u2019s delegated real-time approach makes progress toward a position from which the planned strike is admissible.",
+      "id": "R1-F7",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "line": 633
+      },
+      "priority": "P1",
+      "requested_correction": "When point arrival and strike admission disagree, give the rider\u2019s carrier a reachable destination or route that can clear the obstruction. Keep the native strike sight check at release.",
+      "requested_evidence": "Run the rider-striker counterpart to the obstructed horse case, starting inside point-arrival distance with a reachable lateral route. Show nonzero carrier travel, zero strikes while obstructed or cooling, and one start after sight and readiness allow it.",
+      "title": "The rider\u2019s carrier can repeatedly finish behind an obstruction",
+      "trigger": "The horse is within the point carrier\u2019s arrival radius, but an obstruction blocks the rider\u2019s strike line and a nearby position has clear sight."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04",
+        "MMR-05",
+        "S05"
+      ],
+      "actual": "The forwarded trap stop calls InterruptRiderApproachingOrders. Its IsApproachingBeforeAttack predicate requires transaction state Approaching, which the rider wrapper enters only at OnStart. During pre-start movement the transaction is still Armed and the rider skips native TickApproaching. Stopping the mount therefore leaves the wrapper live, and its next tick can retry the carrier.",
+      "blocking_rationale": "The pair can resume chasing immediately after a native group stop that should end its approaching order.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "An accepted group stop ends the selected rider\u2019s exact active approach, including movement before strike readiness.",
+      "id": "R1-F8",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+        "line": 936
+      },
+      "priority": "P2",
+      "requested_correction": "Include the rider wrapper\u2019s live pre-start carrier in the existing group-stop decision. Preserve stationary windups and unrelated party members\u2019 commands.",
+      "requested_evidence": "Forward a trap group stop while another party member receives the disarm and the selected rider has a live pre-start carrier. Advance beyond the retry period and show zero replacement carriers or child strikes.",
+      "title": "A native trap group stop misses pre-start rider movement",
+      "trigger": "The party selects a trap interactor while the mounted rider is approaching during cooldown."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04",
+        "S05"
+      ],
+      "actual": "Group-memory membership is checked by a callback installed on a dispatched wrapper. A retained order with no wrapper checks life and hostility, then can probe the target\u2019s current geometry while both Standards cool. If it stays within strike range, the order waits and FirstRefusal rejects a replacement proposal because the automatic intent still holds its target.",
+      "blocking_rationale": "An enemy outside the pair\u2019s awareness can continue blocking acquisition of a perceived, eligible enemy.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "An automatic order releases a target that leaves perception before consulting its position or refusing another legitimate proposal.",
+      "id": "R1-F9",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 1696
+      },
+      "priority": "P1",
+      "requested_correction": "Validate perception on the retained automatic intent before the readiness/geometry probe and before that intent can veto a replacement proposal. Preserve explicit orders and native handling of an already released strike.",
+      "requested_evidence": "With both Standards cooling and no wrapper, remove an in-range target from group memory and propose a second perceived enemy. Show the old generation retires without another geometry probe and the new proposal can be admitted.",
+      "title": "A hidden automatic target remains retained while no wrapper exists",
+      "trigger": "An automatic target leaves group memory between attacks while the pair is waiting for readiness."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04",
+        "S05"
+      ],
+      "actual": "The documented native ranking gives an in-range LastTarget weight 1 and another in-range enemy weight 0. Choose skips every candidate whose weight differs from the proposal, so it keeps the farther previous target even on fresh acquisition with no manual target or live order.",
+      "blocking_rationale": "A recency preference can defeat the required nearest eligible initial selection when both enemies are equally attackable.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Fresh idle melee acquisition selects the nearer eligible enemy. A current player target or live order retains its priority.",
+      "id": "R1-F10",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/MountedEngagementDiagnostic.cs",
+        "line": 133
+      },
+      "priority": "P2",
+      "requested_correction": "Distinguish native last-target weighting from a current manual target or retained order when comparing otherwise equally eligible in-reach melee candidates. Keep native awareness, restrictions, and ranged behavior.",
+      "requested_evidence": "Feed the production selection seam a farther in-range LastTarget at weight 1 and a nearer eligible enemy at weight 0. Verify the fresh melee choice and retain the manual-target, live-order and ranged controls.",
+      "title": "A previous target can outrank the nearer enemy on fresh acquisition",
+      "trigger": "The idle pair has no current order or manual target. The farther of two perceived, reachable in-range enemies is the rider\u2019s LastTarget."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-03",
+        "MMR-04",
+        "S04",
+        "S05"
+      ],
+      "actual": "ClearStockAttackIntent clears both actors\u2019 ManualTarget whenever the target object matches the retiring generation. Automatic wrappers explicitly avoid marking a manual target. Object equality cannot identify a pre-existing player selection or a same-target assignment made by a newer command.",
+      "blocking_rationale": "Retiring one order can erase a legitimate player target belonging to another order or the other actor.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Retirement releases only the manual-target assignment owned by the retiring order.",
+      "id": "R1-F11",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 1913
+      },
+      "priority": "P2",
+      "requested_correction": "Track which actor\u2019s manual-target assignment the order owns and relinquish that ownership when a later command takes it. Preserve native Stop\u2019s deliberate target clearing.",
+      "requested_evidence": "Retire an automatic order that inherited a player\u2019s manual target, and retire an explicit order after a newer command sets the same target. Show the current owner\u2019s selection survives both cases.",
+      "title": "Intent cleanup clears manual targets solely by enemy identity",
+      "trigger": "An automatic intent retires while its target is still an actor\u2019s pre-existing manual target, or a newer accepted command has selected that same enemy."
+    },
+    {
+      "acceptance_ids": [
+        "Mission \u00a77",
+        "Mission \u00a78"
+      ],
+      "actual": "The receipt records 67.17 of 90 validation minutes consumed. The transcript notice, report and supplied evidence contain no observation of the separate check of this child\u2019s round allocation and the program round total.",
+      "blocking_rationale": "The mandatory pre-review allocation check cannot be verified from the submitted evidence.",
+      "blocks_readiness": true,
+      "category": "evidence_gap",
+      "expected": "The developer checks both formal-round allocations against the supplemental ledger before submission.",
+      "id": "R1-F12",
+      "location": {
+        "file": "docs/missions/mmr-split/PR-1-attack-orders.md",
+        "line": 181
+      },
+      "priority": "P2",
+      "requested_correction": "Supply an attributable record of the round-1 check if available. Otherwise record the omission accurately and perform the required check before resubmission using the existing ledger.",
+      "requested_evidence": "A dated ledger excerpt or read-only check output showing the child and program counts against their limits, tied to the review submission.",
+      "title": "The formal-round allocation check lacks evidence",
+      "trigger": "The candidate is submitted for its first formal review under the shared program allowance."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-04"
+      ],
+      "actual": "After the engagement report has been emitted, ObserveEngagementProgress still calls HasRiderPlayerOperation, allocates a slot list, can format command details, and samples movement every combat update. The record discards those observations once Reported is true.",
+      "blocking_rationale": "This is avoidable diagnostic work. No frame-time regression was measured.",
+      "blocks_readiness": false,
+      "category": "optional_polish",
+      "expected": "Sampling for the one-shot report ends when the report is complete.",
+      "id": "R1-F13",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+        "line": 1056
+      },
+      "priority": "P3",
+      "requested_correction": "Return after the combat-boundary reset check when the engagement record has already been reported.",
+      "requested_evidence": "Source inspection showing that the next combat still opens a new record and completed windows skip slot and displacement sampling.",
+      "title": "The one-shot engagement report keeps sampling after publication",
+      "trigger": "Real-time combat continues after its initial engagement report has been emitted."
+    }
+  ],
+  "prior_finding_assessments": [],
+  "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r01-49dfc7",
+  "round": 1,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The candidate adds ordinary melee horse follow-through, native-brain proposal comparison, early real-time approach, and retained-order bookkeeping. The focused gate and Mounted Shield regression evidence passed. Required corrections concern which actor may proceed, which command owns movement or selection, and when an automatic target remains eligible.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "N04: observe horse-attributed attacks, rolls and damage, native routine cardinality, and both initiative arrangements.",
+      "N05: observe idle real-time acquisition with eligible enemies and the AI-off, Stop, Hold and selected-target controls.",
+      "N06: compare first movement and first legal strike with an equivalent unmounted actor under the same readiness conditions."
+    ],
+    "scope_reviewed": "Final PR-1 checkpoint for MMR-03, MMR-04 and MMR-05, including S04, S05, S08, the inherited regression obligations and the candidate-bound focused gate.",
+    "unresolved_questions": [
+      "Whether the required supplemental round-ledger check took place before the round-1 submission."
+    ]
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

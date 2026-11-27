@@ -1,0 +1,208 @@
+{
+  "B": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "H": "915f2fe7380b2439c97d5cc5bfccf5e233e3be32",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": null,
+  "amendment_sha256": "none",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 555.7,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2998400,
+        "input_tokens": 3162531,
+        "output_tokens": 23369,
+        "reasoning_output_tokens": 11450,
+        "total_tokens": 3185900
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21a30-8a20-7863-982f-879f66a7953d",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "pr-1-attack-orders",
+    "sha256": "b518dd67c2c712a1d7a6f4a221e696fb7fc4b18aae9b6e3ebfd9b6ffce9bfddf"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mmr-attack-orders-20261125103400-6cef\\rounds\\r13\\envelope-1.json",
+  "pr": 65,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r13-review",
+  "published": [
+    {
+      "comment_id": 7205708725,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/65#issuecomment-7205708725"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r13-362202",
+  "response_sha256": "9d18587384a77be34d6688995b8dcdaa0efc2f104d9543143b156276cf513a96",
+  "result": {
+    "candidate_commit": "915f2fe7380b2439c97d5cc5bfccf5e233e3be32",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "All four round-12 findings are fixed. One S05 defect remains. A held pair can discard a target that is still in reach after the rider\u2019s final hit, while its animation finishes. A separate regression check reads the wrapper\u2019s cancellation cause before the controller action it claims to verify.\n\nContinuation for Claude\n\nFor any owner-authorized continuation, evaluate the retained target\u2019s stationary eligibility independently of an exhausted attack plan. Preserve AI-off retirement, genuine target loss, native animation completion and each actor\u2019s action cost. Extend the existing offline harness to drive the controller between the final act and OnEnded. In the range-loss control, inspect the released wrapper immediately after controller retirement. Run the existing focused Fast gate on the corrected candidate. Round 13 exhausts the recorded PR-1 review allocation. Further formal review requires owner authorization.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Verified the snapshot HEAD and mission SHA-256 against the request. The supplied gate log\u2019s SHA-256 matches its controller receipt.",
+        "The controller ran scripts/Test-Tiers.ps1 -Tier Fast -Focused Test-MmrAttackOrdersFocused.ps1 at the exact candidate. It exited 0 in 50.4 seconds with the worktree unchanged. Fast passed 4/4, components 1542/1542, Validate-Source 153/153 and focused children 15/15.",
+        "The gate records 204/204 attack-path harness checks, 82/82 lifecycle contract checks and 4/4 installed attack-order contract checks. The Mounted Shield contract passed 114/114 and confirmed identical packet, production and embedded icon bytes."
+      ],
+      "inspected": [
+        "Enrolled mission, repository instructions and validation policy, current handoff, feature diff, round-12 ledger, developer report and the correction from 29816172 to the candidate.",
+        "Automatic proposal, dispatch and retirement paths, wrapper approach and terminal handling, native strike admission, harness assembly and the candidate-bound gate receipt and log."
+      ],
+      "limitations": [
+        "The controller supplied the candidate gate receipt and log in place of the full developer shell transcript. I reviewed those records in the read-only snapshot.",
+        "The attack-path harness uses a simulated engine. No candidate gameplay, actor-attributed native damage or mounted-versus-unmounted timing measurement was observed."
+      ],
+      "required_gaps": [
+        "Correct and exercise stationary target retention between the final act and animation completion.",
+        "Observe the released wrapper\u2019s cause and transaction state after the controller retires an order for loss of native admission."
+      ],
+      "source_inspection_only": [
+        "Traced the post-delivery stationary check through StockIntentStrikeAdmissibleNow and EvaluateCurrentNativeAdmission. The installed lifecycle record distinguishes the final OnAction from the later OnEnded. The harness combines them at AttackPathHarnessTemplate.cs line 282.",
+        "Traced duplicate admission checks in the active and deferred approach ticks. Their frame-time cost was not measured."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "MMR-04",
+          "S05"
+        ],
+        "actual": "StockIntentStrikeAdmissibleNow uses the unfinished wrapper. After its last act, PlannedAttack is null and EvaluateCurrentNativeAdmission returns Unavailable. The controller records \u201chold out of reach\u201d and clears the order even though neither the target nor the pair moved.",
+        "blocking_rationale": "The eligible horse loses follow-through on the retained target. A fresh brain proposal can select another enemy even though the original target stayed eligible.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "The order keeps the same target through the rider\u2019s recovery animation. Once the rider finishes, the eligible horse can strike that target from its current position.",
+        "id": "R13-F1",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/MountedCombatController.cs",
+          "line": 1939
+        },
+        "priority": "P2",
+        "requested_correction": "When the released wrapper has exhausted its plan, use the retained target\u2019s current stationary eligibility for future dispatch. Preserve retirement on AI-off, newer player work and actual loss of eligibility.",
+        "requested_evidence": "Hold only the horse and keep the target in reach. After the rider\u2019s final act, drive once with Result=Success, attack index equal to plan count and IsFinished=false. Verify the same generation and target, zero retirements and zero travel. Finish the animation and observe the eligible horse attack that target without a fresh proposal, with one Standard charged per acting unit.",
+        "title": "A held pair drops an in-range target during the rider\u2019s recovery animation",
+        "trigger": "An AI-enabled rider delivers the final act of an automatic melee routine. The horse is held, the target remains conscious, perceived and in stationary reach, and the controller drives before the animation finishes."
+      },
+      {
+        "acceptance_ids": [
+          "MMR-04",
+          "S05"
+        ],
+        "actual": "The test captures wrapper.EndCause at line 3120, drives the controller at line 3122, then asserts the earlier value at line 3137. Gate line 1977 records generation retirement, but its printed cause is the pre-drive sample. The AI-off replay exercises a different retirement branch.",
+        "blocking_rationale": "This control would still pass if the range-loss branch called RecordAutomaticAdmissionLoss on the released wrapper and cancelled its transaction.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "The released-strike control observes whether the controller changed the wrapper\u2019s cause or transaction when it retired the generation.",
+        "id": "R13-F2",
+        "location": {
+          "file": "tests/Chunk7Diagnostics/AttackPathHarnessTemplate.cs",
+          "line": 3137
+        },
+        "priority": "P2",
+        "requested_correction": "Sample the wrapper immediately after the retiring controller drive and before the next simulated engine tick. Assert its current cause, transaction state and continued ownership of the remaining native routine.",
+        "requested_evidence": "Show one range-based retirement with the wrapper still running and its transaction uncancelled. Return the target to legal reach before the next act and observe native completion with the original Standard cost and zero redispatches from the retired generation.",
+        "title": "The released-strike control checks cancellation before the controller can cause it",
+        "trigger": "The released wrapper\u2019s target leaves native action range and the controller retires the automatic generation."
+      },
+      {
+        "acceptance_ids": [
+          "MMR-04"
+        ],
+        "actual": "TickDeferredCarrier asks at lines 1542 and 1551. TickApproach asks at lines 1575 and 1664. On the continuing out-of-range path, each pair of calls repeats target checks and scans the actors\u2019 command containers.",
+        "blocking_rationale": "Both paths preserve the observed gameplay result. The issue is repeated work on a per-tick path.",
+        "blocks_readiness": false,
+        "category": "optional_polish",
+        "expected": "Each approach tick can use one admission decision before applying the generic movement restriction.",
+        "id": "R13-F3",
+        "location": {
+          "file": "src/KingmakerMountedCombat/Integration/MountedPairAttackCommand.cs",
+          "line": 1575
+        },
+        "priority": "P3",
+        "requested_correction": "Keep the automatic decision before generic movement cancellation and remove the duplicate call on each continuing path.",
+        "requested_evidence": "If adjusted, count one admission decision in an out-of-range active-carrier tick and a deferred-carrier tick. Retain the existing Hold ordering and cleanup checks.",
+        "title": "An out-of-range approach checks the same automatic order twice per tick",
+        "trigger": "An automatic wrapper continues a permitted approach toward a target outside strike reach."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R12-F1",
+        "rationale": "The AI-off drive clears the generation and leaves the delivered wrapper running. Gate line 2020 records two completed strikes, one Standard spent, zero later dispatches and acceptance of a fresh proposal."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R12-F2",
+        "rationale": "The harness now sets Horse.HoldState and calls production AutomaticMovementForbidden. Gate lines 2008 and 2010 show zero pre-readiness spending and zero moves in both cases. A received one stationary delivery when B left reach. B received it when B stayed in reach."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R12-F3",
+        "rationale": "The started approach asks the automatic order before generic movement cancellation. Controller-first and wrapper-first Hold observations each recorded \u201chold out of reach\u201d once, finished the exact carrier and delivered zero attacks. The production predicate also covers loss of the horse\u2019s CanMove."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R12-F4",
+        "rationale": "The second retirement call in the controller drive now applies only to explicit orders. Gate line 2026 records one stationary probe, the same retained target, zero moves and zero spending for the held, cooling pair."
+      }
+    ],
+    "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r13-362202",
+    "round": 13,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Offline checks cover ordinary turn-based horse follow-through, native-ranked real-time targeting and approach before strike readiness. The candidate also preserves the rider\u2019s delivered routine when AI is switched off. Stationary target retention during final attack recovery remains incorrect.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "Decide whether to authorize further formal PR-1 review after the recorded round cap.",
+        "N04 covers actor-attributed horse attacks in both initiative arrangements and the spent or ended horse control.",
+        "N05 and N06 cover in-game target acquisition and retention under AI-off, Stop and Hold, and mounted movement and strike timing against a comparable unmounted actor."
+      ],
+      "scope_reviewed": "Final PR-1 checkpoint for MMR-03, MMR-04 and MMR-05, including S04, S05, the S08 regression gate and all four pending round-12 findings.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 13,
+  "validated_at": "2026-11-26T23:37:53Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}

@@ -1,0 +1,184 @@
+{
+  "B": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "H": "0ecf38f717bca261eb5955654a32e1932acff114",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": null,
+  "amendment_sha256": "none",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 691.1,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 2481536,
+        "input_tokens": 2625044,
+        "output_tokens": 26612,
+        "reasoning_output_tokens": 15741,
+        "total_tokens": 2651656
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21ac5-5daf-7dd3-bf1a-87354abc9bb0",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "pr-1-attack-orders",
+    "sha256": "b518dd67c2c712a1d7a6f4a221e696fb7fc4b18aae9b6e3ebfd9b6ffce9bfddf"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mmr-attack-orders-20261125103400-6cef\\rounds\\r14\\envelope-1.json",
+  "pr": 65,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r14-review",
+  "published": [
+    {
+      "comment_id": 7208069824,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/65#issuecomment-7208069824"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r14-25a6c0",
+  "response_sha256": "211780c3b9533bae2042798f2b317ece2a74d4613186b2b22e5785f806d5eedd",
+  "result": {
+    "candidate_commit": "0ecf38f717bca261eb5955654a32e1932acff114",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The candidate-bound Fast gate verifies both combat corrections. The remaining blocker is evidence of the program-wide review allocation check required before round 14.\n\n## Continuation for Claude\n\nSupply the dated supplemental-ledger entry or captured readout that ties the program totals to this submission. Entry 104 establishes the PR-1 count. Entry 99 gives an earlier program count, and entry 100 records the new ceilings. If the pre-submission check was missed, append a dated reconciliation that identifies the omission and distinguishes it from the check for the next authorized submission. Keep the correction scoped to the records and preserve the reviewed product, gate evidence, and ledger history.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Confirmed the candidate HEAD and merge base, matched the supplied 31-file feature diff to Git, verified the mission and gate-log SHA-256 values, and checked all 44 published ledger-entry hashes.",
+        "The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-MmrAttackOrdersFocused.ps1 at the candidate. It exited 0 in 54.8 seconds. Fast passed 4/4 stages, components passed 1542/1542, source validation passed 153/153, and all 15 focused children passed.",
+        "The attack-path harness passed 208/208 checks and the lifecycle contract passed 82/82. Gate lines 2028\u20132035 record the recovery-animation and released-strike observations. The Mounted Shield check also found identical packet, production, and embedded icon bytes."
+      ],
+      "inspected": [
+        "Controller mission, prior findings, developer report, transcript notice, gate receipt and log, repository validation policy, and current handoff.",
+        "Full feature diff and round-13-to-round-14 changes, including the retained-order admission decision, attack wrapper, dispatch and retirement paths, harness construction, and supplemental ledger excerpt."
+      ],
+      "limitations": [
+        "The harness models engine timing, command slots, and Standard expenditure. Native gameplay observations N04\u2013N06 remain owner-pending.",
+        "The controller withheld the mixed foreground transcript. The reported run with the production fix withheld is documented by the developer but has no separate supplied execution receipt."
+      ],
+      "required_gaps": [
+        "An attributable record of the program-wide review totals checked before round 14, as required by mission \u00a77."
+      ],
+      "source_inspection_only": [
+        "Traced the exhausted-plan fallback and its surrounding invalidation, perception, native eligibility, and player-order checks.",
+        "Confirmed the repeated admission calls on continuing active and deferred approaches, and the sampling order in the older released-strike control."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "Mission \u00a77",
+          "Mission \u00a78"
+        ],
+        "actual": "Entry 104 records 13 of 15 PR-1 rounds used and the validation-minute balance. The last supplied usage total is entry 99, with 37 lifetime and 30 child reviews under the previous ceilings. Entry 100 changes the ceilings to 49 and 42. The excerpt skips entry 102, and the supplied records do not establish which program totals were checked for round 14.",
+        "blocking_rationale": "The child authorization and focused gate are evidenced. The separate, mandatory pre-submission program check remains unverified.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "A dated record ties both the child allocation and the program-wide usage against the applicable ceilings to the pre-review check.",
+        "id": "R14-F1",
+        "location": {
+          "file": "docs/missions/mmr-split/PR-1-ledger-excerpt.md",
+          "line": 223
+        },
+        "priority": "P2",
+        "requested_correction": "Supply the existing record of the check. If it was missed, document that fact and append a reconciliation from the intervening ledger entries, preserving their original dates and contents.",
+        "requested_evidence": "A scoped ledger excerpt or captured readout showing the child and lifetime program totals, applicable ceilings, and timing relative to submission. Account for the already-executed PR-5 round 7 once.",
+        "title": "Round 14\u2019s pre-review record omits the program-wide usage check",
+        "trigger": "PR-1 submits round 14 after the program ceilings changed while a previously executed PR-5 verdict awaited settlement."
+      },
+      {
+        "acceptance_ids": [
+          "MMR-04",
+          "S05"
+        ],
+        "actual": "Round11InstalledWrapper reads EndCause at line 3124, drives at line 3126, and uses the earlier value in a PASS message that also describes controller retirement.",
+        "blocking_rationale": "Round14ReleasedStrikeRangeLoss supplies and asserts the missing post-drive observation. Only the older result label remains misleading.",
+        "blocks_readiness": false,
+        "category": "optional_polish",
+        "expected": "The older control\u2019s result label describes the wrapper-first observation it actually samples.",
+        "id": "R14-F2",
+        "location": {
+          "file": "tests/Chunk7Diagnostics/AttackPathHarnessTemplate.cs",
+          "line": 3142
+        },
+        "priority": "P3",
+        "requested_correction": "Label the older cause sample as pre-drive and leave the post-retirement claim with the new control.",
+        "requested_evidence": "If the label is updated, its wording should match the sampling order. The existing round-14 assertions provide the behavioral evidence.",
+        "title": "The older released-strike PASS label overstates its observation window",
+        "trigger": "A reader uses the older control\u2019s PASS line to determine whether the retiring controller drive changed the wrapper\u2019s cause."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R13-F1",
+        "rationale": "An exhausted, released wrapper now uses the retained target\u2019s stationary strike probe. During the unfinished success animation, generation 1 kept the same target with zero retirements, moves, or displacement. The horse then struck hostile-1 without a fresh proposal, with one modeled Standard per actor. Moving the target out of reach produced one retirement and zero horse attacks."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R13-F2",
+        "rationale": "The new replay samples immediately after the retiring drive and before another engine tick. The wrapper still owned the rider\u2019s Standard slot, had one attack remaining, and reported Unrecorded and Attacking. After B returned to reach, both acts had struck B, the transaction completed, spending stayed at one Standard, and redispatches stayed at zero."
+      },
+      {
+        "assessment": "deferral_accepted",
+        "finding_id": "R13-F3",
+        "rationale": "The duplicate checks remain on the continuing out-of-range paths. They repeat work without changing the observed admission or cleanup result. This remains optional."
+      }
+    ],
+    "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r14-25a6c0",
+    "round": 14,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Offline evidence shows a held pair retaining an eligible melee target through the rider\u2019s final animation and the horse following through. When a restricted target leaves native action range, the repeating order retires while the delivered routine retains its original action cost and can finish.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "N04 \u2014 Confirm horse-owned attacks, targets, weapons, and action costs in both initiative arrangements, including an already-used horse.",
+        "N05 \u2014 Observe automatic target choice and retention in a real encounter with AI-off, Stop, and Hold controls.",
+        "N06 \u2014 Compare mounted and unmounted movement onset under equivalent cooldown and preparation, and observe the first actual attack."
+      ],
+      "scope_reviewed": "Final PR-1 checkpoint for MMR-03, MMR-04, and MMR-05, including S04, S05, the S08 regression gate, and required review accounting.",
+      "unresolved_questions": [
+        "Which contemporaneous operator record establishes the program-wide balance checked for the round-14 submission?"
+      ]
+    }
+  },
+  "round": 14,
+  "validated_at": "2026-11-27T02:22:43Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}

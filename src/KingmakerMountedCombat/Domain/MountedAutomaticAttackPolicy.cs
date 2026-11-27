@@ -9,6 +9,20 @@ namespace KingmakerMountedCombat.Domain
         Admit
     }
 
+    // PR-1 rounds 11-12 (R10-F1..F4, R11-F1..F3): the one current admission answer for an unreleased automatic order, in precedence order:
+    // actual target invalidation, then perception loss (an unavailable rider group or memory included), then native ineligibility of a still
+    // valid target (BlueprintAiAction.IsTargetValid's restricted rule with the action's current range), then the automatic order's own
+    // boundaries (MountedAutomaticAttackPolicy.RetireReason: real time, newer player work, direct control, AI off, brain inactive, Stop, and
+    // the stationary mounted-strike check whenever pair movement is forbidden). Typed, so no observer derives precedence from a reason text.
+    public enum MountedAutomaticOrderAdmission
+    {
+        Admitted,
+        TargetInvalid,
+        TargetUnperceived,
+        OutsideNativeAdmission,
+        OrderBoundary
+    }
+
     // One occupied rider command slot as native UnitCommands.Raw holds it.
     public struct MountedAutomaticSlotFacts
     {
@@ -105,6 +119,9 @@ namespace KingmakerMountedCombat.Domain
         // Why a live intent stops repeating. A newer player operation retires an intent of either origin (a repeating
         // dispatch would otherwise replace a cast waiting to start); the rest are the automatic intent's own boundaries,
         // re-read every update because they can change between two proposals.
+        // The retirement for failed stationary geometry alone (restricted travel, the strike not admissible from where the pair stands).
+        public const string HoldOutOfReach = "hold out of reach";
+
         public static string RetireReason(
             bool realTime,
             bool automatic,
@@ -123,7 +140,7 @@ namespace KingmakerMountedCombat.Domain
             if (!riderAiEnabled) return "ai off";
             if (!riderBrainActive) return "brain inactive";
             if (stopSuppressed) return "stop";
-            if (movementForbidden && !targetInRiderReach) return "hold out of reach";
+            if (movementForbidden && !targetInRiderReach) return HoldOutOfReach;
             return null;
         }
     }
