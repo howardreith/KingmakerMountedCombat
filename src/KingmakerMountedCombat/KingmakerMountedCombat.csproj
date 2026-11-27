@@ -517,6 +517,7 @@
     <Compile Include="Domain\MountedStockAttack.cs" />
     <Compile Include="Domain\MountedMovePrepayment.cs" />
     <Compile Include="Domain\MountedMovementState.cs" />
+    <Compile Include="Domain\MountedFirstTickGate.cs" />
     <Compile Include="Domain\PairedMovementInputPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.RangedMovement.cs" />

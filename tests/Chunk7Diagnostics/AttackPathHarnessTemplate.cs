@@ -755,7 +755,7 @@ namespace KingmakerMountedCombat.Integration
 
     // PR #70 R1-F10 (round 4): the paired participant around the ACTUAL production members CanAddressActor, IsPartnerContext,
     // PreservePartnerSelection, SelectedNativeInputContext, PairedMovementContext, BeginPairedPreparation, RequireMountFirstTick,
-    // ExcludeFirstTickOnlySingleMove, SuppressPairedCandidate (PairedActivationLifecycle / PairedActivationControls), AdmitPairedAttackClick and PairedMountGrantedMetres,
+    // BindMountFirstTickGate, SuppressPairedCandidate (PairedActivationLifecycle / PairedActivationControls), AdmitPairedAttackClick and PairedMountGrantedMetres,
     // over the ACTUAL domain PairedActivation. Engine boundary (simulated, labelled): native TurnController.Prepare of a context (whose
     // prefix runs BeginPairedPreparation), the allocation's native round-state reconciliation (PrepareForHarness), and
     // CompletePairedPreparation's FinishActorPreparation and partner-context creation. Nothing writes addressability, mode flags or grants.
@@ -818,8 +818,7 @@ namespace KingmakerMountedCombat.Integration
         /* PAIR_SELECTED_INPUT */
         /* PAIR_MOVEMENT_CONTEXT */
         /* PAIR_BEGIN_PREPARATION */
-        /* PAIR_EXCLUDE_FIRST_TICK */
-        internal int FirstTickOnlySingleMoveExcludedCount { get; private set; }
+        /* PAIR_BIND_FIRST_TICK_GATE */
         /* PAIR_SUPPRESS */
         private UnitEntityData pendingSplitMount;
         private int pendingSplitRound = -1, splitReleaseRound = -1;
@@ -845,7 +844,6 @@ namespace KingmakerMountedCombat.Integration
         private TurnController preparingTurn;
         internal string AllocationGrantIdentity(UnitEntityData mount) => Get(mount).GrantIdentity;
         /* ADAPTER_BEGIN_GRANTED */
-        /* ADAPTER_TRUNCATES */
         /* ADAPTER_REMAINING_GRANTED */
         // Engine boundary: native Prepare of this allocation (production Prepared also writes the native turn fields).
         internal void PrepareForHarness(UnitEntityData mount)
@@ -1221,6 +1219,8 @@ namespace Harness
                 if (Participant != null) return Participant.PairedMountGrantedMetres(turn, out step, out singleMove, out reason);
                 step = false; singleMove = false; reason = "no-participant"; return 0f;
             }
+            // PR #70 R1-F6 (round 6): the production participant's first-tick gate binding (the ACTUAL BindMountFirstTickGate).
+            internal void BindMountFirstTickGate(IMountedFirstTickGate gate, bool bind) { Participant?.BindMountFirstTickGate(gate, bind); }
         }
         internal sealed class HarnessAvailability { public bool IsAllowed; public string Feedback; }
         private readonly HarnessGuard overlayWorldInputGuard = new HarnessGuard();
@@ -1411,6 +1411,7 @@ namespace Harness
         private string MountDisplayName => relationship.Runtime.MountDisplayName ?? "Mount";
         private void ObserveDeliberateOrder() => ObservePlayerMoveOutcome();
         /* CONTROLLER_STOCK_ROUTE */
+        /* CONTROLLER_ACCEPT_REQUEST */
         /* CONTROLLER_STOCK_CLICK */
         /* CONTROLLER_STOCK_LIVE */
         /* CONTROLLER_STOCK_REQUESTED */
@@ -5050,61 +5051,189 @@ namespace Harness
             }
         }
 
-        // R1-F6 (round 5): restricted mount, untouched Move, unused Standard, the rider's single-move ground choice: production PairedMovementContext
-        // keeps the mount's two-action limit (ExcludeFirstTickOnlySingleMove), so admission and execution read one whole Move. 9 m/s; ticks of
-        // 1/60 s and 0.1 s; destinations 0.12 m (the reviewer's opening) and 1.2 m. Control: an unrestricted mount keeps the mirrored single move.
-        private static void R5F6Invariant()
+        // ===================== PR-2 R1-F6 / R5-F3 (round 6): the first-tick replacement boundary =====================
+        // Fixture: restricted mount at 9 m/s, untouched Move, unused Standard, the rider's single-move ground choice selected and mirrored by
+        // production PairedMovementContext (nothing rewrites the limit); sight opens at `opening` along +x. Engine boundary (simulated):
+        // native TickApproaching of the carrier (TickMove), whose mount tick runs the ACTUAL TickDelegated with the frame's tick length.
+        private static Connected FirstTickPair(float opening, float tick, bool mountFirst, bool restricted = true, bool step = false, bool standardSpent = false)
+        {
+            var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.0f, 0f, 0f), (from, to) => from.x < opening, true);
+            world.Horse.CombatSpeedMps = 9f;
+            world.Horse.MoveRestricted = restricted;
+            if (standardSpent) world.Horse.CombatState.Cooldown.StandardAction = 6f;
+            var c = Connect(world, mountFirst);
+            if (step) c.Context.EnabledFiveFootStep = true; else c.Context.EnabledSingleActionMove = true;
+            c.Pair.PairedMovementContext(c.Context);   // the per-frame production mirroring of the rider's ground choice
+            world.TickSeconds = tick;
+            return c;
+        }
+
+        private static UnitCommand LiveMountCarrier(Connected c)
+        {
+            var command = c.World.Horse.Commands.GetCommand(UnitCommand.CommandType.Move);
+            return command != null && !command.IsFinished ? command : null;
+        }
+
+        private static string Id(object o) => o == null ? "none" : o.GetType().Name + "@" + System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(o).ToString("x");
+
+        // One engine frame of the mount: UnitMoveController's mount tick (TickMove -> the ACTUAL TickDelegated and its first-tick gate), then the
+        // controller's per-frame sweep (production: MountedCombatController.Tick -> TryDriveStockAttackIntent -> SweepFirstTickProposal).
+        private static void MountFrame(Connected c) { NativeTick(c.World, c.World.Horse); c.Combat.SweepFirstTickProposal(); }
+
+        // A legitimately retained earlier order with the rider still able to submit: a native-accepted click on hostile T0 while the native turn is
+        // not acting. The production drive (TryDriveStockAttackIntent) retains the accepted intent undispatched: no wrapper, no carrier.
+        private static UnitEntityData RetainPrior(Connected c)
+        {
+            var t0 = new UnitEntityData("hostile-prior") { Position = new Vector3(-1.5f, 0f, 0.6f) };
+            t0.View.Corpulence = 0.5f;
+            c.Context.IsActing = false;
+            ClickTick(c, t0, false);
+            c.Context.IsActing = true;
+            if (!c.Combat.HasStockAttackIntent || !c.World.Rider.Commands.Empty || LiveMountCarrier(c) != null)
+                throw new InvalidOperationException("The retained earlier order fixture did not retain an undispatched intent.");
+            return t0;
+        }
+
+        private static void R6F6FirstTick()
         {
             foreach (var tick in new[] { 1f / 60f, 0.1f })
-                foreach (var distance in new[] { 0.12f, 1.2f })
-                {
-                    var d = distance;
-                    var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.0f, 0f, 0f), (from, to) => from.x < d, true);
-                    world.Horse.CombatSpeedMps = 9f;
-                    world.Horse.MoveRestricted = true;
-                    var c = Connect(world, false);
-                    c.Context.EnabledSingleActionMove = true;
-                    c.Pair.PairedMovementContext(c.Context);   // the per-frame production mirroring of the rider's ground choice
-                    var before = Observe(c);
-                    var click = ClickTick(c, world.Target);
-                    var line = LastLine(c);
-                    world.TickSeconds = tick;
-                    Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
-                    RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
-                    var route = c.Combat.LastAttackClickProbe?.RouteMetres ?? float.NaN;
-                    var label = "tick " + tick.ToString("0.####") + " s, opening at " + d.ToString("0.##") + " m (route " + route.ToString("0.###") + " m)";
-                    var travelled = world.Horse.Position.x;
-                    var ticks = (float)Math.Ceiling(travelled / (9f * tick) - 1e-4f);
-                    Check(click.Admitted && Field(line, "mountSingleMove") == "False" && Field(line, "mountGrant") == "granted" && c.Pair.FirstTickOnlySingleMoveExcludedCount >= 1 &&
-                        admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && travelled >= d - 1e-4f && Math.Abs(travelled - route) <= 0.05f + 1e-4f &&
-                        atRelease != null && Math.Abs(atRelease.MountMove - ticks * tick) < 1e-3f && before.RiderStandard && !atStrike.RiderStandard,
-                        "R1-F6 (round 5) " + label + ": the production context keeps the restricted mount's two-action limit (single=" + Field(line, "mountSingleMove") +
-                        ", grant " + Field(line, "mountGrantedMetres") + " m); travelled " + world.Horse.Position.x.ToString("0.###") + " m into the arrival disc at this tick length, mount Move " +
-                        (atRelease?.MountMove ?? -1f).ToString("0.####") + " s, rider Standard spent at the one strike");
-                }
+                foreach (var retained in new[] { false, true })
+                    foreach (var opening in new[] { 0.12f, 1.2f })
+                    {
+                        var c = FirstTickPair(opening, tick, false);
+                        var world = c.World;
+                        var prior = retained ? RetainPrior(c) : null;
+                        var priorGeneration = c.Combat.StockAttackIntentStartCount;
+                        var priorIntent = c.Combat.HasStockAttackIntent;
+                        var priorSelection = world.Rider.CombatState.ManualTarget;
+                        var before = Observe(c);
+                        var carrierBefore = LiveMountCarrier(c);
+                        var start = world.Horse.Position;
+                        var click = ClickTick(c, world.Target);
+                        var line = LastLine(c);
+                        var proposal = c.Combat.FirstTickProposalForDiagnostics;
+                        var carrier = LiveMountCarrier(c);
+                        var pending = click.Admitted && click.Order == null && proposal != null && proposal.State == MountedFirstTickProposalState.Pending &&
+                            ReferenceEquals(carrier, proposal.CarrierMove) && world.Rider.Commands.Empty && c.Combat.StockAttackIntentStartCount == priorGeneration &&
+                            c.Combat.HasStockAttackIntent == priorIntent && Field(line, "mountSingleMove") == "True" && Field(line, "mountGrant") == "single-move-first-tick" &&
+                            ReferenceEquals(c.Pair.movementState.FirstTickGate, proposal);
+                        MountFrame(c);   // the carrier's first tick decides
+                        var decision = c.Combat.LastFirstTickDecision;
+                        var label = "tick " + tick.ToString("0.####") + " s, " + (retained ? "replacing the retained order on " + prior.UniqueId : "fresh request") + ", opening " +
+                            opening.ToString("0.##") + " m";
+                        var spendBefore = "mount Move " + before.MountMove.ToString("0.####") + " s, rider Standard " + (before.RiderStandard ? "unspent" : "spent");
+                        if (opening < 1f)
+                        {
+                            var order = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                            var afterTick = Observe(c);
+                            var displaced = Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, world.Horse.Position);
+                            Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                            RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                            var committedCarrierEnded = carrier.IsFinished;
+                            c.Combat.SweepFirstTickProposal();   // the controller's per-frame sweep retires the committed request once its carrier ended
+                            Check(pending && committedCarrierEnded && decision.StartsWith("committed:") && order != null && c.Combat.StockAttackIntentStartCount == priorGeneration + 1 &&
+                                admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && displaced >= opening - 1e-4f && displaced <= 9f * tick + 1e-4f &&
+                                Math.Abs(afterTick.MountMove - tick) < 1e-4f && atStrike != null && Math.Abs(atStrike.MountMove - tick) < 1e-4f && before.RiderStandard &&
+                                afterTick.RiderStandard && !atStrike.RiderStandard && c.Combat.FirstTickCommitCount == 1 && c.Combat.FirstTickRefusalCount == 0 &&
+                                c.Pair.movementState.FirstTickGate == null && c.Combat.FirstTickProposalForDiagnostics == null,
+                                "R1-F6 (round 6) " + label + ": single-action kept selected (grant read " + Field(line, "mountGrant") + ", route search bound " +
+                                Field(line, "mountGrantedMetres") + " m); previous carrier " + Id(carrierBefore) + ", provisional carrier " + Id(carrier) + "; first tick " + decision +
+                                "; displacement " + displaced.ToString("0.###") + " m; mount Move debit " + afterTick.MountMove.ToString("0.####") + " s (one tick); generation " +
+                                priorGeneration + " -> " + c.Combat.StockAttackIntentStartCount + "; " + spendBefore + " -> rider Standard spent at the one strike" +
+                                " [admission=" + admission + ";starts=" + UnitAttack.NativeAttackStarts + ";order=" + (order == null ? "none" : order.IsFinished + "/" + order.EndCause + "/" + order.Transaction.State) +
+                                ";atStrike=" + atStrike + ";gate=" + (c.Pair.movementState.FirstTickGate != null) + ";proposal=" + (c.Combat.FirstTickProposalForDiagnostics != null) + ";stockObs=" + c.Combat.LastStockAttackObservation + "]");
+                        }
+                        else
+                        {
+                            var after = Observe(c);
+                            var carrierAfter = LiveMountCarrier(c);
+                            Check(pending && decision.StartsWith("refused:no-affordable-strike-position") && world.Rider.Commands.Standard == null && carrier.IsFinished &&
+                                carrierAfter == null && carrierBefore == null && world.Horse.Position.Equals(start) && after.MountMove == before.MountMove &&
+                                after.RiderStandard == before.RiderStandard && c.Combat.StockAttackIntentStartCount == priorGeneration && c.Combat.HasStockAttackIntent == priorIntent &&
+                                world.Rider.CombatState.ManualTarget == priorSelection && UnitAttack.NativeAttackStarts == 0 && c.Pair.movementState.FirstTickGate == null &&
+                                c.Combat.FirstTickProposalForDiagnostics == null && c.Combat.FirstTickRefusalCount == 1,
+                                "R1-F6 (round 6) " + label + ": refused at the first tick before any debit (" + decision + "); previous order " +
+                                (retained ? "generation " + priorGeneration + " on " + prior.UniqueId + " kept (intent=" + c.Combat.HasStockAttackIntent + ", selection " +
+                                    (world.Rider.CombatState.ManualTarget?.UniqueId ?? "<none>") + ")" : "none") + "; previous carrier " + Id(carrierBefore) + " -> " + Id(carrierAfter) +
+                                " (provisional " + Id(carrier) + " retired); displacement 0 m; " + spendBefore + " -> mount Move " + after.MountMove.ToString("0.####") +
+                                " s, rider Standard " + (after.RiderStandard ? "unspent" : "spent"));
+                        }
+                        // R5-F3: the retained-order request reaches the restricted mount's grant and the movement decision (not a busy-rider refusal).
+                        if (retained && tick < 0.05f)
+                            Check(click.Admitted && (click.Decision ?? "").StartsWith("AdmitRoute") && Field(line, "mountGrant") == "single-move-first-tick" &&
+                                (opening < 1f ? decision.StartsWith("committed:") : decision.StartsWith("refused:no-affordable-strike-position")),
+                                "R5-F3 (round 6) " + (opening < 1f ? "affordable control" : "unaffordable retarget") + ": retained order generation " + priorGeneration + " on " +
+                                prior.UniqueId + " with the rider eligible (rider commands empty); click " + click.Decision + "; grant read " + Field(line, "mountGrant") + " (" +
+                                Field(line, "mountGrantedMetres") + " m search bound); decision " + decision + "; carrier " + Id(carrierBefore) + " -> " + Id(LiveMountCarrier(c)) +
+                                "; spending before {" + before + "} after {" + Observe(c) + "}");
+                    }
+
+            // Both initiative arrangements (production pairing) reach the same boundary.
+            foreach (var mountFirst in new[] { false, true })
             {
-                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.0f, 0f, 0f), (from, to) => from.x < 0.12f, true);
-                world.Horse.CombatSpeedMps = 9f;
-                var c = Connect(world, false);
-                c.Context.EnabledSingleActionMove = true;
-                c.Pair.PairedMovementContext(c.Context);
-                var click = ClickTick(c, world.Target);
-                Check(click.Admitted && Field(LastLine(c), "mountSingleMove") == "True" && c.Pair.FirstTickOnlySingleMoveExcludedCount == 0,
-                    "R1-F6 (round 5) control: an unrestricted mount keeps the mirrored single move (" + Field(LastLine(c), "mountGrantedMetres") + " m)");
+                var c = FirstTickPair(0.12f, 1f / 60f, mountFirst);
+                var click = ClickTick(c, c.World.Target);
+                MountFrame(c);
+                var order = c.World.Rider.Commands.Standard as MountedPairAttackCommand;
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                Check(click.Admitted && c.Combat.LastFirstTickDecision.StartsWith("committed:") && admission == MountedPairNativeAdmissionState.Admitted &&
+                    UnitAttack.NativeAttackStarts == 1 && atStrike != null && Math.Abs(atStrike.MountMove - 1f / 60f) < 1e-4f && !atStrike.RiderStandard,
+                    "R1-F6 (round 6) " + c.Arrangement + " (" + c.MountSlot + "): the first tick committed (" + c.Combat.LastFirstTickDecision + "); one strike; " + atStrike);
             }
-            // An unaffordable new target while a prior order exists: native's refusal is kept and the prior order is preserved.
+
+            // Controls: five-foot step, ordinary (unrestricted) single move and a spent mount Standard are not first-tick requests.
+            foreach (var kase in new[] { "five-foot step", "ordinary single move", "spent mount Standard" })
             {
-                var world = Corner();
-                var c = Connect(world, false);
-                var first = ClickTick(c, world.Target);
-                var prior = first.Order;
+                var c = kase == "five-foot step" ? FirstTickPair(0.12f, 1f / 60f, false, true, true) :
+                    kase == "ordinary single move" ? FirstTickPair(0.12f, 1f / 60f, false, false) : FirstTickPair(0.12f, 1f / 60f, false, false, false, true);
+                var click = ClickTick(c, c.World.Target);
+                var line = LastLine(c);
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
+                Check(click.Admitted && click.Order != null && c.Combat.LastFirstTickProposal == null && Field(line, "mountGrant") == "granted" &&
+                    admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                    "R1-F6 (round 6) control, " + kase + ": an ordinary order (step=" + Field(line, "mountStepMode") + ", single=" + Field(line, "mountSingleMove") + ", grant " +
+                    Field(line, "mountGrantedMetres") + " m), no provisional request, one strike; " + atStrike);
+            }
+
+            // No stall: a pending request reaches its decision through every other end of its carrier, its turn or its order.
+            foreach (var kase in new[] { "carrier ended before its first tick", "turn ended before the first tick", "newer click", "cancelled, then ground movement" })
+            {
+                var c = FirstTickPair(0.12f, 1f / 60f, false);
+                var world = c.World;
+                var prior = kase == "cancelled, then ground movement" ? null : RetainPrior(c);
                 var generation = c.Combat.StockAttackIntentStartCount;
-                var far = new UnitEntityData("hostile-far") { Position = new Vector3(60f, 0f, 0f) };
-                far.View.Corpulence = 0.5f;
-                var second = ClickTick(c, far);
-                Check(first.Admitted && prior != null && !second.Admitted && !prior.IsFinished && world.Rider.Commands.Standard == prior &&
-                    c.Combat.StockAttackIntentStartCount == generation,
-                    "R1-F6 (round 5) unaffordable new target with a prior order: refused (" + second.Decision + "); the prior order and its start count (" + generation + ") are preserved");
+                var click = ClickTick(c, world.Target);
+                var carrier = LiveMountCarrier(c);
+                var before = Observe(c);
+                var extra = "";
+                if (kase.StartsWith("carrier ended")) carrier.Interrupt();   // native ends the path (e.g. its denial branch) before any tick
+                else if (kase.StartsWith("turn ended")) Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = new TurnController(world.Target);
+                else if (kase == "newer click")
+                {
+                    var t2 = new UnitEntityData("hostile-newer") { Position = new Vector3(1.0f, 0f, -0.6f) };
+                    t2.View.Corpulence = 0.5f;
+                    ClickTick(c, t2, false);   // a native-accepted click on another hostile: the normal acceptance path
+                }
+                else c.Combat.Cancel("owner cancelled before the first mount tick");
+                c.Combat.SweepFirstTickProposal();   // the controller's per-frame sweep
+                var decision = c.Combat.LastFirstTickDecision;
+                var settled = c.Combat.FirstTickProposalForDiagnostics == null && c.Pair.movementState.FirstTickGate == null && carrier.IsFinished;
+                var afterSettle = Observe(c);
+                if (kase.StartsWith("cancelled"))
+                {
+                    var moveBefore = world.Horse.CombatState.Cooldown.MoveAction;
+                    var moved = world.MountMoveTick(0.15f);
+                    var debit = world.Horse.CombatState.Cooldown.MoveAction - moveBefore;
+                    extra = "; a later ground tick moved " + moved.ToString("0.####") + " m, debited " + debit.ToString("0.####") + " s (" + world.LastMountTick + ")";
+                    settled &= Math.Abs(moved - 0.15f) < 1e-4f && Math.Abs(debit - 1f / 60f) < 1e-4f && !(world.LastMountTick ?? "").Contains("first-tick");
+                }
+                var priorKept = prior == null || kase == "newer click" || c.Combat.StockAttackIntentStartCount == generation && c.Combat.HasStockAttackIntent;
+                Check(click.Admitted && carrier != null && decision.StartsWith("refused:") && settled && priorKept && afterSettle.MountMove == before.MountMove &&
+                    UnitAttack.NativeAttackStarts == 0,
+                    "R1-F6 (round 6) no stall, " + kase + ": the pending request settled (" + decision + "); carrier " + Id(carrier) + " finished, gate released" +
+                    (prior == null ? "" : "; previous order generation " + generation + " -> " + c.Combat.StockAttackIntentStartCount) + extra);
             }
         }
 
@@ -5461,7 +5590,7 @@ namespace Harness
             try { R3F4Lateral(); } catch (Exception exception) { Check(false, "PR-2 R1-F4/R2-F3 threw " + exception); }
             try { R3F9Prediction(); } catch (Exception exception) { Check(false, "PR-2 R1-F9 (round 3) threw " + exception); }
             try { R4F10Pairing(); } catch (Exception exception) { Check(false, "PR-2 R1-F10 (round 4) threw " + exception); }
-            try { R5F6Invariant(); } catch (Exception exception) { Check(false, "PR-2 R1-F6 (round 5) threw " + exception); }
+            try { R6F6FirstTick(); } catch (Exception exception) { Check(false, "PR-2 R1-F6/R5-F3 (round 6) threw " + exception); }
             try { R5F1NoResidue(); } catch (Exception exception) { Check(false, "PR-2 R4-F1 (round 5) threw " + exception); }
             try { R5F7Dispatch(); } catch (Exception exception) { Check(false, "PR-2 R1-F7/R4-F2 (round 5) threw " + exception); }
             try { R5F3Crowding(); } catch (Exception exception) { Check(false, "PR-2 R4-F3 (round 5) threw " + exception); }

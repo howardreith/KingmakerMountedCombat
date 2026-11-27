@@ -181,6 +181,69 @@ namespace KingmakerMountedCombat.Integration
         // and nearby blind endpoints cannot spend every query before a heading-independent flank (R4-F3). The MaxLateralQueries cap applies
         // across both tiers, and the walk of each returned path decides with its actual headings (TryApproach).
         internal const int LateralTierShare = MaxLateralQueries / 2;
+
+        // PR #70 R1-F6 (round 6): the restricted single-action move grants ONE tick, which carries the mount exactly min(allowance, route
+        // length) along the carrier's installed route toward its next waypoint; the next tick reads zero. The stopping position is therefore
+        // known exactly at that tick, and this decides it with the production strike admission: the strike already admissible where the pair
+        // stands (in range: nothing needs to move); the route's end reached, where native may complete anywhere in the proven arrival disc
+        // (DiscAdmits, the same disc check as the click's arrival); or an interior stopping point, admitted under the heading of the segment
+        // the tick travels. A stop beyond the first waypoint of a bent route is refused (one tick does not follow a bend). On success the
+        // result's Route ends at the stopping position and RouteMetres is the travel.
+        internal static Result EvaluateFirstTick(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> route, float arrivalRadius,
+            float allowedMetres)
+        {
+            var result = new Result();
+            if (rider?.View == null || mount?.View == null || target?.View == null || route == null || route.Count < 2) { result.Detail = "unavailable"; return result; }
+            var probe = new MountedPairSingleAttack(target, rider, mount, true, false);
+            probe.Init(rider);
+            result.Plan = PlanIdentity.Of(probe);
+            result.PairRadius = probe.PairApproachRadius;
+            result.AdmissibleNow = probe.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted;
+            if (result.AdmissibleNow) { result.Detail = "in-range"; return result; }
+            Func<Vector3, Vector3, Vector3, bool> admits = (point, from, to) =>
+                probe.EvaluateNativeAdmissionAtMountPosition(point, to - from) == MountedPairNativeAdmissionState.Admitted;
+            var length = RouteLength(route);
+            var travel = Math.Min(Math.Max(0f, allowedMetres), length);
+            var firstSegment = GeometryUtils.MechanicsDistance(route[0], route[1]);
+            if (!(travel > 0f)) { result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")"; return result; }
+            if (travel > firstSegment + 1e-4f && !IsStraight(route))
+            {
+                result.Detail = "route-bends-within-one-tick(travel=" + travel.ToString("R") + ";firstSegment=" + firstSegment.ToString("R") + ")";
+                return result;
+            }
+            Vector3 segmentFrom, segmentTo;
+            List<Vector3> truncated;
+            var stop = PointAt(route, travel, out segmentFrom, out segmentTo, out truncated);
+            var reachesEnd = travel >= length - 1e-4f;
+            var admitted = reachesEnd ? arrivalRadius > 0f && DiscAdmits(stop, arrivalRadius, segmentFrom, segmentTo, admits) : admits(stop, segmentFrom, segmentTo);
+            result.Detail = "first-tick(travel=" + travel.ToString("R") + ";routeMetres=" + length.ToString("R") + ";stop=" + stop + ";" +
+                (reachesEnd ? "route-end-disc=" + arrivalRadius.ToString("R") : "interior") + ";admitted=" + admitted + ")";
+            if (!admitted) return result;
+            result.Path = PathOutcome.Complete;
+            result.Route = new List<Vector3> { route[0], stop };
+            result.RouteMetres = travel;
+            result.ArrivalRadius = reachesEnd ? arrivalRadius : ArrivalRadii[ArrivalRadii.Length - 1];
+            return result;
+        }
+
+        // PR #70 R1-F6 (round 6): one movement tick carries the mount in a straight line toward its next waypoint, so a route is executable
+        // within the restricted single move's ONE tick only if every interior point lies on the segment from its start to its end.
+        internal const float StraightToleranceMetres = 0.01f;
+        internal static bool IsStraight(IList<Vector3> route)
+        {
+            if (route == null || route.Count < 2) return false;
+            var a = route[0]; var b = route[route.Count - 1];
+            var dx = b.x - a.x; var dz = b.z - a.z;
+            var lengthSquared = dx * dx + dz * dz;
+            for (var i = 1; i < route.Count - 1; i++)
+            {
+                var p = route[i];
+                var t = lengthSquared > 0f ? Math.Max(0f, Math.Min(1f, ((p.x - a.x) * dx + (p.z - a.z) * dz) / lengthSquared)) : 0f;
+                var ex = a.x + t * dx - p.x; var ez = a.z + t * dz - p.z;
+                if (Math.Sqrt(ex * ex + ez * ez) > StraightToleranceMetres) return false;
+            }
+            return true;
+        }
         private static IEnumerable<Vector3> LateralCandidates(Vector3 mount, Vector3 target, float pairRadius, Func<Vector3, Vector3, Vector3, bool> admits)
         {
             var ring = pairRadius - LateralInsetMetres;

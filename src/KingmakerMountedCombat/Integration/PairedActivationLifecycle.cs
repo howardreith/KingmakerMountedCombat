@@ -96,11 +96,24 @@ namespace KingmakerMountedCombat.Integration
             step = input.EnabledFiveFootStep;
             singleMove = input.EnabledSingleActionMove;
             if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
-            // PR #70 R1-F6 (round 5): PairedMovementContext never selects the single-action limit in the first-tick-only state (its invariant,
-            // ExcludeFirstTickOnlySingleMove); this guard is unreachable through it and keeps native's decision if the invariant ever failed.
-            if (movementState.FirstTickOnly(mount, step, singleMove)) { reason = "single-move-first-tick-invariant-violated"; return 0f; }
+            // PR #70 R1-F6 (round 6): the restricted single-action move grants exactly ONE engine tick (MountedMovementState.FirstTickOnly),
+            // whose length no click can know. The native ceiling (the remaining time at that tick's clamp) only bounds the click's route
+            // search; the click becomes a provisional request whose carrier's first tick decides with the actual allowance
+            // (MountedCombatController.DecideFirstTickProposal) before any debit or retirement.
+            if (movementState.FirstTickOnly(mount, step, singleMove))
+            {
+                reason = "single-move-first-tick";
+                return movementState.RemainingGrantedMetres(mount, step, singleMove);
+            }
             reason = "granted";
             return movementState.RemainingOrderMetres(mount, step, singleMove);
+        }
+
+        // PR #70 R1-F6 (round 6): a provisional replacement request binds (and releases) its first-tick gate on the mount's movement adapter.
+        internal void BindMountFirstTickGate(IMountedFirstTickGate gate, bool bind)
+        {
+            if (bind) movementState.FirstTickGate = gate;
+            else if (ReferenceEquals(movementState.FirstTickGate, gate)) movementState.FirstTickGate = null;
         }
 
         internal bool CanMovePairedMount(TurnController turn)

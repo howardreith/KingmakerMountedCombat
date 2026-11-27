@@ -28,6 +28,9 @@ namespace KingmakerMountedCombat.Integration
             internal MountedMovementState Movement = new MountedMovementState();
         }
         private readonly Dictionary<UnitEntityData, Allocation> allocations = new Dictionary<UnitEntityData, Allocation>();
+        // PR #70 R1-F6 (round 6): the pair's pending provisional replacement request (owned by that request, never by an allocation). It
+        // applies only to a tick of the exact carrier the request installed; the request binds and releases it.
+        internal IMountedFirstTickGate FirstTickGate;
         private readonly ActorAllocationLifetime<UnitEntityData, Allocation> lifetime;
         private TurnController preparingTurn;
 
@@ -220,6 +223,27 @@ namespace KingmakerMountedCombat.Integration
         internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)
         {
             var allocation = Get(mount);
+            // PR #70 R1-F6 (round 6): the carrier of a provisional replacement request reaches its first tick here, with this frame's actual
+            // delta (UnitMoveController.Tick passes TimeController.DeltaTime). Its allowance is what Advance would grant for it under the
+            // selected limit (MountedMovementState.Remaining, clamped by the tick); the request decides BEFORE any debit. A refusal (or a
+            // commit in place) zeroes the tick, so nothing moves and nothing is debited.
+            var gate = FirstTickGate;
+            if (gate != null && gate.Carrier != null && ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), gate.Carrier))
+            {
+                var gateRemaining = allocation.Movement.Remaining(mount.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+                    Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
+                    mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
+                var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * mount.CurrentSpeedMps;
+                string gateDetail;
+                var verdict = gate.Decide(allowedMetres, deltaTime, out gateDetail);
+                if (verdict != MountedFirstTickVerdict.Commit)
+                {
+                    var tick = deltaTime;
+                    deltaTime = 0f;
+                    return "mountMove=first-tick-" + (verdict == MountedFirstTickVerdict.Refuse ? "refused" : "committed-in-place") + ";tick=" + tick.ToString("R") +
+                        ";allowedMetres=" + allowedMetres.ToString("R") + ";" + gateDetail;
+                }
+            }
             var cooldown = mount.CombatState.Cooldown;
             var before = cooldown.MoveAction;
             // Within a prepared allocation native time passing must not turn an
@@ -292,15 +316,6 @@ namespace KingmakerMountedCombat.Integration
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * actor.CurrentSpeedMps;
-        }
-
-        // PR #70 R1-F6 (round 5): a move-restricted mount with an unused Standard, whose single-action limit would cut its single Move to one
-        // engine frame (and to nothing after it); PairedActivationControls.ExcludeFirstTickOnlySingleMove keeps the two-action limit then.
-        internal bool SingleMoveTruncatesRestrictedMove(UnitEntityData actor)
-        {
-            Allocation allocation;
-            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return false;
-            return actor.IsMoveActionRestricted() && !(allocation.StandardUsed || actor.UsedStandardAction());
         }
 
         // PR #70 R1-F6: the allocation is in the state where native grants exactly one frame's tick (MountedMovementState.FirstTickOnly).

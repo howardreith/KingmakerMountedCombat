@@ -1,122 +1,124 @@
 # PR-2 first-tick replacement boundary (R1-F6)
 
-Owner instruction 2026-11-27d, section 3. This note records the boundary for R1-F6, checked against the installed assemblies.
-
-**Status: the boundary is established, but its implementation is not in this candidate.** The round-5 workaround
-(`PairedActivationControls.ExcludeFirstTickOnlySingleMove`, which writes the TwoActions limit) is still in the source. Removing it
-without its replacement would refuse every first-tick approach, which section 3 forbids. R1-F6 stays open, and so does R5-F3,
-which needs this boundary's refusal path. Section 6 lists what is missing. R5-F1 and R5-F2 are fixed in this candidate.
+Owner instruction 2026-11-27d, sections 3 and 4. This note records the boundary for R1-F6 and how it is implemented, checked against
+the installed assemblies. The round-5 TwoActions workaround (`ExcludeFirstTickOnlySingleMove`, `SingleMoveTruncatesRestrictedMove`)
+is removed, and the player's single-action selection is no longer rewritten. R5-F1, R5-F2 and R5-F3 are addressed in the same
+candidate.
 
 ## 1. Installed per-frame order
 
 Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intake.json`. Read by reflection. The checks are in
 `scripts/Test-MmrTbApproachNativeContract.ps1`, under "PR-2 R1-F6 (round 6)".
 
-1. `Game.Tick` (0x06000CBA) calls `TimeController.TickRealTime` and then `GameMode.Tick` (0x06007E00).
+1. `Game.Tick` (0x06000CBA) calls `GameMode.Tick` (0x06007E00).
 2. `GameMode.Tick` calls each `m_Controllers[i].Tick()` in index order. `GameModesFactory.Create` (0x06007E07) builds that array from
    `AllControllers` with order-preserving `Where`/`Select`. Tick order is therefore registration order in
    `GameModesFactory.Initialize` (0x06007E08). The installed IL registers:
-   `Game.TimeController` (IL member 15) < `Game.DefaultPointerController` (27) < `UnitMoveController` (65) < `UnitActionController` (121).
-3. `TimeController.Tick` (0x060090CF) sets `DeltaTime = min(PlayerTimeScale * DebugTimeScale / 12, Time.deltaTime)` for this frame.
-   Unity's frame delta is not known before this point. In turn-based combat, `PlayerTimeScale` also depends on whether the current
-   unit is moving or running a command.
-4. `PointerController.Tick` (0x060093BA) runs the click. It reads `TurnController.IgnoreClick` (0x06000C2F), where the product's
-   admission postfix runs, then the click's handler. In the handler, `TryRouteMountedStockAttack` retires the previous order
-   (`CancelCore`). That retirement is the destructive step.
-5. `UnitMoveController.Tick` (0x06009183) passes `Game.TimeController.DeltaTime` to every moving agent's
-   `UnitMovementAgentBase.TickMovement`. `UnitMovementAgent.TickMovement` (0x060018AA) passes it to `CanMoveInTurnBased(ref float)`
-   (0x060018A9). The product patches that method (`MountMovementPrefix` → `TryOverrideMountTurnMovement` → `TickMountMovement` →
-   `MountedMovementStateAdapter.TickDelegated`). The native body calls `TurnController.TickMovement` (0x06000C37) instead.
-6. `UnitActionController.TickCommand` (0x0600911E) starts commands: in `Kingmaker.Controllers.Units`, it is the installed caller of
-   `UnitCommand.Start`. An order's wrapper therefore starts here, and so does the carrier it issues. Both happen after this frame's
-   `UnitMoveController.Tick`.
+   `TimeController` (IL member 15) < `DefaultPointerController` (27) < `UnitMoveController` (65) < `UnitActionController` (121).
+3. `TimeController.Tick` (0x060090CF) sets this frame's `DeltaTime` from Unity's frame delta. The value does not exist before that
+   point.
+4. `PointerController.Tick` (0x060093BA) runs the click: `TurnController.IgnoreClick` (0x06000C2F, where the admission postfix runs),
+   then the click's handler, which reaches `TryRouteMountedStockAttack`.
+5. `UnitMoveController.Tick` (0x06009183) passes `TimeController.DeltaTime` to each moving agent. `UnitMovementAgent.TickMovement`
+   (0x060018AA) then calls `CanMoveInTurnBased` (0x060018A9). For the mount, the product's patch on that method reaches
+   `MountedMovementStateAdapter.TickDelegated`.
+6. `UnitActionController.TickCommand` (0x0600911E) starts commands. This runs after `UnitMoveController` in the frame.
 
 Under the single-action limit, a restricted mount with no Move spent gets exactly one tick: `GetRemainingMovementTime` returns 0 once
-`MoveAction > 0`. That tick's length is the `DeltaTime` of the frame in which the carrier first moves. Step 6 places that frame after
-the click frame. Steps 3 and 5 make its length known only once that frame's `TimeController.Tick` has run.
+`MoveAction > 0`. Step 6 means a carrier issued by a click first moves in a later frame. Steps 3 and 5 mean that frame's tick length
+is known only at that tick.
 
-## 2. Consequence for the boundary
+## 2. Answers to the section-3 questions
 
-No boundary in the click frame knows the first tick's length. Admission at `IgnoreClick` and the handler's retirement both happen
-before the carrier exists. The click frame's own `DeltaTime` is the wrong value: the carrier first moves in a later frame, with a
-different Unity frame delta and possibly a different time scale.
+- **When a proposal becomes a committed order:** at its own carrier's first `TickDelegated`, before `MountedMovementState.Advance`
+  debits. Admission and the click handler do not retire anything:
+  - `TryRouteMountedStockAttack` hands a click whose proof is marked `FirstTick` to `BeginFirstTickProposal`. The proof is marked
+    when admission ran in `single-move-first-tick` mode. `CancelCore` is not called, and the intent, retained-order ledger and
+    manual-target ownership are untouched.
+  - The commit runs the normal acceptance path, `AcceptStockRequest`. That is the former tail of `TryRouteMountedStockAttack`,
+    unchanged, and it retires the previous order once through `CancelCore`.
+- **Native context and actual tick:**
+  - The context is the mount's paired movement context, with the player's single-action limit still selected.
+  - The allowance is `min(deltaTime, MountedMovementState.Remaining(...)) × speed`, computed in `TickDelegated`. `deltaTime` is the
+    value `UnitMoveController` passes from `TimeController.DeltaTime`, and `Remaining` is given the same inputs `Advance` uses.
+  - `PairedAttackClickProbe.EvaluateFirstTick` judges the exact stopping position of that one tick on the carrier's route, using the
+    production strike admission:
+    - **already in range:** commit in place, and the tick does not move;
+    - **route end reached:** the proven arrival disc (`DiscAdmits`), because native may complete anywhere inside it;
+    - **interior stop:** admission under the travelled segment's heading;
+    - **stop past the first waypoint of a bent route:** refused.
 
-The smallest boundary that knows the real allowance before any debit is the carrier's first `TickDelegated`. Its `ref deltaTime`
-is that frame's `TimeController.DeltaTime`, before `MountedMovementState.Advance` debits. A per-frame hook between
-`TimeController.Tick` and `UnitMoveController.Tick` (a `UnitMoveController.Tick` prefix) knows the same value. It does not help,
-because a carrier committed there cannot start until `UnitActionController` runs later in that frame.
+    The click's admission uses the native ceiling (3 s × speed) only as a route-search bound.
+- **State left unchanged on refusal:** `TickDelegated` zeroes the tick before any debit. The following stay as they were:
+  - the previous order's generation, intent and manual target;
+  - its carrier, or the absence of one;
+  - the mount's Move cooldown and the rider's Standard.
 
-Retirement must therefore move to that tick. The replacement has to exist as a provisional request with its own carrier while the
-previous order stays intact.
+  The provisional carrier is interrupted at the next `SweepFirstTickProposal`.
+- **Binding:** the request (`MountedCombatController.FirstTickProposal`) carries:
+  - the click proof: target, turn, frame, dispatch and click serial, route, arrival radius and plan identity;
+  - the stock request;
+  - the principal;
+  - its own carrier (`UnitMoveTo` with the proof's `ForcedPath`).
 
-## 3. Answers to the section-3 questions (for the design in section 6)
-
-- **When a proposal becomes a committed order:** at its own carrier's first `TickDelegated`, when `deltaTime * speed` reaches
-  the earliest strike-admissible arc length on the proven route. That length comes from the existing walker's arrival disc, not the
-  centre of the route. The previous order is retired there, before `Advance` debits.
-- **Native context and tick:** the mount's paired movement context (`PairedMovementContext`), with the player's single-action
-  limit still selected. The tick is the `deltaTime` that `UnitMoveController.Tick` passes from `TimeController.DeltaTime`.
-- **State left unchanged if admission fails:**
-  - the previous order's generation, intent, ledger entry, manual-target ownership, wrappers and carrier identity;
-  - the mount's Move cooldown, because the refused tick is set to 0 before `Advance`;
-  - the rider's Standard.
-- **Binding:** the proposal carries:
-  - the click proof: target, turn, frame, dispatch and click serial, and plan identity;
-  - the activation and pair;
-  - the movement mode read on the mount's context;
-  - the carrier's identity.
-
-  Its carrier is revalidated by the existing `RevalidateAdmittedClickRoute`.
-- **Retirement of the proposal:** the following retire the proposal as refused and release the provisional state bound to the
-  carrier:
-  - cancellation;
-  - a newer click (a new proof replaces it);
-  - turn end;
-  - target invalidation;
-  - a plan or route mismatch at revalidation;
+  Its gate is bound on the adapter (`MountedMovementStateAdapter.FirstTickGate`). The gate applies only while the mount's Move slot
+  holds that exact carrier. It is never stored on an allocation, and it is released when the request is retired, so it cannot reach
+  later ground movement. At the decision, the plan, turn, target life, rider eligibility and absence of other mount work are all
+  re-checked.
+- **Retirement of the proposal:**
+  - cancellation (`CancelCore` refuses and retires it);
+  - a newer accepted click (through `CancelCore`) or a newer first-tick click (`BeginFirstTickProposal`);
+  - the turn changing;
+  - the target becoming invalid;
+  - new rider work;
+  - a plan mismatch;
   - the carrier ending before its first tick.
-- **Why it cannot stall:** the proposal waits only for a carrier it has itself installed. Every terminal path of that carrier
-  decides it. Nothing waits for a carrier that would only be installed after the commit.
 
-## 4. Why the click-time variants fail
+  Every case except cancellation and a newer click is settled by `SweepFirstTickProposal`. That runs from
+  `TryDriveStockAttackIntent`, which the controller's per-frame `Tick` calls. While a request is pending, the previous order is
+  neither retired nor advanced.
+- **Why it cannot stall:** the request waits only for a carrier it installed itself (`BeginFirstTickProposal` runs it on the mount and
+  checks that it holds the Move slot). That carrier's first tick decides the request. Otherwise the carrier ends, or the turn, target
+  or rider changes, and the sweep refuses the request. Its liveness is that of any native carrier. In production,
+  `TryOverrideMountTurnMovement` admits this carrier on the rider's acting turn, the same rule as the door approach.
 
-- A ceiling (round 4) or TwoActions (round 5) does not honour the selected native limit.
-- Any fixed frame length is a guess. Unity frame deltas have no lower bound.
-- Refusing every first-tick approach is forbidden. It would also refuse the 0.12 m opening at 1/60 s (0.15 m tick).
-- Waiting for `TickMountMovement` with no installed carrier never ends. `TryOverrideMountTurnMovement` runs only for a live carrier.
+## 3. A previous order holding a live mount command
 
-## 5. What this candidate changes
+If the mount holds any unfinished command or a queued one when the request arrives, the request is refused before it installs
+anything (`mount-holds-live-work`). The previous order and its mount command are not touched, so two commands never coexist. At the
+decision, other mount work that appeared in the meantime also refuses (`newer-mount-work`).
 
-- **R5-F1:** `PairedAttackClickProbe.LateralCandidates` merges the two tiers by distance. Each tier keeps
-  `LateralTierShare = MaxLateralQueries / 2` queries while the other still has candidates. The six-query cap, the returned-heading
-  validation and the heading-independent flank (R4-F3) are kept.
-- **R5-F2:** `NativeOrdinaryAttackInput.Click(true)` opens its scoped dispatch bound to its own target and the current turn
-  (`MountedPatchController.BeginScopedInputDispatch(target, turn)`). `AdmitPairedAttackClick` keeps native's refusal when the
-  highlighted target or the turn differs (`NativeDecision:dispatch-target-mismatch`). Native `PointerController.Tick` binds no target.
-- **Contract:** six new installed-IL checks for the order in section 1.
+A previous order that has its own carrier cannot coexist with an eligible rider. Admission requires the rider's commands to be
+empty, and a carrier is issued only by a wrapper in the rider's slots. The retained-work case therefore preserves "no carrier"
+exactly.
 
-## 6. What is missing for R1-F6 and R5-F3
+## 4. Other changes in this candidate
 
-1. A provisional path in `TryRouteMountedStockAttack` for first-tick-dependent proofs that does not call `CancelCore` and does not
-   overwrite `stockIntent`, `retainedOrder` or manual-target ownership. The previous generation stays current until commit.
-2. The provisional wrapper and carrier are exempt from competing-work supersession (`ObserveAcceptedWork`, `RetainedOrderSuperseded`).
-   Otherwise installing them would retire the previous order.
-3. `BeginDelegatedMove` binds the required arc length to the carrier's identity.
-4. `TickDelegated` decides at that carrier's first tick:
-   - **commit:** retire the previous generation through the existing retirement helpers, leaving the provisional wrapper untouched,
-     then promote the provisional generation;
-   - **refuse:** set `deltaTime = 0`, end the provisional wrapper and carrier, and leave the previous order as it is.
-5. Every other terminal path settles the proposal as refused.
-6. The case where the previous order holds a live mount command, which installing the provisional carrier would displace, needs a
-   decision before installation.
-7. Harness cases:
-   - 9 m/s at 1/60 s and 0.1 s, with a 0.12 m and a 1.2 m opening;
-   - a fresh request and a retained previous order;
-   - pending requests reach a decision;
-   - cancellation followed by ground movement;
-   - both initiative arrangements, the five-foot step, ordinary movement and the spent-Standard controls;
-   - R5-F3's retained previous order with the rider still eligible.
+- **R5-F1:** `LateralCandidates` merges the two tiers by distance. Each tier keeps `LateralTierShare` (three) queries while the other
+  still has candidates. The cap of six and returned-heading validation are kept.
+- **R5-F2:** `NativeOrdinaryAttackInput.Click(true)` binds its scoped dispatch to its own target and turn. A mismatching override
+  keeps native's refusal (`NativeDecision:dispatch-target-mismatch`).
+- **Other edits:**
+  - `IsOwnDelegatedMove` and `ObserveAcceptedWork` treat the request's carrier as the pair's own, not as competing work;
+  - `CancelCore` keeps the committing request's carrier;
+  - the commit cuts the carrier's `ForcedPath` at the tick's stopping position, so it completes where its one tick ends. Native ends
+    it on the next zero tick anyway.
 
-   They should replace `R5F6Invariant`. `PairedMountGrantedMetres` should return the first-tick requirement, not its invariant guard.
+## 5. Evidence and limits
 
-These changes alter the retained-order lifecycle accepted in PR-1. They were not made within this task's validation allowance.
+- Harness cases (offline, through production members; the engine boundary is simulated):
+  - `R6F6FirstTick`: 9 m/s at 1/60 s and 0.1 s, with 0.12 m and 1.2 m openings, for a fresh request and for a retained order;
+  - the R5-F3 lines;
+  - both initiative arrangements;
+  - five-foot step, ordinary single move and spent mount Standard controls;
+  - four no-stall cases, including cancellation followed by a ground tick.
+
+  `R6F1Interleave` and `R6F2DirectTarget` cover R5-F1 and R5-F2.
+- The retained-order fixture is an explicit order that native accepted while the turn was not acting. The production drive retains
+  it undispatched. That turn state is simulated.
+- Not shown natively:
+  - the agent's motion when `ForcedPath` is replaced mid-move. The cut affects completion only;
+  - same-frame command order between the committed wrapper's start and the carrier's completion;
+  - `CanMoveInTurnBased`'s denial branch after the zeroed tick.
+
+  These remain for the owner's playtest (N02/N03).

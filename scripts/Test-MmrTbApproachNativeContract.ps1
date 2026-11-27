@@ -181,4 +181,9 @@ foreach ($t in @(try { $game.GetTypes() } catch [Reflection.ReflectionTypeLoadEx
   if ($t.Namespace -cne 'Kingmaker.Controllers.Units') { continue }
   foreach ($m in @($t.GetMethods([Reflection.BindingFlags]'Instance,Static,Public,NonPublic,DeclaredOnly'))) { try { if (((@(IlMembers $m) -join ';') + ';') -match '(call|callvirt) UnitCommand\.Start;') { $startCallers += ($t.Name + '::' + $m.Name) } } catch { } } }
 Check ($startCallers -contains 'UnitActionController::TickCommand') ('PR-2 R1-F6 (round 6): commands (an order''s wrapper and its carrier) start in UnitActionController.TickCommand, AFTER UnitMoveController in the frame, so a carrier issued by a click moves first in a LATER frame whose DeltaTime is unknown at the click (' + ($startCallers -join ', ') + ')')
+$participantType = KmcType 'KingmakerMountedCombat.Integration.MountedPairTurnParticipant'
+$adapterType = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
+$controllerType = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
+Check ($null -eq $participantType.GetMethod('ExcludeFirstTickOnlySingleMove', $any) -and $null -eq $adapterType.GetMethod('SingleMoveTruncatesRestrictedMove', $any) -and
+    $null -ne $adapterType.GetField('FirstTickGate', $any) -and $null -ne $controllerType.GetMethod('DecideFirstTickProposal', $any) -and $null -ne $controllerType.GetMethod('SweepFirstTickProposal', $any)) 'PR-2 R1-F6 (round 6): the product decides a restricted single-action replacement at its own carrier''s first TickDelegated (MountedMovementStateAdapter.FirstTickGate, MountedCombatController.DecideFirstTickProposal/SweepFirstTickProposal) and no longer rewrites the selected single-action limit (ExcludeFirstTickOnlySingleMove and SingleMoveTruncatesRestrictedMove absent)'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
