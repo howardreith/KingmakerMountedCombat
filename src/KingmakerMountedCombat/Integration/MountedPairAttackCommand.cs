@@ -455,6 +455,10 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 R1-F9: the plan identity the click proved; every revalidation receives this order's own plan at dispatch.
         internal PairedAttackClickProbe.PlanIdentity ClickPlan;
         internal Func<PairedAttackClickProbe.PlanIdentity, PairedAttackClickProbe.Approach> RouteRevalidator;
+        // PR #70 R1-F6 (round 4): bind a first-tick carrier's route to the mount's next tick; read (and clear) its refusal.
+        internal Action<float> FirstTickBinding;
+        internal Func<bool> FirstTickRefused;
+        internal int FirstTickRefusalCount { get; private set; }
         // PR #70 R1-F9 (round 3): the plan native would build for this order NOW (UnitAttack.OnStart re-plans against the actual actor
         // state), from an unrun attack of the same executor, target and mode; this order's own plan was built when it was run.
         private PairedAttackClickProbe.PlanIdentity CurrentPlanIdentity()
@@ -462,6 +466,17 @@ namespace KingmakerMountedCombat.Integration
             var plan = new MountedPairSingleAttack(attackTarget, rider, mount, true, IsSingleAttack);
             plan.Init(rider);
             return PairedAttackClickProbe.PlanIdentity.Of(plan);
+        }
+
+        // PR #70 R1-F9 (round 4): before a carrier is issued or a strike starts, THREE plans must agree: the click's admitted plan, the
+        // plan this live wrapper was initialized with (its own PlannedAttack, which supplies the reach approach and strike admission use)
+        // and the plan native would build from the current state. Either disagreement ends the order cleanly before movement or attack.
+        private string ClickPlanDisagreement()
+        {
+            if (!RouteBound || !ClickPlan.Valid) return null;
+            if (!ClickPlan.Matches(PairedAttackClickProbe.PlanIdentity.Of(this))) return "live wrapper plan changed";
+            if (!ClickPlan.Matches(CurrentPlanIdentity())) return "click plan changed";
+            return null;
         }
         internal bool RouteBound => ValidatedApproachRoute != null;
         internal int RouteRevalidationCount { get; private set; }
@@ -1337,6 +1352,16 @@ namespace KingmakerMountedCombat.Integration
         protected override void OnTick()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
+            // PR #70 R1-F6 (round 4): the mount's actual first tick did not cover the route: end cleanly (nothing moved, nothing debited).
+            if (RouteBound && FirstTickRefused?.Invoke() == true)
+            {
+                FirstTickRefusalCount++;
+                RouteProofExpiredCount++;
+                if (!transaction.IsTerminal) transaction.Cancel("The restricted single move's first tick does not cover the admitted route.");
+                RecordEndCause(MountedAttackEndCause.Cancelled, "first tick shorter than the route");
+                Interrupt();
+                return;
+            }
             HoldClockWhileDeferred();
             try
             {
@@ -1868,6 +1893,16 @@ namespace KingmakerMountedCombat.Integration
             // of falling back to native routing.
             if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
+                var plansDisagree = ClickPlanDisagreement();
+                if (plansDisagree != null)
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan no longer matches its click (" + plansDisagree + ").");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
+                    Interrupt();
+                    return false;
+                }
                 RouteRevalidationCount++;
                 var approach = RouteRevalidator?.Invoke(CurrentPlanIdentity());
                 var route = approach?.Route;
@@ -1893,6 +1928,7 @@ namespace KingmakerMountedCombat.Integration
                 };
                 delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
                 ValidatedRouteFollowed = true;
+                if (approach.FirstTickOnly) FirstTickBinding?.Invoke(PairedAttackClickProbe.RouteLength(route));
             }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;
@@ -2101,11 +2137,12 @@ namespace KingmakerMountedCombat.Integration
             if (TerminateIfActionActorBlocked()) return;
             // PR #70 R1-F9: a click-admitted order strikes only with the plan its click proved, also when it reaches the strike without a
             // carrier (in range at dispatch, or the target came into range before dispatch).
-            if (RouteBound && ClickPlan.Valid && !ClickPlan.Matches(CurrentPlanIdentity()))
+            var plansDisagree = ClickPlanDisagreement();
+            if (plansDisagree != null)
             {
                 RouteProofExpiredCount++;
-                if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan changed after its click.");
-                RecordEndCause(MountedAttackEndCause.Cancelled, "click plan changed");
+                if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan changed after its click (" + plansDisagree + ").");
+                RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
                 Interrupt();
                 return;
             }

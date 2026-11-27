@@ -1172,18 +1172,37 @@ namespace KingmakerMountedCombat.Integration
         // (PatchMethods.ClickAssignmentTranspiler) replaces it with PatchMethods.ClickManualTargetAssignment, which performs the same
         // assignment and reports the assigned combat state and target (ObserveClickTargetAssignment). Selection, a handled result, an
         // unchanged value or any other Run on the actor prove nothing; only this assignment to this actor transfers ownership.
+        // PR #70 R1-F7 (round 4): native PointerController.Tick (0x060093BA, the only caller of TurnController.IgnoreClick) is the input
+        // dispatch: it evaluates IgnoreClick, whose postfix may produce a proof, and then runs that click's handler. A proof records the
+        // dispatch it was produced in; only a click bracket that opens inside that SAME dispatch may claim it, and the dispatch's end
+        // discards a proof no handler claimed. A proof produced outside any dispatch (a standalone IgnoreClick read) is never claimable,
+        // and a later request (a new dispatch, or a handler reached outside PointerController.Tick) cannot adopt an earlier proof.
+        private long pointerDispatch;
+        private bool inPointerDispatch;
+        internal void BeginPointerDispatch()
+        {
+            if (pendingClickProof != null) DiscardClickProof("a new pointer dispatch began");
+            pointerDispatch++;
+            inPointerDispatch = true;
+        }
+
+        internal void EndPointerDispatch()
+        {
+            inPointerDispatch = false;
+            if (pendingClickProof != null) DiscardClickProof("its pointer dispatch ended without its click taking it");
+        }
+
         internal void BeginClickObservation(IEnumerable<UnitEntityData> selected, bool simulated)
         {
             if (disposed || simulated) { activeClick = -1; return; }
             activeClick = ++clickSerial;
             riderCommandedByClick = false;
             mountCommandedByClick = false;
-            // PR #70 R1-F7: native PointerController.Tick evaluates IgnoreClick and then runs this click's handler in the same frame; the
-            // pending proof belongs to this bracket only.
             if (pendingClickProof != null)
             {
-                if (pendingClickProof.ClickSerial < 0 && pendingClickProof.Frame == Time.frameCount) pendingClickProof.ClickSerial = activeClick;
-                else DiscardClickProof("not followed by its own click");
+                if (pendingClickProof.ClickSerial < 0 && pendingClickProof.Dispatch >= 0 && inPointerDispatch && pendingClickProof.Dispatch == pointerDispatch)
+                    pendingClickProof.ClickSerial = activeClick;
+                else DiscardClickProof("not its own dispatch's click");
             }
         }
 
@@ -1250,6 +1269,8 @@ namespace KingmakerMountedCombat.Integration
             public long Sequence;
             // PR #70 R1-F7 (round 3): the serial of the exact click bracket (BeginClickObservation) whose own handling may take it.
             public long ClickSerial = -1;
+            // PR #70 R1-F7 (round 4): the pointer dispatch that produced it (-1: produced outside any dispatch, never claimable).
+            public long Dispatch = -1;
             public List<Vector3> Route;
             public PairedAttackClickProbe.PlanIdentity Plan;
         }
@@ -1317,7 +1338,8 @@ namespace KingmakerMountedCombat.Integration
             if (route == null) return;
             pendingClickProof = new ClickProof
             {
-                Target = target, Turn = turn, Frame = Time.frameCount, Sequence = ++clickProofSequence, Route = new List<Vector3>(route), Plan = plan
+                Target = target, Turn = turn, Frame = Time.frameCount, Sequence = ++clickProofSequence, Route = new List<Vector3>(route), Plan = plan,
+                Dispatch = inPointerDispatch ? pointerDispatch : -1
             };
             LastClickProofDisposition = "pending:#" + pendingClickProof.Sequence;
         }
@@ -1375,6 +1397,8 @@ namespace KingmakerMountedCombat.Integration
             var established = proof.Route.Count >= 2 ? proof.Route[proof.Route.Count - 1] : (Vector3?)null;
             var plan = proof.Plan;
             command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
+            command.FirstTickBinding = metres => unifiedTurn.RequireMountFirstTick(metres);
+            command.FirstTickRefused = () => unifiedTurn.TakeMountFirstTickRefusal();
             LastClickProofDisposition = "attached:#" + proof.Sequence;
         }
 
@@ -1411,7 +1435,8 @@ namespace KingmakerMountedCombat.Integration
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
                 ";mountGrant=" + reason + ";probe=" + probe.Detail + ";" + LastRoutePlans;
             TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
-            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan } : null;
+            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan,
+                FirstTickOnly = reason == "single-move-first-tick-reconciled" } : null;
         }
 
         internal string LastRouteRevalidation { get; private set; }

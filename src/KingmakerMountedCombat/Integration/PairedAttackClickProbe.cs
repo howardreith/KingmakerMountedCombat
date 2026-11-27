@@ -85,6 +85,8 @@ namespace KingmakerMountedCombat.Integration
             public List<Vector3> Route;
             public float ArrivalRadius;
             public PlanIdentity Plan;
+            // PR #70 R1-F6 (round 4): the grant is the restricted single move's first tick; the carrier binds its route to that tick.
+            public bool FirstTickOnly;
         }
 
         internal sealed class Result
@@ -171,9 +173,10 @@ namespace KingmakerMountedCombat.Integration
             return PathOutcome.Complete;
         }
 
-        // Candidate rider-admissible positions on a ring just inside pair reach around the target, nearest to the mount first. PR #70
-        // R2-F3: a candidate is kept when the strike is admitted there under ANY of LateralDirections headings, because the heading the
-        // returned path arrives with is not known before the query; the walk of the returned path then decides with its actual headings.
+        // Candidate positions on a ring just inside pair reach around the target, nearest to the mount first. PR #70 R2-F3 (round 4): the
+        // rider's admission depends on the heading the pair arrives with, which only the returned path establishes, so no guessed
+        // heading filters a candidate before its query: the MaxLateralQueries nearest candidates are queried in distance order and the walk
+        // of each returned path decides with its actual headings (TryApproach).
         private static IEnumerable<Vector3> LateralCandidates(Vector3 mount, Vector3 target, float pairRadius, Func<Vector3, Vector3, Vector3, bool> admits)
         {
             var ring = pairRadius - LateralInsetMetres;
@@ -183,13 +186,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 var angle = k * 2d * Math.PI / LateralDirections;
                 var point = new Vector3(target.x + ring * (float)Math.Cos(angle), target.y, target.z + ring * (float)Math.Sin(angle));
-                var admitted = false;
-                for (var h = 0; h < LateralDirections && !admitted; h++)
-                {
-                    var heading = h * 2d * Math.PI / LateralDirections;
-                    admitted = admits(point, point, new Vector3(point.x + (float)Math.Sin(heading), point.y, point.z + (float)Math.Cos(heading)));
-                }
-                if (admitted) candidates.Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
+                candidates.Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
             }
             candidates.Sort((a, b) => a.Key.CompareTo(b.Key));
             foreach (var candidate in candidates) yield return candidate.Value;

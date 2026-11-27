@@ -113,4 +113,16 @@ $hasNormal = $turnType.GetMethod('HasNormalMovement', $any)
 Check ($selectText.Contains(';call HasNormalMovement;brfalse.s;ldarg.0;ldfld Unit;callvirt get_CombatState;ldfld Cooldown;callvirt get_MoveAction;ldc.r4 3;bge.un.s;ldarg.0;ldfld Unit;callvirt UsedStandardAction;ldc.i4.0;ceq;br.s;ldc.i4.0;stloc.1;') -and
     $selectText.Contains(';ldfld m_MovementLimit;ldc.i4.2;bne.un.s;ldloc.1;brtrue.s;ldarg.0;ldc.i4.0;call SetMovementLimit;') -and
     (IlText $hasNormal).Contains(';ldarg.0;call ShouldRestrictNormalMovement;brtrue.s;ldarg.0;call GetRemainingTime;ldc.r4 0;cgt;ret;')) 'PR-2 R1-F6: installed TrySelectMovementLimit keeps the single-action limit only while HasNormalMovement, MoveAction < 3 and the Standard is unused; HasNormalMovement does not exclude a restricted Move'
+# PR #70 R1-F7 (round 4): the dispatch bracket. 060093BA is PointerController.Tick; it calls TurnController.IgnoreClick, and no other installed
+# method does, so a proof produced by the IgnoreClick postfix inside a PointerController.Tick belongs to that dispatch.
+$pointerTick = MemberAt 0x060093BA
+Check ($pointerTick.Name -ceq 'Tick' -and $pointerTick.DeclaringType.FullName -ceq 'Kingmaker.Controllers.Clicks.PointerController' -and $pointerTick.GetParameters().Count -eq 0) 'PR-2 R1-F7: 060093BA is PointerController.Tick()'
+Check ((IlTokens $pointerTick).ContainsKey(0x06000C2F)) 'PR-2 R1-F7: installed PointerController.Tick calls TurnController.IgnoreClick'
+$ignoreCallers = @()
+foreach ($t in @(try { $game.GetTypes() } catch [Reflection.ReflectionTypeLoadException] { $_.Exception.Types | Where-Object { $_ } })) {
+  foreach ($m in @($t.GetMethods([Reflection.BindingFlags]'Instance,Static,Public,NonPublic,DeclaredOnly')) + @($t.GetConstructors([Reflection.BindingFlags]'Instance,Static,Public,NonPublic,DeclaredOnly'))) {
+    try { $b = $m.GetMethodBody() } catch { continue }; if (-not $b) { continue }; $il = $b.GetILAsByteArray()
+    for ($i = 0; $i -le $il.Length - 5; $i++) { if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq 0x06000C2F) { $ignoreCallers += ($t.FullName + '::' + $m.Name); break } } } }
+Check ($ignoreCallers.Count -eq 1 -and $ignoreCallers[0] -ceq 'Kingmaker.Controllers.Clicks.PointerController::Tick') ('PR-2 R1-F7: PointerController.Tick is the only installed caller of IgnoreClick (' + ($ignoreCallers -join ', ') + ')')
+Check ($null -ne $patches.GetMethod('PointerTickPrefix', $any) -and $null -ne $patches.GetMethod('PointerTickPostfix', $any)) 'PR-2 R1-F7: the product carries the PointerController.Tick dispatch prefix and postfix'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')

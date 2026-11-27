@@ -22,6 +22,10 @@ namespace KingmakerMountedCombat.Integration
             internal int Round;
             internal long RoundStart;
             internal string GrantIdentity;
+            // PR #70 R1-F6 (round 4): a route-bound carrier whose allowance is the restricted single move's FIRST tick: the route length that
+            // tick must cover, checked against the actual tick, and a sticky refusal its order consumes.
+            internal float FirstTickRouteMetres;
+            internal bool FirstTickRefused;
             internal bool Prepared;
             internal float MoveUsed;
             internal bool StandardUsed;
@@ -220,6 +224,25 @@ namespace KingmakerMountedCombat.Integration
         internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)
         {
             var allocation = Get(mount);
+            // PR #70 R1-F6 (round 4): native TickMovement grants a restricted single move exactly its first tick (MountedMovementState.
+            // FirstTickOnly), whose length is this frame's deltaTime. The click was admitted against that rule; here, where the actual tick
+            // is known, a route longer than speed x deltaTime is refused BEFORE anything moves or is debited, and the refusal holds until the
+            // order consumes it (TakeFirstTickRefusal), so no later tick can move the mount part of the way.
+            if (allocation.FirstTickRefused) { deltaTime = 0f; return "mountMove=first-tick-refused"; }
+            if (allocation.FirstTickRouteMetres > 0f)
+            {
+                var requirement = allocation.FirstTickRouteMetres;
+                allocation.FirstTickRouteMetres = 0f;
+                var firstTick = allocation.Movement.FirstTickOnly(Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed),
+                    allocation.StandardUsed || mount.UsedStandardAction(), mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
+                if (firstTick && deltaTime * mount.CurrentSpeedMps + 1e-4f < requirement)
+                {
+                    allocation.FirstTickRefused = true;
+                    var tick = deltaTime;
+                    deltaTime = 0f;
+                    return "mountMove=first-tick-refused;tick=" + tick.ToString("R") + ";route=" + requirement.ToString("R");
+                }
+            }
             var cooldown = mount.CombatState.Cooldown;
             var before = cooldown.MoveAction;
             // Within a prepared allocation native time passing must not turn an
@@ -292,6 +315,24 @@ namespace KingmakerMountedCombat.Integration
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * actor.CurrentSpeedMps;
+        }
+
+        // PR #70 R1-F6 (round 4): a carrier admitted under the first-tick rule binds its route length to the mount's next tick.
+        internal void RequireFirstTick(UnitEntityData actor, float metres)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation)) return;
+            allocation.FirstTickRouteMetres = metres;
+            allocation.FirstTickRefused = false;
+        }
+
+        internal bool TakeFirstTickRefusal(UnitEntityData actor)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.FirstTickRefused) return false;
+            allocation.FirstTickRefused = false;
+            allocation.FirstTickRouteMetres = 0f;
+            return true;
         }
 
         // PR #70 R1-F6: the allocation is in the state where native grants exactly one frame's tick (MountedMovementState.FirstTickOnly).

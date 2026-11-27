@@ -127,6 +127,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler), "OnClick", 0x060093ED,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix), nameof(PatchMethods.ClickAssignmentTranspiler));
+                // PR #70 R1-F7 (round 4): the input dispatch that evaluates IgnoreClick and runs the click's handler (observation only).
+                PatchExact(typeof(PointerController), "Tick", 0x060093BA, Type.EmptyTypes, nameof(PatchMethods.PointerTickPrefix),
+                    nameof(PatchMethods.PointerTickPostfix));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
                 // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
@@ -927,6 +930,19 @@ namespace KingmakerMountedCombat.Integration
                 if (cmd is UnitMoveContiniously) return;
                 try { PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
+            }
+
+            // PR #70 R1-F7 (round 4): the pointer dispatch bracket. Every pair's controller is told.
+            internal static void PointerTickPrefix()
+            {
+                try { foreach (var combat in ClickControllers()) combat.BeginPointerDispatch(); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch was not observed", error); }
+            }
+
+            internal static void PointerTickPostfix()
+            {
+                try { foreach (var combat in ClickControllers()) combat.EndPointerDispatch(); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch end was not observed", error); }
             }
 
             // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.

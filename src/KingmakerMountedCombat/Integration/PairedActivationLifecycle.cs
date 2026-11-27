@@ -96,11 +96,20 @@ namespace KingmakerMountedCombat.Integration
             step = input.EnabledFiveFootStep;
             singleMove = input.EnabledSingleActionMove;
             if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
-            // PR #70 R1-F6: native grants one frame's tick only; no route can be proven against it.
-            if (movementState.FirstTickOnly(mount, step, singleMove)) { reason = "single-move-first-tick-only"; return 0f; }
+            // PR #70 R1-F6 (round 4): native grants the restricted single move exactly its first tick (MountedMovementState.FirstTickOnly),
+            // clamped to the remaining time. The click is admitted against that ceiling and the carrier is bound to the actual first tick
+            // (RequireMountFirstTick): TickDelegated refuses, before any movement or debit, a route longer than that tick covers.
+            if (movementState.FirstTickOnly(mount, step, singleMove))
+            {
+                reason = "single-move-first-tick-reconciled";
+                return movementState.RemainingGrantedMetres(mount, step, singleMove);
+            }
             reason = "granted";
             return movementState.RemainingOrderMetres(mount, step, singleMove);
         }
+
+        internal void RequireMountFirstTick(float metres) => movementState.RequireFirstTick(activation?.Partner, metres);
+        internal bool TakeMountFirstTickRefusal() => movementState.TakeFirstTickRefusal(activation?.Partner);
 
         internal bool CanMovePairedMount(TurnController turn)
         {

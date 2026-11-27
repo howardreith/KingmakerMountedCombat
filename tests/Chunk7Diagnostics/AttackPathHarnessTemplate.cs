@@ -95,7 +95,37 @@ namespace TurnBased.Controllers
         public bool IsActing;
         // PR #70 round 2: the native input facts click admission and the movement executor read (engine boundary).
         public const float MetersOfFiveFootStep = 1.524f;
-        public bool EnabledFiveFootStep, EnabledSingleActionMove, IsOverTerrain;
+        public bool IsOverTerrain;
+        public TurnController() { }
+        public TurnController(Kingmaker.EntitySystem.Entities.UnitEntityData unit) { Unit = unit; }
+        // PR #70 round 4 (R1-F6/R1-F10): the installed movement-input state and rules (decomposition/pr2/r4/turncontroller-input-il.txt):
+        // MovementLimit {TwoActions 0, FiveFootStep 1, OneAction 2}; EnabledFiveFootStep = limit FiveFootStep or the step modifier;
+        // EnabledSingleActionMove = limit OneAction (panic is not modelled); HasNormalMovement = no step/forced travel and GetRemainingTime > 0;
+        // SetMovementLimit refuses while the unit's view is moving; TrySelectMovementLimit (directly controllable branch) as installed.
+        public enum MovementLimit { TwoActions = 0, FiveFootStep = 1, OneAction = 2 }
+        private MovementLimit m_MovementLimit;
+        private bool m_ModifyMovementCurrentValue, m_ModifyMovementRequestValue, m_AIUsedFiveFootStep;
+        private object m_HighlightedObject;
+        public float MetersMovedByFiveFootStep, TimeMovedInForceMode;
+        // The player's own input on this context (the step key / the cycled ground limit).
+        public bool EnabledFiveFootStep { get { return m_MovementLimit == MovementLimit.FiveFootStep || m_ModifyMovementCurrentValue; } set { m_ModifyMovementCurrentValue = m_ModifyMovementRequestValue = value; } }
+        public bool EnabledSingleActionMove { get { return m_MovementLimit == MovementLimit.OneAction; } set { m_MovementLimit = value ? MovementLimit.OneAction : MovementLimit.TwoActions; } }
+        private bool ShouldRestrictNormalMovement() => m_AIUsedFiveFootStep || MetersMovedByFiveFootStep > 0f || TimeMovedInForceMode > 0f;
+        private float GetRemainingTime() => Unit == null ? 0f : Math.Max(0f, Math.Min(6f, 3f * ((Unit.IsMoveActionRestricted() ? 1f : 2f) -
+            (Unit.UsedStandardAction() ? 1f : 0f)) - Unit.CombatState.Cooldown.MoveAction));
+        public bool HasNormalMovement() => !ShouldRestrictNormalMovement() && GetRemainingTime() > 0f;
+        public bool HasFiveFootStep() => MetersMovedByFiveFootStep < MetersOfFiveFootStep;
+        private bool SetMovementLimit(MovementLimit limit) { if (Unit?.View != null && Unit.View.IsMoving()) return false; m_MovementLimit = limit; return true; }
+        private void TrySelectMovementLimit()
+        {
+            if (Unit?.View != null && Unit.View.IsMoving()) return;
+            if (m_HighlightedUnit != null) return;
+            var hasStep = HasFiveFootStep();
+            var canSingle = HasNormalMovement() && Unit.CombatState.Cooldown.MoveAction < 3f && !Unit.UsedStandardAction();
+            if (!HasNormalMovement() && hasStep) SetMovementLimit(MovementLimit.FiveFootStep);
+            if (m_MovementLimit == MovementLimit.FiveFootStep && !hasStep) SetMovementLimit(MovementLimit.OneAction);
+            if (m_MovementLimit == MovementLimit.OneAction && !canSingle) SetMovementLimit(MovementLimit.TwoActions);
+        }
         private Kingmaker.EntitySystem.Entities.UnitEntityData m_HighlightedUnit;
         private Kingmaker.UnitLogic.Commands.UnitCommands m_PredictionCommands;
         private bool m_NeedNewPredictions;
@@ -182,6 +212,8 @@ namespace Kingmaker.View
     public sealed class UnitEntityView
     {
         public float Corpulence = 0.5f;
+        public bool Moving;
+        public bool IsMoving() => Moving;
         public int StopMovingCount;
         public UnitMovementAgent AgentASP;
         public void StopMoving() { StopMovingCount++; }
@@ -658,36 +690,73 @@ namespace KingmakerMountedCombat.Integration
         internal string LastRoutePlans { get; private set; }
     }
 
-    // PR #70 R1-F10: the paired participant's click admission and the mount's grant, around the ACTUAL
-    // PairedActivationControls.AdmitPairedAttackClick and PairedActivationLifecycle.PairedMountGrantedMetres. The native TurnController
-    // fields they read are the facade's (engine boundary); addressability and the movement context are stand-ins.
-    internal sealed class HarnessActivation { public TurnController Boundary; public UnitEntityData Principal, Partner; }
-    internal sealed class HarnessPairRelationship { public MountedCombatController CombatOwner; }
+    // PR #70 R1-F10 (round 4): the paired participant around the ACTUAL production members CanAddressActor, IsPartnerContext,
+    // PreservePartnerSelection, SelectedNativeInputContext, PairedMovementContext, BeginPairedPreparation, RequireMountFirstTick,
+    // TakeMountFirstTickRefusal (PairedActivationLifecycle / PairedActivationControls), AdmitPairedAttackClick and PairedMountGrantedMetres,
+    // over the ACTUAL domain PairedActivation. Engine boundary (simulated, labelled): native TurnController.Prepare of a context (whose
+    // prefix runs BeginPairedPreparation), the allocation's native round-state reconciliation (PrepareForHarness), and
+    // CompletePairedPreparation's FinishActorPreparation and partner-context creation. Nothing writes addressability, mode flags or grants.
+    internal sealed class HarnessPairRelationship
+    {
+        public MountedCombatController CombatOwner; public RelationshipState State = RelationshipState.Mounted; public UnitEntityData Rider, Mount;
+    }
     internal sealed class HarnessPairParticipant
     {
-        private readonly HarnessActivation activation = new HarnessActivation();
+        private readonly PairedActivation<UnitEntityData, TurnController> activation;
+        private TurnController partnerContext;
         private readonly HarnessPairRelationship relationship = new HarnessPairRelationship();
         private readonly IModLogger logger = new HarnessLogger();
         internal readonly MountedMovementStateAdapter movementState = new MountedMovementStateAdapter();
+        private readonly List<UnitCommand> nativePreparationCommands = new List<UnitCommand>();
+        private TurnController resumingContext;
+        internal string LastInitiativeObservation { get; private set; }
+        private bool disposed;
+        internal bool PairedLifecycleEnabled => !disposed;
+        public bool PartnerCanGetUp;
         private static readonly FieldInfo NativeHighlightedUnit = typeof(TurnController).GetField("m_HighlightedUnit", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo NativeHighlightedObject = typeof(TurnController).GetField("m_HighlightedObject", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo NativePredictionCommands = typeof(TurnController).GetField("m_PredictionCommands", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo NativeNeedNewPredictions = typeof(TurnController).GetField("m_NeedNewPredictions", BindingFlags.Instance | BindingFlags.NonPublic);
-        public UnitEntityData Unaddressable;
-        public bool PartnerCanGetUp;
-        internal HarnessPairParticipant(TurnController boundary, UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
-        { activation.Boundary = boundary; activation.Principal = rider; activation.Partner = mount; relationship.CombatOwner = combat; }
-        internal bool CanAddressActor(UnitEntityData actor, TurnController turn) => actor != null && actor != Unaddressable;
-        // The mount's own native context (production partnerContext). Stand-in for production PairedMovementContext: the mount mirrors
-        // the rider's step / single-move input choice on its own context (production mirrors the native limit fields the same way).
-        internal readonly TurnController PartnerContext = new TurnController();
-        internal TurnController PairedMovementContext(TurnController native)
+        private static readonly FieldInfo NativeModifyRequested = typeof(TurnController).GetField("m_ModifyMovementRequestValue", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo NativeModifyCurrent = typeof(TurnController).GetField("m_ModifyMovementCurrentValue", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo NativeMovementLimit = typeof(TurnController).GetField("m_MovementLimit", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo NativeSelectMovementLimit = typeof(TurnController).GetMethod("TrySelectMovementLimit", BindingFlags.Instance | BindingFlags.NonPublic);
+        private TurnController.MovementLimit mirroredGroundLimit;
+        private bool hasMirroredGroundLimit;
+        internal HarnessPairParticipant(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
-            PartnerContext.Unit = activation.Partner;
-            PartnerContext.EnabledFiveFootStep = native.EnabledFiveFootStep;
-            PartnerContext.EnabledSingleActionMove = native.EnabledSingleActionMove;
-            return PartnerContext;
+            activation = new PairedActivation<UnitEntityData, TurnController>(rider, mount);
+            relationship.Rider = rider; relationship.Mount = mount; relationship.CombatOwner = combat;
         }
+        internal PairedActivation<UnitEntityData, TurnController> Activation => activation;
+        internal TurnController PartnerContextForHarness => partnerContext;
+        // Engine boundary: native Prepare of this context; its prefix is the ACTUAL BeginPairedPreparation.
+        internal bool NativePrepare(TurnController turn) => BeginPairedPreparation(turn);
+        // Engine boundary: CompletePairedPreparation for the boundary context: the principal's reserved grant is prepared, the private partner
+        // context is created and natively prepared (its prefix: the ACTUAL BeginPairedPreparation partner branch, which reserves the mount's grant
+        // and opens its allocation under the activation identity), the allocation's native round state is reconciled, the partner is prepared.
+        internal void CompleteBoundaryPreparation(TurnController turn)
+        {
+            activation.FinishActorPreparation(turn.Unit);
+            partnerContext = new TurnController(activation.Partner);
+            if (!BeginPairedPreparation(partnerContext)) throw new InvalidOperationException("The partner's paired preparation was refused.");
+            movementState.PrepareForHarness(activation.Partner);
+            activation.FinishActorPreparation(activation.Partner);
+        }
+        // Production mid-encounter adoption after the horse already acted this round: AdoptRunningBoundary with RetainPartnerParticipation
+        // (the partner is granted, prepared and ENDED; no partner context exists).
+        internal bool AdoptAfterPartnerActed(TurnController turn) => activation.AdoptRunningBoundary(turn, MidEncounterAdoption.RetainPartnerParticipation) && partnerContext == null;
+        // Engine boundary: an actor's allocation forfeited natively (EndActor).
+        internal void EndActorForHarness(UnitEntityData actor) => activation.EndActor(actor);
         internal IModLogger Logger => logger;
+        /* PAIR_CAN_ADDRESS */
+        /* PAIR_IS_PARTNER */
+        /* PAIR_PRESERVE_SELECTION */
+        /* PAIR_SELECTED_INPUT */
+        /* PAIR_MOVEMENT_CONTEXT */
+        /* PAIR_BEGIN_PREPARATION */
+        /* PAIR_REQUIRE_FIRST_TICK */
+        /* PAIR_TAKE_FIRST_TICK */
         /* PAIR_ADMIT_CLICK */
         internal int AdmittedAttackClickCount { get; private set; }
         internal string LastAttackClickDecision { get; private set; }
@@ -705,6 +774,12 @@ namespace KingmakerMountedCombat.Integration
         private static readonly FieldInfo WarmupField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_WarmupTime", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo SlowdownField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_SlowDownTime", BindingFlags.Instance | BindingFlags.NonPublic);
         internal void MaintainLifetimes() { }
+        private TurnController preparingTurn;
+        internal string AllocationGrantIdentity(UnitEntityData mount) => Get(mount).GrantIdentity;
+        /* ADAPTER_BEGIN_GRANTED */
+        /* ADAPTER_REQUIRE_FIRST_TICK */
+        /* ADAPTER_TAKE_FIRST_TICK */
+        /* ADAPTER_REMAINING_GRANTED */
         // Engine boundary: native Prepare of this allocation (production Prepared also writes the native turn fields).
         internal void PrepareForHarness(UnitEntityData mount)
         {
@@ -1068,7 +1143,10 @@ namespace Harness
         internal sealed class HarnessUnifiedTurn
         {
             public UnitEntityData Unaddressable;
-            public bool CanAddressActor(UnitEntityData actor, TurnBased.Controllers.TurnController turn) => actor != Unaddressable && (turn == null || turn.Unit == null || true);
+            public bool CanAddressActor(UnitEntityData actor, TurnBased.Controllers.TurnController turn) =>
+                Participant != null ? Participant.CanAddressActor(actor, turn) : actor != Unaddressable && (turn == null || turn.Unit == null || true);
+            internal void RequireMountFirstTick(float metres) => Participant?.RequireMountFirstTick(metres);
+            internal bool TakeMountFirstTickRefusal() => Participant?.TakeMountFirstTickRefusal() ?? false;
             public void RememberPairedMovementInput() { }
             // PR #70 R1-F10: the paired participant whose ACTUAL PairedMountGrantedMetres the revalidation reads.
             public HarnessPairParticipant Participant;
@@ -1311,6 +1389,9 @@ namespace Harness
             // PR #70 R1-F10: the mount's movement passes through the ACTUAL paired allocation (TickDelegated) when set.
             public Func<float, float> MountMoveTick;
             public int MountStalls;
+            // PR #70 R1-F6 (round 4): the engine frame's tick length for the mount (0: the fixed 0.25 m step of earlier cases).
+            public float TickSeconds;
+            public string LastMountTick;
         }
 
         private static World NewWorld(Vector3 horse, Vector3 target, Func<Vector3, Vector3, bool> blocker, bool turnBased)
@@ -1414,7 +1495,7 @@ namespace Harness
             }
             else goal = move.Point;
             var length = Kingmaker.Utility.GeometryUtils.MechanicsDistance(goal, mover.Position);
-            var step = Math.Min(0.25f, length);
+            var step = Math.Min(mover == world.Horse && world.TickSeconds > 0f ? mover.CurrentSpeedMps * world.TickSeconds : 0.25f, length);
             if (mover == world.Horse && world.MountMoveTick != null)
             {
                 step = world.MountMoveTick(step);
@@ -3994,34 +4075,61 @@ namespace Harness
         // ======== PR #70 rounds 2-3 (owner instruction 2026-11-26f section 6) ========
         private sealed class Connected
         {
-            public World World; public MountedCombatController Combat; public HarnessPairParticipant Pair; public TurnController Context; public string Arrangement;
+            public World World; public MountedCombatController Combat; public HarnessPairParticipant Pair; public TurnController Context; public string Arrangement, MountSlot;
         }
 
-        // The pair acts at the RIDER's native turn whatever the initiative order before pairing (production BeginPairedPreparation begins the
-        // activation only on the principal's context and the partner's own candidate is suppressed); the mount moves on its own context.
-        // Rider first in initiative: the mount's allocation is the activation's explicit grant at the rider's boundary. Mount first: the
-        // mount's own native epoch before pairing, its earlier native movement (0.5 s) still on its cooldown. (Allocation provenance is set
-        // at the engine boundary; production Prepared writes the native turn fields.)
+        // PR #70 R1-F10 (round 4): an established pair is paired through PRODUCTION preparation at the RIDER's native boundary in either
+        // initiative arrangement. Mount first: the mount's own context reaches the ACTUAL BeginPairedPreparation first, which reserves nothing
+        // there (the activation owns the partner's slot); then the rider's context begins the activation (Begin, the rider's reserved grant,
+        // its allocation) and CompletePairedPreparation's partner context receives the mount's grant under the activation identity
+        // (BeginGrantedPreparation). The harness writes no addressability, mode flag, grant identity or prior expenditure.
         private static Connected Connect(World world, bool mountFirst)
         {
-            var context = new TurnController { Unit = world.Rider, Status = TurnController.TurnStatus.Acting, IsActing = true };
-            Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = context;
             var combat = Controller5(world);
-            var pair = new HarnessPairParticipant(context, world.Rider, world.Horse, combat);
+            var pair = new HarnessPairParticipant(world.Rider, world.Horse, combat);
             combat.unifiedTurn.Participant = pair;
-            if (mountFirst) world.Horse.CombatState.Cooldown.MoveAction = Math.Max(world.Horse.CombatState.Cooldown.MoveAction, 0.5f);
-            pair.movementState.PrepareForHarness(world.Horse);
-            pair.movementState.SetGrantIdentity(world.Horse, mountFirst ? null : "activation-grant");
+            var controller = Kingmaker.Game.Instance.TurnBasedCombatController;
+            var mountSlot = "rider first";
+            if (mountFirst)
+            {
+                var own = new TurnController(world.Horse) { Status = TurnController.TurnStatus.Preparing };
+                controller.CurrentTurn = own;
+                var prepared = pair.NativePrepare(own);
+                mountSlot = "mount's own slot: prepare=" + prepared + ",granted=" + (pair.Activation.State(world.Horse)?.Granted == true) +
+                    ",addressable=" + pair.CanAddressActor(world.Horse, own) + ",allocationIdentity=" + (pair.movementState.AllocationGrantIdentity(world.Horse) ?? "<none>");
+            }
+            var context = new TurnController(world.Rider) { Status = TurnController.TurnStatus.Preparing };
+            controller.CurrentTurn = context;
+            if (!pair.NativePrepare(context)) throw new InvalidOperationException("The rider's paired preparation was refused.");
+            pair.CompleteBoundaryPreparation(context);
+            context.Status = TurnController.TurnStatus.Acting; context.IsActing = true;
             Harness.SelectionManager.Instance.SelectedUnits.Clear();
             Harness.SelectionManager.Instance.SelectedUnits.Add(world.Rider);
             world.MountMoveTick = metres =>
             {
                 var speed = world.Horse.CurrentSpeedMps;
-                var dt = metres / speed;
-                pair.movementState.TickDelegated(pair.PairedMovementContext(context), world.Horse, ref dt);
-                return dt * speed;
+                var dt = world.TickSeconds > 0f ? world.TickSeconds : metres / speed;
+                world.LastMountTick = pair.movementState.TickDelegated(pair.PairedMovementContext(context), world.Horse, ref dt);
+                return Math.Min(dt * speed, metres);
             };
-            return new Connected { World = world, Combat = combat, Pair = pair, Context = context, Arrangement = mountFirst ? "mount-first initiative" : "rider-first initiative" };
+            return new Connected { World = world, Combat = combat, Pair = pair, Context = context, MountSlot = mountSlot,
+                Arrangement = mountFirst ? "mount-first initiative" : "rider-first initiative" };
+        }
+
+        // Production adoption after the horse already acted this round (its own slot ran before the pair existed): the rider's running
+        // boundary is adopted with RetainPartnerParticipation; the horse is ended for this allocation and has no partner context.
+        private static Connected ConnectAdoptedAfterHorseActed(World world)
+        {
+            var combat = Controller5(world);
+            var pair = new HarnessPairParticipant(world.Rider, world.Horse, combat);
+            combat.unifiedTurn.Participant = pair;
+            var context = new TurnController(world.Rider) { Status = TurnController.TurnStatus.Acting, IsActing = true };
+            Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = context;
+            var adopted = pair.AdoptAfterPartnerActed(context);
+            Harness.SelectionManager.Instance.SelectedUnits.Clear();
+            Harness.SelectionManager.Instance.SelectedUnits.Add(world.Rider);
+            return new Connected { World = world, Combat = combat, Pair = pair, Context = context, Arrangement = "adopted after the horse acted",
+                MountSlot = "adopted=" + adopted + ",partnerEnded=" + (pair.Activation.State(world.Horse)?.Ended == true) + ",partnerContext=" + (pair.PartnerContextForHarness != null) };
         }
 
         // An exact mount grant in metres: speed 1 m/s, Standard spent (no conversion), Move cooldown leaving exactly the grant.
@@ -4047,14 +4155,19 @@ namespace Harness
             alterPrediction?.Invoke(predicted);
             predictions.Raw[(int)UnitCommand.CommandType.Standard] = predicted;
             c.Context.SetNativeClick(target, predictions, false);
-            var result = nativeIgnored;
-            c.Pair.AdmitPairedAttackClick(c.Context, ref result);
-            outcome.NativeIgnoredAfterPostfix = result;
-            outcome.Admitted = nativeIgnored && !result;
-            outcome.Decision = c.Pair.LastAttackClickDecision;
-            if (result) return outcome;
-            Request(c, target, handled, outcome);
-            return outcome;
+            c.Combat.BeginPointerDispatch();   // the ACTUAL PointerController.Tick prefix
+            try
+            {
+                var result = nativeIgnored;
+                c.Pair.AdmitPairedAttackClick(c.Context, ref result);
+                outcome.NativeIgnoredAfterPostfix = result;
+                outcome.Admitted = nativeIgnored && !result;
+                outcome.Decision = c.Pair.LastAttackClickDecision;
+                if (result) return outcome;
+                Request(c, target, handled, outcome);
+                return outcome;
+            }
+            finally { c.Combat.EndPointerDispatch(); }   // the ACTUAL PointerController.Tick postfix
         }
 
         // ClickUnitHandler.OnClick's bracket alone (no IgnoreClick before it in this frame).
@@ -4176,7 +4289,7 @@ namespace Harness
                 var without = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 54f);
                 Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
                 RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
-                Check(click.Admitted && established.HasValue && !without.RouteProven && c.Combat.LastRouteRevalidation != null &&
+                Check(click.Admitted && established.HasValue && c.Combat.LastRouteRevalidation != null &&
                     c.Combat.LastRouteRevalidation.StartsWith("proven=True", StringComparison.Ordinal) && admission == MountedPairNativeAdmissionState.Admitted &&
                     world.Horse.Position.x >= 1.5205f && world.Horse.Position.x <= 1.5275f && UnitAttack.NativeAttackStarts == 1 && atRelease.MountMove > 0f,
                     "R1-F10 changed grant (step 1.524 m -> ordinary): the established destination " + established + " reached the revalidation through the proof (" +
@@ -4190,7 +4303,7 @@ namespace Harness
                 if (spec == "rider Standard spent") world.Rider.HasStandard = false;
                 if (spec == "mount cannot act") world.Horse.Descriptor.State.CanAct = false;
                 var c = Connect(world, false);
-                if (spec == "rider not addressable") c.Pair.Unaddressable = world.Rider;
+                if (spec == "rider not addressable") c.Pair.EndActorForHarness(world.Rider);
                 var click = ClickTick(c, world.Target);
                 Check(!click.Admitted && click.NativeIgnoredAfterPostfix && click.Order == null && c.Combat.PendingClickProofForDiagnostics == null && !c.Combat.HasStockAttackIntent,
                     "R1-F10 " + spec + ": native refusal kept, no proof, no order (" + (click.Decision ?? "<not a rider melee input>") + "; mountGrant=" + Field(LastLine(c), "mountGrant") + ")");
@@ -4817,6 +4930,191 @@ namespace Harness
                 "R6-F2 control: a translated-offset prediction (" + translatedEnd + ") disagrees with admission after synchronisation (" + actual + ")");
         }
 
+        // ======== PR #70 round 4 (owner instructions 2026-11-27a section 6 and 2026-11-27b section 3) ========
+        private static void R4F10Pairing()
+        {
+            foreach (var mountFirst in new[] { false, true })
+            {
+                var world = Corner();
+                var c = Connect(world, mountFirst);
+                var identity = c.Pair.Activation.Identity;
+                var grantIdentity = c.Pair.movementState.AllocationGrantIdentity(world.Horse);
+                var before = Observe(c);
+                var click = ClickTick(c, world.Target);
+                var line = LastLine(c);
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
+                var mountSlotOk = !mountFirst || c.MountSlot.Contains("granted=False") && c.MountSlot.Contains("addressable=False") && c.MountSlot.Contains("allocationIdentity=<none>");
+                Check(mountSlotOk && grantIdentity != null && grantIdentity == identity && c.Pair.CanAddressActor(world.Horse, c.Context) && click.Admitted && click.Order != null &&
+                    Field(line, "mountStepMode") == "False" && Field(line, "mountSingleMove") == "False" && atRelease != null && atStrike != null &&
+                    before.RiderStandard && atRelease.RiderStandard && !atStrike.RiderStandard && atRelease.MountMove > before.MountMove &&
+                    admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                    "R1-F10 (round 4) " + c.Arrangement + ": " + c.MountSlot + "; production activation " + identity + " granted the mount's allocation (" + grantIdentity +
+                    "); production CanAddressActor and PairedMovementContext selected step=" + Field(line, "mountStepMode") + " single=" + Field(line, "mountSingleMove") +
+                    "; " + Spent(before, atRelease, atStrike));
+                // The rider's native step choice reaches the mount through the production mirroring and the native limit selection.
+                var stepWorld = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.5f, 0f, 0f), (from, to) => from.x < 1.45f, true);
+                var cs = Connect(stepWorld, mountFirst);
+                cs.Context.EnabledFiveFootStep = true;
+                var stepClick = ClickTick(cs, stepWorld.Target);
+                var stepLine = LastLine(cs);
+                Check(stepClick.Admitted && Field(stepLine, "mountStepMode") == "True" && Field(stepLine, "mountSingleMove") == "False" &&
+                    Math.Abs(float.Parse(Field(stepLine, "mountGrantedMetres"), System.Globalization.CultureInfo.InvariantCulture) - 1.524f) < 1e-4f,
+                    "R1-F10 (round 4) " + cs.Arrangement + " step: the production movement context selected the step (grant " + Field(stepLine, "mountGrantedMetres") + " m)");
+            }
+            {
+                var world = Corner();
+                world.Horse.CombatState.Cooldown.MoveAction = 1.0f;   // the horse's own native turn this round already moved it part way
+                var c = ConnectAdoptedAfterHorseActed(world);
+                var click = ClickTick(c, world.Target);
+                var line = LastLine(c);
+                var carriers = world.Horse.Commands.Raw.Count(command => command is UnitMoveTo);
+                Check(c.MountSlot.Contains("adopted=True") && c.MountSlot.Contains("partnerEnded=True") && c.MountSlot.Contains("partnerContext=False") &&
+                    !c.Pair.CanAddressActor(world.Horse, c.Context) && !click.Admitted && click.Order == null && carriers == 0 && Field(line, "mountGrant") == "mount-not-addressable" &&
+                    c.Combat.StockAttackIntentStartCount == 0 && world.Horse.CombatState.Cooldown.MoveAction == 1.0f,
+                    "R1-F10 (round 4) adoption after the horse acted: " + c.MountSlot + "; production CanAddressActor refuses the ended horse (" + click.Decision + "; mountGrant=" +
+                    Field(line, "mountGrant") + "); zero replacement carriers, no order, no expenditure");
+            }
+        }
+
+        // R1-F6 (round 4): restricted mount, untouched Move, unused Standard, the rider's single-move choice mirrored by production: native grants
+        // exactly the first tick. 9 m/s; ticks of 1/60 s (0.15 m) and 0.1 s (0.9 m); destinations 0.08 m, 0.5 m and 1.2 m along a straight line.
+        private static void R4F6FirstTick()
+        {
+            foreach (var tick in new[] { 1f / 60f, 0.1f })
+                foreach (var distance in new[] { 0.08f, 0.5f, 1.2f })
+                {
+                    var d = distance;
+                    var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.0f, 0f, 0f), (from, to) => from.x < d, true);
+                    world.Horse.CombatSpeedMps = 9f;
+                    world.Horse.MoveRestricted = true;
+                    var c = Connect(world, false);
+                    c.Context.EnabledSingleActionMove = true;
+                    c.Pair.PairedMovementContext(c.Context);   // the per-frame production mirroring of the rider's ground choice, before hovering the target
+                    var before = Observe(c);
+                    var click = ClickTick(c, world.Target);
+                    var line = LastLine(c);
+                    world.TickSeconds = tick;
+                    Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                    RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
+                    var after = Observe(c);
+                    var route = c.Combat.LastAttackClickProbe?.RouteMetres ?? float.NaN;
+                    var fits = route <= 9f * tick + 1e-4f;
+                    var travel = world.Horse.Position.x;
+                    var label = "tick " + tick.ToString("0.####") + " s, destination " + d.ToString("0.##") + " m (route " + route.ToString("0.###") + " m)";
+                    var common = click.Admitted && Field(line, "mountSingleMove") == "True" && Field(line, "mountGrant") == "single-move-first-tick-reconciled";
+                    if (fits)
+                        Check(common && admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && Math.Abs(travel - route) < 0.02f &&
+                            Math.Abs(after.MountMove - tick) < 1e-4f && !after.RiderStandard && click.Order.FirstTickRefusalCount == 0,
+                            "R1-F6 (round 4) " + label + ": admitted (" + click.Decision + "), the first tick covered the route: travel " + travel.ToString("0.###") + " m, mount Move " +
+                            after.MountMove.ToString("0.####") + " s, rider Standard spent at the one strike");
+                    else
+                        Check(common && click.Order.IsFinished && click.Order.FirstTickRefusalCount == 1 && UnitAttack.NativeAttackStarts == 0 && Math.Abs(travel) < 1e-4f &&
+                            after.MountMove == before.MountMove && after.RiderStandard,
+                            "R1-F6 (round 4) " + label + ": the actual first tick (" + (9f * tick).ToString("0.###") + " m) does not cover the route; refused before movement (" +
+                            world.LastMountTick + "): travel 0, mount Move unchanged, rider Standard unspent, the order ended (" + click.Order.EndCause + ")");
+                }
+        }
+
+        // R1-F7 (round 4): the proof belongs to its producing input dispatch.
+        private static void R4F7Dispatch()
+        {
+            foreach (var kase in new[] { "standalone IgnoreClick read (no dispatch)", "dispatch whose handler never began" })
+            {
+                var world = Corner();
+                var c = Connect(world, false);
+                var predictions = new UnitCommands(world.Rider);
+                var predicted = new UnitAttack(world.Target);
+                predicted.Init(world.Rider);
+                predictions.Raw[(int)UnitCommand.CommandType.Standard] = predicted;
+                c.Context.SetNativeClick(world.Target, predictions, false);
+                var result = true;
+                if (kase.StartsWith("dispatch")) c.Combat.BeginPointerDispatch();
+                c.Pair.AdmitPairedAttackClick(c.Context, ref result);
+                var overridden = !result && c.Combat.PendingClickProofForDiagnostics != null;
+                if (kase.StartsWith("dispatch")) c.Combat.EndPointerDispatch();   // the dispatch ends; its handler never ran (no cancellation, no cleanup)
+                var outcome = new ClickOutcome();
+                Request(c, world.Target, true, outcome);   // a separate same-target request reaching the stock handler in the same frame
+                var order = outcome.Order;
+                Check(overridden && (order == null || !order.RouteBound) && c.Combat.IntentClickProofForDiagnostics == null,
+                    "R1-F7 (round 4) " + kase + ": the postfix produced an override proof; the later same-target request received no authority from it (" +
+                    c.Combat.LastClickProofDisposition + "; order " + (order == null ? "none" : "route-bound=" + order.RouteBound) + ")");
+            }
+            {
+                var world = Corner();
+                var c = Connect(world, false);
+                var click = ClickTick(c, world.Target);
+                Check(click.Admitted && click.Order != null && click.Order.RouteBound, "R1-F7 (round 4) control: the dispatch's own handler takes its proof (" + c.Combat.LastClickProofDisposition + ")");
+            }
+        }
+
+        // R1-F9 (round 4): the live wrapper's initialized plan changes (weapon or reach) while the click and a fresh native forecast still agree.
+        private static void R4F9LivePlan()
+        {
+            foreach (var change in new[] { "reach", "weapon" })
+                foreach (var inRange in new[] { false, true })
+                {
+                    var world = Corner();
+                    var c = Connect(world, false);
+                    var before = Observe(c);
+                    var click = ClickTick(c, world.Target);
+                    var start = world.Horse.Position;
+                    if (change == "reach") click.Order.AllAttacks[0].WeaponRange = 0.5f; else click.Order.AllAttacks[0].Weapon = new ItemWeaponFacade();
+                    if (inRange) world.Target.Position = new Vector3(1.5f, 0f, 0f);
+                    for (var t = 0; t < 12 && !click.Order.IsFinished; t++) { NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+                    var after = Observe(c);
+                    Check(click.Admitted && click.Order.IsFinished && click.Order.EndCause.ToString().Contains("Cancel") && UnitAttack.NativeAttackStarts == 0 &&
+                        world.Horse.Position.Equals(start) && after.MountMove == before.MountMove && after.RiderStandard,
+                        "R1-F9 (round 4) live wrapper " + change + " changed, " + (inRange ? "in-range" : "moving") + " dispatch: cancelled before " + (inRange ? "the attack" : "movement") +
+                        " (" + click.Order.EndCause + "); no movement, no debit, no strike");
+                }
+        }
+
+        // R2-F3 (round 4): the nearest reachable lateral candidate is entered with a final heading of 101.25 degrees, between the sampled
+        // headings; the rider sees the target only through a 25 mm opening around its eye for that heading; every other path is closed.
+        private static void R4F3Heading()
+        {
+            foreach (var closed in new[] { false, true })
+            {
+                var candidate = new Vector3(4f - 2.8f * (float)Math.Cos(Math.PI / 8d), 0f, 2.8f * (float)Math.Sin(Math.PI / 8d));
+                var heading = 101.25d * Math.PI / 180d;
+                var corner = candidate - new Vector3((float)Math.Sin(heading), 0f, (float)Math.Cos(heading));
+                var eye = candidate + new Vector3(-0.4f * (float)Math.Cos(heading), 0f, 0.4f * (float)Math.Sin(heading));
+                Func<Vector3, Vector3, bool> opening = (from, to) => Math.Sqrt((from.x - eye.x) * (from.x - eye.x) + (from.z - eye.z) * (from.z - eye.z)) > 0.025;
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), opening, true);
+                world.Horse.Orientation = 0f;
+                world.Rider.Position = world.Horse.Position + new Vector3(-0.4f, 0f, 0f);
+                var agent = world.Horse.View.AgentASP;
+                agent.Route = (from, to) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, candidate) < 1e-3f ? new List<Vector3> { from, corner, to } : new List<Vector3> { from, to };
+                agent.Outcome = (from, to) => !closed && Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, candidate) < 1e-3f ? PathCompleteState.Complete : PathCompleteState.Error;
+                var sampled = new MountedPairSingleAttack(world.Target, world.Rider, world.Horse, true, false);
+                sampled.Init(world.Rider);
+                var guessedAdmits = 0;
+                for (var h = 0; h < 16; h++)
+                {
+                    var a = h * 2d * Math.PI / 16;
+                    if (sampled.EvaluateNativeAdmissionAtMountPosition(candidate, new Vector3((float)Math.Sin(a), 0f, (float)Math.Cos(a))) == MountedPairNativeAdmissionState.Admitted) guessedAdmits++;
+                }
+                var actual = sampled.EvaluateNativeAdmissionAtMountPosition(candidate, candidate - corner);
+                var c = Connect(world, false);
+                var click = ClickTick(c, world.Target);
+                var probe = c.Combat.LastAttackClickProbe;
+                var queried = agent.Endpoints.Any(p => Kingmaker.Utility.GeometryUtils.MechanicsDistance(p, candidate) < 1e-3f) || probe != null && probe.LateralQueries > 0;
+                if (closed)
+                {
+                    Check(!click.Admitted && click.Order == null && probe != null && probe.LateralQueries >= 1 && probe.LateralQueries <= PairedAttackClickProbe.MaxLateralQueries,
+                        "R2-F3 (round 4) control: every path closed: native refusal kept after " + probe?.LateralQueries + " bounded queries (" + probe?.Detail + ")");
+                    continue;
+                }
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, click.Order, out atRelease, out atStrike, out admission);
+                Check(guessedAdmits == 0 && actual == MountedPairNativeAdmissionState.Admitted && click.Admitted && probe.Lateral && queried && probe.LateralQueries <= PairedAttackClickProbe.MaxLateralQueries &&
+                    admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                    "R2-F3 (round 4): no sampled heading admits at the candidate (0 of 16), the actual 101.25-degree arrival does; the candidate was queried (" + probe.LateralQueries +
+                    " queries, " + probe.Detail + "), the exact carrier released at " + world.Horse.Position + ", one strike");
+            }
+        }
+
         private static int Main()
         {
             try { R3F1(); } catch (Exception exception) { Check(false, "R3-F1 threw " + exception); }
@@ -4885,6 +5183,11 @@ namespace Harness
             try { R3F2StartPose(); } catch (Exception exception) { Check(false, "PR-2 R1-F2 (round 3) threw " + exception); }
             try { R3F4Lateral(); } catch (Exception exception) { Check(false, "PR-2 R1-F4/R2-F3 threw " + exception); }
             try { R3F9Prediction(); } catch (Exception exception) { Check(false, "PR-2 R1-F9 (round 3) threw " + exception); }
+            try { R4F10Pairing(); } catch (Exception exception) { Check(false, "PR-2 R1-F10 (round 4) threw " + exception); }
+            try { R4F6FirstTick(); } catch (Exception exception) { Check(false, "PR-2 R1-F6 (round 4) threw " + exception); }
+            try { R4F7Dispatch(); } catch (Exception exception) { Check(false, "PR-2 R1-F7 (round 4) threw " + exception); }
+            try { R4F9LivePlan(); } catch (Exception exception) { Check(false, "PR-2 R1-F9 (round 4) threw " + exception); }
+            try { R4F3Heading(); } catch (Exception exception) { Check(false, "PR-2 R2-F3 (round 4) threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }
