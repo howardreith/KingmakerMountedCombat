@@ -294,4 +294,20 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
     }
 }
 Check ($fileCalls.Count -eq 0) ('the Horse service performs no file operation of its own (' + ($fileCalls -join ', ') + ')')
+# PR-4 round 8 (R7-F2): the exclusive open used for publication and retirement on Windows goes straight to kernel32 CreateFileW with an
+# explicit access mask (no managed FileStream overload whose rights handling differs between runtimes): the compiled Open passes
+# GENERIC_READ|DELETE (claims) and GENERIC_READ|GENERIC_WRITE|DELETE (staged archives), sharing 0 and FILE_FLAG_OPEN_REPARSE_POINT.
+$verified = KmcType 'KingmakerMountedCombat.Domain.VerifiedFileOperations'
+$open = $verified.GetMethod('Open', $any)
+$createFile = $verified.GetMethod('CreateFileW', $any)
+$pinvoke = ($createFile.Attributes -band [Reflection.MethodAttributes]::PinvokeImpl) -ne 0
+$openIl = $open.GetMethodBody().GetILAsByteArray()
+$ints = New-Object 'System.Collections.Generic.List[uint32]'
+for ($i = 0; $i -le $openIl.Length - 5; $i++) { if ($openIl[$i] -eq 0x20) { $ints.Add([BitConverter]::ToUInt32($openIl, $i + 1)) } }
+$callsCreate = $false
+for ($i = 0; $i -le $openIl.Length - 5; $i++) { if ($openIl[$i] -eq 0x28) { try { if ($open.Module.ResolveMethod([BitConverter]::ToInt32($openIl, $i + 1)) -eq $createFile) { $callsCreate = $true } } catch { } } }
+$readDelete = [uint32]2147549184; $genericWrite = [uint32]1073741824; $reparseFlags = [uint32]2097280   # 0x80010000 (GENERIC_READ|DELETE), 0x40000000 (GENERIC_WRITE, OR-ed in for a staged archive), 0x00200080
+Write-Host ('  R7-F2 compiled Open: pinvoke=' + $pinvoke + ' callsCreateFileW=' + $callsCreate + ' constants=' + (($ints | ForEach-Object { '0x{0:X8}' -f $_ }) -join ','))
+Check ($pinvoke -and $callsCreate -and $ints.Contains($readDelete) -and $ints.Contains($genericWrite) -and $ints.Contains($reparseFlags) -and
+    $null -eq ($verified.GetMethods($any) | Where-Object { $_.Name -eq 'Open' -and @($_.GetParameters() | Where-Object { $_.ParameterType.Name -eq 'FileSystemRights' }).Count -gt 0 })) 'PR-4 R7-F2: the Windows exclusive open is kernel32 CreateFileW with an explicit access mask including DELETE (0x80010000 for claims, with GENERIC_WRITE 0x40000000 added for staged archives) and FILE_FLAG_OPEN_REPARSE_POINT (the sharing argument is the literal 0 in source); no managed FileSystemRights overload is involved'
 Write-Host ('Mounted alpha 2 native contract (trip) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

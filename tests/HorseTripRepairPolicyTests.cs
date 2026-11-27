@@ -45,6 +45,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R6-F1 (round 7): a replacement after A's committed archive and failed retirement keeps its own archive record and result; C then runs", ReplacementAfterFailedRetirementHasItsOwnRecord);
             runner.Run("PR-4 R5-F1/R4-F3 (round 7): publication and retirement act on the verified file's own handle; late rename-replacements are excluded (Windows)", VerifiedFileOperationsBindTheFinalOperation);
             runner.Run("PR-4 R6-F2 (round 7): fresh-session recovery after an applied removal reports truthfully, with exact retry guidance, and removes nothing more", RestartReportingIsTruthful);
+            runner.Run("PR-4 R7-F1 (round 8): retiring a linked claim leaves its sibling target intact; ordinary retirement still works (Windows)", LinkedClaimRetirementLeavesItsTarget);
+            runner.Run("PR-4 R4-F3 (round 8): the pathname branch never deletes; a replacement at its final retirement operation returns and settles before C", PathnameRetirementNeverConsumesAReplacement);
+            runner.Run("PR-4 R5-F1 (round 8): the pathname branch writes only the verified payload under the terminal name; a write failure leaves no terminal archive", PathnamePublicationWritesOnlyThePayload);
             runner.Run("PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds", BlockedRetirementCommitsOnce);
             runner.Run("PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once", ReplacementDuringRetirement);
         }
@@ -1108,6 +1111,119 @@ namespace KingmakerMountedCombat.Tests
                     result.Contains("KMC Horse Trip repair candidate") && !result.Contains("made no change for it") && !result.Contains("a bite hit followed by a Trip"),
                     "R6-F2: the recovery wording denies a removal that may have happened, omits the horse, or gives no exact retry guidance; or a removal was repeated.");
             }
+        }
+
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool CreateHardLinkW(string link, string existing, IntPtr security);
+
+        // Owner instruction 2026-11-26e section 6, PR-4 review R7-F1 (Windows evidence): the recovered claim is a file link whose data lives
+        // in a disposable target in a sibling directory. Unprivileged file symbolic links cannot be created on this machine (Win32 error 1314),
+        // so the link is a hard link; production opens the claim with FILE_FLAG_OPEN_REPARSE_POINT and refuses any reparse point, so a symbolic
+        // link would be refused and left in place rather than followed. Recovery settles the claim; the sibling target still exists with its
+        // original bytes; an ordinary claim then retires normally.
+        private static void LinkedClaimRetirementLeavesItsTarget()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(LegacyHorse("horse-C"));
+                var sibling = Path.Combine(folders.Root, "sibling"); Directory.CreateDirectory(sibling);
+                var target = Path.Combine(sibling, "disposable-target.txt"); File.WriteAllText(target, forA);
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                var linked = CreateHardLinkW(claimPath, target, IntPtr.Zero);
+                var decision = linked ? Run(host, session) : HorseTripRepairDecision.Pending;
+                var targetIntact = File.Exists(target) && File.ReadAllText(target) == forA;
+                folders.Request(forC);
+                var ordinary = Run(host, session);
+                Console.WriteLine("    R7-F1 linked claim (hard link to a sibling target): linked=" + linked + " recovery=" + decision + " targetIntact=" + targetIntact +
+                    " claimLeft=" + File.Exists(claimPath) + " interrupted=" + Count(folders, Interrupted) + " then ordinary=" + ordinary + " applied=" + Count(folders, Applied));
+                TestRunner.True(linked && decision == HorseTripRepairDecision.Interrupted && targetIntact && Archive(folders, Interrupted) == forA && !File.Exists(claimPath) &&
+                    ordinary == HorseTripRepairDecision.Apply && Count(folders, Applied) == 1 && host.RemovedFrom.SequenceEqual(new[] { "horse-C" }),
+                    "R7-F1: retiring a linked claim removed or changed its target, or ordinary retirement stopped working.");
+            }
+        }
+
+        // Owner instruction 2026-11-26e section 6, PR-4 review R4-F3 on the pathname branch (used where handle-bound operations do not exist:
+        // Linux/macOS Mono; exercised here on Windows through the test seam): after the claim's bytes were verified under the private name and
+        // before the settling operation, the private entry is replaced by B. Nothing is deleted by pathname: the settling move takes B, the
+        // second verification sees B, and B returns to the claim name; B then receives its own Interrupted result and archive before queued C;
+        // A is removed once.
+        private static void PathnameRetirementNeverConsumesAReplacement()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            HorseTripRepairFiles.ForcePathnameOperations = true;
+            try
+            {
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession();
+                    var b = LegacyHorse("horse-B"); host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(b); host.Loaded.Add(LegacyHorse("horse-C"));
+                    folders.Request(forA);
+                    host.files.BeforeRetireDelete = () =>
+                    {
+                        host.files.BeforeRetireDelete = null;
+                        var retiring = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.RetiringSuffix).Single();
+                        File.Delete(retiring); File.WriteAllText(retiring, forB); folders.Request(forC);
+                    };
+                    var first = Run(host, session);
+                    var claimHoldsB = File.Exists(Path.Combine(folders.UserData, Claimed)) && Archive(folders, Claimed) == forB;
+                    var settledFiles = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.SettledSuffix).Length;
+                    var second = Run(host, session);
+                    var result = folders.Result();
+                    var third = Run(host, session);
+                    Console.WriteLine("    R4-F3 pathname branch: first=" + first + " claimHoldsB=" + claimHoldsB + " settled=" + settledFiles + " second=" + second + " (" +
+                        result.Replace("\r\n", " ").Trim().Substring(0, 80) + "...) third=" + third + " removals=" + string.Join(",", host.RemovedFrom));
+                    TestRunner.True(first == HorseTripRepairDecision.Apply && Archive(folders, Applied) == forA && claimHoldsB && settledFiles == 0 &&
+                        second == HorseTripRepairDecision.Interrupted && Archive(folders, Interrupted) == forB && result.Contains("horse-B") && Candidates(b).Count == 1 &&
+                        third == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-C" }),
+                        "R4-F3 (pathname branch): a replacement at the final retirement operation was consumed, or B did not settle before C, or A was removed twice.");
+                }
+            }
+            finally { HorseTripRepairFiles.ForcePathnameOperations = false; }
+        }
+
+
+        // Owner instruction 2026-11-26e section 6, PR-4 review R5-F1 on the pathname branch (used where handle-bound operations do not exist;
+        // exercised on Windows through the test seam): the terminal name is created exclusively and written through that handle. At the moment
+        // the payload has been written and flushed (BeforeCommit, handle still held), the terminal name exists and a reader there obtains only
+        // A's bytes or nothing (on Windows the writing handle excludes other readers, so nothing is readable until it closes). A write failure after creation leaves no
+        // terminal archive (the incomplete file is moved aside, not deleted), the claim stays, and the retry commits one complete archive with
+        // A's raw bytes; one removal in total.
+        private static void PathnamePublicationWritesOnlyThePayload()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            HorseTripRepairFiles.ForcePathnameOperations = true;
+            try
+            {
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                    var applied = Path.Combine(folders.UserData, Applied);
+                    folders.Request(forA);
+                    host.files.StagingWriteSeam = stream => { host.files.StagingWriteSeam = null; return new FaultingStream(stream, true); };
+                    var failed = Throws(() => Run(host, session));
+                    var noTerminal = !File.Exists(applied) && File.Exists(Path.Combine(folders.UserData, Claimed));
+                    var incomplete = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.IncompleteSuffix).Length;
+                    string visible = null;
+                    host.files.BeforeCommit = () =>
+                    {
+                        host.files.BeforeCommit = null;
+                        try { visible = File.Exists(applied) ? (File.ReadAllText(applied) == forA ? "A's bytes" : "OTHER bytes") : "absent"; }
+                        catch (IOException) { visible = "not readable while written"; }
+                    };
+                    var retried = Run(host, session);
+                    Console.WriteLine("    R5-F1 pathname branch: write failure threw=" + failed + " noTerminal=" + noTerminal + " incompleteKeptAside=" + incomplete +
+                        "; retry " + retried + "; terminal at its completed write: " + visible + "; archive exact=" + (Archive(folders, Applied) == forA) + " removals=" + host.Removals);
+                    TestRunner.True(failed && noTerminal && incomplete == 1 && retried == HorseTripRepairDecision.FinishedApplied && (visible == "A's bytes" || visible == "not readable while written") &&
+                        Archive(folders, Applied) == forA && Count(folders, Applied) == 1 && host.Removals == 1 && !File.Exists(Path.Combine(folders.UserData, Claimed)),
+                        "R5-F1 (pathname branch): the terminal name showed bytes other than A's, a partial archive was left under it, or the retry did not publish exactly A once.");
+                }
+            }
+            finally { HorseTripRepairFiles.ForcePathnameOperations = false; }
         }
 
         // PR-4 review R3-F1: the removal's diagnostic report throws after an exact removal (message construction, display-name read or

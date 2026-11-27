@@ -485,31 +485,114 @@ namespace KingmakerMountedCombat.Domain
         bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null);
     }
 
-    // PR-4 round 7 (R4-F3, R5-F1): file operations bound to the open handle of the exact file that was written or verified. On Windows the
-    // rename and the delete act through that handle (kernel32 SetFileInformationByHandle with FileRenameInfo / FileDispositionInfo), and
-    // the handle is opened with FileShare.None, so no other process can write, rename or delete the file while it is held: the operation
-    // affects only that file, whatever happens to its directory entry. Other platforms keep the pathname operations of the bounded
-    // contract (Supported is false there); nothing here is required on them.
+    // PR-4 rounds 7-8 (R4-F3, R5-F1, R7-F1, R7-F2): file operations bound to the open handle of the exact file that was written or verified.
+    // On Windows every step goes straight to kernel32, so no managed FileStream overload (whose handling of the requested rights differs
+    // between the .NET Framework and the Unity Mono runtime Kingmaker uses) sits between the request and the native open:
+    //  - CreateFileW with an explicit access mask (GENERIC_READ, DELETE, and GENERIC_WRITE for the staged archive), no sharing at all (no
+    //    other reader, writer, renamer or deleter while the handle is held) and FILE_FLAG_OPEN_REPARSE_POINT, so a symbolic link or other
+    //    reparse point is opened as itself, never followed to a target elsewhere;
+    //  - an opened claim that is a reparse point or a directory (GetFileInformationByHandleEx FileAttributeTagInfo) is refused and left in
+    //    place, recoverable, for manual handling: nothing is deleted through it;
+    //  - ReadFile / WriteFile / FlushFileBuffers on that handle, and SetFileInformationByHandle FileRenameInfo (ReplaceIfExists false) and
+    //    FileDispositionInfo, which act on the file the handle refers to, not on a pathname.
+    // Other platforms keep the bounded pathname contract (Supported is false there).
     internal static class VerifiedFileOperations
     {
         internal static bool Supported => Environment.OSVersion.Platform == PlatformID.Win32NT;
 
-        private const int FileRenameInfoClass = 3;
-        private const int FileDispositionInfoClass = 4;
+        internal const uint GenericRead = 0x80000000, GenericWrite = 0x40000000, DeleteAccess = 0x00010000;
+        internal const uint CreateNewDisposition = 1, OpenExistingDisposition = 3;
+        internal const uint OpenReparsePointFlag = 0x00200000, NormalAttribute = 0x80;
+        private const uint ReparsePointAttribute = 0x400, DirectoryAttribute = 0x10;
+        private const int FileRenameInfoClass = 3, FileDispositionInfoClass = 4, FileAttributeTagInfoClass = 9;
 
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(string name, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool ReadFile(Microsoft.Win32.SafeHandles.SafeFileHandle file, byte[] buffer, int count, out int read, IntPtr overlapped);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool WriteFile(Microsoft.Win32.SafeHandles.SafeFileHandle file, byte[] buffer, int count, out int written, IntPtr overlapped);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FlushFileBuffers(Microsoft.Win32.SafeHandles.SafeFileHandle file);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetFileInformationByHandleEx(Microsoft.Win32.SafeHandles.SafeFileHandle file, int informationClass, out AttributeTagInfo information, int size);
         [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, int informationClass, IntPtr information, uint size);
 
-        // An exclusive handle with delete access (needed for the handle's own rename and delete).
-        internal static FileStream Open(string path, FileMode mode, bool write)
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct AttributeTagInfo { public uint FileAttributes; public uint ReparseTag; }
+
+        private static IOException Failure(string what)
         {
-            var rights = System.Security.AccessControl.FileSystemRights.Read | System.Security.AccessControl.FileSystemRights.Delete |
-                System.Security.AccessControl.FileSystemRights.Synchronize | (write ? System.Security.AccessControl.FileSystemRights.Write : 0);
-            return new FileStream(path, mode, rights, FileShare.None, 4096, FileOptions.None);
+            var error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+            return error == 2 || error == 3 ? new FileNotFoundException(what + " (Win32 error " + error + ").") : new IOException(what + " (Win32 error " + error + ").");
+        }
+
+        // The exclusive handle on one exact file, readable and (for the staged archive) writable as a stream.
+        internal sealed class Handle : Stream
+        {
+            internal readonly Microsoft.Win32.SafeHandles.SafeFileHandle File;
+            private readonly bool writable;
+            internal Handle(Microsoft.Win32.SafeHandles.SafeFileHandle file, bool writable) { File = file; this.writable = writable; }
+            public override bool CanRead => true;
+            public override bool CanSeek => false;
+            public override bool CanWrite => writable;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override int Read(byte[] buffer, int offset, int count)
+            {
+                var chunk = new byte[count];
+                int read;
+                if (!ReadFile(File, chunk, count, out read, IntPtr.Zero)) throw Failure("The verified file could not be read");
+                Buffer.BlockCopy(chunk, 0, buffer, offset, read);
+                return read;
+            }
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                var chunk = new byte[count];
+                Buffer.BlockCopy(buffer, offset, chunk, 0, count);
+                var done = 0;
+                while (done < count)
+                {
+                    var part = done == 0 ? chunk : chunk.Skip(done).ToArray();
+                    int written;
+                    if (!WriteFile(File, part, count - done, out written, IntPtr.Zero)) throw Failure("The staged archive could not be written");
+                    done += written;
+                }
+            }
+            public override void Flush() { }
+            internal void FlushToDisk() { if (!FlushFileBuffers(File)) throw Failure("The staged archive could not be flushed"); }
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            protected override void Dispose(bool disposing) { if (disposing) File.Dispose(); base.Dispose(disposing); }
+        }
+
+        // create: a new staged file (CreateNew, writable); otherwise an existing claim, refused when it is a reparse point or directory.
+        internal static Handle Open(string path, bool create)
+        {
+            var access = GenericRead | DeleteAccess | (create ? GenericWrite : 0u);
+            var file = CreateFileW(path, access, 0u, IntPtr.Zero, create ? CreateNewDisposition : OpenExistingDisposition,
+                OpenReparsePointFlag | NormalAttribute, IntPtr.Zero);
+            if (file.IsInvalid) { var failure = Failure("The file " + path + " could not be opened exclusively"); file.Dispose(); throw failure; }
+            var handle = new Handle(file, create);
+            if (!create)
+            {
+                AttributeTagInfo info;
+                if (!GetFileInformationByHandleEx(file, FileAttributeTagInfoClass, out info, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AttributeTagInfo))))
+                {
+                    var failure = Failure("The attributes of " + path + " could not be read"); handle.Dispose(); throw failure;
+                }
+                if ((info.FileAttributes & (ReparsePointAttribute | DirectoryAttribute)) != 0)
+                {
+                    handle.Dispose();
+                    throw new IOException("The Horse Trip repair claim " + path + " is a link, reparse point or directory; it is left in place for manual handling.");
+                }
+            }
+            return handle;
         }
 
         // Renames the file this handle refers to; refuses (IOException) when the target exists.
-        internal static void RenameTo(FileStream file, string target)
+        internal static void RenameTo(Handle file, string target)
         {
             var name = System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(target));
             var nameOffset = IntPtr.Size * 2 + 4;   // FILE_RENAME_INFO: BOOLEAN/DWORD, HANDLE RootDirectory, DWORD FileNameLength, WCHAR FileName[]
@@ -520,23 +603,19 @@ namespace KingmakerMountedCombat.Domain
                 for (var i = 0; i < size; i++) System.Runtime.InteropServices.Marshal.WriteByte(buffer, i, 0);
                 System.Runtime.InteropServices.Marshal.WriteInt32(buffer, IntPtr.Size * 2, name.Length);
                 System.Runtime.InteropServices.Marshal.Copy(name, 0, IntPtr.Add(buffer, nameOffset), name.Length);
-                if (!SetFileInformationByHandle(file.SafeFileHandle, FileRenameInfoClass, buffer, (uint)size))
-                    throw new IOException("The verified file could not be renamed to " + target + " (Win32 error " +
-                        System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+                if (!SetFileInformationByHandle(file.File, FileRenameInfoClass, buffer, (uint)size)) throw Failure("The verified file could not be renamed to " + target);
             }
             finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer); }
         }
 
         // Marks the file this handle refers to for deletion when the handle closes.
-        internal static void DeleteWhenClosed(FileStream file)
+        internal static void DeleteWhenClosed(Handle file)
         {
             var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(4);
             try
             {
                 System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 1);
-                if (!SetFileInformationByHandle(file.SafeFileHandle, FileDispositionInfoClass, buffer, 1))
-                    throw new IOException("The verified file could not be marked for deletion (Win32 error " +
-                        System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+                if (!SetFileInformationByHandle(file.File, FileDispositionInfoClass, buffer, 1)) throw Failure("The verified file could not be marked for deletion");
             }
             finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer); }
         }
@@ -650,13 +729,13 @@ namespace KingmakerMountedCombat.Domain
             }
             BeforeSettle?.Invoke();
             BeforeRetire?.Invoke();
-            if (VerifiedFileOperations.Supported)
+            if (HandleOperations)
             {
                 // PR-4 round 7 (R4-F3): the claim is opened exclusively (no other reader, writer, renamer or deleter while held; a claim
                 // another process holds open refuses the open, so it stays at its name and is retried), its bytes are verified through
                 // that handle, and only then is that exact file marked for deletion through the same handle. A replacement that took the
                 // claim name before the open is the file opened and verified: different bytes leave it untouched for its own disposition.
-                using (var held = VerifiedFileOperations.Open(ClaimPath, FileMode.Open, false))
+                using (var held = VerifiedFileOperations.Open(ClaimPath, false))
                 {
                     if (!string.Equals(Digest(ReadAll(held)), boundIdentity, StringComparison.Ordinal)) return false;
                     BeforeRetireDelete?.Invoke();
@@ -664,23 +743,36 @@ namespace KingmakerMountedCombat.Domain
                 }
                 return true;
             }
-            // Elsewhere (Mono, advisory sharing): the bounded local-filesystem contract with the claim moved to a private name first.
-            var retiring = ClaimPath + "." + Guid.NewGuid().ToString("N") + RetiringSuffix;
+            // Elsewhere (Linux/macOS Mono: no handle-bound delete, advisory sharing): PR-4 round 8 (R4-F3) nothing is ever deleted by a
+            // pathname. The claim is moved, in one atomic rename, to a private name; its bytes are verified there; the verified file is then
+            // kept under a settled name (a small leftover beside its archive) instead of being deleted, and verified again under that name.
+            // Bytes that are not the decided bytes, at either check, are moved back to the claim name untouched for their own Interrupted
+            // disposition, so a replacement is never consumed.
+            var unique = Guid.NewGuid().ToString("N");
+            var retiring = ClaimPath + "." + unique + RetiringSuffix;
             File.Move(ClaimPath, retiring);   // refused (claim kept at its name) while another process holds the claim open
-            bool decided;
-            using (var held = new FileStream(retiring, FileMode.Open, FileAccess.Read, FileShare.Delete))
-            {
-                decided = string.Equals(Digest(ReadAll(held)), boundIdentity, StringComparison.Ordinal);
-                if (decided) File.Delete(retiring);   // the verified file itself
-            }
-            if (decided) return true;
-            File.Move(retiring, ClaimPath);   // the replacement returns to the claim name for its own disposition
+            if (!HoldsBytes(retiring, boundIdentity)) { File.Move(retiring, ClaimPath); return false; }
+            BeforeRetireDelete?.Invoke();
+            var settled = ClaimPath + "." + unique + SettledSuffix;
+            File.Move(retiring, settled);
+            if (HoldsBytes(settled, boundIdentity)) return true;
+            File.Move(settled, ClaimPath);    // a replacement that took the private name returns to the claim name for its own disposition
             return false;
         }
 
         // A claim moved aside for retirement and not yet deleted or returned (a failure between the rename and the delete or the move
         // back): restored to the claim name when no claim exists, so its disposition is completed by the ordinary lifecycle.
         public const string RetiringSuffix = ".retiring";
+        // Non-Windows only (PR-4 round 8): a verified, retired claim kept instead of deleted.
+        public const string SettledSuffix = ".settled";
+        // Test seam (PR-4 round 8): runs the pathname branch on Windows so its behaviour can be exercised; false in production.
+        internal static bool ForcePathnameOperations { get; set; }
+        private static bool HandleOperations => VerifiedFileOperations.Supported && !ForcePathnameOperations;
+
+        private static bool HoldsBytes(string path, string identity)
+        {
+            using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) return string.Equals(Digest(ReadAll(held)), identity, StringComparison.Ordinal);
+        }
 
         private void RecoverRetiring()
         {
@@ -713,20 +805,20 @@ namespace KingmakerMountedCombat.Domain
         private string Commit(byte[] payload, string suffix)
         {
             var pending = ClaimPath + "." + Guid.NewGuid().ToString("N") + ".pending";
-            if (VerifiedFileOperations.Supported)
+            if (HandleOperations)
             {
                 // PR-4 round 7 (R5-F1): the payload is written and flushed through one exclusive handle (no other reader, writer, renamer or
                 // deleter), and that same handle is renamed to the non-overwriting terminal name (FileRenameInfo, ReplaceIfExists false):
                 // the file that appears under the terminal name is the file this handle wrote, so its first visible bytes are the payload.
                 // On any failure before the rename, the staged file is deleted through its own handle; nothing else is touched.
-                var staged = VerifiedFileOperations.Open(pending, FileMode.CreateNew, true);
+                var staged = VerifiedFileOperations.Open(pending, true);
                 var renamed = false;
                 try
                 {
                     var writer = StagingWriteSeam?.Invoke(staged) ?? staged;
                     writer.Write(payload, 0, payload.Length);
                     writer.Flush();
-                    staged.Flush(true);
+                    staged.FlushToDisk();
                     BeforeCommit?.Invoke();
                     var terminal = ArchiveTarget(suffix);
                     VerifiedFileOperations.RenameTo(staged, terminal);
@@ -741,32 +833,39 @@ namespace KingmakerMountedCombat.Domain
                 }
                 finally { staged.Dispose(); }
             }
-            // Elsewhere (Mono, advisory sharing): the bounded local-filesystem contract below (staged pathname move, then verification).
-            string target = null;
-            var published = false;
+            // Elsewhere (Linux/macOS Mono: no handle-bound rename, advisory sharing): PR-4 round 8 (R5-F1) no staged file is moved under the
+            // terminal name, because a pathname move cannot tell which file it moves. The terminal name is instead created exclusively
+            // (CreateNew: it never replaces an existing entry) and the verified payload is written and flushed through that one handle, so
+            // the only bytes ever visible under the terminal name are this payload's (a prefix while it is being written). A failure after
+            // creation moves the incomplete file aside to a private name (nothing is deleted by pathname); the terminal name is then free
+            // for the retry, which writes one complete archive.
+            var target = ArchiveTarget(suffix);
+            var created = false;
             try
             {
-                using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.Write, FileShare.Read | FileShare.Delete))
+                using (var file = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
                 {
+                    created = true;
                     var writer = StagingWriteSeam?.Invoke(file) ?? file;
                     writer.Write(payload, 0, payload.Length);
                     writer.Flush();
                     file.Flush(true);
                     BeforeCommit?.Invoke();
-                    target = ArchiveTarget(suffix);
-                    File.Move(pending, target);
-                    if (!string.Equals(Digest(ReadShared(target)), Digest(payload), StringComparison.Ordinal))
-                        throw new IOException("The staged Horse Trip archive changed before its publication; it was refused.");
-                    published = true;
                 }
                 return target;
             }
-            finally
+            catch
             {
-                if (!published && target != null && File.Exists(target) && !File.Exists(pending)) File.Delete(target);
-                if (File.Exists(pending)) File.Delete(pending);
+                if (created && File.Exists(target))
+                {
+                    try { File.Move(target, target + "." + Guid.NewGuid().ToString("N") + IncompleteSuffix); } catch (Exception) { }
+                }
+                throw;
             }
         }
+
+        // Non-Windows only (PR-4 round 8): an archive write that failed after its terminal name was created, kept aside instead of deleted.
+        public const string IncompleteSuffix = ".incomplete";
 
         // Reads a file this call may still hold open for writing (the staging handle), so the reader shares write and delete access.
         private static byte[] ReadShared(string path)
