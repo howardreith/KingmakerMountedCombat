@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T00:16:25+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T00:29:19+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -114,6 +114,11 @@ SHA-256 `c7a1b8eadcf334106139d71109189bc136c5b141c92b22a006c806c98aab3c14`
 ```
 SHA-256 `ed17e57af2fbf601827585a28e71b03c67a875a7be7ae8764afd9f8c34566045`
 
+```json
+{"budget": "budget mounted-alpha2-melee-pose-20261124: spent 150.32 of 210 min; remaining 59.68 min; entries 233 (running 0, interrupted 0, unreconciled 0), read 2026-11-27T00:29:03Z", "candidate": "729bda744312f657d331bc2ba1cb3497733791d0", "controller_status": "BLOCKED (no progress: R4-F3 open for 3 consecutive reviews); stop preserved: not resumed (owner instruction 2026-11-26d: a cap extension does not override a newly arising no-progress stop), no replacement enrollment", "decision": "changes_required", "kind": "review_result", "open_blocking": ["R4-F3", "R5-F1", "R6-F1", "R6-F2"], "pr": "PR-4", "prev_sha256": "ed17e57af2fbf601827585a28e71b03c67a875a7be7ae8764afd9f8c34566045", "round": 6, "seq": 98, "utc": "2026-11-27T00:29:19+00:00", "verified": ["R4-F1", "R4-F2", "R5-F2"]}
+```
+SHA-256 `6eed31481c283615225e65a61396fe7f1b167d23d1b3553f11b6470e54c29811`
+
 Reconciliation (PR-4 review R1-F8): seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`, SHA-256 in seq 18). It raised the validation allowance of the
 shared budget from 90 to 150 minutes (recorded in the budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and the program
@@ -126,4 +131,4 @@ validation unchanged at 150 minutes. Seq 49 is the resume to a ceiling of 4, seq
 seq 65 records owner instruction 2026-11-26c (total cap 5), seq 78 the resume to 5, seq 79 the round-4 check, seq 80 the round-4
 result, seq 81 the round-5 check, seq 82 the round-5 result (cap stop at 5/5); seq 84-85 record owner instruction 2026-11-26d
 (docs/missions/mmr-split/owner-authorization-2026-11-26d.md: PR-4 total cap 8, program 39 child / 46 lifetime, validation 210 minutes);
-seq 96 is the resume to 8; the last entry is the round-6 check (with its invariant map) for the candidate that adds this version of the file.
+seq 96 is the resume to 8, seq 97 the round-6 check; the last entry is the round-6 result (no-progress stop, preserved).
