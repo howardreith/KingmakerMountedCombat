@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T14:45:07+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T15:24:43+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -94,6 +94,26 @@ SHA-256 `6a2dbf5a9d3b59eb7a6a8291dae78638303c40ac404203c39ca0c2b12c02d02b`
 ```
 SHA-256 `675f33e25a4562f0608861d51f51a006b1218440729d52d846160f9cd20940fa`
 
+```json
+{"authority": "owner instruction 2026-11-27b", "budget": "300 -> 360", "ceilings": "51 child / 58 lifetime / 6 infrastructure; 64 combined", "execution_allowances": {"PR-1": 15, "PR-2": 5, "PR-3": 5, "PR-4": 14, "PR-5": "completed-round cap 9, execution ceiling 10", "PR-6": 2, "transport": 6}, "file": "owner-continuations/owner-continuation-2026-11-27b-continuation.md", "file_sha256": "d98eab757e164fe411777b8f2061932ecea5d45450d4bdfaadbef63d06492a34", "kind": "owner_instruction", "pr4": "supported resume of the 11/11 cap stop to 14, then a separate resume --amend-mission replacing the file-command repair protocol with a confirmed in-game action", "prev_sha256": "38b301b052e4ca39f4e2a5a7d49c572e87f517257068eb5d584aa9c677768160", "seq": 152, "transport": "bounded completion of the Link failure family, complete unit gate, reviews 5 (and 6)", "utc": "2026-11-27T15:07:42+00:00"}
+```
+SHA-256 `21400c4fbb6084167dc0dc747e52bc76471d1f3fe59e6846f272012d8e6f90da`
+
+```json
+{"authority": "owner instruction 2026-11-27b section 2", "before": "spent 264.6 of 300; remaining 35.4; entries 349", "budget_id": "mounted-alpha2-melee-pose-20261124", "from_minutes": 300, "kind": "budget_adjustment", "mechanism": "WorkflowBudget.ps1 Update-KmcWorkflowBudgetRecord (locked), allowanceAdjustments entry appended", "note": "the adjustment authorizingText reads I authorize increasing the existing shared validation allowance from 300 to 360 minutes (a paraphrase); the verbatim owner text is: Increase the existing shared validation allowance from 300 to 360 minutes using the locked allowance-adjustment mechanism and this authorization (the record cites the instruction file and its sha256)", "prev_sha256": "21400c4fbb6084167dc0dc747e52bc76471d1f3fe59e6846f272012d8e6f90da", "result": "spent 264.6 of 360 min; remaining 95.4 min; entries 349 (running 0, interrupted 0, unreconciled 0)", "seq": 153, "to_minutes": 360, "utc": "2026-11-27T15:07:42+00:00"}
+```
+SHA-256 `8f0a12e31176bc70e4f0a9d03755a89609eb22143cf67bda5cf20aedb5125844`
+
+```json
+{"authority": "owner instruction 2026-11-27b section 3", "correction": "The 27a report said a PR-2 round-4 submission leaving any of R1-F6, R1-F7, R1-F9, R1-F10 open would be stopped again by the controller. That was wrong: seq 150 is a supported resume from a no-progress stop (ACTIVE, 3 of 5), and the pinned controller _resume_updates resets every finding rounds_open to 0 after a no-progress resume (owner reviewed the disagreement; counting restarts). Findings, history and spent reviews are not erased. Pinned state read 2026-11-27: status ACTIVE, rounds_completed final 3, limits max_review_rounds_per_checkpoint 5, rounds_open 0 for R1-F6, R1-F7, R1-F9, R1-F10, R2-F3 and R3-F1 (all still open). No discrepancy with the documented transition.", "corrects": "decomposition/FINAL-HANDOFF-2026-11-27a.md, PR-2 section and decision 3 (and the matching 27a summary)", "kind": "correction", "prev_sha256": "8f0a12e31176bc70e4f0a9d03755a89609eb22143cf67bda5cf20aedb5125844", "seq": 154, "utc": "2026-11-27T15:07:42+00:00"}
+```
+SHA-256 `81b505561a4a3eb5d7d21c9d70af8a83e9239726822526638f59bd837ebd3ef5`
+
+```json
+{"authority": "owner instructions 2026-11-27a section 6 and 2026-11-27b section 3", "budget": "spent 265.84 of 360 min; remaining 94.17 min", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-2-ledger-excerpt.md with this entry (source commit 49e8cef0)", "checks": "components 1545/0, lifecycle contract 99/0, approach native contract 17/0", "child_usage": "PR-2 3 of 5 before; 4 of 5 after", "counterexamples": "R1-F10 production pairing both arrangements and adoption after the horse acted; R1-F6 1/60 s and 0.1 s ticks inside/beyond; R1-F7 standalone read and handler-less dispatch then a same-target request; R1-F9 live wrapper weapon/reach changed (moving and in-range); R2-F3 101.25-degree arrival with a 25 mm opening and a closed control", "executions": "product child 40 -> 41 of 51; lifetime 47 -> 48 of 58; infrastructure 4 of 6; combined 51 -> 52 of 64", "kind": "pre_review_check", "pr": "PR-2", "prev_sha256": "81b505561a4a3eb5d7d21c9d70af8a83e9239726822526638f59bd837ebd3ef5", "production_path": "attack-path harness on spliced production members (322/0); simulated engine boundary: facade TurnController/agent/pathing", "round": 4, "seq": 155, "utc": "2026-11-27T15:24:43+00:00"}
+```
+SHA-256 `d0db221a16fed8055a09d0d9183fa64e0feaabdeaf383876c283bcb6264c577c`
+
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
 candidate, so it could not be verified there. This excerpt and docs/missions/mmr-split/PR-2-submission-checklist.md close that
@@ -113,4 +133,5 @@ gap without rewriting the chronology:
   48 child / 55 lifetime, validation 300 minutes); seq 138: the one-time correction that round 2 invoked the supplemental
   mission section 4.1 stop and round 3 proceeded under the remaining numerical cap without a separate override of that stop;
   seq 139: the prospective stopping policy (the operator two-rejection stop is superseded; controller stops preserved);
-- the last entry: the supported resume to a completed-round cap of 5.
+- seq 150: the supported resume to a completed-round cap of 5; seq 152-154: owner instruction 2026-11-27b (docs/missions/mmr-split/owner-authorization-2026-11-27b.md), the budget increase to 360 minutes and the correction of the 27a explanation (the resume reset the consecutive-open counters);
+- the last entry: the round-4 pre-review check.
