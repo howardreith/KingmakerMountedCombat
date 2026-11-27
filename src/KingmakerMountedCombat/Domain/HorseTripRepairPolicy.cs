@@ -332,7 +332,13 @@ namespace KingmakerMountedCombat.Domain
             claimText = text; bytesUnknown = false; Stage = HorseTripClaimStage.Undecided;
             Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
             CommittedArchive = null;
+            ReleaseUnixAttempt();
         }
+
+        // PR-4 round 11 (R9-F3, R10-F1): the Unix fallback publication's owned attempt (its open descriptor, terminal name, identity and
+        // stage), kept across polls of the same claim so every retry continues the SAME file instead of naming a new one.
+        internal UnixPublicationAttempt UnixAttempt { get; set; }
+        internal void ReleaseUnixAttempt() { UnixFiles.Release(UnixAttempt); UnixAttempt = null; }
 
         // The rename succeeded but the bytes could not be read: the next read of the claim file supplies them.
         public void TakeUnread()
@@ -362,6 +368,7 @@ namespace KingmakerMountedCombat.Domain
         public void Clear()
         {
             CommittedArchive = null;
+            ReleaseUnixAttempt();
             claimText = null; bytesUnknown = false; Stage = HorseTripClaimStage.None;
             Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
         }
@@ -525,7 +532,7 @@ namespace KingmakerMountedCombat.Domain
     // The primitives are behind IPosixFiles (production: LibcPosixFiles); the tests substitute a simulated boundary on Windows.
     internal struct PosixIdentity
     {
-        public ulong Device; public ulong Inode; public uint Mode;
+        public ulong Device; public ulong Inode; public uint Mode; public long Size;
         public bool IsRegular => (Mode & 0xF000u) == 0x8000u;
         public bool SameFile(PosixIdentity other) => Device == other.Device && Inode == other.Inode;
     }
@@ -533,9 +540,10 @@ namespace KingmakerMountedCombat.Domain
     internal sealed class PosixFlags
     {
         public int ReadOnly = 0, WriteOnly = 1, Create, Exclusive, NoFollow, NonBlock, CloseOnExec;
-        public int ENOENT = 2, EINTR = 4, EACCES = 13, EEXIST = 17, ENOTDIR = 20, ELOOP, ENOTSUP;
-        internal static readonly PosixFlags Linux = new PosixFlags { Create = 0x40, Exclusive = 0x80, NoFollow = 0x20000, NonBlock = 0x800, CloseOnExec = 0x80000, ELOOP = 40, ENOTSUP = 95 };
-        internal static readonly PosixFlags Mac = new PosixFlags { Create = 0x200, Exclusive = 0x800, NoFollow = 0x100, NonBlock = 0x4, CloseOnExec = 0x1000000, ELOOP = 62, ENOTSUP = 45 };
+        public int ReadWrite = 2;
+        public int ENOENT = 2, EINTR = 4, EACCES = 13, EEXIST = 17, ENOTDIR = 20, ELOOP, ENOTSUP, EAGAIN;
+        internal static readonly PosixFlags Linux = new PosixFlags { Create = 0x40, Exclusive = 0x80, NoFollow = 0x20000, NonBlock = 0x800, CloseOnExec = 0x80000, ELOOP = 40, ENOTSUP = 95, EAGAIN = 11 };
+        internal static readonly PosixFlags Mac = new PosixFlags { Create = 0x200, Exclusive = 0x800, NoFollow = 0x100, NonBlock = 0x4, CloseOnExec = 0x1000000, ELOOP = 62, ENOTSUP = 45, EAGAIN = 35 };
     }
 
     internal interface IPosixFiles
@@ -553,6 +561,9 @@ namespace KingmakerMountedCombat.Domain
         int LinkDescriptor(int fd, string newPath);
         int Unlink(string path);
         int Close(int fd);
+        int Truncate(int fd);                                   // ftruncate(fd, 0) and lseek(fd, 0, SEEK_SET)
+        int ReadAt(int fd, byte[] buffer, int count, long offset);
+        int WriterLeaseFree(int fd);                            // 0: no other open writer (Linux read lease); -1 EAGAIN: a writer holds it
     }
 
     // Production primitives (x86_64 Linux and macOS, the platforms Kingmaker ships for). struct stat: Linux x86_64 st_dev u64 @0, st_ino u64 @8,
@@ -570,6 +581,10 @@ namespace KingmakerMountedCombat.Domain
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "close", SetLastError = true)] private static extern int close(int fd);
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "unlink", SetLastError = true)] private static extern int unlink(string path);
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "linkat", SetLastError = true)] private static extern int linkat(int olddirfd, string oldpath, int newdirfd, string newpath, int flags);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "ftruncate", SetLastError = true)] private static extern int ftruncate(int fd, long length);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "lseek", SetLastError = true)] private static extern long lseek(int fd, long offset, int whence);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "pread", SetLastError = true)] private static extern IntPtr pread(int fd, byte[] buffer, IntPtr count, long offset);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "fcntl", SetLastError = true)] private static extern int fcntl(int fd, int command, int argument);
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "syscall", SetLastError = true)] private static extern long LinuxFstat(long number, int fd, byte[] buffer);
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "syscall", SetLastError = true)] private static extern long LinuxLstat(long number, string path, byte[] buffer);
         [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "fstat$INODE64", SetLastError = true)] private static extern int MacFstat(int fd, byte[] buffer);
@@ -588,6 +603,17 @@ namespace KingmakerMountedCombat.Domain
         public int Fchmod(int fd, int mode) => Done(fchmod(fd, mode));
         public int Close(int fd) => Done(close(fd));
         public int Unlink(string path) => Done(unlink(path));
+        public int Truncate(int fd) { var r = Done(ftruncate(fd, 0)); return r != 0 ? r : Done(lseek(fd, 0, 0) < 0 ? -1 : 0); }
+        public int ReadAt(int fd, byte[] buffer, int count, long offset) => Done(pread(fd, buffer, new IntPtr(count), offset).ToInt64());
+        // Linux F_SETLEASE (1024) with F_RDLCK (0) is refused with EAGAIN while any other descriptor has the file open for writing; the lease is
+        // released at once (F_UNLCK 2). macOS has no lease: ENOTSUP (no completion point can be observed there; recorded as a limitation).
+        public int WriterLeaseFree(int fd)
+        {
+            if (Mac) return Unsupported();
+            var r = Done(fcntl(fd, 1024, 0));
+            if (r == 0) fcntl(fd, 1024, 2);
+            return r;
+        }
         public int LinkDescriptor(int fd, string newPath)
         {
             if (Mac || !System.IO.Directory.Exists("/proc/self/fd")) return Unsupported();
@@ -609,9 +635,10 @@ namespace KingmakerMountedCombat.Domain
             if (result == 0) identity = Parse(buffer);
             return result;
         }
+        // st_size: Linux x86_64 @48; macOS stat64 @96.
         private static PosixIdentity Parse(byte[] b) => Mac
-            ? new PosixIdentity { Device = (uint)BitConverter.ToInt32(b, 0), Mode = BitConverter.ToUInt16(b, 4), Inode = BitConverter.ToUInt64(b, 8) }
-            : new PosixIdentity { Device = BitConverter.ToUInt64(b, 0), Inode = BitConverter.ToUInt64(b, 8), Mode = BitConverter.ToUInt32(b, 24) };
+            ? new PosixIdentity { Device = (uint)BitConverter.ToInt32(b, 0), Mode = BitConverter.ToUInt16(b, 4), Inode = BitConverter.ToUInt64(b, 8), Size = BitConverter.ToInt64(b, 96) }
+            : new PosixIdentity { Device = BitConverter.ToUInt64(b, 0), Inode = BitConverter.ToUInt64(b, 8), Mode = BitConverter.ToUInt32(b, 24), Size = BitConverter.ToInt64(b, 48) };
     }
 
     internal static class UnixFiles
@@ -646,6 +673,10 @@ namespace KingmakerMountedCombat.Domain
                 PosixIdentity identity;
                 if (c.Fstat(fd, out identity) != 0) throw new IOException("The file " + path + " could not be examined (errno " + c.Errno + ").");
                 if (!identity.IsRegular) throw new HorseTripIneligibleEntryException(path);
+                // PR-4 round 11 (R10-F2): the submission's completion point on Linux is its writer's close. A read lease is refused (EAGAIN) while
+                // any other descriptor holds the file open for writing, so a request still being written is never decided (the poll retries).
+                if (c.WriterLeaseFree(fd) != 0 && c.Errno == f.EAGAIN)
+                    throw new IOException("The file " + path + " is still open for writing; it is decided after its writer closes it.");
                 using (var buffer = new MemoryStream())
                 {
                     var chunk = new byte[8192];
@@ -696,11 +727,14 @@ namespace KingmakerMountedCombat.Domain
             if (Retry(() => c.Fsync(fd), c) != 0) throw new IOException("The archive could not be flushed (errno " + c.Errno + ").");
         }
 
-        // R5-F1/R9-F3: publishes the verified payload under terminal (never replacing an entry), or throws having left no file of its own.
-        // Returns the mechanism used ("unnamed-link" or "protected-create").
-        internal static string Publish(byte[] payload, string terminal, Func<Stream, Stream> seam, Action beforePublication)
+        // R5-F1/R9-F3/R10-F1/R10-F5 (round 11): publishes the verified payload under terminal (never replacing an entry). The unnamed-file link
+        // leaves nothing behind on failure. The fallback is ONE owned attempt kept in the session across polls (UnixPublicationAttempt): its
+        // descriptor, terminal name, identity and stage, so a retry continues the same file (truncated and rewritten through the same
+        // descriptor), never names a new one, and never unlinks anything by name. Returns the mechanism used.
+        internal static string Publish(byte[] payload, string terminal, Func<Stream, Stream> seam, Action beforePublication, HorseTripRepairSession session)
         {
             var c = Calls; var f = c.Flags;
+            if (session?.UnixAttempt != null) { ContinueProtected(c, session, payload, seam, beforePublication); return "protected-create"; }
             var fd = Retry(() => c.OpenUnnamed(Path.GetDirectoryName(terminal)), c);
             if (fd >= 0)
             {
@@ -713,39 +747,69 @@ namespace KingmakerMountedCombat.Domain
                 }
                 finally { c.Close(fd); }   // the unnamed file ends with its descriptor
             }
-            return ProtectedCreate(c, payload, terminal, seam, beforePublication);
+            var created = Retry(() => c.Open(terminal, f.ReadWrite | f.Create | f.Exclusive | f.NoFollow | f.CloseOnExec, 0), c);
+            if (created < 0) throw new IOException("The archive " + terminal + " could not be created exclusively (errno " + c.Errno + "); nothing was published.");
+            var attempt = new UnixPublicationAttempt { Fd = created, Terminal = terminal };
+            if (session != null) session.UnixAttempt = attempt;
+            try { ContinueProtected(c, session, payload, seam, beforePublication, attempt); return "protected-create"; }
+            finally { if (session == null) Release(attempt); }
         }
 
-        private static string ProtectedCreate(IPosixFiles c, byte[] payload, string terminal, Func<Stream, Stream> seam, Action beforePublication)
+        private static string ContinueProtected(IPosixFiles c, HorseTripRepairSession session, byte[] payload, Func<Stream, Stream> seam, Action beforePublication,
+            UnixPublicationAttempt attempt = null)
         {
-            var f = c.Flags;
-            var fd = Retry(() => c.Open(terminal, f.WriteOnly | f.Create | f.Exclusive | f.NoFollow | f.CloseOnExec, 0), c);
-            if (fd < 0) throw new IOException("The archive " + terminal + " could not be created exclusively (errno " + c.Errno + "); nothing was published.");
-            PosixIdentity mine = default(PosixIdentity);
-            var known = false;
-            try
+            attempt = attempt ?? session.UnixAttempt;
+            if (!attempt.IdentityKnown)
             {
-                if (c.Fstat(fd, out mine) != 0) throw new IOException("The new archive " + terminal + " could not be examined (errno " + c.Errno + ").");
-                known = true;
-                WriteAndFlush(c, fd, payload, seam);
+                PosixIdentity mine;
+                if (c.Fstat(attempt.Fd, out mine) != 0) throw new IOException("The new archive " + attempt.Terminal + " could not be examined (errno " + c.Errno + "); the attempt is kept and retried.");
+                attempt.Identity = mine; attempt.IdentityKnown = true;
+            }
+            // R5-F1: the protection must be in effect on THIS filesystem before any payload byte is written: a volume with mount-defined
+            // permissions reports other bits, and is refused (nothing written, the claim kept, the same attempt reused by every retry).
+            if ((attempt.Identity.Mode & 0x1FF) != 0)
+                throw new IOException("The folder's filesystem does not apply permission bits (the new archive reports mode " + Convert.ToString(attempt.Identity.Mode & 0x1FF, 8) +
+                                      "); no payload was written and the claim is kept.");
+            if (!attempt.Published)
+            {
+                if (Retry(() => c.Truncate(attempt.Fd), c) != 0) throw new IOException("The archive attempt could not be reset (errno " + c.Errno + ").");
+                WriteAndFlush(c, attempt.Fd, payload, seam);
+                var back = new byte[payload.Length + 1];
+                var read = Retry(() => c.ReadAt(attempt.Fd, back, back.Length, 0), c);
+                if (read != payload.Length || !back.Take(payload.Length).SequenceEqual(payload)) throw new IOException("The archive attempt does not hold the verified payload; it is rewritten on the next poll.");
                 beforePublication?.Invoke();
-                if (c.Fchmod(fd, PublishedMode) != 0) throw new IOException("The archive " + terminal + " could not be made readable (errno " + c.Errno + ").");
-                PosixIdentity named;
-                if (c.Lstat(terminal, out named) != 0 || !named.SameFile(mine))
-                {
-                    known = false;   // the name no longer refers to this file: whatever is there now is someone else's and stays
-                    throw new IOException("The archive name " + terminal + " was replaced during publication; the replacement is left in place.");
-                }
-                return "protected-create";
+                // R10-F5: owner-only access (never wider than the player's private request).
+                if (c.Fchmod(attempt.Fd, OwnerOnlyMode) != 0) throw new IOException("The archive " + attempt.Terminal + " could not be made readable (errno " + c.Errno + ").");
+                attempt.Published = true;
             }
-            catch
+            PosixIdentity named;
+            // R9-F3: a failed lookup is not a replacement: the attempt (and its name) is kept and verified again on the next poll.
+            if (c.Lstat(attempt.Terminal, out named) != 0) throw new IOException("The archive name " + attempt.Terminal + " could not be examined (errno " + c.Errno + "); it is verified again on the next poll.");
+            if (!named.SameFile(attempt.Identity))
             {
-                PosixIdentity now;
-                if (known && c.Lstat(terminal, out now) == 0 && now.SameFile(mine)) c.Unlink(terminal);
-                throw;
+                if (session != null) session.ReleaseUnixAttempt(); else Release(attempt);
+                throw new IOException("The archive name " + attempt.Terminal + " now holds another file; that file is left in place and the payload is published anew.");
             }
-            finally { c.Close(fd); }
+            if (named.Size != payload.Length) throw new IOException("The archive " + attempt.Terminal + " does not have the payload's size; it is rewritten on the next poll.");
+            var terminal = attempt.Terminal;
+            if (session != null) session.ReleaseUnixAttempt(); else Release(attempt);
+            return terminal;
         }
+
+        private const int OwnerOnlyMode = 0x180;   // 0600
+
+        internal static void Release(UnixPublicationAttempt attempt)
+        {
+            if (attempt == null || attempt.Fd < 0) return;
+            Calls.Close(attempt.Fd);
+            attempt.Fd = -1;
+        }
+    }
+
+    // PR-4 round 11: the fallback publication's owned attempt (see UnixFiles.Publish).
+    internal sealed class UnixPublicationAttempt
+    {
+        internal int Fd = -1; internal string Terminal; internal bool IdentityKnown; internal PosixIdentity Identity; internal bool Published;
     }
 
     internal static class VerifiedFileOperations
@@ -1009,7 +1073,7 @@ namespace KingmakerMountedCombat.Domain
                 var verified = ReadEligible(ClaimPath);
                 if (!string.Equals(Digest(verified), boundIdentity, StringComparison.Ordinal)) return false;
                 BeforePublish?.Invoke();
-                committed = Commit(verified, suffix);
+                committed = Commit(verified, suffix, session);
                 session?.RecordCommittedArchive(committed);
             }
             BeforeSettle?.Invoke();
@@ -1078,16 +1142,23 @@ namespace KingmakerMountedCombat.Domain
         // round-8 completed record C.<32 hex>.settled, a backup, anything unrecognized) is not this service's pending work and is left exactly
         // as it is, as is an entry that is a link, directory or other non-regular file (refused by the eligible read). The oldest pending entry
         // is restored to the claim name when no claim exists, so its disposition is completed by the ordinary lifecycle.
-        private static readonly System.Text.RegularExpressions.Regex RetiringName = new System.Text.RegularExpressions.Regex("^[0-9a-f]{8}" +
-            System.Text.RegularExpressions.Regex.Escape(RetiringSuffix) + "$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
-        private static readonly System.Text.RegularExpressions.Regex SettledName = new System.Text.RegularExpressions.Regex("^[0-9a-f]{8}\\.([0-9A-F]{16})" +
-            System.Text.RegularExpressions.Regex.Escape(SettledSuffix) + "$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        // Round 11: \A...\z consume the WHOLE name (R9-F4: $ also matched before a trailing line feed); the round-8 producer's retiring shape
+        // C.<32 lower-case hex>.retiring is pending work too (R10-F3), while its completed C.<32 hex>.settled record stays excluded.
+        private static readonly System.Text.RegularExpressions.Regex RetiringName = new System.Text.RegularExpressions.Regex("\\A(?:[0-9a-f]{8}|[0-9a-f]{32})" +
+            System.Text.RegularExpressions.Regex.Escape(RetiringSuffix) + "\\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        private static readonly System.Text.RegularExpressions.Regex SettledName = new System.Text.RegularExpressions.Regex("\\A[0-9a-f]{8}\\.([0-9A-F]{16})" +
+            System.Text.RegularExpressions.Regex.Escape(SettledSuffix) + "\\z", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+        // Test hook (round 11, R10-F4): after an entry was classified pending and before it is moved to the claim name. Unset in production.
+        public Action<string> BeforeRecoveryMove { get; set; }
+        internal static bool IsRecoverableName(string rest) => RetiringName.IsMatch(rest) || SettledName.IsMatch(rest);
 
         private void RecoverRetiring()
         {
             if (File.Exists(ClaimPath)) return;
             var prefix = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.ClaimedSuffix + ".";
             var pending = new List<string>();
+            var settledPrefix = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var entry in System.IO.Directory.GetFiles(Directory, prefix + "*"))
             {
                 var name = Path.GetFileName(entry);
@@ -1097,14 +1168,23 @@ namespace KingmakerMountedCombat.Domain
                 {
                     if (RetiringName.IsMatch(rest)) { ReadEligible(entry); pending.Add(entry); continue; }
                     var settled = SettledName.Match(rest);
-                    if (settled.Success && !HoldsIdentityPrefix(entry, settled.Groups[1].Value)) pending.Add(entry);
+                    if (settled.Success && !HoldsIdentityPrefix(entry, settled.Groups[1].Value)) { pending.Add(entry); settledPrefix[entry] = settled.Groups[1].Value; }
                 }
                 catch (HorseTripIneligibleEntryException) { }   // a link or non-regular entry is not recovered; it stays where it is
                 catch (FileNotFoundException) { }
             }
             if (pending.Count == 0) return;
             pending.Sort((x, y) => File.GetLastWriteTimeUtc(x).CompareTo(File.GetLastWriteTimeUtc(y)));
-            File.Move(pending[0], ClaimPath);
+            var chosen = pending[0];
+            BeforeRecoveryMove?.Invoke(chosen);
+            File.Move(chosen, ClaimPath);
+            // R10-F4: the entry actually taken must still be the pending work it was classified as. A completed (digest-matching) record or an
+            // ineligible entry that took the name before the move is returned to its own name and nothing is recovered.
+            string prefixOfName;
+            var stillPending = true;
+            try { stillPending = !settledPrefix.TryGetValue(chosen, out prefixOfName) || !HoldsIdentityPrefix(ClaimPath, prefixOfName); }
+            catch (HorseTripIneligibleEntryException) { stillPending = false; }
+            if (!stillPending) File.Move(ClaimPath, chosen);
         }
 
         // Test hook (PR-4 review R3-F2/R4-F1): invoked after the private payload was written and flushed, before its publication.
@@ -1126,7 +1206,7 @@ namespace KingmakerMountedCombat.Domain
         // replaced in between (possible only where file sharing is advisory, as on Mono, or by renaming it away) is refused: the
         // terminal name it reached is removed again and the commit fails, so the next poll stages the payload anew. On any failure the
         // private file is removed; no partial terminal archive is ever left.
-        private string Commit(byte[] payload, string suffix)
+        private string Commit(byte[] payload, string suffix, HorseTripRepairSession session = null)
         {
             if (HandleOperations)
             {
@@ -1161,8 +1241,10 @@ namespace KingmakerMountedCombat.Domain
             // file linked from its descriptor (Linux), or the terminal name created exclusively with permission bits 0 and made readable through
             // its descriptor once complete. Neither mechanism has a staging name, so nothing can be substituted or edited by name, no alias of
             // the archive survives, and a failed attempt leaves nothing of its own behind; the claim stays and the next poll commits again.
-            var target = ArchiveTarget(suffix);
-            LastPublicationMechanism = UnixFiles.Publish(payload, target, StagingWriteSeam, BeforeCommit);
+            var target = session?.UnixAttempt?.Terminal ?? ArchiveTarget(suffix);
+            LastPublicationMechanism = session?.UnixAttempt != null ? "protected-create" : null;
+            var mechanism = UnixFiles.Publish(payload, target, StagingWriteSeam, BeforeCommit, session);
+            LastPublicationMechanism = mechanism;
             AfterPublishRename?.Invoke(target);
             return target;
         }

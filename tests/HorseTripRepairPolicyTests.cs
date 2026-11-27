@@ -55,6 +55,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R9-F1 (round 10): a request still held by its writer is never decided on Windows (zero removals); the completed two-horse request is refused as malformed; a read-only holder stays compatible", WindowsWriterIsExcluded);
             runner.Run("PR-4 R9-F2 (round 10): a link substituted at the open boundary of an undecided claim or a recovery entry supplies no removal or archive; ordinary-file controls (simulated POSIX boundary)", UnixReadsBindTheDescriptor);
             runner.Run("PR-4 R9-F4 (round 10): a fresh session preserves an older completed record, its Applied result and archive and a similarly named backup; no Interrupted archive (Windows and simulated POSIX)", RecoveryIsConservative);
+            runner.Run("PR-4 R10-F1/R9-F3/R10-F5 (round 11): the Unix fallback is one owned attempt: a write fault, a replacement after the fault and metadata failures never unlink by name or name a second file, publish A once with owner-only access (simulated POSIX boundary)", UnixFallbackAttemptIsOwned);
+            runner.Run("PR-4 R5-F1 (round 11): where the filesystem does not apply the requested permission bits the fallback writes nothing and keeps the claim, bounded across polls (simulated POSIX boundary)", UnixFallbackNeedsEffectiveProtection);
+            runner.Run("PR-4 R10-F2 (round 11): a Unix request still held by its writer is never decided (zero removals); completed, it is refused as malformed; a completed single-horse request applies (simulated POSIX boundary)", UnixWriterIsExcluded);
+            runner.Run("PR-4 R9-F4/R10-F3/R10-F4 (round 11): recovery names must match whole; the round-8 retiring shape is recovered before a queued request; an entry that became a completed record before the move is returned unrecovered", RecoveryNamesAndMovesAreExact);
             runner.Run("PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds", BlockedRetirementCommitsOnce);
             runner.Run("PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once", ReplacementDuringRetirement);
         }
@@ -258,7 +262,12 @@ namespace KingmakerMountedCombat.Tests
         // WSL2 kernel 6.18); the C# libc calls themselves are not executed on Linux or Unity Mono here.
         internal sealed class SimulatedPosix : IPosixFiles
         {
-            private sealed class Fd { public string Path; public FileStream Stream; public bool Directory, Unnamed; }
+            private sealed class Fd { public string Path; public FileStream Stream; public bool Directory, Unnamed, Protected; public uint Bits = 0x1A4; }
+            public bool IgnoresPermissionBits;     // a volume with mount-defined permissions: a requested mode 0 is reported as 0644
+            public int FailProtectedFstat;         // the next N fstat calls on a protected-create descriptor fail
+            public bool FailLstatAfterChmod;       // the first lstat after a successful fchmod fails (a transient lookup error)
+            public int LastChmod = -1;
+            private bool chmodded;
             private readonly Dictionary<int, Fd> fds = new Dictionary<int, Fd>();
             private int next = 3;
             private readonly string unnamedRoot = Path.Combine(Path.GetTempPath(), "kmc-sim-unnamed-" + Guid.NewGuid().ToString("N"));
@@ -285,7 +294,7 @@ namespace KingmakerMountedCombat.Tests
                     if (linked || File.Exists(path) || System.IO.Directory.Exists(path)) return Fail(Flags.EEXIST);
                     var stream = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, mode == 0 ? FileShare.Delete : FileShare.Read | FileShare.Delete);
                     ProtectedCreated++;
-                    return Add(new Fd { Path = path, Stream = stream });
+                    return Add(new Fd { Path = path, Stream = stream, Protected = true, Bits = mode == 0 && !IgnoresPermissionBits ? 0u : 0x1A4u });
                 }
                 if ((linked || reparse) && (flags & Flags.NoFollow) != 0) return Fail(Flags.ELOOP);
                 if (linked) path = target;
@@ -305,21 +314,24 @@ namespace KingmakerMountedCombat.Tests
             public int Read(int fd, byte[] buffer, int count) { var f = fds[fd]; if (f.Directory) return Fail(21); return f.Stream.Read(buffer, 0, count); }
             public int Write(int fd, byte[] buffer, int count) { fds[fd].Stream.Write(buffer, 0, count); return count; }
             public int Fsync(int fd) { fds[fd].Stream.Flush(true); return 0; }
-            public int Fchmod(int fd, int mode) => 0;   // readability is observable after Close in this simulation (the exclusive share mode ends there)
+            public int Fchmod(int fd, int mode) { fds[fd].Bits = (uint)mode; LastChmod = mode; chmodded = true; return 0; }   // readability is observable after Close here
             public int Fstat(int fd, out PosixIdentity identity)
             {
                 var f = fds[fd];
-                identity = f.Directory ? new PosixIdentity { Mode = 0x4000 } : Identity(f.Stream.SafeFileHandle, 0x8000);
+                identity = default(PosixIdentity);
+                if (f.Protected && FailProtectedFstat > 0) { FailProtectedFstat--; return Fail(Flags.EACCES); }
+                identity = f.Directory ? new PosixIdentity { Mode = 0x4000 } : Identity(f.Stream.SafeFileHandle, 0x8000 | f.Bits);
                 return 0;
             }
             public int Lstat(string path, out PosixIdentity identity)
             {
                 identity = default(PosixIdentity);
+                if (FailLstatAfterChmod && chmodded) { FailLstatAfterChmod = false; return Fail(Flags.EACCES); }
                 if (Links.ContainsKey(Full(path)) && File.Exists(path)) { identity.Mode = 0xA000; return 0; }
                 using (var handle = CreateFileW(path, 0x80, 7, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero))
                 {
                     if (handle.IsInvalid) return Fail(Flags.ENOENT);
-                    identity = Identity(handle, System.IO.Directory.Exists(path) ? 0x4000u : 0x8000u);
+                    identity = Identity(handle, System.IO.Directory.Exists(path) ? 0x4000u : 0x8000u | 0x1A4u);
                     return 0;
                 }
             }
@@ -331,7 +343,21 @@ namespace KingmakerMountedCombat.Tests
                 DescriptorLinks++;
                 return 0;
             }
-            public int Unlink(string path) { File.Delete(path); return 0; }
+            public int Unlink(string path) { Unlinked++; File.Delete(path); return 0; }
+            public int Unlinked;
+            public int Truncate(int fd) { var s = fds[fd].Stream; s.SetLength(0); s.Position = 0; return 0; }
+            public int ReadAt(int fd, byte[] buffer, int count, long offset)
+            {
+                var s = fds[fd].Stream; s.Flush(); s.Position = offset; var total = 0; int n;
+                while (total < count && (n = s.Read(buffer, total, count - total)) > 0) total += n;
+                s.Position = s.Length; return total;
+            }
+            // A Linux read lease is refused while another descriptor holds the file open for writing: simulated by an open that excludes writers.
+            public int WriterLeaseFree(int fd)
+            {
+                try { using (new FileStream(fds[fd].Path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete)) return 0; }
+                catch (IOException) { return Fail(Flags.EAGAIN); }
+            }
             public int Close(int fd)
             {
                 var f = fds[fd]; fds.Remove(fd);
@@ -343,7 +369,8 @@ namespace KingmakerMountedCombat.Tests
             {
                 FileInformation info;
                 if (!GetFileInformationByHandle(handle, out info)) throw new IOException("simulation: file information unavailable");
-                return new PosixIdentity { Device = info.VolumeSerialNumber, Inode = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow, Mode = mode };
+                return new PosixIdentity { Device = info.VolumeSerialNumber, Inode = ((ulong)info.FileIndexHigh << 32) | info.FileIndexLow, Mode = mode,
+                                           Size = ((long)info.FileSizeHigh << 32) | info.FileSizeLow };
             }
             [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
             private struct FileInformation
@@ -631,6 +658,165 @@ namespace KingmakerMountedCombat.Tests
                     }
                 };
                 if (pathname) Posix(new SimulatedPosix(), body); else body();
+            }
+        }
+
+        // ===== PR-4 round 11 (owner instruction 2026-11-27a section 7) =====
+        private static void UnixFallbackAttemptIsOwned()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            foreach (var variant in new[] { "write fault", "write fault then a replacement of the name", "metadata failures" })
+            {
+                var sim = new SimulatedPosix { UnnamedUnsupported = true };
+                if (variant == "metadata failures") { sim.FailProtectedFstat = 2; sim.FailLstatAfterChmod = true; }
+                Posix(sim, () =>
+                {
+                    using (var folders = new Folders())
+                    {
+                        var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                        var plain = Path.Combine(folders.UserData, Applied);
+                        const string foreign = "someone else's file";
+                        folders.Request(forA);
+                        if (variant != "metadata failures")
+                            host.files.StagingWriteSeam = stream => { host.files.StagingWriteSeam = null; return new HalfWriteFault(stream, () => { }); };
+                        var outcomes = new List<string>(); var counts = new List<int>(); var duringPlain = new List<string>();
+                        for (var poll = 0; poll < 6; poll++)
+                        {
+                            string outcome;
+                            try { outcome = Run(host, session).ToString(); } catch (IOException) { outcome = "IOException"; }
+                            outcomes.Add(outcome); counts.Add(folders.UserFiles().Length); duringPlain.Add(ObserveShared(plain));
+                            if (poll == 0 && variant.Contains("replacement")) { File.Move(plain, Path.Combine(folders.Root, "renamed-away")); File.WriteAllText(plain, foreign); }
+                            if (outcome == "Apply" || outcome == "FinishedApplied") break;
+                        }
+                        var archivesOfA = Directory.GetFiles(folders.UserData, Request + "*" + HorseTripRepairPolicy.AppliedSuffix).Count(f => File.ReadAllText(f) == forA);
+                        var replaced = variant.Contains("replacement");
+                        Console.WriteLine("    R10-F1/R9-F3 (" + variant + "): polls " + string.Join(", ", outcomes) + "; folder file counts " + string.Join("/", counts) + "; plain name " + string.Join(" -> ", duringPlain) +
+                            "; protected creates " + sim.ProtectedCreated + ", unlinks " + sim.Unlinked + ", final mode " + Convert.ToString(sim.LastChmod, 8) + "; A's archives " + archivesOfA + ", removals " + host.Removals);
+                        TestRunner.True(sim.Unlinked == 0 && archivesOfA == 1 && host.Removals == 1 && sim.LastChmod == 0x180 && counts.All(c => c <= 4) &&
+                            sim.ProtectedCreated == (replaced ? 2 : 1) && duringPlain.Take(duringPlain.Count - 1).All(o => o == "not readable" || o == "absent" || o == foreign) &&
+                            (!replaced || File.ReadAllText(plain) == foreign) && !File.Exists(Path.Combine(folders.UserData, Claimed)),
+                            "R10-F1/R9-F3 (" + variant + "): a name was unlinked, a second file was named without a replacement, partial bytes were readable, the mode was wider than owner-only, or A was not published once.");
+                    }
+                });
+            }
+        }
+
+        private static void UnixFallbackNeedsEffectiveProtection()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var sim = new SimulatedPosix { DescriptorLinkFails = true, IgnoresPermissionBits = true };
+            Posix(sim, () =>
+            {
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                    var plain = Path.Combine(folders.UserData, Applied);
+                    folders.Request(forA);
+                    var threw = 0; var counts = new List<int>();
+                    for (var poll = 0; poll < 3; poll++) { if (Throws(() => Run(host, session))) threw++; counts.Add(folders.UserFiles().Length); }
+                    var plainLength = File.Exists(plain) ? new FileInfo(plain).Length : -1;
+                    Console.WriteLine("    R5-F1 (mount-defined permissions): 3 polls threw " + threw + ", file counts " + string.Join("/", counts) + ", the terminal holds " + plainLength +
+                        " bytes (never a partial payload), protected creates " + sim.ProtectedCreated + ", claim kept " + File.Exists(Path.Combine(folders.UserData, Claimed)) + ", removals " + host.Removals);
+                    TestRunner.True(threw == 3 && counts.All(c => c == counts[0]) && plainLength == 0 && sim.ProtectedCreated == 1 && File.Exists(Path.Combine(folders.UserData, Claimed)),
+                        "R5-F1: the fallback wrote payload bytes without effective protection, named more files, or lost the claim.");
+                }
+            });
+        }
+
+        private static void UnixWriterIsExcluded()
+        {
+            var sim = new SimulatedPosix();
+            Posix(sim, () =>
+            {
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession();
+                    var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+                    var outcomes = new List<string>();
+                    using (var writer = new FileStream(Path.Combine(folders.UserData, Request), FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete))
+                    {
+                        var first = System.Text.Encoding.UTF8.GetBytes(HorseTripRepairPolicy.FormatRequestLine("horse-A") + "\n");
+                        writer.Write(first, 0, first.Length); writer.Flush(true);
+                        for (var poll = 0; poll < 2; poll++) { try { outcomes.Add(Run(host, session).ToString()); } catch (IOException) { outcomes.Add("IOException"); } }
+                        var second = System.Text.Encoding.UTF8.GetBytes(HorseTripRepairPolicy.FormatRequestLine("horse-B") + "\n");
+                        writer.Write(second, 0, second.Length); writer.Flush(true);
+                    }
+                    var removalsWhileHeld = host.Removals;
+                    var completed = Run(host, session);
+                    Console.WriteLine("    R10-F2: polls while the Unix writer held the request: " + string.Join(", ", outcomes) + " (removals " + removalsWhileHeld + "); completed -> " + completed + ", removals " + host.Removals);
+                    TestRunner.True(outcomes.All(o => o == "IOException") && removalsWhileHeld == 0 && completed == HorseTripRepairDecision.Malformed && host.Removals == 0 &&
+                        Candidates(a).Count == 1 && Candidates(b).Count == 1, "R10-F2: a Unix request still being written was decided or removed something.");
+                }
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); host.Loaded.Add(LegacyHorse("horse-A"));
+                    folders.Request(HorseTripRepairPolicy.FormatRequestLine("horse-A"));
+                    var decided = Run(host, new HorseTripRepairSession());
+                    TestRunner.True(decided == HorseTripRepairDecision.Apply && host.Removals == 1, "R10-F2 control: a completed single-horse Unix request did not apply.");
+                }
+            });
+        }
+
+        private static void RecoveryNamesAndMovesAreExact()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            // R9-F4: names with data after the suffix (a trailing line feed cannot be a Windows filename, so the production matcher is checked
+            // directly); the exact shapes stay recognized.
+            var identity16 = new string('A', 16);
+            TestRunner.True(HorseTripRepairFiles.IsRecoverableName("0a1b2c3d.retiring") && HorseTripRepairFiles.IsRecoverableName("0a1b2c3d." + identity16 + ".settled") &&
+                HorseTripRepairFiles.IsRecoverableName(new string('b', 32) + ".retiring") && !HorseTripRepairFiles.IsRecoverableName("0a1b2c3d.retiring\n") &&
+                !HorseTripRepairFiles.IsRecoverableName("0a1b2c3d." + identity16 + ".settled\n") && !HorseTripRepairFiles.IsRecoverableName(new string('b', 32) + ".settled") &&
+                !HorseTripRepairFiles.IsRecoverableName("backup.settled"), "R9-F4: the recovery matcher accepted data after a suffix or lost an exact shape.");
+            foreach (var pathname in new[] { false, true })
+            {
+                // R10-F3: the round-8 producer's stranded C.<32 hex>.retiring entry, its completed C.<32 hex>.settled record and a queued request.
+                Action legacy = () =>
+                {
+                    using (var folders = new Folders())
+                    {
+                        var host = new Host(folders); var b = LegacyHorse("horse-B"); host.Loaded.Add(b); host.Loaded.Add(LegacyHorse("horse-C"));
+                        var stranded = Claimed + "." + Guid.NewGuid().ToString("N") + HorseTripRepairFiles.RetiringSuffix;
+                        var completed = Claimed + "." + Guid.NewGuid().ToString("N") + HorseTripRepairFiles.SettledSuffix;
+                        File.WriteAllText(Path.Combine(folders.UserData, stranded), forB);
+                        File.WriteAllText(Path.Combine(folders.UserData, completed), forA);
+                        folders.Request(forC);
+                        var session = new HorseTripRepairSession();
+                        var first = Run(host, session);
+                        var interrupted = File.Exists(Path.Combine(folders.UserData, Interrupted)) ? Archive(folders, Interrupted) : null;
+                        var second = Run(host, session);
+                        var label = pathname ? "simulated POSIX branch" : "Windows handle branch";
+                        Console.WriteLine("    R10-F3 (" + label + "): first " + first + " (Interrupted archive " + (interrupted == forB ? "of B's bytes" : "'" + interrupted + "'") + "), then " + second +
+                            "; completed record intact " + (File.Exists(Path.Combine(folders.UserData, completed)) && Archive(folders, completed) == forA) + "; removals " + string.Join(",", host.RemovedFrom));
+                        TestRunner.True(first == HorseTripRepairDecision.Interrupted && interrupted == forB && second == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-C" }) &&
+                            Candidates(b).Count == 1 && Archive(folders, completed) == forA, "R10-F3 (" + label + "): the round-8 stranded entry was skipped, ran after the queued request, or the completed record changed.");
+                    }
+                };
+                // R10-F4: a settled entry classified pending (B's bytes under A's identity) becomes the digest-matching completed record before the move.
+                Action restored = () =>
+                {
+                    using (var folders = new Folders())
+                    {
+                        var host = new Host(folders); host.Loaded.Add(LegacyHorse("horse-A"));
+                        string identity;
+                        using (var sha = SHA256.Create()) identity = BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(forA))).Replace("-", string.Empty);
+                        var settledName = Claimed + ".0a1b2c3d." + identity.Substring(0, 16) + HorseTripRepairFiles.SettledSuffix;
+                        var settledPath = Path.Combine(folders.UserData, settledName);
+                        File.WriteAllText(settledPath, forB);
+                        File.WriteAllText(Path.Combine(folders.UserData, Applied), forA);
+                        File.WriteAllText(Path.Combine(folders.UserData, ResultFile), "2026-11-27 10:00:00Z\r\n" + HorseTripRepairPolicy.AppliedResult("horse-A") + "\r\n");
+                        host.files.BeforeRecoveryMove = chosen => { host.files.BeforeRecoveryMove = null; File.WriteAllBytes(chosen, System.Text.Encoding.UTF8.GetBytes(forA)); };
+                        var outcome = Run(host, new HorseTripRepairSession());
+                        var label = pathname ? "simulated POSIX branch" : "Windows handle branch";
+                        Console.WriteLine("    R10-F4 (" + label + "): " + outcome + "; completed record kept " + (File.Exists(settledPath) && File.ReadAllText(settledPath) == forA) + ", Interrupted archive " +
+                            File.Exists(Path.Combine(folders.UserData, Interrupted)) + ", files [" + string.Join(", ", folders.UserFiles()) + "], removals " + host.Removals);
+                        TestRunner.True(outcome == HorseTripRepairDecision.NoRequest && File.ReadAllText(settledPath) == forA && Archive(folders, Applied) == forA &&
+                            !File.Exists(Path.Combine(folders.UserData, Interrupted)) && !File.Exists(Path.Combine(folders.UserData, Claimed)) && host.Removals == 0,
+                            "R10-F4 (" + label + "): a completed record restored before the move was recovered as interrupted work.");
+                    }
+                };
+                if (pathname) { Posix(new SimulatedPosix(), legacy); Posix(new SimulatedPosix(), restored); } else { legacy(); restored(); }
             }
         }
 
