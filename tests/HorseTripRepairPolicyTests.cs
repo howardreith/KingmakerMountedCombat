@@ -1608,7 +1608,7 @@ namespace KingmakerMountedCombat.Tests
             catch (IOException) { return "not readable"; }
         }
 
-        // Owner instruction 2026-11-26f section 7, PR-4 review R5-F1 on the pathname branch (Windows fallback execution through the test seam;
+        // Owner instruction 2026-11-26f section 7, PR-4 review R5-F1 on the pathname branch (round 9: Windows fallback execution through the test seam; since round 10 over the simulated POSIX boundary;
         // the production Linux linkat/libc link variants are not executed on this machine): the payload is written and flushed through the
         // private file's handle and published by creating a hard link to it. During the partial-write fault the terminal name is observed
         // with a reader sharing write access (absent), and an entry of someone else's is created there; the attempt fails, the claim stays,
@@ -1648,7 +1648,7 @@ namespace KingmakerMountedCombat.Tests
             finally { HorseTripRepairFiles.ForcePathnameOperations = false; UnixFiles.Calls = null; }
         }
 
-        // Owner instruction 2026-11-26f section 7, PR-4 review R4-F3 on the pathname branch (Windows fallback execution): a replacement B took the
+        // Owner instruction 2026-11-26f section 7, PR-4 review R4-F3 on the pathname branch (round 9: Windows fallback execution; since round 10 over the simulated POSIX boundary): a replacement B took the
         // private retiring name after A's bytes were verified there; the settling move takes B; then the second check (variant 1) or the move
         // back (variant 2) fails. B's settled entry names A's identity, so recovery in the same session (and in a fresh session) restores it to
         // the claim name: B receives its byte-exact Interrupted archive and named result before the queued request C, B's fact stays, A is
