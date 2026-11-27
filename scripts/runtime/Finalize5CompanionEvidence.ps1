@@ -179,6 +179,9 @@ function Assert-KmcFinalize5CompanionNames($Request,$Observations,[bool]$Cold){
         $umm=$n.ummEntry
         if($null-eq$umm-or$umm.windowOpen-ne$true-or[int]$umm.tab-ne0-or[string]$umm.id-cne'KingmakerMountedCombat'-or[string]$umm.displayName-cne"Mr. Bard's Kingmaker Mounted Combat"-or
            $umm.active-ne$true-or$umm.optionsPanel-ne$false-or$umm.chargeEnabled-ne$true){throw 'The UMM entry is not the public name with no options page and Mounted Charge on.'}
+        # PR-4 round 13 (R12-F6, OWNER AMENDMENT revision 1): the repair-only Horse Trip maintenance panel is the only authorized OnGUI content; an
+        # observation from before it existed carries no maintenancePanel field; when present it must be a boolean (optionsPanel stays false).
+        if($umm.PSObject.Properties.Name -contains 'maintenancePanel' -and $umm.maintenancePanel -isnot [bool]){throw 'The UMM entry maintenance-panel observation is not a boolean.'}
         Assert-KmcFinalize5ContinuationPlan $Observations ([string]$dog.id) 'producer'
         foreach($shot in $script:KmcF5ProducerShots){Assert-KmcFinalize5Shot $n.shots $shot $root}
         return

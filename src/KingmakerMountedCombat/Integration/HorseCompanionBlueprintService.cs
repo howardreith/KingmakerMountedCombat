@@ -315,7 +315,9 @@ namespace KingmakerMountedCombat.Integration
         {
             var player = Game.Instance?.Player;
             var party = player?.PartyCharacters;
-            if (party == null || horseFeature == null) { return; }
+            // PR-4 round 13 (R12-F2): no party (a world discard or unload) drops every repair offer and consent.
+            if (party == null) { ProcessTripRepairConsole(false); return; }
+            if (horseFeature == null) { return; }
 
             observedOwnersThisUpdate.Clear();
             expiredObservationOwners.Clear();

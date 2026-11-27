@@ -4,9 +4,10 @@ param()
 # docs/missions/mmr-split/). It declares exactly these checks and nothing broader (docs/VALIDATION-POLICY.md 3):
 #   1. Test-MmrHorseTripNativeContract.ps1: MMR-06 installed data (the stock Mammoth's AddFacts carry TrippingBite =
 #      ManeuverOnAttack(Bite, Trip); the Dog and Wolf keep it) and the compiled Horse inherited-fact filter, repair-candidate
-#      predicate, the single owner-request removal path and the user-data repair folder, on genuine Kingmaker objects.
-#   The request lifecycle itself (claim-first selection, Undecided -> Decided -> Reported -> Archived, failure injection on real
-#   folders) is exercised by the component runner (tests/HorseTripRepairPolicyTests.cs), which the Fast tier runs.
+#      predicate, the single native removal boundary of the confirmed in-game repair action, its intent-only UI, its lifecycle
+#      invalidation and the absence of the withdrawn file-request protocol (OWNER AMENDMENT revision 1), on genuine Kingmaker objects.
+#   The confirmed action itself (snapshots, intent, consent, guarded dispatch, classified outcome, stale/gate/reload/reporting cases, inert
+#   legacy files) is exercised by the component runner (tests/HorseTripRepairPolicyTests.cs) through the shared HorseTripRepairUpdater.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
 #   (Mounted Shield registration, amounts, AC/check writes, publication, embedded icon identity); Test-MountedArcheryFeatContract.ps1;
 #   chunk7\Test-Chunk7RangerSelectionContract.ps1 (Horse/Riding Dog selection); chunk7\Test-Chunk7ReplaySubscriberContract.ps1

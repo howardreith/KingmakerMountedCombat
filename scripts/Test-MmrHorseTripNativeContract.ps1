@@ -189,8 +189,8 @@ function New-LiveFeature($Blueprint, $Source, $Item, $Cutscene) {
     $feature
 }
 # Existing horses (review R3 R1-F1): nothing is removed automatically. The saved state cannot tell the alpha-1 inherited copy
-# from a sourceless copy granted another way, so the product only reports candidates and removes one fact from one horse on
-# the owner's written request (HorseTripRepairPolicy; tests/HorseTripRepairPolicyTests.cs covers the request lifecycle).
+# from a sourceless copy granted another way, so the product only reports candidates and removes one fact from one horse through the
+# owner's confirmed in-game action (PR-4 rounds 12-13, OWNER AMENDMENT revision 1; tests/HorseTripRepairPolicyTests.cs covers the action).
 $candidate = $service.GetMethod('IsTripRepairCandidate', $any)
 $horseGuid = $service.GetField('UnitGuid', $any).GetRawConstantValue()
 $mammothGuid = $service.GetField('MammothUnitGuid', $any).GetRawConstantValue()
@@ -233,8 +233,16 @@ function CalleeNames([Reflection.MethodBase]$Method) {
 $removeCalls = CalleeNames ($service.GetMethod('RemoveTripFact', $any))
 Check (@($removeCalls | Where-Object { $_ -ceq 'HorseTripRemoval.RemoveExactly' }).Count -eq 1 -and @($removeCalls | Where-Object { $_ -like '*.Info' -or $_ -like '*.get_CharacterName' }).Count -eq 0) ('RemoveTripFact returns HorseTripRemoval.RemoveExactly''s classification with no logger or display-name read (' + ($removeCalls -join ',') + ')')
 $processCalls = CalleeNames ($service.GetMethod('ProcessTripRepairConsole', $any))
-$executeIndex = [array]::IndexOf([string[]]$processCalls, 'HorseTripRepairConsole`2.Execute'); $infoIndex = [array]::IndexOf([string[]]$processCalls, 'IModLogger.Info')
-Check ($executeIndex -ge 0 -and @($processCalls | Where-Object { $_ -like '*TripRepairAdmitted' }).Count -eq 1) ('the update-path ProcessTripRepairConsole executes the console behind the world-write gate (TripRepairAdmitted) (' + ($processCalls -join ',') + ')')
+$hostType = @($service.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'TripRepairHost' })[0]
+$gateCalls = CalleeNames ($hostType.GetMethod('GateAdmits', $any)); $hostRemoveCalls = CalleeNames ($hostType.GetMethod('Remove', $any))
+Check (@($processCalls | Where-Object { $_ -ceq 'HorseTripRepairUpdater.Run' }).Count -eq 1 -and @($gateCalls | Where-Object { $_ -like '*TripRepairAdmitted' }).Count -eq 1 -and
+    @($hostRemoveCalls | Where-Object { $_ -like '*RemoveTripFact' }).Count -eq 1) ('PR-4 round 13 (R12-F7): the update path runs the shared HorseTripRepairUpdater.Run (the orchestration the component tests drive) with the service host, whose gate is TripRepairAdmitted and whose removal is RemoveTripFact (' + ($processCalls -join ',') + ')')
+# PR-4 round 13 (R12-F1/R12-F2): every service stop drops the repair consent: CompositionRoot's disable path (SetEnabled) and failure stop
+# (PerformFailureCleanup) call InvalidateTripRepair, the service's Dispose calls it, and a missing party runs the updater as unavailable.
+$rootType = KmcType 'KingmakerMountedCombat.CompositionRoot'
+$setEnabledCalls = CalleeNames ($rootType.GetMethod('SetEnabled', $any)); $cleanupCalls = CalleeNames ($rootType.GetMethod('PerformFailureCleanup', $any)); $disposeCalls = CalleeNames ($service.GetMethod('Dispose', $any))
+Check (@($setEnabledCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and @($cleanupCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and
+    @($disposeCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1) 'PR-4 round 13 (R12-F1): the disable path, the failure stop and the service Dispose all invalidate the repair consent'
 $guiCalls = CalleeNames ($service.GetMethod('DrawTripRepairGui', $any))
 Check (@($guiCalls | Where-Object { $_ -like '*.RemoveFact' -or $_ -like '*.Execute' -or $_ -like '*.Observe' -or $_ -like '*RemoveTripFact' -or $_ -like '*get_Progression' -or $_ -like '*get_Descriptor' }).Count -eq 0 -and
     @($guiCalls | Where-Object { $_ -like '*.Select' -or $_ -like '*.Confirm' -or $_ -like '*.Cancel' }).Count -ge 3) ('the maintenance surface (DrawTripRepairGui) records intent only (Select/Confirm/Cancel) and never reads or changes a unit or fact (' + ($guiCalls -join ',') + ')')

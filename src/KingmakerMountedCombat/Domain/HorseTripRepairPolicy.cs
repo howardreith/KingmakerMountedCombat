@@ -115,20 +115,20 @@ namespace KingmakerMountedCombat.Domain
     // never holds the unit or the fact; the console binds the token to them privately and revalidates them at execution.
     public sealed class HorseTripRepairOffer
     {
-        public HorseTripRepairOffer(long token, string horseId, string horseName, string ownerName, int candidateCount)
+        public HorseTripRepairOffer(long token, string horseId, string horseName, string ownerName, int candidateCount, bool eligible)
         {
-            Token = token; HorseId = horseId; HorseName = horseName; OwnerName = ownerName; CandidateCount = candidateCount;
+            Token = token; HorseId = horseId; HorseName = horseName; OwnerName = ownerName; CandidateCount = candidateCount; Eligible = eligible;
         }
         public long Token { get; }
         public string HorseId { get; }
         public string HorseName { get; }
         public string OwnerName { get; }
         public int CandidateCount { get; }
-        // Exactly one candidate: more than one cannot be singled out (the inherited copy is not identifiable), so nothing is offered.
-        public bool Eligible => CandidateCount == 1;
+        // Exactly one candidate on a horse with a stable id: more than one cannot be singled out (the inherited copy is not identifiable).
+        public bool Eligible { get; }
     }
 
-    // The classified result of one executed (or refused) confirmation, recorded before any logging or display.
+    // The classified result of one confirmation, recorded before any logging or display. Disposition is the player-facing text.
     public sealed class HorseTripRepairRecord
     {
         public HorseTripRepairRecord(string horseId, string horseName, string disposition, HorseTripRemovalResult? removal)
@@ -137,19 +137,64 @@ namespace KingmakerMountedCombat.Domain
         }
         public string HorseId { get; }
         public string HorseName { get; }
-        // "removed", "not-removed:<outcome>", "refused:<reason>" or "stale:<reason>".
         public string Disposition { get; }
         public HorseTripRemovalResult? Removal { get; }
         public override string ToString() => "horse=" + HorseId + "; name=" + HorseName + "; disposition=" + Disposition +
             (Removal.HasValue ? "; outcome=" + Removal.Value.Outcome + "; " + Removal.Value.Detail : string.Empty);
+
+        // PR-4 round 13 (R12-F5): truthful terminal text for every classified outcome.
+        public static string DispositionOf(HorseTripRemovalOutcome outcome)
+        {
+            switch (outcome)
+            {
+                case HorseTripRemovalOutcome.Removed: return "removed";
+                case HorseTripRemovalOutcome.Unchanged: return "not removed: the horse was verified unchanged";
+                case HorseTripRemovalOutcome.NotAttempted: return "not removed: the horse's features could not be read, so nothing was attempted";
+                case HorseTripRemovalOutcome.Inconsistent: return "uncertain: the horse's features changed unexpectedly (more or other than the one fact); check the horse before saving";
+                case HorseTripRemovalOutcome.Unreadable: return "uncertain: the removal ran but its result could not be verified; check the horse before saving";
+                default: return "uncertain: " + outcome + "; check the horse before saving";
+            }
+        }
     }
 
-    // PR-4 round 12: the confirmed maintenance action. UI drawing and dialog callbacks only call Select/Confirm/Cancel (intent); the
-    // service's ordinary update calls Observe and Execute, the only places that read or change game objects. A consent is bound to the
-    // live unit OBJECT, its stable id, the exact fact INSTANCE and the load/session epoch; it is consumed once, before anything fallible,
-    // and the classified record is stored before the caller logs or displays it, so a reporting failure can never repeat a removal.
-    // A new session marker (a load, an area or session replacement), disabling, unloading or a changed candidate drops the consent; it
-    // is never persisted.
+    // PR-4 round 13 (R12-F7): the game-facing calls of the repair update, implemented by HorseCompanionBlueprintService in production and by
+    // fakes in the tests; both drive the same HorseTripRepairUpdater.Run, so the tests exercise the production orchestration.
+    public interface IHorseTripRepairHost<TUnit, TFact> where TUnit : class where TFact : class
+    {
+        bool PartyAvailable { get; }
+        object SessionMarker();
+        IEnumerable<HorseTripRepairConsole<TUnit, TFact>.Live> LoadedHorses();
+        bool GateAdmits();
+        bool Loaded(TUnit unit);
+        string IdOf(TUnit unit);
+        IList<TFact> CandidatesOf(TUnit unit);
+        HorseTripRemovalResult Remove(TUnit unit, TFact fact);
+        void Report(HorseTripRepairRecord record);
+    }
+
+    // PR-4 round 13: one ordinary update of the repair action. An unavailable party (a world discard or unload) drops every offer and
+    // consent. An armed confirmation is executed FIRST (taken before any fallible refresh), then the presentation snapshots are rebuilt only
+    // when the UI asked for them, and the stored record is reported last (a reporting failure leaves the record and repeats nothing).
+    public static class HorseTripRepairUpdater
+    {
+        public static HorseTripRepairRecord Run<TUnit, TFact>(HorseTripRepairConsole<TUnit, TFact> console, IHorseTripRepairHost<TUnit, TFact> host)
+            where TUnit : class where TFact : class
+        {
+            if (!host.PartyAvailable) { console.Invalidate(); return null; }
+            var marker = host.SessionMarker();
+            var record = console.Execute(marker, host);
+            if (console.TakePresentationRequest()) console.Observe(marker, host.LoadedHorses());
+            if (record != null) host.Report(record);
+            return record;
+        }
+    }
+
+    // PR-4 round 12-13: the confirmed maintenance action. UI drawing and dialog callbacks only call RequestPresentation, Select, Confirm
+    // and Cancel (intent); HorseTripRepairUpdater.Run calls Observe and Execute in the ordinary update, the only places that read or change
+    // game objects. A consent is bound to the live unit OBJECT, its stable id, the exact fact INSTANCE and the load/session epoch; it is
+    // consumed once, before anything fallible, every validation failure produces a terminal record naming the confirmed horse, and the
+    // record is stored before it is reported. A new session marker, an unavailable party, disabling, unloading or a changed candidate
+    // drops the consent; it is never persisted.
     public sealed class HorseTripRepairConsole<TUnit, TFact> where TUnit : class where TFact : class
     {
         public struct Live
@@ -162,10 +207,17 @@ namespace KingmakerMountedCombat.Domain
             public long Token, Epoch; public TUnit Unit; public string Id, Name; public TFact Fact;
         }
 
+        private sealed class Consent
+        {
+            public Binding Binding; public string ConfirmedName;
+        }
+
         private readonly List<Binding> bindings = new List<Binding>();
         private object session;
         private long epoch, nextToken;
-        private Binding selected, confirmed;
+        private Binding selected;
+        private Consent confirmed;
+        private bool presentationRequested;
 
         public IList<HorseTripRepairOffer> Offers { get; private set; } = new HorseTripRepairOffer[0];
         public long SelectedToken => selected?.Token ?? -1;
@@ -173,11 +225,18 @@ namespace KingmakerMountedCombat.Domain
         public HorseTripRepairRecord LastRecord { get; private set; }
         public int RemovalCount { get; private set; }
         public int ExecutedCount { get; private set; }
+        public int ObserveCount { get; private set; }
 
-        // Update path: the loaded party horses of this enumeration. A new session marker starts a new epoch (all consent dropped).
+        // Intent (UI): the panel is being drawn, so the next update rebuilds its snapshots (no feature scans while it is closed).
+        public void RequestPresentation() => presentationRequested = true;
+        public bool TakePresentationRequest() { var requested = presentationRequested; presentationRequested = false; return requested; }
+
+        // Update path: the loaded party horses. A new session marker starts a new epoch (all bindings and consent dropped). A binding is
+        // kept only for the same unit object, the same stable id and the same single fact instance; a horse without a stable id is not offered.
         public void Observe(object sessionMarker, IEnumerable<Live> live)
         {
-            if (!ReferenceEquals(sessionMarker, session)) { session = sessionMarker; epoch++; bindings.Clear(); selected = confirmed = null; }
+            ObserveCount++;
+            if (!ReferenceEquals(sessionMarker, session)) { session = sessionMarker; epoch++; bindings.Clear(); selected = null; confirmed = null; }
             var next = new List<Binding>();
             var offers = new List<HorseTripRepairOffer>();
             foreach (var horse in live ?? Enumerable.Empty<Live>())
@@ -185,15 +244,15 @@ namespace KingmakerMountedCombat.Domain
                 if (horse.Unit == null) continue;
                 var candidates = horse.Candidates ?? new TFact[0];
                 if (candidates.Count == 0) continue;
-                var fact = candidates.Count == 1 ? candidates[0] : null;
-                var kept = bindings.FirstOrDefault(b => ReferenceEquals(b.Unit, horse.Unit) && ReferenceEquals(b.Fact, fact) && b.Epoch == epoch);
-                var binding = kept ?? new Binding { Token = ++nextToken, Epoch = epoch, Unit = horse.Unit, Id = horse.Id, Name = horse.Name, Fact = fact };
+                var fact = candidates.Count == 1 && !string.IsNullOrEmpty(horse.Id) ? candidates[0] : null;
+                var binding = bindings.FirstOrDefault(b => ReferenceEquals(b.Unit, horse.Unit) && ReferenceEquals(b.Fact, fact) && b.Epoch == epoch &&
+                    string.Equals(b.Id, horse.Id, StringComparison.Ordinal)) ?? new Binding { Token = ++nextToken, Epoch = epoch, Unit = horse.Unit, Id = horse.Id, Fact = fact };
+                binding.Name = horse.Name;
                 next.Add(binding);
-                offers.Add(new HorseTripRepairOffer(binding.Token, horse.Id, horse.Name, horse.Owner, candidates.Count));
+                offers.Add(new HorseTripRepairOffer(binding.Token, horse.Id, horse.Name, horse.Owner, candidates.Count, fact != null));
             }
             bindings.Clear(); bindings.AddRange(next);
             if (selected != null && !bindings.Contains(selected)) selected = null;
-            if (confirmed != null && !bindings.Contains(confirmed)) confirmed = null;
             Offers = offers.AsReadOnly();
         }
 
@@ -206,50 +265,63 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        // Intent (UI): the explicit confirmation of the selected offer.
+        // Intent (UI): the explicit confirmation of the selected offer; the name shown at confirmation is the name recorded.
         public bool Confirm(long token)
         {
             if (selected == null || selected.Token != token) return false;
-            confirmed = selected;
+            confirmed = new Consent { Binding = selected, ConfirmedName = selected.Name };
             return true;
         }
 
         public void Cancel() { selected = null; confirmed = null; }
 
-        // Disabling or unloading: every binding and consent is dropped.
+        // Disabling, a failure stop, unloading or an unavailable party: every binding and consent is dropped and no reference kept.
         public void Invalidate()
         {
-            bindings.Clear(); selected = confirmed = null; session = null; epoch++;
+            bindings.Clear(); selected = null; confirmed = null; session = null; epoch++;
             Offers = new HorseTripRepairOffer[0];
         }
 
-        // Update path: executes the armed consent once, after rechecking the session, the world-write gate, the live object and its exact
-        // single candidate. Returns the record (also LastRecord), or null when nothing was armed.
-        public HorseTripRepairRecord Execute(object sessionMarker, bool gateAdmits, Func<TUnit, bool> loaded, Func<TUnit, IList<TFact>> candidatesOf,
-            Func<TUnit, TFact, HorseTripRemovalResult> removeExactly)
+        // Update path: executes the armed consent once. The consent is taken before anything fallible; the session, the world-write gate,
+        // the live object, its stable id and its exact single candidate are rechecked; every refusal is a terminal record for that horse.
+        public HorseTripRepairRecord Execute(object sessionMarker, IHorseTripRepairHost<TUnit, TFact> host)
         {
             var consent = confirmed;
             if (consent == null) return null;
-            confirmed = null; selected = null;   // consumed once, before anything fallible
+            confirmed = null; selected = null;
             ExecutedCount++;
-            HorseTripRepairRecord record;
-            IList<TFact> current = null;
-            if (!ReferenceEquals(sessionMarker, session) || consent.Epoch != epoch)
-                record = new HorseTripRepairRecord(consent.Id, consent.Name, "stale:the game was loaded or the session changed after confirmation", null);
-            else if (!gateAdmits)
-                record = new HorseTripRepairRecord(consent.Id, consent.Name, "refused:the world is not settled (saving, loading, an area transition or a restoration)", null);
-            else if (!loaded(consent.Unit))
-                record = new HorseTripRepairRecord(consent.Id, consent.Name, "stale:the confirmed horse is no longer loaded", null);
-            else if ((current = candidatesOf(consent.Unit) ?? new TFact[0]).Count != 1 || !ReferenceEquals(current[0], consent.Fact))
-                record = new HorseTripRepairRecord(consent.Id, consent.Name, "stale:the horse's candidate changed after confirmation (" + current.Count + " now)", null);
-            else
+            var b = consent.Binding;
+            var name = consent.ConfirmedName;
+            HorseTripRepairRecord record = null;
+            TFact verified = null;
+            try
             {
-                var removal = removeExactly(consent.Unit, consent.Fact);
-                if (removal.Outcome == HorseTripRemovalOutcome.Removed) RemovalCount++;
-                record = new HorseTripRepairRecord(consent.Id, consent.Name,
-                    removal.Outcome == HorseTripRemovalOutcome.Removed ? "removed" : "not-removed:" + removal.Outcome, removal);
+                IList<TFact> current;
+                if (!ReferenceEquals(sessionMarker, session) || b.Epoch != epoch)
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the game was loaded or the session changed after confirmation; confirm again", null);
+                else if (!host.GateAdmits())
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the world was not settled (saving, loading, an area transition or a restoration); confirm again", null);
+                else if (!host.Loaded(b.Unit))
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the confirmed horse is no longer loaded; confirm again", null);
+                else if (string.IsNullOrEmpty(b.Id) || !string.Equals(host.IdOf(b.Unit), b.Id, StringComparison.Ordinal))
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the horse's stable identity changed after confirmation; confirm again", null);
+                else if ((current = host.CandidatesOf(b.Unit) ?? new TFact[0]).Count != 1 || !ReferenceEquals(current[0], b.Fact))
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the horse's Tripping Bite fact changed after confirmation (" + current.Count + " candidate(s) now); confirm again", null);
+                else verified = b.Fact;
             }
-            bindings.Remove(consent);
+            catch (Exception exception)
+            {
+                record = new HorseTripRepairRecord(b.Id, name, "not removed: the horse could not be checked (" + exception.GetType().Name + "); nothing was attempted", null);
+            }
+            if (verified != null)
+            {
+                HorseTripRemovalResult removal;
+                try { removal = host.Remove(b.Unit, verified); }
+                catch (Exception exception) { removal = new HorseTripRemovalResult(HorseTripRemovalOutcome.Unreadable, exception, "the removal path threw " + exception.GetType().Name); }
+                if (removal.Outcome == HorseTripRemovalOutcome.Removed) RemovalCount++;
+                record = new HorseTripRepairRecord(b.Id, name, HorseTripRepairRecord.DispositionOf(removal.Outcome), removal);
+            }
+            bindings.Remove(b);
             LastRecord = record;
             return record;
         }

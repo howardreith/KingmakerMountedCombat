@@ -110,11 +110,12 @@ namespace KingmakerMountedCombat.Integration
                 "from that horse. Bite and hoof attacks stay.");
         }
 
-        // The load/session context a consent is bound to: a new Player object (every load) or a new loaded area is a new marker.
+        // The load/session context a consent is bound to: a new Player object (every load) or a new loaded area STATE (every area load,
+        // also a new visit to the same area blueprint; PR-4 round 13, R12-F2) is a new marker.
         private object TripRepairSessionMarker()
         {
             var player = Kingmaker.Game.Instance?.Player;
-            var area = Kingmaker.Game.Instance?.CurrentlyLoadedArea;
+            var area = Kingmaker.Game.Instance?.State?.LoadedAreaState;
             if (tripRepairSessionMarker == null || !ReferenceEquals(player, tripRepairSessionPlayer) || !ReferenceEquals(area, tripRepairSessionArea))
             {
                 tripRepairSessionPlayer = player; tripRepairSessionArea = area; tripRepairSessionMarker = new object();
@@ -126,27 +127,41 @@ namespace KingmakerMountedCombat.Integration
         // snapshots go to the UI; an armed confirmation is executed once after the session, the world-write gate, the live object and its
         // exact single candidate are rechecked. The record is stored by the console before it is logged here, so a logging failure cannot
         // repeat the removal. Old request/result files in the KMC user-data folder are never read.
-        private void ProcessTripRepairConsole()
+        // PR-4 round 13 (R12-F7): the production orchestration is HorseTripRepairUpdater.Run, shared with the tests; this host supplies its
+        // game-facing calls. A missing party (a world discard or unload) is reported as unavailable, which drops every offer and consent.
+        private void ProcessTripRepairConsole(bool partyAvailable = true)
         {
-            var marker = TripRepairSessionMarker();
             try
             {
-                tripRepair.Observe(marker, loadedHorsesThisUpdate.Select(horse => new HorseTripRepairConsole<UnitEntityData, Feature>.Live
-                {
-                    Unit = horse, Id = horse.UniqueId, Name = horse.CharacterName, Owner = horse.Descriptor?.Master.Value?.CharacterName,
-                    Candidates = horse.Descriptor?.Progression?.Features == null ? new List<Feature>() : TripRepairCandidates(horse)
-                }).ToList());
-                var record = tripRepair.Execute(marker, TripRepairAdmitted(),
-                    unit => loadedHorsesThisUpdate.Contains(unit) && unit.Descriptor?.Progression?.Features != null,
-                    TripRepairCandidates, RemoveTripFact);
+                HorseTripRepairUpdater.Run(tripRepair, new TripRepairHost(this, partyAvailable));
                 tripRepairFailureReported = false;
-                if (record != null) logger.Info("KMC Horse Trip repair (MMR-06, confirmed in-game action): " + record + ".");
             }
             catch (Exception exception)
             {
-                if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair action (nothing repeated; confirm again if needed)", exception);
+                if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair action (the recorded outcome is kept; nothing is repeated)", exception);
                 tripRepairFailureReported = true;
             }
+            if (!partyAvailable) { tripRepairSessionMarker = null; tripRepairSessionPlayer = null; tripRepairSessionArea = null; }
+        }
+
+        private sealed class TripRepairHost : IHorseTripRepairHost<UnitEntityData, Feature>
+        {
+            private readonly HorseCompanionBlueprintService owner;
+            internal TripRepairHost(HorseCompanionBlueprintService owner, bool partyAvailable) { this.owner = owner; PartyAvailable = partyAvailable; }
+            public bool PartyAvailable { get; }
+            public object SessionMarker() => owner.TripRepairSessionMarker();
+            public IEnumerable<HorseTripRepairConsole<UnitEntityData, Feature>.Live> LoadedHorses() => owner.loadedHorsesThisUpdate.Select(horse =>
+                new HorseTripRepairConsole<UnitEntityData, Feature>.Live
+                {
+                    Unit = horse, Id = horse.UniqueId, Name = horse.CharacterName, Owner = horse.Descriptor?.Master.Value?.CharacterName,
+                    Candidates = horse.Descriptor?.Progression?.Features == null ? new List<Feature>() : TripRepairCandidates(horse)
+                }).ToList();
+            public bool GateAdmits() => owner.TripRepairAdmitted();
+            public bool Loaded(UnitEntityData unit) => owner.loadedHorsesThisUpdate.Contains(unit) && unit.Descriptor?.Progression?.Features != null;
+            public string IdOf(UnitEntityData unit) => unit?.UniqueId;
+            public IList<Feature> CandidatesOf(UnitEntityData unit) => TripRepairCandidates(unit);
+            public HorseTripRemovalResult Remove(UnitEntityData unit, Feature fact) => owner.RemoveTripFact(unit, fact);
+            public void Report(HorseTripRepairRecord record) => owner.logger.Info("KMC Horse Trip repair (MMR-06, confirmed in-game action): " + record + ".");
         }
 
         // PR-4 reviews R1-F2/R2-F1/R3-F1: removes this one instance and classifies the result; an application is counted only for an exact
@@ -173,6 +188,7 @@ namespace KingmakerMountedCombat.Integration
         // only (Select/Confirm/Cancel); it never reads or changes a unit or a fact.
         internal void DrawTripRepairGui()
         {
+            tripRepair.RequestPresentation();   // intent: the next update rebuilds the snapshots (none are built while the panel is closed)
             UnityEngine.GUILayout.Label("Horse Trip repair (MMR-06). KMC 0.2.16-alpha.1 and earlier gave the KMC Horse the stock 'Tripping Bite' " +
                 "fact (a bite hit can trip). New horses no longer receive it.");
             var offers = tripRepair.Offers;
@@ -199,7 +215,12 @@ namespace KingmakerMountedCombat.Integration
             if (last != null) UnityEngine.GUILayout.Label("Last repair: " + last.HorseName + " - " + last.Disposition + ".");
         }
 
-        // Disabling or unloading drops every consent.
-        private void InvalidateTripRepair() => tripRepair.Invalidate();
+        // Disabling (CompositionRoot.SetEnabled(false)), a failure stop (PerformFailureCleanup) or unloading (Dispose) drops every consent and
+        // releases the session references (PR-4 round 13, R12-F1).
+        internal void InvalidateTripRepair()
+        {
+            tripRepair.Invalidate();
+            tripRepairSessionMarker = null; tripRepairSessionPlayer = null; tripRepairSessionArea = null;
+        }
     }
 }

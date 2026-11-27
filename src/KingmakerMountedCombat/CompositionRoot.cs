@@ -282,6 +282,7 @@ namespace KingmakerMountedCombat
                 return false;
             }
             IsEnabled = false;
+            horseCompanion.InvalidateTripRepair();   // PR-4 round 13 (R12-F1): no Horse Trip repair consent survives a stop
             mountedCombatDefense.Enabled = false;
             mountedRangedMovement.Enabled = false;
             pairPresentation.Enabled = false;
@@ -373,6 +374,7 @@ namespace KingmakerMountedCombat
             // Review finding 1: a failed runtime never re-attaches a pair it can no longer validate or synchronize.
             persistence.DropRetainedIntent("the mounted runtime stopped after an update failure");
             IsEnabled = false;
+            horseCompanion.InvalidateTripRepair();   // PR-4 round 13 (R12-F1): no Horse Trip repair consent survives a stop
         }
 
         internal void ObserveStartupCallbackEntry() => runtimeAutomation?.ObserveStartupCallbackEntry();

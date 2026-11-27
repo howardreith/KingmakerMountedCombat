@@ -75,6 +75,12 @@ $p=Clone $producer; $p.companionNames.sheetMammothRenamed.textClearOfLevel=$fals
 $p=Clone $producer; $p.companionNames.sheetMammothLong.textClearOfControl=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a long name running under the control refuses'
 $p=Clone $producer; $p.companionNames.sheetDog.control.yMin=622; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a control that moved for another companion refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a UMM entry with an options page refuses'
+# PR-4 round 13 (R12-F6): the producer's actual maintenance-callback observation (optionsPanel false, maintenancePanel true) is accepted; an
+# unrelated OnGUI callback (optionsPanel true) still refuses; the historical no-panel observation (no maintenancePanel field) is accepted.
+$p=Clone $producer; $p.companionNames.ummEntry|Add-Member -NotePropertyName maintenancePanel -NotePropertyValue $true; Assert-KmcFinalize5CompanionNames $request $p $false; Check $true 'the repair-only maintenance panel observation is accepted'
+$p=Clone $producer; $p.companionNames.ummEntry|Add-Member -NotePropertyName maintenancePanel -NotePropertyValue $false; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'an unrelated OnGUI callback (an options page) refuses'
+$p=Clone $producer; $p.companionNames.ummEntry|Add-Member -NotePropertyName maintenancePanel -NotePropertyValue 'yes'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a non-boolean maintenance-panel observation refuses'
+Check (-not ($producer.companionNames.ummEntry.PSObject.Properties.Name -contains 'maintenancePanel')) 'the historical no-panel observation (no maintenancePanel field) is the accepted base fixture'
 $p=Clone $producer; $p.companionNames.ummEntry.displayName='Kingmaker Mounted Combat'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'the old UMM display name refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.chargeEnabled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Mounted Charge off at startup refuses'
 $p=Clone $producer; $p.companionNames.riderNameUnstyled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a character name that kept the reserved slot refuses'

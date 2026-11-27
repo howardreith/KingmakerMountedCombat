@@ -331,7 +331,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["windowOpen"] = ui.Opened, ["tab"] = ui.tabId, ["id"] = mod?.Info.Id, ["displayName"] = mod?.Info.DisplayName,
-                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = mod?.OnGUI != null,
+                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = mod?.OnGUI != null && !IsRepairMaintenancePanel(mod.OnGUI),
+                ["maintenancePanel"] = mod?.OnGUI != null && IsRepairMaintenancePanel(mod.OnGUI),
                 ["chargeEnabled"] = settings.EnableMountedCharge
             };
         }
@@ -594,5 +595,9 @@ namespace KingmakerMountedCombat.Diagnostics
             f5Shots.Add(row);
             f5ShotPending = false;
         }
+
+        // PR-4 round 13 (R12-F6): the only authorized OnGUI content is the repair-only Horse Trip maintenance section (Main.OnMaintenanceGui).
+        private static bool IsRepairMaintenancePanel(Delegate callback) =>
+            callback != null && callback.Method.Name == "OnMaintenanceGui" && callback.Method.DeclaringType == typeof(Main);
     }
 }
