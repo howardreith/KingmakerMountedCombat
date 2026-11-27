@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T03:26:20+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T03:27:19+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -139,6 +139,16 @@ SHA-256 `d043ff021f2591918c253b055f8321afdc46c113ead740e7dee742ec770fdcac`
 ```
 SHA-256 `1d87b587216d6d5c84d4a3a1680da81d0928e78e58cb02993f9c5d4c832a11e0`
 
+```json
+{"candidate": "abbf22e22cc448dd06cc18b94fb6a2f0897d9721", "controller_status": "ACTIVE (7 of 8)", "decision": "changes_required", "kind": "review_result", "new_blocking": ["R7-F1", "R7-F2"], "note": "recorded after the round-8 check (seq 114); appended late, original order preserved", "pr": "PR-4", "prev_sha256": "1d87b587216d6d5c84d4a3a1680da81d0928e78e58cb02993f9c5d4c832a11e0", "rejected": ["R4-F3 (Linux/Mono branch)", "R5-F1 (Linux/Mono branch)"], "round": 7, "seq": 115, "utc": "2026-11-27T03:27:19+00:00", "verified": ["R6-F1", "R6-F2"]}
+```
+SHA-256 `75516da4fb6f60f74d0858dbfc22156e0fb3504b2c202ab1d0d2d42bdadc69c1`
+
+```json
+{"correction": "The PR-4 ledger excerpt generated with seq 114 described seq 114 as the round-7 result; seq 114 is the round-8 check, and the round-7 result was appended late as seq 115.", "corrects_seq": 114, "kind": "correction", "pr": "PR-4", "prev_sha256": "75516da4fb6f60f74d0858dbfc22156e0fb3504b2c202ab1d0d2d42bdadc69c1", "seq": 116, "utc": "2026-11-27T03:27:19+00:00"}
+```
+SHA-256 `9f3d1e4dae2efaa889c83166c137232e81dc9a5cc1d7f646f29950bb8761a448`
+
 Reconciliation (PR-4 review R1-F8): seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`, SHA-256 in seq 18). It raised the validation allowance of the
 shared budget from 90 to 150 minutes (recorded in the budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and the program
@@ -151,4 +161,4 @@ validation unchanged at 150 minutes. Seq 49 is the resume to a ceiling of 4, seq
 seq 65 records owner instruction 2026-11-26c (total cap 5), seq 78 the resume to 5, seq 79 the round-4 check, seq 80 the round-4
 result, seq 81 the round-5 check, seq 82 the round-5 result (cap stop at 5/5); seq 84-85 record owner instruction 2026-11-26d
 (docs/missions/mmr-split/owner-authorization-2026-11-26d.md: PR-4 total cap 8, program 39 child / 46 lifetime, validation 210 minutes);
-seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; seq 113 the round-7 check, seq 114 the round-7 result; the last entry is the round-8 check.
+seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; seq 113 the round-7 check, seq 114 the round-8 check, seq 115 the round-7 result (appended late), seq 116 the correction of that order; the round-8 check is seq 114.
