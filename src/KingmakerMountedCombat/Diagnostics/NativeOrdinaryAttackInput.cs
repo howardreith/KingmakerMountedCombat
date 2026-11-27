@@ -69,12 +69,20 @@ namespace KingmakerMountedCombat.Diagnostics
             Predictions.Invoke(turn, null);
         }
 
+        // PR #70 R4-F2 (round 5): the admission-aware click is one scoped input dispatch, exactly like native PointerController.Tick: its
+        // IgnoreClick read and its handler run inside the same bracket, so an override proof reaches only this click's handler.
         internal bool Click(bool respectNativeAdmission = true, int button = 0)
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
-            if (respectNativeAdmission && button == 0 && turn != null && turn.IgnoreClick()) return false;
-            var handler = (IClickEventHandler)SimulatedHandler.GetValue(pointer);
-            return handler.OnClick(target?.View.gameObject, point, button, false, false);
+            var scoped = respectNativeAdmission && button == 0;
+            if (scoped) KingmakerMountedCombat.Integration.MountedPatchController.BeginScopedInputDispatch();
+            try
+            {
+                if (scoped && turn != null && turn.IgnoreClick()) return false;
+                var handler = (IClickEventHandler)SimulatedHandler.GetValue(pointer);
+                return handler.OnClick(target?.View.gameObject, point, button, false, false);
+            }
+            finally { if (scoped) KingmakerMountedCombat.Integration.MountedPatchController.EndScopedInputDispatch(); }
         }
 
         public void Dispose()

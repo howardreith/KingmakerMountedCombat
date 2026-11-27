@@ -455,10 +455,6 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 R1-F9: the plan identity the click proved; every revalidation receives this order's own plan at dispatch.
         internal PairedAttackClickProbe.PlanIdentity ClickPlan;
         internal Func<PairedAttackClickProbe.PlanIdentity, PairedAttackClickProbe.Approach> RouteRevalidator;
-        // PR #70 R1-F6 (round 4): bind a first-tick carrier's route to the mount's next tick; read (and clear) its refusal.
-        internal Action<float> FirstTickBinding;
-        internal Func<bool> FirstTickRefused;
-        internal int FirstTickRefusalCount { get; private set; }
         // PR #70 R1-F9 (round 3): the plan native would build for this order NOW (UnitAttack.OnStart re-plans against the actual actor
         // state), from an unrun attack of the same executor, target and mode; this order's own plan was built when it was run.
         private PairedAttackClickProbe.PlanIdentity CurrentPlanIdentity()
@@ -1352,16 +1348,6 @@ namespace KingmakerMountedCombat.Integration
         protected override void OnTick()
         {
             if (chargeCleanupRequested) { Interrupt(false); return; }
-            // PR #70 R1-F6 (round 4): the mount's actual first tick did not cover the route: end cleanly (nothing moved, nothing debited).
-            if (RouteBound && FirstTickRefused?.Invoke() == true)
-            {
-                FirstTickRefusalCount++;
-                RouteProofExpiredCount++;
-                if (!transaction.IsTerminal) transaction.Cancel("The restricted single move's first tick does not cover the admitted route.");
-                RecordEndCause(MountedAttackEndCause.Cancelled, "first tick shorter than the route");
-                Interrupt();
-                return;
-            }
             HoldClockWhileDeferred();
             try
             {
@@ -1928,7 +1914,6 @@ namespace KingmakerMountedCombat.Integration
                 };
                 delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
                 ValidatedRouteFollowed = true;
-                if (approach.FirstTickOnly) FirstTickBinding?.Invoke(PairedAttackClickProbe.RouteLength(route));
             }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;

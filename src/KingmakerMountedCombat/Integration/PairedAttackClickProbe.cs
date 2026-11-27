@@ -85,8 +85,6 @@ namespace KingmakerMountedCombat.Integration
             public List<Vector3> Route;
             public float ArrivalRadius;
             public PlanIdentity Plan;
-            // PR #70 R1-F6 (round 4): the grant is the restricted single move's first tick; the carrier binds its route to that tick.
-            public bool FirstTickOnly;
         }
 
         internal sealed class Result
@@ -173,23 +171,33 @@ namespace KingmakerMountedCombat.Integration
             return PathOutcome.Complete;
         }
 
-        // Candidate positions on a ring just inside pair reach around the target, nearest to the mount first. PR #70 R2-F3 (round 4): the
-        // rider's admission depends on the heading the pair arrives with, which only the returned path establishes, so no guessed
-        // heading filters a candidate before its query: the MaxLateralQueries nearest candidates are queried in distance order and the walk
-        // of each returned path decides with its actual headings (TryApproach).
+        // Candidate positions on a ring just inside pair reach around the target. PR #70 R2-F3/R4-F3 (round 5): the rider's admission depends
+        // on the heading the pair arrives with, which only the returned path establishes, so no guessed heading EXCLUDES a candidate. But a
+        // candidate where the strike is already admitted under some sampled heading (in particular a flank whose sight does not depend on the
+        // heading) is queried before candidates no sampled heading admits; within each tier the order is the distance from the mount. The
+        // MaxLateralQueries cap applies across both tiers, and the walk of each returned path decides with its actual headings (TryApproach).
         private static IEnumerable<Vector3> LateralCandidates(Vector3 mount, Vector3 target, float pairRadius, Func<Vector3, Vector3, Vector3, bool> admits)
         {
             var ring = pairRadius - LateralInsetMetres;
             if (!(ring > 0f)) yield break;
-            var candidates = new List<KeyValuePair<float, Vector3>>();
+            var sampled = new List<KeyValuePair<float, Vector3>>();
+            var unsampled = new List<KeyValuePair<float, Vector3>>();
             for (var k = 0; k < LateralDirections; k++)
             {
                 var angle = k * 2d * Math.PI / LateralDirections;
                 var point = new Vector3(target.x + ring * (float)Math.Cos(angle), target.y, target.z + ring * (float)Math.Sin(angle));
-                candidates.Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
+                var admitted = false;
+                for (var h = 0; h < LateralDirections && !admitted; h++)
+                {
+                    var heading = h * 2d * Math.PI / LateralDirections;
+                    admitted = admits(point, point, new Vector3(point.x + (float)Math.Sin(heading), point.y, point.z + (float)Math.Cos(heading)));
+                }
+                (admitted ? sampled : unsampled).Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
             }
-            candidates.Sort((a, b) => a.Key.CompareTo(b.Key));
-            foreach (var candidate in candidates) yield return candidate.Value;
+            sampled.Sort((a, b) => a.Key.CompareTo(b.Key));
+            unsampled.Sort((a, b) => a.Key.CompareTo(b.Key));
+            foreach (var candidate in sampled) yield return candidate.Value;
+            foreach (var candidate in unsampled) yield return candidate.Value;
         }
 
         // The bounded walk over openings on one complete route (PR #70 R1-F3); fills the result on success.

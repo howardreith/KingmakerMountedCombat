@@ -1172,13 +1172,15 @@ namespace KingmakerMountedCombat.Integration
         // (PatchMethods.ClickAssignmentTranspiler) replaces it with PatchMethods.ClickManualTargetAssignment, which performs the same
         // assignment and reports the assigned combat state and target (ObserveClickTargetAssignment). Selection, a handled result, an
         // unchanged value or any other Run on the actor prove nothing; only this assignment to this actor transfers ownership.
-        // PR #70 R1-F7 (round 4): native PointerController.Tick (0x060093BA, the only caller of TurnController.IgnoreClick) is the input
-        // dispatch: it evaluates IgnoreClick, whose postfix may produce a proof, and then runs that click's handler. A proof records the
+        // PR #70 R1-F7 (rounds 4-5): native PointerController.Tick (0x060093BA, the only caller of TurnController.IgnoreClick) is the input
+        // dispatch: it evaluates IgnoreClick, whose postfix may produce a proof, and then runs that click's handler. Its body is wrapped in
+        // try/finally (PatchMethods.PointerTickTranspiler), so the dispatch also ends, and its unclaimed proof is discarded, when it throws. A proof records the
         // dispatch it was produced in; only a click bracket that opens inside that SAME dispatch may claim it, and the dispatch's end
         // discards a proof no handler claimed. A proof produced outside any dispatch (a standalone IgnoreClick read) is never claimable,
         // and a later request (a new dispatch, or a handler reached outside PointerController.Tick) cannot adopt an earlier proof.
         private long pointerDispatch;
         private bool inPointerDispatch;
+        internal bool InPointerDispatch => inPointerDispatch;
         internal void BeginPointerDispatch()
         {
             if (pendingClickProof != null) DiscardClickProof("a new pointer dispatch began");
@@ -1397,8 +1399,6 @@ namespace KingmakerMountedCombat.Integration
             var established = proof.Route.Count >= 2 ? proof.Route[proof.Route.Count - 1] : (Vector3?)null;
             var plan = proof.Plan;
             command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
-            command.FirstTickBinding = metres => unifiedTurn.RequireMountFirstTick(metres);
-            command.FirstTickRefused = () => unifiedTurn.TakeMountFirstTickRefusal();
             LastClickProofDisposition = "attached:#" + proof.Sequence;
         }
 
@@ -1435,8 +1435,7 @@ namespace KingmakerMountedCombat.Integration
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
                 ";mountGrant=" + reason + ";probe=" + probe.Detail + ";" + LastRoutePlans;
             TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
-            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan,
-                FirstTickOnly = reason == "single-move-first-tick-reconciled" } : null;
+            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan } : null;
         }
 
         internal string LastRouteRevalidation { get; private set; }

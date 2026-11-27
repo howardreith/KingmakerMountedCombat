@@ -54,7 +54,11 @@ namespace KingmakerMountedCombat.Integration
             var riderSelected = activation != null && selected == activation.Principal;
             if (partnerContext == null || !PairedMovementInputPolicy.MountOwnsLocomotion(
                     CanAddressActor(activation?.Partner, native), riderSelected, selected != null && selected == activation?.Partner))
-                return SelectedNativeInputContext(native);
+            {
+                var selectedContext = SelectedNativeInputContext(native);
+                if (ReferenceEquals(selectedContext, partnerContext)) ExcludeFirstTickOnlySingleMove(selectedContext);
+                return selectedContext;
+            }
             if (PairedMovementInputPolicy.MirrorsRiderInput(riderSelected, partnerContext.Unit.IsDirectlyControllable,
                     partnerContext.Unit.View?.IsMoving() ?? false))
             {
@@ -72,8 +76,27 @@ namespace KingmakerMountedCombat.Integration
                     ref mirroredGroundLimit, ref hasMirroredGroundLimit, TurnController.MovementLimit.TwoActions));
                 NativeSelectMovementLimit.Invoke(partnerContext, null);
             }
+            ExcludeFirstTickOnlySingleMove(partnerContext);
             return partnerContext;
         }
+
+        // PR #70 R1-F6 (round 5): the pair's movement-mode invariant. For a move-restricted mount with an unused Standard, the installed
+        // single-action limit grants exactly one engine frame of its single Move (GetRemainingMovementTime returns 0 once MoveAction > 0, and a
+        // restricted unit's remaining time is at most 3 s), so its allowance would depend on the frame; it is applied for the WHOLE Move, not
+        // only before the first tick, or the next tick would read the single-action limit again and stop. The mount's context therefore keeps the two-action limit
+        // in that state: the same single Move action and the same untouched Standard (a restricted unit has no conversion), executed as one
+        // whole Move. Nothing is granted, refreshed or replayed; native spends the Move it already allows. Applied to every context this
+        // method returns for the mount, so admission and execution (TickDelegated) read the same mode.
+        private void ExcludeFirstTickOnlySingleMove(TurnController context)
+        {
+            var mount = context?.Unit;
+            if (mount == null || !context.EnabledSingleActionMove || context.EnabledFiveFootStep) return;
+            if (!movementState.SingleMoveTruncatesRestrictedMove(mount)) return;
+            NativeMovementLimit.SetValue(context, TurnController.MovementLimit.TwoActions);
+            FirstTickOnlySingleMoveExcludedCount++;
+        }
+
+        internal int FirstTickOnlySingleMoveExcludedCount { get; private set; }
 
         // The private context's prediction slots are refreshed only while the mount is
         // selected. For a rider-selected path, read the mount's real budget instead.
@@ -230,6 +253,10 @@ namespace KingmakerMountedCombat.Integration
             var combat = relationship.CombatOwner;
             // PR #70 R1-F7: a click native accepts carries native's own route; no earlier override proof may pass to it.
             if (!result) { combat?.DiscardPendingClickProof("native-accepted click"); return; }
+            // PR #70 R4-F2 (round 5): an override is applied only inside an input dispatch that carries its proof to that dispatch's handler
+            // (native PointerController.Tick, or the admission-aware direct input's own scoped dispatch). An unscoped IgnoreClick read keeps
+            // native's result, so no handler can run an unbound order from it.
+            if (combat == null || !combat.InPointerDispatch) { LastAttackClickDecision = "NativeDecision:outside-input-dispatch"; return; }
             var rider = activation.Principal;
             var mount = activation.Partner;
             var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;

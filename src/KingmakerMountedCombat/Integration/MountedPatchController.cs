@@ -128,8 +128,7 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix), nameof(PatchMethods.ClickAssignmentTranspiler));
                 // PR #70 R1-F7 (round 4): the input dispatch that evaluates IgnoreClick and runs the click's handler (observation only).
-                PatchExact(typeof(PointerController), "Tick", 0x060093BA, Type.EmptyTypes, nameof(PatchMethods.PointerTickPrefix),
-                    nameof(PatchMethods.PointerTickPostfix));
+                PatchExact(typeof(PointerController), "Tick", 0x060093BA, Type.EmptyTypes, null, null, nameof(PatchMethods.PointerTickTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
                 // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
@@ -479,6 +478,10 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Presentation = null;
             disposed = true;
         }
+
+        // PR #70 R4-F2 (round 5): the admission-aware direct input's scoped dispatch (the same bracket as native PointerController.Tick).
+        internal static void BeginScopedInputDispatch() => PatchMethods.PointerTickPrefix();
+        internal static void EndScopedInputDispatch() => PatchMethods.PointerTickPostfix();
 
         // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own submission is guarded.
         // Its own method so the composition regression (Test-GunslingerClickComposition.ps1) runs this exact registration.
@@ -932,17 +935,45 @@ namespace KingmakerMountedCombat.Integration
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
             }
 
-            // PR #70 R1-F7 (round 4): the pointer dispatch bracket. Every pair's controller is told.
+            // PR #70 R1-F7 (rounds 4-5): the pointer dispatch bracket. Every pair's controller is told. The transpiler makes the native body
+            // `PointerTickPrefix(); try { <body, each ret -> leave> } finally { PointerTickPostfix(); }` (the WrapRespawn pattern), so the
+            // dispatch ends on a normal return AND when the body throws (Harmony 1.2 has no finalizers; an ordinary postfix would be skipped).
             internal static void PointerTickPrefix()
             {
                 try { foreach (var combat in ClickControllers()) combat.BeginPointerDispatch(); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch was not observed", error); }
             }
 
+            internal static int PointerDispatchClosures;
             internal static void PointerTickPostfix()
             {
+                PointerDispatchClosures++;
                 try { foreach (var combat in ClickControllers()) combat.EndPointerDispatch(); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch end was not observed", error); }
+            }
+
+            internal static IEnumerable<CodeInstruction> PointerTickTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+            {
+                var done = generator.DefineLabel();
+                var output = new List<CodeInstruction> { new CodeInstruction(OpCodes.Call, typeof(PatchMethods).GetMethod(nameof(PointerTickPrefix), BindingFlags.Static | BindingFlags.NonPublic)) };
+                var begin = new CodeInstruction(OpCodes.Nop);
+                begin.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.BeginExceptionBlock, null));
+                output.Add(begin);
+                foreach (var instruction in instructions)
+                {
+                    if (instruction.opcode != OpCodes.Ret) { output.Add(instruction); continue; }
+                    var leave = new CodeInstruction(OpCodes.Leave, done);
+                    leave.labels.AddRange(instruction.labels); leave.blocks.AddRange(instruction.blocks);
+                    output.Add(leave);
+                }
+                var finish = new CodeInstruction(OpCodes.Call, typeof(PatchMethods).GetMethod(nameof(PointerTickPostfix), BindingFlags.Static | BindingFlags.NonPublic));
+                finish.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.BeginFinallyBlock, null));
+                output.Add(finish);
+                var end = new CodeInstruction(OpCodes.Nop);
+                end.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.EndExceptionBlock, null));
+                output.Add(end);
+                var ret = new CodeInstruction(OpCodes.Ret); ret.labels.Add(done); output.Add(ret);
+                return output;
             }
 
             // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.
