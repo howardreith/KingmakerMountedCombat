@@ -3139,7 +3139,7 @@ namespace Harness
                         "PR-1 R10-F1 control: an unrestricted target that moved away is approached normally (pre-start move submitted, order kept)");
                 else
                     Check(released && cause != MountedAttackEndCause.Cancelled && !controller.HasStockAttackIntent && controller.AutomaticAdmissionRetiredCount == 1,
-                        "PR-1 R10-F1/R12-F1 control: an already released strike keeps native completion (no admission-loss cause written on it) while the controller releases its generation");
+                        "PR-1 R10-F1/R12-F1 control: an already released strike records no admission-loss cause at its own tick (sampled before the retiring drive) and the controller then releases its generation; the post-retirement state is asserted by the round-14 control (R13-F2)");
             }
         }
 
