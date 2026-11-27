@@ -91,10 +91,15 @@ namespace KingmakerMountedCombat.Domain
         }
 
         // PR-4 round 6 (R5-F2): the owner-facing result of an interrupted claim, naming its own horse and how to retry.
+        // PR-4 round 7 (R6-F2): states only what this recovery knows: it made no further change, and an earlier session may already
+        // have removed the fact. The retry guidance uses the existing exact diagnostic: KMC logs 'KMC Horse Trip repair candidate' for a
+        // loaded horse only while that horse still has the exact sourceless stock TrippingBite.
         public static string InterruptedResult(string horseId) =>
             "Interrupted: the claimed request for horse " + (horseId ?? "<unreadable>") + " could not be finished as claimed (it was left by an " +
-            "earlier game session, or it replaced a request KMC was settling), so KMC made no change for it. Check that horse in game (a bite " +
-            "hit followed by a Trip means the fact is still there) and write a new request if you still want it removed.";
+            "earlier game session, or it replaced a request KMC was settling). This recovery made no further change; an earlier session may " +
+            "already have removed the fact. To check, load the game with that horse: KMC writes the log line 'KMC Horse Trip repair candidate' " +
+            "for horse=" + (horseId ?? "<unreadable>") + " only while that exact fact is still present. Write a new request only if that line " +
+            "appears for this horse again.";
 
         public static string AppliedResult(string horseId) =>
             "Applied: removed the inherited stock TrippingBite from horse " + horseId + ". Its bite and hoof attacks and damage are " +
@@ -320,10 +325,13 @@ namespace KingmakerMountedCombat.Domain
         // A decided claim whose reporting has not finished (1 or 0).
         public int PendingReports => Stage == HorseTripClaimStage.Decided || Stage == HorseTripClaimStage.Reported ? 1 : 0;
 
+        // PR-4 round 7 (R6-F1): taking a claim starts its own record: every publication field of a previous claim (its committed
+        // archive included) is reset. Retries of the same claim never call Take again, so they keep their state.
         public void Take(string text)
         {
             claimText = text; bytesUnknown = false; Stage = HorseTripClaimStage.Undecided;
             Decision = HorseTripRepairDecision.Pending; Result = null; Suffix = null; PublicationAttempted = false;
+            CommittedArchive = null;
         }
 
         // The rename succeeded but the bytes could not be read: the next read of the claim file supplies them.
@@ -477,6 +485,63 @@ namespace KingmakerMountedCombat.Domain
         bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null);
     }
 
+    // PR-4 round 7 (R4-F3, R5-F1): file operations bound to the open handle of the exact file that was written or verified. On Windows the
+    // rename and the delete act through that handle (kernel32 SetFileInformationByHandle with FileRenameInfo / FileDispositionInfo), and
+    // the handle is opened with FileShare.None, so no other process can write, rename or delete the file while it is held: the operation
+    // affects only that file, whatever happens to its directory entry. Other platforms keep the pathname operations of the bounded
+    // contract (Supported is false there); nothing here is required on them.
+    internal static class VerifiedFileOperations
+    {
+        internal static bool Supported => Environment.OSVersion.Platform == PlatformID.Win32NT;
+
+        private const int FileRenameInfoClass = 3;
+        private const int FileDispositionInfoClass = 4;
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetFileInformationByHandle(Microsoft.Win32.SafeHandles.SafeFileHandle file, int informationClass, IntPtr information, uint size);
+
+        // An exclusive handle with delete access (needed for the handle's own rename and delete).
+        internal static FileStream Open(string path, FileMode mode, bool write)
+        {
+            var rights = System.Security.AccessControl.FileSystemRights.Read | System.Security.AccessControl.FileSystemRights.Delete |
+                System.Security.AccessControl.FileSystemRights.Synchronize | (write ? System.Security.AccessControl.FileSystemRights.Write : 0);
+            return new FileStream(path, mode, rights, FileShare.None, 4096, FileOptions.None);
+        }
+
+        // Renames the file this handle refers to; refuses (IOException) when the target exists.
+        internal static void RenameTo(FileStream file, string target)
+        {
+            var name = System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(target));
+            var nameOffset = IntPtr.Size * 2 + 4;   // FILE_RENAME_INFO: BOOLEAN/DWORD, HANDLE RootDirectory, DWORD FileNameLength, WCHAR FileName[]
+            var size = nameOffset + name.Length + 2;
+            var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(size);
+            try
+            {
+                for (var i = 0; i < size; i++) System.Runtime.InteropServices.Marshal.WriteByte(buffer, i, 0);
+                System.Runtime.InteropServices.Marshal.WriteInt32(buffer, IntPtr.Size * 2, name.Length);
+                System.Runtime.InteropServices.Marshal.Copy(name, 0, IntPtr.Add(buffer, nameOffset), name.Length);
+                if (!SetFileInformationByHandle(file.SafeFileHandle, FileRenameInfoClass, buffer, (uint)size))
+                    throw new IOException("The verified file could not be renamed to " + target + " (Win32 error " +
+                        System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+            }
+            finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer); }
+        }
+
+        // Marks the file this handle refers to for deletion when the handle closes.
+        internal static void DeleteWhenClosed(FileStream file)
+        {
+            var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(4);
+            try
+            {
+                System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 1);
+                if (!SetFileInformationByHandle(file.SafeFileHandle, FileDispositionInfoClass, buffer, 1))
+                    throw new IOException("The verified file could not be marked for deletion (Win32 error " +
+                        System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+            }
+            finally { System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer); }
+        }
+    }
+
     // The request lifecycle's files, all in the KMC user-data folder the composition root supplies (beside, never inside, the
     // save roots and never in the Mods tree). Nothing here creates that folder: a missing folder means no request.
     public sealed class HorseTripRepairFiles
@@ -585,6 +650,21 @@ namespace KingmakerMountedCombat.Domain
             }
             BeforeSettle?.Invoke();
             BeforeRetire?.Invoke();
+            if (VerifiedFileOperations.Supported)
+            {
+                // PR-4 round 7 (R4-F3): the claim is opened exclusively (no other reader, writer, renamer or deleter while held; a claim
+                // another process holds open refuses the open, so it stays at its name and is retried), its bytes are verified through
+                // that handle, and only then is that exact file marked for deletion through the same handle. A replacement that took the
+                // claim name before the open is the file opened and verified: different bytes leave it untouched for its own disposition.
+                using (var held = VerifiedFileOperations.Open(ClaimPath, FileMode.Open, false))
+                {
+                    if (!string.Equals(Digest(ReadAll(held)), boundIdentity, StringComparison.Ordinal)) return false;
+                    BeforeRetireDelete?.Invoke();
+                    VerifiedFileOperations.DeleteWhenClosed(held);
+                }
+                return true;
+            }
+            // Elsewhere (Mono, advisory sharing): the bounded local-filesystem contract with the claim moved to a private name first.
             var retiring = ClaimPath + "." + Guid.NewGuid().ToString("N") + RetiringSuffix;
             File.Move(ClaimPath, retiring);   // refused (claim kept at its name) while another process holds the claim open
             bool decided;
@@ -618,6 +698,10 @@ namespace KingmakerMountedCombat.Domain
         // Narrow fault seam (PR-4 review R4-F1, round 6), tests only: wraps the staging stream for the payload write and flush, so a test
         // can fail the actual write or flush after the private file was created. Unset in production.
         public Func<Stream, Stream> StagingWriteSeam { get; set; }
+        // Test hooks (PR-4 round 7): after the claim's bytes were verified through the retiring handle and before that handle's delete;
+        // and immediately after the staged archive was published under its terminal name, while the staging handle is still held.
+        public Action BeforeRetireDelete { get; set; }
+        public Action<string> AfterPublishRename { get; set; }
 
         // PR-4 reviews R4-F1/R5-F1 (round 6): the payload is staged in a private file (CreateNew) and written and flushed through one
         // handle that admits no other writer (FileShare.Read | FileShare.Delete: readers, and this call's own rename). With that handle still
@@ -629,6 +713,35 @@ namespace KingmakerMountedCombat.Domain
         private string Commit(byte[] payload, string suffix)
         {
             var pending = ClaimPath + "." + Guid.NewGuid().ToString("N") + ".pending";
+            if (VerifiedFileOperations.Supported)
+            {
+                // PR-4 round 7 (R5-F1): the payload is written and flushed through one exclusive handle (no other reader, writer, renamer or
+                // deleter), and that same handle is renamed to the non-overwriting terminal name (FileRenameInfo, ReplaceIfExists false):
+                // the file that appears under the terminal name is the file this handle wrote, so its first visible bytes are the payload.
+                // On any failure before the rename, the staged file is deleted through its own handle; nothing else is touched.
+                var staged = VerifiedFileOperations.Open(pending, FileMode.CreateNew, true);
+                var renamed = false;
+                try
+                {
+                    var writer = StagingWriteSeam?.Invoke(staged) ?? staged;
+                    writer.Write(payload, 0, payload.Length);
+                    writer.Flush();
+                    staged.Flush(true);
+                    BeforeCommit?.Invoke();
+                    var terminal = ArchiveTarget(suffix);
+                    VerifiedFileOperations.RenameTo(staged, terminal);
+                    renamed = true;
+                    AfterPublishRename?.Invoke(terminal);
+                    return terminal;
+                }
+                catch
+                {
+                    if (!renamed) { try { VerifiedFileOperations.DeleteWhenClosed(staged); } catch (Exception) { } }
+                    throw;
+                }
+                finally { staged.Dispose(); }
+            }
+            // Elsewhere (Mono, advisory sharing): the bounded local-filesystem contract below (staged pathname move, then verification).
             string target = null;
             var published = false;
             try

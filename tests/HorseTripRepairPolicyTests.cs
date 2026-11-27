@@ -42,6 +42,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R5-F1 (round 6): a change to the staged archive at publication is excluded or refused; the final archive holds exactly A, one removal", PendingArchiveChangeIsExcludedOrRefused);
             runner.Run("PR-4 R4-F3/R5-F2 (round 6): a replacement at retirement keeps its own Interrupted result and archive, survives its failed publication and settles before C; A removed once", ReplacementAtRetirementTakesItsOwnLifecycle);
             runner.Run("PR-4 R4-F2 (round 6): a locked recovered claim in a fresh session produces one interruption archive, then completes; the waiting request then runs", LockedRecoveredClaimArchivesOnce);
+            runner.Run("PR-4 R6-F1 (round 7): a replacement after A's committed archive and failed retirement keeps its own archive record and result; C then runs", ReplacementAfterFailedRetirementHasItsOwnRecord);
+            runner.Run("PR-4 R5-F1/R4-F3 (round 7): publication and retirement act on the verified file's own handle; late rename-replacements are excluded (Windows)", VerifiedFileOperationsBindTheFinalOperation);
+            runner.Run("PR-4 R6-F2 (round 7): fresh-session recovery after an applied removal reports truthfully, with exact retry guidance, and removes nothing more", RestartReportingIsTruthful);
             runner.Run("PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds", BlockedRetirementCommitsOnce);
             runner.Run("PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once", ReplacementDuringRetirement);
         }
@@ -959,7 +962,7 @@ namespace KingmakerMountedCombat.Tests
                 var result = folders.Result();
                 Console.WriteLine("    R5-F2 " + kase + ": settled " + settled + "; result: " + result.Replace("\r\n", " ").Trim());
                 TestRunner.True(settled == expected && Archive(folders, Interrupted) == forB && Count(folders, Interrupted) == 1 && !File.Exists(claimPath) &&
-                    result.Contains("Interrupted") && result.Contains("horse-B") && result.Contains("write a new request") && Archive(folders, Request) == forC &&
+                    result.Contains("Interrupted") && result.Contains("horse-B") && result.Contains("Write a new request") && Archive(folders, Request) == forC &&
                     Candidates(b).Count == 1 && Archive(folders, Applied) == forA && host.Removals == 1 && NoStaging(folders),
                     "R5-F2 (" + kase + "): B's owner-facing Interrupted result or its archive is missing, B's fact changed, or C ran first.");
                 TestRunner.True(Run(host, recovering) == HorseTripRepairDecision.Apply && host.Removals == 2 && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-C" }) &&
@@ -995,6 +998,115 @@ namespace KingmakerMountedCombat.Tests
                     host.Removals == 0 && Candidates(a).Count == 1 && resultWrites == 1, "R4-F2: after the release the recovered claim did not complete with its single archive.");
                 TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 1 && host.RemovedFrom.SequenceEqual(new[] { "horse-C" }),
                     "R4-F2: the waiting request did not run normally after the recovered claim completed.");
+            }
+        }
+
+
+        // Owner instruction 2026-11-26e section 6 (PR-4 review R6-F1): A's archive commits, then A's retirement fails (another reader holds the
+        // claim); the reader lets go, the claim is replaced by B and C is queued before the next poll of the SAME session. B is a different
+        // claim: it starts without A's committed-archive record, so B gets its own interrupted archive and result; A's applied archive holds
+        // A; B's fact stays; C is then processed.
+        private static void ReplacementAfterFailedRetirementHasItsOwnRecord()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                var b = LegacyHorse("horse-B"); host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(b); host.Loaded.Add(LegacyHorse("horse-C"));
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                folders.Request(forA);
+                FileStream holder = null;
+                host.files.BeforeRetire = () => { host.files.BeforeRetire = null; holder = new FileStream(claimPath, FileMode.Open, FileAccess.Read, FileShare.Read); };
+                TestRunner.True(Throws(() => Run(host, session)) && Archive(folders, Applied) == forA && File.Exists(claimPath) && session.CommittedArchive != null && host.Removals == 1,
+                    "R6-F1: A's archive did not commit, or its blocked retirement lost the claim.");
+                holder.Dispose();
+                File.WriteAllText(claimPath, forB); folders.Request(forC);
+                var settled = Run(host, session);
+                var result = folders.Result();
+                Console.WriteLine("    R6-F1 replacement after A's failed retirement (same session): " + settled + "; applied=" + Count(folders, Applied) + " interrupted=" + Count(folders, Interrupted) +
+                    "; result: " + result.Replace("\r\n", " ").Trim());
+                TestRunner.True(settled == HorseTripRepairDecision.Interrupted && Archive(folders, Applied) == forA && Archive(folders, Interrupted) == forB &&
+                    Count(folders, Applied) == 1 && Count(folders, Interrupted) == 1 && !File.Exists(claimPath) && result.Contains("horse-B") && result.Contains("Interrupted") &&
+                    Candidates(b).Count == 1 && host.Removals == 1 && Archive(folders, Request) == forC && NoStaging(folders),
+                    "R6-F1: B inherited A's archive record (no B archive, or B lost), or C ran first.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-C" }),
+                    "R6-F1: C was not processed after B settled.");
+            }
+        }
+
+        // Owner instruction 2026-11-26e section 6 (PR-4 reviews R5-F1, R4-F3; Windows evidence: exclusive handles and handle-bound rename and
+        // delete): (1) at the terminal name's first visibility (immediately after the rename, staging handle still held) a reader obtains no
+        // bytes other than A's; an attempt to replace the staged file by renaming it away and writing a new one is excluded. (2) After the claim
+        // was verified through the retiring handle and before its delete, an attempt to replace the claim's directory entry (rename it away and
+        // write B under the claim name) is excluded; only A's verified file is deleted. One removal; exact final bytes.
+        private static void VerifiedFileOperationsBindTheFinalOperation()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(LegacyHorse("horse-B"));
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                folders.Request(forA);
+                string stagingAttempt = null, firstVisible = null, retireAttempt = null;
+                host.files.BeforeCommit = () =>
+                {
+                    host.files.BeforeCommit = null;
+                    var pending = Directory.GetFiles(folders.UserData, "*.pending").Single();
+                    try { File.Move(pending, pending + ".moved"); File.WriteAllText(pending, forB); stagingAttempt = "replaced"; }
+                    catch (IOException) { stagingAttempt = "excluded"; } catch (UnauthorizedAccessException) { stagingAttempt = "excluded"; }
+                };
+                host.files.AfterPublishRename = terminal =>
+                {
+                    host.files.AfterPublishRename = null;
+                    try { firstVisible = File.ReadAllText(terminal) == forA ? "A's bytes" : "OTHER bytes"; }
+                    catch (IOException) { firstVisible = "not readable while the staging handle is held"; }
+                };
+                host.files.BeforeRetireDelete = () =>
+                {
+                    host.files.BeforeRetireDelete = null;
+                    try { File.Move(claimPath, claimPath + ".moved"); File.WriteAllText(claimPath, forB); retireAttempt = "replaced"; }
+                    catch (IOException) { retireAttempt = "excluded"; } catch (UnauthorizedAccessException) { retireAttempt = "excluded"; }
+                };
+                var decision = Run(host, session);
+                var platform = HorseTripRepairPolicy_VerifiedSupported() ? "Windows handle operations" : "pathname fallback";
+                Console.WriteLine("    R5-F1/R4-F3 (" + platform + "): staging replacement " + stagingAttempt + "; terminal at first visibility: " + firstVisible +
+                    "; claim replacement after verification " + retireAttempt + "; decision " + decision + "; files " + string.Join(",", folders.UserFiles()));
+                TestRunner.True(decision == HorseTripRepairDecision.Apply && stagingAttempt == "excluded" && retireAttempt == "excluded" && firstVisible != "OTHER bytes" &&
+                    Archive(folders, Applied) == forA && Count(folders, Applied) == 1 && !File.Exists(claimPath) && host.Removals == 1 && NoStaging(folders) &&
+                    !Directory.GetFiles(folders.UserData).Any(path => path.EndsWith(".moved", StringComparison.Ordinal)) &&
+                    folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)),
+                    "R5-F1/R4-F3: a replacement reached A's terminal name or A's retirement deleted something other than A's verified file.");
+            }
+        }
+
+        private static bool HorseTripRepairPolicy_VerifiedSupported() => Environment.OSVersion.Platform == PlatformID.Win32NT;
+
+        // Owner instruction 2026-11-26e section 6 (PR-4 review R6-F2): the previous session already removed A's fact (applied) but its archive
+        // publication failed; a fresh session finds the stranded claim and settles it as interrupted. The result names the horse, says this
+        // recovery made no further change and that the earlier session may already have removed the fact, and points to the exact candidate
+        // log line; zero additional removals.
+        private static void RestartReportingIsTruthful()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var applied = Path.Combine(folders.UserData, Applied);
+                folders.Request(forA);
+                host.files.BeforeCommit = () => { host.files.BeforeCommit = null; Directory.CreateDirectory(applied); };
+                TestRunner.True(Throws(() => Run(host, session)) && host.Removals == 1 && Candidates(a).Count == 0, "R6-F2: the previous session did not remove the fact before its archive failed.");
+                Directory.Delete(applied);
+                var fresh = new HorseTripRepairSession();
+                var decision = Run(host, fresh);
+                var result = folders.Result();
+                Console.WriteLine("    R6-F2 fresh-session result after an applied removal: " + result.Replace("\r\n", " ").Trim());
+                TestRunner.True(decision == HorseTripRepairDecision.Interrupted && host.Removals == 1 && host.NativeCalls == 1 && result.Contains("horse-A") &&
+                    result.Contains("This recovery made no further change") && result.Contains("may already have removed the fact") &&
+                    result.Contains("KMC Horse Trip repair candidate") && !result.Contains("made no change for it") && !result.Contains("a bite hit followed by a Trip"),
+                    "R6-F2: the recovery wording denies a removal that may have happened, omits the horse, or gives no exact retry guidance; or a removal was repeated.");
             }
         }
 
