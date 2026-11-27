@@ -142,4 +142,43 @@ $afterThrow = [int]$closures.GetValue($null)
 $afterReturns = [int]$closures.GetValue($null)
 Check ($threw -and $afterThrow -eq $before + 1) ('PR-2 R1-F7: the transpiled body that throws still closes its pointer dispatch (closures ' + $before + ' -> ' + $afterThrow + ')')
 Check ($afterReturns -eq $afterThrow + 2 -and [KmcDispatchProbe]::Body -eq 4) ('PR-2 R1-F7: an early return and a normal return each close it once (closures -> ' + $afterReturns + ', body ' + [KmcDispatchProbe]::Body + ')')
+# ---- PR-2 R1-F6 (round 6): the installed per-frame scheduler order that fixes when a mount's first movement tick, and its duration, are known
+# (docs/missions/mmr-split/PR-2-first-tick-boundary.md). Member references are resolved with their declaring types, in IL order.
+function IlMembers([Reflection.MethodBase]$Method) {
+    $il = $Method.GetMethodBody().GetILAsByteArray(); $i = 0; $out = New-Object 'System.Collections.Generic.List[string]'
+    while ($i -lt $il.Length) {
+        $c = $il[$i]; $i++
+        if ($c -eq 0xFE) { $op = $script:opTwo[[int]$il[$i]]; $i++ } else { $op = $script:opOne[[int]$c] }
+        switch ($op.OperandType.ToString()) {
+            'InlineNone' { }
+            { $_ -in 'ShortInlineBrTarget','ShortInlineI','ShortInlineVar' } { $i += 1 }
+            'InlineVar' { $i += 2 }
+            { $_ -in 'InlineI','InlineBrTarget','ShortInlineR','InlineString','InlineSig' } { $i += 4 }
+            { $_ -in 'InlineI8','InlineR' } { $i += 8 }
+            'InlineSwitch' { $n = [BitConverter]::ToInt32($il, $i); $i += 4 + 4 * $n }
+            default { try { $r = $Method.Module.ResolveMember([BitConverter]::ToInt32($il, $i)); if ($r.DeclaringType) { $out.Add($op.Name + ' ' + $r.DeclaringType.Name + '.' + $r.Name) } } catch { }; $i += 4 }
+        }
+    }
+    $out
+}
+$factory = GameType 'Kingmaker.GameModes.GameModesFactory'
+$initRefs = @(IlMembers ($factory.GetMethod('Initialize', $any)))
+function RefIndex([string]$Ref) { $at = -1; for ($k = 0; $k -lt $initRefs.Count; $k++) { if ($initRefs[$k] -ceq $Ref) { if ($at -ge 0) { return -2 }; $at = $k } }; $at }
+$timeAt = RefIndex 'ldfld Game.TimeController'; $pointerAt = RefIndex 'ldfld Game.DefaultPointerController'
+$moveAt = RefIndex 'newobj UnitMoveController..ctor'; $actionAt = RefIndex 'newobj UnitActionController..ctor'
+Check ($timeAt -ge 0 -and $pointerAt -gt $timeAt -and $moveAt -gt $pointerAt -and $actionAt -gt $moveAt) ('PR-2 R1-F6 (round 6): installed GameModesFactory.Initialize registers TimeController (' + $timeAt + ') < DefaultPointerController (' + $pointerAt + ') < UnitMoveController (' + $moveAt + ') < UnitActionController (' + $actionAt + ')')
+$createRefs = @(IlMembers ($factory.GetMethod('Create', $any))); $modeTick = (GameType 'Kingmaker.GameModes.GameMode').GetMethod('Tick', $any)
+Check (($createRefs -join ';').Contains('ldsfld GameModesFactory.AllControllers;') -and ($createRefs -join ';').Contains('call Enumerable.Where;') -and ($createRefs -join ';').Contains('call Enumerable.Select;newobj GameMode..ctor') -and
+    (IlText $modeTick).Contains(';ldfld m_Controllers;') -and (IlText $modeTick).Contains(';ldelem.ref;stloc.2;ldloc.2;callvirt Tick;')) 'PR-2 R1-F6 (round 6): a game mode ticks its controllers in registration order (GameModesFactory.Create filters AllControllers with order-preserving Where/Select; GameMode.Tick walks m_Controllers by index)'
+$timeTick = (GameType 'Kingmaker.Controllers.TimeController').GetMethod('Tick', $any)
+Check ((IlText $timeTick).Contains(';call get_deltaTime;') -and (@(IlMembers $timeTick) -join ';').Contains('call TimeController.set_DeltaTime')) 'PR-2 R1-F6 (round 6): installed TimeController.Tick sets this frame''s DeltaTime from Unity''s frame delta (it is not known before that frame''s TimeController.Tick)'
+$moveTick = (GameType 'Kingmaker.Controllers.Units.UnitMoveController').GetMethod('Tick', $any)
+Check ((@(IlMembers $moveTick) -join ';').Contains('ldfld Game.TimeController;callvirt TimeController.get_DeltaTime;callvirt UnitMovementAgentBase.TickMovement')) 'PR-2 R1-F6 (round 6): installed UnitMoveController.Tick passes this frame''s TimeController.DeltaTime to each moving agent''s TickMovement'
+$agentType = GameType 'Kingmaker.View.UnitMovementAgent'
+Check ((@(IlMembers ($agentType.GetMethod('TickMovement', $any))) -join ';').Contains('call UnitMovementAgent.CanMoveInTurnBased') -and (@(IlMembers ($agentType.GetMethod('CanMoveInTurnBased', $any))) -join ';').Contains('callvirt TurnController.TickMovement')) 'PR-2 R1-F6 (round 6): UnitMovementAgent.TickMovement reaches CanMoveInTurnBased (the product''s MountMovementPrefix, then TickDelegated) and TurnController.TickMovement with that delta'
+$startCallers = @()
+foreach ($t in @(try { $game.GetTypes() } catch [Reflection.ReflectionTypeLoadException] { $_.Exception.Types | Where-Object { $_ } })) {
+  if ($t.Namespace -cne 'Kingmaker.Controllers.Units') { continue }
+  foreach ($m in @($t.GetMethods([Reflection.BindingFlags]'Instance,Static,Public,NonPublic,DeclaredOnly'))) { try { if (((@(IlMembers $m) -join ';') + ';') -match '(call|callvirt) UnitCommand\.Start;') { $startCallers += ($t.Name + '::' + $m.Name) } } catch { } } }
+Check ($startCallers -contains 'UnitActionController::TickCommand') ('PR-2 R1-F6 (round 6): commands (an order''s wrapper and its carrier) start in UnitActionController.TickCommand, AFTER UnitMoveController in the frame, so a carrier issued by a click moves first in a LATER frame whose DeltaTime is unknown at the click (' + ($startCallers -join ', ') + ')')
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
