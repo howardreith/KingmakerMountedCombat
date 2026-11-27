@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T03:05:24+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T03:26:20+00:00.
 
 ```json
 {"allocations": {"PR-1": 6, "PR-2": 3, "PR-3": 3, "PR-4": 2, "PR-5": 2, "PR-6": 2}, "budget_adjustment": "allowanceAdjustments entry 2026-11-26T02:32:18Z 90 -> 150 via Update-KmcWorkflowBudgetRecord (locked); balance 78.52 of 150, 71.48 remaining, 59 entries preserved", "instruction_file": "owner-continuations/owner-continuation-2026-11-26-pr1-extension-and-budget.md", "instruction_sha256": "16db6774779cfa369bc390f4af56465844fbf902ba161317b0d16b002a671972", "kind": "owner_decision", "prev_sha256": "f7775c23a15fc0491a5bf82a78c4b4c54981abdab0efe98803ff563e3061434c", "program_rounds": {"allocated_child": 18, "lifetime_cap": 25, "spent": 10}, "seq": 14, "text": "Bounded continuation: PR-1 ceiling 3 -> 6 (rounds 4-6 authorized); other allocations unchanged; program 18 allocated child reviews / 25 lifetime (10 spent); validation allowance 90 -> 150 min on the same budget ID; sequence PR-4, PR-5, then PR-1 resume, then PR-2, PR-3, PR-6.", "utc": "2026-11-26T02:32:30+00:00"}
@@ -134,6 +134,11 @@ SHA-256 `02c3d591a092cc2f3ee6ec2fa60ea002d90d37e8c4f29aa4d4cd4771a87b71ba`
 ```
 SHA-256 `d043ff021f2591918c253b055f8321afdc46c113ead740e7dee742ec770fdcac`
 
+```json
+{"budget": "budget mounted-alpha2-melee-pose-20261124: spent 179.4 of 210 min; remaining 30.6 min; entries 265 (running 0, interrupted 0, unreconciled 0)", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-4-ledger-excerpt.md with this entry", "child_rounds": "7 of 8 used (round 8 is the last)", "invariant_map": {"entry_points": ["VerifiedFileOperations.Open/Handle/RenameTo/DeleteWhenClosed (kernel32)", "HorseTripRepairFiles.Close retirement (both branches)", "HorseTripRepairFiles.Commit (both branches)"], "findings": ["R4-F3", "R5-F1", "R7-F1", "R7-F2"], "fixture_outputs": "components 1561/0 (Windows; the pathname branch exercised on Windows through ForcePathnameOperations): linked claim (hard link; unprivileged symbolic links not creatable here, Win32 error 1314) retires leaving the sibling target's bytes intact, ordinary retirement still works; pathname branch: replacement at the final retirement operation returns and settles before C, A removed once, nothing deleted; pathname publication: write failure leaves no terminal archive (incomplete moved aside), terminal readable only as A or not at all, retry one exact archive; round-7 Windows cases unchanged; trip native contract 52/0 including the compiled CreateFileW access-mask check", "invariant": "the final publication and retirement operations act only on the verified file: on Windows through the exact kernel32 handle (explicit DELETE access, no sharing, reparse points opened as themselves and refused); on other platforms no pathname deletion at all (retirement keeps the verified file under a settled name and returns a replacement; publication writes the payload through the exclusively created terminal name, an incomplete write is moved aside)"}, "kind": "pre_review_check", "pr": "PR-4", "prev_sha256": "d043ff021f2591918c253b055f8321afdc46c113ead740e7dee742ec770fdcac", "program_rounds": "before this round: 34 executed child reviews of 42 (33 controller-recorded: PR-1 15, PR-2 1, PR-3 4, PR-4 7, PR-5 6; plus PR-5 round 7 executed, verdict unsettled, counted once), 41 executed lifetime of 49; after it 35 / 42", "round": 8, "seq": 114, "utc": "2026-11-27T03:26:19+00:00"}
+```
+SHA-256 `1d87b587216d6d5c84d4a3a1680da81d0928e78e58cb02993f9c5d4c832a11e0`
+
 Reconciliation (PR-4 review R1-F8): seq 14 is the owner decision of 2026-11-26 (verbatim text committed as
 `docs/missions/mmr-split/owner-authorization-2026-11-26.md`, SHA-256 in seq 18). It raised the validation allowance of the
 shared budget from 90 to 150 minutes (recorded in the budget record allowanceAdjustments, 2026-11-26T02:32:18Z) and the program
@@ -146,4 +151,4 @@ validation unchanged at 150 minutes. Seq 49 is the resume to a ceiling of 4, seq
 seq 65 records owner instruction 2026-11-26c (total cap 5), seq 78 the resume to 5, seq 79 the round-4 check, seq 80 the round-4
 result, seq 81 the round-5 check, seq 82 the round-5 result (cap stop at 5/5); seq 84-85 record owner instruction 2026-11-26d
 (docs/missions/mmr-split/owner-authorization-2026-11-26d.md: PR-4 total cap 8, program 39 child / 46 lifetime, validation 210 minutes);
-seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; the last entry is the round-7 check.
+seq 96 is the resume to 8, seq 97 the round-6 check, seq 98 the round-6 result (no-progress stop); seq 100 owner instruction 2026-11-26e (one owner resume within 8), seq 112 that resume; seq 113 the round-7 check, seq 114 the round-7 result; the last entry is the round-8 check.
