@@ -452,7 +452,9 @@ namespace KingmakerMountedCombat.Integration
         // production walk); when that proof cannot be established the approach ends cleanly instead of falling back to
         // native routing.
         internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
-        internal Func<PairedAttackClickProbe.Approach> RouteRevalidator;
+        // PR #70 R1-F9: the plan identity the click proved; every revalidation receives this order's own plan at dispatch.
+        internal PairedAttackClickProbe.PlanIdentity ClickPlan;
+        internal Func<PairedAttackClickProbe.PlanIdentity, PairedAttackClickProbe.Approach> RouteRevalidator;
         internal bool RouteBound => ValidatedApproachRoute != null;
         internal int RouteRevalidationCount { get; private set; }
         // Review R6-F1: a route-bound carrier is a point command to the proof's destination (inside the admissible opening) with
@@ -1859,7 +1861,7 @@ namespace KingmakerMountedCombat.Integration
             if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
                 RouteRevalidationCount++;
-                var approach = RouteRevalidator?.Invoke();
+                var approach = RouteRevalidator?.Invoke(PairedAttackClickProbe.PlanIdentity.Of(this));
                 var route = approach?.Route;
                 var arrived = route != null && route.Count >= 2 && approach.ArrivalRadius > 0f && !route[0].Equals(route[route.Count - 1]) &&
                     Kingmaker.Utility.GeometryUtils.SqrMechanicsDistance(route[route.Count - 1], mount.Position) <= approach.ArrivalRadius * approach.ArrivalRadius;

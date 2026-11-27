@@ -147,7 +147,11 @@ $policy = (KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPoli
 $probe = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('Evaluate', $any)
 $movementState = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
 $grantHelper = @(Method $participant 'PairedMountGrantedMetres')[0]
-Check ((Calls $admit $policy) -eq 1 -and (Calls $admit $probe) -eq 1 -and (Calls $admit $grantHelper) -eq 1) 'R3-F2: the IgnoreClick postfix decides through the policy, the probe and the shared mount grant'
+# PR #70 round 2: the decision moved into the controller's AdmitTurnBasedAttackClick (spliced into the attack-path harness); the postfix
+# reads the native input and passes the shared mount grant as a reader (a closure calling PairedMountGrantedMetres).
+$admitCore = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCombatController') 'AdmitTurnBasedAttackClick')[0]
+$grantReaders = @($participant.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $grantHelper) -ge 1 })
+Check ((Calls $admit $admitCore) -eq 1 -and (Calls $admitCore $policy) -eq 1 -and (Calls $admitCore $probe) -eq 1 -and $grantReaders.Count -ge 1) 'R3-F2 (PR #70 round 2): the IgnoreClick postfix decides through the controller admission (the policy and the probe) with the shared mount grant passed as its reader'
 $canMoveHelper = @(Method $participant 'CanMovePairedMount')[0]
 foreach ($term in @(@(Method $participant 'PairedMovementContext')[0], $movementState.GetMethod('HasGrantedMovement', $any), @(Method $participant 'CanAddressActor')[0], (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetMethod('IsAbleToAct'))) {
     Check ((Calls $grantHelper $term) -ge 1 -and (Calls $canMoveHelper $term) -ge 1) ('R3-F2: the click grant and paired execution share ' + $term.Name)
@@ -160,9 +164,16 @@ $single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
 $evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
 $evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
 $walkerType = KmcType 'KingmakerMountedCombat.Domain.MountedRouteWalker'
-$walksRoute = @(Refs $probe | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count -eq 2
+# PR #70 round 2: the native query is Query (classified by the path's native CompleteState: R1-F5), called for the mount-centred route and
+# for each bounded lateral query (R1-F4); the bounded walk over openings is TryApproach (R1-F3), the unbounded walk is the diagnostic only.
+$probeType = $probe.DeclaringType
+$query = @(Method $probeType 'Query')[0]
+$tryApproach = @(Method $probeType 'TryApproach')[0]
+$completeState = $findPath.ReturnType.GetProperty('CompleteState').GetGetMethod()
+function WalkCalls([Reflection.MethodBase]$m) { @(Refs $m | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count }
+$walksRoute = (WalkCalls $tryApproach) -eq 1 -and (WalkCalls (@(Method $probeType 'DiagnosticReach')[0])) -eq 1 -and (Calls $probe $query) -eq 2 -and (Calls $probe $tryApproach) -eq 2 -and (Calls $query $completeState) -ge 2
 $admitsAlongRoute = @($probe.DeclaringType.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $evaluateAt) -ge 1 }).Count -ge 1
-Check ((Calls $probe $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker, bounded by the mount grant (and once unbounded for the diagnostic), until the strike''s production admission passes'
+Check ((Calls $query $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker, bounded by the mount grant (and once unbounded for the diagnostic), until the strike''s production admission passes'
 $offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
 Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
 $turnDegrees = (KmcType 'KingmakerMountedCombat.Domain.MountedHeading').GetMethod('TurnDegrees')
@@ -174,10 +185,11 @@ Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F
 $nativeApproach = MemberAt 0x060027A6
 $currentPathForUnit = MemberAt 0x0600700F
 Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeApproach $getForced) -lt (FirstOffset $nativeApproach $currentPathForUnit)) 'R4-F1: native turn-based TickApproaching follows a ForcedPath before any visualizer path'
-Check ((Calls $admit (@(Method $controller 'RememberValidatedClickRoute')[0])) -eq 1 -and (Calls $tryExecute ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $tryExecute ($pair.GetField('RouteRevalidator', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
+$attachProof = @(Method $controller 'AttachClickProof')[0]
+Check ((Calls $admitCore (@(Method $controller 'RememberValidatedClickProof')[0])) -eq 1 -and (Calls $tryExecute $attachProof) -eq 1 -and (Calls $attachProof ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('RouteRevalidator', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('ClickPlan', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
 $revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
 Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
-$invoke = [Func`1].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
+$invoke = [Func`2].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+PlanIdentity'), (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
 $moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
 $moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
 # PR-2 reconciliation: on PR-1's accepted source the ordinary carrier is built by NewApproachMove, so the route-bound point command is the

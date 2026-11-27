@@ -5,7 +5,11 @@ param([string]$RepositoryRoot,[string]$TemplatePath,[string]$OutputDirectory)
 # the MountedPairAttackCommand members on the approach/start paths (own-move registry, pre-start approach for the rider's
 # carrier and the horse's native approach, automatic perception guard, OnStart, OnTick, target invalidation, OnEnded,
 # TickApproach, Repath, BeginDelegatedMove, StopDelegatedMove, StartChildAttack, end-cause recording, fault ending);
-# MountedPatchController.MountedAttackApproachPrefix; PairedAttackClickProbe; MountedCombatController.RevalidateAdmittedClickRoute
+# MountedPatchController.MountedAttackApproachPrefix; PairedAttackClickProbe; MountedCombatController.RevalidateAdmittedClickRoute;
+# PR #70 round 2 (R1-F10): MountedCombatController's click-proof members (AdmitTurnBasedAttackClick, the proof's take/bind/attach),
+# RiderMeleeClickAdmitted and the fresh target-life rule; PairedActivationControls.AdmitPairedAttackClick;
+# PairedActivationLifecycle.PairedMountGrantedMetres; MountedMovementStateAdapter's allocation, Get, TickDelegated, RemainingOrderMetres
+# and HasGrantedMovement
 # into tests/Chunk7Diagnostics/AttackPathHarnessTemplate.cs, compiles them with every real Domain source and runs the
 # reviewers' counterexamples with controls on a facade of the native command surface. Offline evidence only (nativeProof=false).
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
@@ -21,6 +25,9 @@ $commandPath=Join-Path $integration 'MountedPairAttackCommand.cs';$command=[IO.F
 $childPath=Join-Path $integration 'MountedPairSingleAttack.cs';$child=[IO.File]::ReadAllText($childPath)
 $patchPath=Join-Path $integration 'MountedPatchController.cs';$patch=[IO.File]::ReadAllText($patchPath)
 $probePath=Join-Path $integration 'PairedAttackClickProbe.cs';$probe=[IO.File]::ReadAllText($probePath)
+$controlsPath=Join-Path $integration 'PairedActivationControls.cs';$controls=[IO.File]::ReadAllText($controlsPath)
+$lifecyclePath=Join-Path $integration 'PairedActivationLifecycle.cs';$lifecycle=[IO.File]::ReadAllText($lifecyclePath)
+$adapterPath=Join-Path $integration 'MountedMovementStateAdapter.cs';$adapter=[IO.File]::ReadAllText($adapterPath)
 $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
 $terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
@@ -29,7 +36,18 @@ $members=[ordered]@{
  'CHILD_ATTACK_CLASS'=(Extract $child 'internal class MountedPairSingleAttack : UnitAttack')
  'APPROACH_PREFIX'=(Extract $patch 'internal static bool MountedAttackApproachPrefix(UnitCommand __instance)')
  'PROBE_CLASS'=(Extract $probe 'internal static class PairedAttackClickProbe')
- 'REVALIDATE'=(Extract $controller 'private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established)')
+ 'REVALIDATE'=(Extract $controller 'private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established,')
+ 'CONTROLLER_REVALIDATE'=(Extract $controller 'private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established,')
+ 'CONTROLLER_CLICK_PROOF'=(ExtractRegion $controller '        // MMR-02 (review R4-F1; PR #70 R1-F1, R1-F7, R1-F9): the proof of an overridden turn-based click' '        // Review R4-F1: the proof for a carrier of a click-admitted turn-based order')
+ 'CONTROLLER_FRESH_LIFE'=(Extract $controller 'private static bool FreshExplicitClickTargetLifeAdmits(UnitEntityData target)')
+ 'CONTROLLER_RIDER_CLICK_ADMITTED'=(ExtractExpression $controller 'internal bool RiderMeleeClickAdmitted(UnitEntityData target) =>')
+ 'PAIR_ADMIT_CLICK'=(Extract $controls 'internal void AdmitPairedAttackClick(TurnController context, ref bool result)')
+ 'PAIR_GRANT'=(Extract $lifecycle 'internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)')
+ 'ADAPTER_ALLOCATION'=(ExtractRegion $adapter '        private sealed class Allocation' '        private readonly ActorAllocationLifetime')
+ 'ADAPTER_GET'=(Extract $adapter 'private Allocation Get(UnitEntityData mount)')
+ 'ADAPTER_TICK'=(Extract $adapter 'internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)')
+ 'ADAPTER_ORDER'=(Extract $adapter 'internal float RemainingOrderMetres(UnitEntityData actor, bool step, bool singleMove)')
+ 'ADAPTER_HAS'=(Extract $adapter 'internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)')
  'APPROACH_FAILURE'=(Extract $command 'private sealed class ApproachFailure : InvalidOperationException')
  'RECORD_END_CAUSE'=(Extract $command 'internal void RecordEndCause(MountedAttackEndCause cause, string detail,')
  'END_AFTER_FAULT'=(Extract $command 'private void EndAfterFault(Exception exception, string phase)')
@@ -102,7 +120,7 @@ $members=[ordered]@{
  'COMMAND_RECORD_NATIVE_TERMINAL'=(Extract $command 'internal void RecordNativeTerminal(MountedNativeTerminalBranch branch, MountedActorCapabilityBlock block)')
  'COMMAND_TARGET_INVALID_NOW'=(Extract $command 'internal bool TargetInvalidNow()')
  'COMMAND_CREATE_VALIDATE_CHILD'=(Extract $command 'private void CreateAndValidateChildAttack()')
- 'CONTROLLER_EVALUATE_ACTOR'=(Extract $controller 'private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target)')
+ 'CONTROLLER_EVALUATE_ACTOR'=(Extract $controller 'private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target,')
  'CLICK_ASSIGNMENT_HOOK'=(Extract $patch 'internal static void ClickManualTargetAssignment(UnitCombatState combatState, UnitEntityData target)')
  'TERMINAL_CAPTURE_CAN_ACT'=(ExtractExpression $terminalBranches 'internal static int CaptureCanAct(bool canAct) =>')
  'TERMINAL_TB_FORCE_FINISH'=(Extract $terminalBranches 'internal static void TurnBasedForceFinish(UnitCommand command, UnitCommand.ResultType result, int canActObservation)')
@@ -119,7 +137,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

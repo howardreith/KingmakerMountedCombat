@@ -576,7 +576,6 @@
     <Compile Include="Integration\NativeBrainRankingReader.cs" />
     <Compile Include="Integration\PairedAttackClickProbe.cs" />
     <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
-    <Compile Include="Domain\MountedHeading.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />

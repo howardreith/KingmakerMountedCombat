@@ -6,7 +6,8 @@ namespace KingmakerMountedCombat.Domain
         NativeDecision,
         // The mounted strike is already admissible from where the pair stands: no movement is involved.
         AdmitInRange,
-        // A native route for the mount's own agent, within the mount's granted movement, ends where the strike is admissible.
+        // A proven executable route of the mount's own agent (native Complete, destination within the mount's granted movement,
+        // proven arrival) ends where the strike is admissible.
         AdmitRoute
     }
 
@@ -21,14 +22,11 @@ namespace KingmakerMountedCombat.Domain
     // whose endpoint admits the strike. Everything else keeps native's refusal, which leaves the previous order untouched.
     public static class PairedAttackClickAdmissionPolicy
     {
-        // The native movement simulator's own step granularity is 0.1 s of travel; a route is compared with a small absolute
-        // tolerance only, never a percentage.
-        public const float RouteToleranceMetres = 0.005f;
-
-        // The executable route reaches a strike-admissible point and its cost along the route is within the mount's grant.
-        public static bool RouteWithinGrant(bool routeComplete, bool endpointAdmitsStrike, float routeMetres, float mountGrantedMetres) =>
-            routeComplete && endpointAdmitsStrike && !float.IsNaN(routeMetres) && !float.IsNaN(mountGrantedMetres) && mountGrantedMetres > 0f &&
-            routeMetres <= mountGrantedMetres + RouteToleranceMetres;
+        // PR #70 R1-F1: only a PROVEN executable route authorizes movement (native Complete outcome, a destination with a proven
+        // arrival radius, cost measured along the route to that destination) and its cost must be within the mount's grant, with no
+        // tolerance: a diagnostic distance (for example the unbounded walk's reach beyond the grant) never authorizes anything.
+        public static bool RouteWithinGrant(bool routeProven, float routeMetres, float mountGrantedMetres) =>
+            routeProven && !float.IsNaN(routeMetres) && !float.IsNaN(mountGrantedMetres) && mountGrantedMetres > 0f && routeMetres <= mountGrantedMetres;
 
         public static PairedAttackClickAdmission Decide(
             bool nativeIgnored,
@@ -43,9 +41,9 @@ namespace KingmakerMountedCombat.Domain
             bool riderAttackAdmitted,
             bool strikeAdmissibleNow,
             bool routeComplete,
+            bool routeProven,
             float routeMetres,
             float mountGrantedMetres,
-            bool endpointAdmitsStrike,
             out string reason)
         {
             reason = null;
@@ -60,8 +58,8 @@ namespace KingmakerMountedCombat.Domain
             if (!riderAttackAdmitted) { reason = "rider-attack-refused"; return PairedAttackClickAdmission.NativeDecision; }
             if (strikeAdmissibleNow) { reason = "in-range"; return PairedAttackClickAdmission.AdmitInRange; }
             if (!routeComplete) { reason = "no-complete-route"; return PairedAttackClickAdmission.NativeDecision; }
-            if (!endpointAdmitsStrike) { reason = "route-endpoint-out-of-reach"; return PairedAttackClickAdmission.NativeDecision; }
-            if (!RouteWithinGrant(routeComplete, endpointAdmitsStrike, routeMetres, mountGrantedMetres))
+            if (!routeProven) { reason = "no-proven-route"; return PairedAttackClickAdmission.NativeDecision; }
+            if (!RouteWithinGrant(routeProven, routeMetres, mountGrantedMetres))
             {
                 reason = "insufficient-movement";
                 return PairedAttackClickAdmission.NativeDecision;

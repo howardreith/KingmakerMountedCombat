@@ -67,8 +67,8 @@ namespace KingmakerMountedCombat.Tests
             List<float[]> route; float cost;
             TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, (point, from, to) => point[0] >= 1.437f, unbounded, out route, out cost) &&
                 Math.Abs(cost - 1.437f) < 0.001f && Math.Abs(route[route.Count - 1][0] - 1.437f) < 0.001f, "The first legal reach was not found at its boundary: " + cost);
-            TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
-            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f), "A grant ending short of legal reach passed.");
+            TestRunner.True(PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, cost, 1.44f), "A grant ending just inside legal reach was refused.");
+            TestRunner.True(!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, cost, 1.42f), "A grant ending short of legal reach passed.");
             // Reviews R5-F2, R7-F1: a 1.6 cm sight window (1.412..1.428 m). The fixed 1 cm grid from the route start contains 1.42, so
             // the window is found unbounded, at a grant ending inside it (1.42) and at a larger grant (1.50): raising the grant does
             // not lose it. The walk refines back to the window's start, never beyond the grant.
@@ -88,7 +88,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, narrow, 1.42f, (from, to) => new[] { 1.4155f / 3f }, out route, out cost) &&
                 Math.Abs(cost - 1.413f) < 0.001f, "The established position did not preserve the narrow window: " + cost);
             TestRunner.True(MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.42f, out route, out cost) && Math.Abs(cost - 1.412f) < 0.001f &&
-                cost <= 1.42f && PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, true, cost, 1.42f),
+                cost <= 1.42f && PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, cost, 1.42f),
                 "The legal step whose grant ends inside the sight window was refused: " + cost);
             TestRunner.True(!MountedRouteWalker.Walk(straight, Dist, Lerp, window, 1.40f, out route, out cost) && route == null,
                 "A grant ending before the sight window produced a route (the prior order must stand).");
@@ -150,7 +150,9 @@ namespace KingmakerMountedCombat.Tests
             float cooldown;
             // Partially spent first Move (1.5 s), TwoActions, auto-stop off: 4.5 s across the order; the mount pays the conversion.
             var executed = Execute(1.5f, false, false, false, out cooldown);
-            TestRunner.True(Math.Abs(Admission(1.5f, false, false, false) - 4.5f) < 1e-4f && Math.Abs(executed - 4.5f) < 1e-3f && cooldown > 3f,
+            const float first = MountedMovementState.FirstTickSeconds + 1e-4f;
+            TestRunner.True(Math.Abs(Admission(1.5f, false, false, false) - 4.5f) < first && Admission(1.5f, false, false, false) <= executed + 1e-4f &&
+                Math.Abs(executed - 4.5f) < 1e-3f && cooldown > 3f,
                 "The order allowance did not match execution across the conversion: admission " + Admission(1.5f, false, false, false) + ", executed " + executed + ", cooldown " + cooldown);
             TestRunner.True(Math.Abs(new MountedMovementState().Remaining(speed, step, 1.5f, false, false, false, false) - 1.5f) < 1e-4f,
                 "The current-action slice changed (it remains the per-tick native allowance).");
@@ -159,7 +161,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 var admitted = Admission(1.5f, control[0], control[1], control[2]);
                 var done = Execute(1.5f, control[0], control[1], control[2], out cooldown);
-                TestRunner.True(Math.Abs(admitted - 1.5f) < 1e-4f && Math.Abs(done - 1.5f) < 1e-3f && cooldown <= 3.0001f,
+                TestRunner.True(Math.Abs(admitted - 1.5f) < first && admitted <= done + 1e-4f && Math.Abs(done - 1.5f) < 1e-3f && cooldown <= 3.0001f,
                     "A limited order exceeded its first action: admission " + admitted + ", executed " + done + ", cooldown " + cooldown);
             }
             // Review R7-F4: an untouched Move, the mount's Standard spent and single-move selected (the rider's mirrored choice).
@@ -168,20 +170,69 @@ namespace KingmakerMountedCombat.Tests
             // mount's Move (its cooldown reaches 3); nothing is taken from anyone else's actions.
             var combined = Admission(0f, true, true, false);
             var combinedDone = Execute(0f, true, true, false, out cooldown);
-            TestRunner.True(Math.Abs(combined - 3f) < 1e-4f && Math.Abs(combinedDone - 3f) < 1e-3f && Math.Abs(cooldown - 3f) < 1e-3f,
+            TestRunner.True(Math.Abs(combined - 3f) < first && combined <= combinedDone + 1e-4f && Math.Abs(combinedDone - 3f) < 1e-3f && Math.Abs(cooldown - 3f) < 1e-3f,
                 "Single-move with a spent Standard: admission " + combined + ", executed " + combinedDone + ", mount Move cooldown " + cooldown);
             TestRunner.True(Math.Abs(combinedDone - Execute(0f, true, false, false, out cooldown)) < 1e-4f,
                 "Single-move with a spent Standard differs from the ordinary single Move action.");
             // The single-move limit still applies while the Standard is unused: one Move action, then stop.
-            TestRunner.True(Math.Abs(Admission(0f, false, true, false) - 3f) < 1e-4f && Math.Abs(Execute(0f, false, true, false, out cooldown) - 3f) < 1e-3f,
+            TestRunner.True(Math.Abs(Admission(0f, false, true, false) - 3f) < first && Math.Abs(Execute(0f, false, true, false, out cooldown) - 3f) < 1e-3f,
                 "Single-move with the Standard unused did not stop after one Move action.");
             // The dry run never touches the live state.
             var live = new MountedMovementState();
             live.RemainingAcrossOrder(speed, step, 0f, true, false, false, true, false);
             TestRunner.True(live.TimeMoved == 0f && !live.AutoStopPending, "Admission changed the live movement state.");
             // A five-foot step keeps the step allowance.
-            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) - step / speed) < 1e-4f,
+            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) - step / speed) < first,
                 "The step allowance changed.");
+            RestrictedSingleMoveMatchesSuccessiveTicks();
+        }
+
+        // PR #70 R1-F6: the installed per-tick rule. TurnController.TickMovement re-reads GetRemainingMovementTime(false,
+        // EnabledSingleActionMove) before every tick and clamps the tick to it; with the single-action limit and remaining time of
+        // three seconds or less (a restricted Move: 3 x (1 - 0) - 0 = 3), it returns 0 once MoveAction is positive. KMC's executor
+        // (TickDelegated -> Advance) applies the same rule tick by tick. The prediction (RemainingAcrossOrder) is compared with
+        // successive ordinary ticks at two frame lengths and with the mount's resulting Move debit, for every restriction, step,
+        // single-move, Standard and auto-stop combination: it never exceeds what execution grants, and for the restricted single
+        // move it grants nothing (execution moves one tick and stops). Lawful five-foot steps, spent-Standard behaviour and the
+        // Standard conversion keep their allowances.
+        private static void RestrictedSingleMoveMatchesSuccessiveTicks()
+        {
+            const float speed = 9f, step = 1.524f;
+            foreach (var dt in new[] { 1f / 60f, 0.1f })
+                foreach (var restricted in new[] { false, true })
+                    foreach (var stepMode in new[] { false, true })
+                        foreach (var single in new[] { false, true })
+                            foreach (var standardUsed in new[] { false, true })
+                                foreach (var autoStop in new[] { false, true })
+                                    foreach (var moveUsed in new[] { 0f, 1.5f })
+                                    {
+                                        var state = new MountedMovementState();
+                                        var used = moveUsed; var executed = 0f; var ticks = 0;
+                                        for (var tick = 0; tick < 2000; tick++)
+                                        {
+                                            float debit;
+                                            var granted = state.Advance(dt, speed, step, used, standardUsed, restricted, stepMode, single, false, false, autoStop, out debit);
+                                            if (!(granted > 0f)) break;
+                                            used += debit; executed += granted; ticks++;
+                                        }
+                                        var predicted = new MountedMovementState().RemainingAcrossOrder(speed, step, moveUsed, standardUsed, restricted, stepMode, single, autoStop);
+                                        var label = "dt=" + dt.ToString("0.###") + " restricted=" + restricted + " step=" + stepMode + " single=" + single +
+                                            " standardUsed=" + standardUsed + " autoStop=" + autoStop + " moveUsed=" + moveUsed + ": predicted " + predicted.ToString("R") +
+                                            " s, executed " + executed.ToString("R") + " s in " + ticks + " ticks, mount Move debit " + (used - moveUsed).ToString("R");
+                                        TestRunner.True(predicted <= executed + 1e-4f && (stepMode || Math.Abs((used - moveUsed) - executed) < 1e-4f),
+                                            "PR-2 R1-F6: the prediction exceeded successive ordinary ticks or the debit disagreed (" + label + ").");
+                                        TestRunner.True(executed - predicted <= dt + MountedMovementState.FirstTickSeconds + 1e-4f,
+                                            "PR-2 R1-F6: the prediction lost more than one tick (" + label + ").");
+                                        if (restricted && single && !standardUsed && !stepMode && moveUsed == 0f && dt == 0.1f)
+                                        {
+                                            Console.WriteLine("    R1-F6 restricted single move: " + label);
+                                            TestRunner.True(predicted == 0f && ticks == 1, "PR-2 R1-F6: the restricted single move was predicted as travel (" + label + ").");
+                                        }
+                                    }
+            // The unrestricted single move still predicts its one Move action; a spent Standard clears the limit (one ordinary Move).
+            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, false, true, false) - 3f) < MountedMovementState.FirstTickSeconds + 1e-4f &&
+                Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, true, false, false, true, false) - 3f) < MountedMovementState.FirstTickSeconds + 1e-4f,
+                "PR-2 R1-F6: the unrestricted single move or the spent-Standard case changed.");
         }
 
         private static readonly MountedAcceptedWorkFacts PlayerMove = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = true };
@@ -484,7 +535,7 @@ namespace KingmakerMountedCombat.Tests
                 bool inRange = false, bool route = true, float routeMetres = 1.2f, float granted = 1.5f, bool endpoint = true,
                 bool melee = true, bool selected = true, bool empty = true, bool current = true, bool terrain = false, bool ability = false) =>
                 PairedAttackClickAdmissionPolicy.Decide(ignored, true, addressable, selected, empty, current, terrain, ability, melee, attack,
-                    inRange, route, routeMetres, granted, endpoint, out reason);
+                    inRange, route, endpoint, routeMetres, granted, out reason);
             string why;
             // A legal five-foot step: the mount's remaining step covers its native route to a point that admits the strike.
             TestRunner.Equal(PairedAttackClickAdmission.AdmitRoute, Decide(out why, routeMetres: 1.2f, granted: 1.5f), "A legal step was refused.");
@@ -498,6 +549,13 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal("insufficient-movement", why, "The over-budget reason was lost.");
             TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, route: false), "A failed route was admitted.");
             TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, endpoint: false), "A route ending out of reach or sight was admitted.");
+            // PR #70 R1-F1: a complete native route without a proven executable arrival (for example only the unbounded walk's
+            // diagnostic reach, 1.412 m against a 1.410 m grant) never authorizes movement, and a proven route needs no tolerance.
+            TestRunner.True(Decide(out why, endpoint: false, routeMetres: 1.412f, granted: 1.41f) == PairedAttackClickAdmission.NativeDecision && why == "no-proven-route",
+                "A diagnostic distance authorized movement (" + why + ").");
+            TestRunner.True(Decide(out why, routeMetres: 1.412f, granted: 1.41f) == PairedAttackClickAdmission.NativeDecision && why == "insufficient-movement" &&
+                Decide(out why, routeMetres: 1.41f, granted: 1.41f) == PairedAttackClickAdmission.AdmitRoute,
+                "The grant comparison used a tolerance.");
             TestRunner.Equal(PairedAttackClickAdmission.NativeDecision, Decide(out why, routeMetres: 1.2f, granted: 0f), "Spent movement admitted a route.");
             // Not the rider's lawful attack input: native decides (another initiative arrangement's actor, refused Standard, a
             // non-attack prediction, stale predictions, terrain, a selected ability, a busy rider).

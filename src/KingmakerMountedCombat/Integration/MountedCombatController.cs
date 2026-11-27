@@ -876,15 +876,8 @@ namespace KingmakerMountedCombat.Integration
                     command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(orderGeneration, issued);
                     // PR-1 review R2-F1: supersession stops the installed wrapper before its first delivery.
                     command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(orderGeneration);
-                    // Review R4-F1: a turn-based rider melee order admitted by the click probe follows the validated route.
-                    if (action == MountedCombatActionKind.RiderMelee && stockIntentValidatedRoute != null)
-                    {
-                        command.ValidatedApproachRoute = stockIntentValidatedRoute;
-                        // Review R7-F1: the destination established at planning is re-examined by every revalidation.
-                        var established = stockIntentValidatedRoute.Count >= 2 ? stockIntentValidatedRoute[stockIntentValidatedRoute.Count - 1] : (Vector3?)null;
-                        command.RouteRevalidator = () => RevalidateAdmittedClickRoute(target, established);
-                        stockIntentValidatedRoute = null;
-                    }
+                    // Review R4-F1, PR #70 R1-F7: a turn-based rider melee order admitted by the click probe follows the proof bound to it.
+                    AttachClickProof(command, action, target);
                 }
                 if (automaticOrigin)
                 {
@@ -1102,14 +1095,24 @@ namespace KingmakerMountedCombat.Integration
         // individually ended or prohibited actor is skipped exactly as dispatch would refuse it.
         // MMR-02 (review R3-F2): the dispatcher's own admission of the rider's melee attack on a clicked target (Standard,
         // native capability block, paired addressability, selection and transaction), read before native accepts the click.
+        // PR #70 R1-F8: the click is a fresh explicit order, so its own target-life fact applies (native UnitAttack admits an enemy that
+        // is already unconscious when ordered); an earlier intent's permission is never borrowed.
         internal bool RiderMeleeClickAdmitted(UnitEntityData target) =>
             !disposed && relationship.State == RelationshipState.Mounted && target != null &&
-            EvaluateStockActor(MountedCombatActionKind.RiderMelee, target).IsAllowed;
+            EvaluateStockActor(MountedCombatActionKind.RiderMelee, target, true).IsAllowed;
 
-        private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target)
+        // PR #70 R1-F8: a fresh explicit order on this target, decided by the target's own state now (living; conscious, or already
+        // unconscious when ordered).
+        private static bool FreshExplicitClickTargetLifeAdmits(UnitEntityData target)
+        {
+            var state = target?.Descriptor?.State;
+            return state != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(state.IsConscious, state.IsDead, state.IsFinallyDead, state.IsUnconscious);
+        }
+
+        private MountedCombatActionAvailability EvaluateStockActor(MountedCombatActionKind action, UnitEntityData target, bool freshExplicitClick = false)
         {
             NativeSingleAttackWeaponSelection ignored;
-            return MountedCombatActionEvaluator.Evaluate(CaptureContext(action, target, out ignored, false, true, false));
+            return MountedCombatActionEvaluator.Evaluate(CaptureContext(action, target, out ignored, false, true, false, false, freshExplicitClick));
         }
 
         // Reviews R1-F5, R3-F3, R2-F5. Called by the native acceptance seams only for a command native now holds: the private
@@ -1224,39 +1227,146 @@ namespace KingmakerMountedCombat.Integration
 
         internal int OwnMoveHoldRestoredCount { get; private set; }
 
-        // Review R4-F1: the route the click probe validated (mount start to the first point where the strike's production
-        // admission passes), bound to the exact click: target, turn context and frame. The order it admits hands it to its
-        // carrier as a ForcedPath; anything else (another target, turn or frame, or a refused click) leaves no route.
-        private List<Vector3> validatedClickRoute;
-        private UnitEntityData validatedClickTarget;
-        private object validatedClickTurn;
-        private int validatedClickFrame = -1;
-
-        internal void RememberValidatedClickRoute(UnitEntityData target, object turn, List<Vector3> route)
+        // MMR-02 (review R4-F1; PR #70 R1-F1, R1-F7, R1-F9): the proof of an overridden turn-based click: the executable route to its
+        // verified destination (empty when the strike was admissible where the pair stood) and the plan identity it was proven for.
+        // It is bound to the exact click (target, turn context, frame and a sequence number); the click's own handling takes it once
+        // (TakeValidatedClickProof) on every disposition, and it is bound to the order generation that click starts or continues
+        // (BindClickProof). Only that order's wrapper receives it (AttachClickProof). A native-accepted click on the rider's context
+        // discards any pending proof, so no proof passes from one click to the next.
+        internal sealed class ClickProof
         {
-            validatedClickRoute = route == null ? null : new List<Vector3>(route);
-            validatedClickTarget = route == null ? null : target;
-            validatedClickTurn = route == null ? null : turn;
-            validatedClickFrame = route == null ? -1 : Time.frameCount;
+            public UnitEntityData Target;
+            public object Turn;
+            public int Frame;
+            public long Sequence;
+            public List<Vector3> Route;
+            public PairedAttackClickProbe.PlanIdentity Plan;
         }
 
-        private List<Vector3> TakeValidatedClickRoute(UnitEntityData target, object turn)
+        internal delegate float MountGrantReader(out bool step, out bool singleMove, out string reason);
+
+        private ClickProof pendingClickProof;
+        private long clickProofSequence;
+        private ClickProof intentClickProof;
+        private long intentClickProofGeneration = -1;
+        internal int ClickProofDiscardCount { get; private set; }
+        internal string LastClickProofDisposition { get; private set; } = "<none>";
+        internal PairedAttackClickProbe.Result LastAttackClickProbe { get; private set; }
+        internal ClickProof PendingClickProofForDiagnostics => pendingClickProof;
+        internal ClickProof IntentClickProofForDiagnostics => intentClickProof;
+
+        // MMR-02 (reviews R1-F3, R3-F2; PR #70 R1-F1, R1-F8, R1-F9): the admission of a turn-based rider melee click that native
+        // dropped, from the native input facts PairedActivationControls read. The rider's attack is admitted by the dispatcher's own
+        // rule with the fresh click's target-life fact, the mount's grant is read first and bounds the probe, and only a proven
+        // executable route (or a strike admissible where the pair stands) overrides native's refusal. The click's proof is exactly
+        // this decision's: a route, an in-range marker or nothing.
+        internal PairedAttackClickAdmission AdmitTurnBasedAttackClick(UnitEntityData target, object turn, bool inputCandidate, bool riderAddressable,
+            bool riderSelected, bool riderCommandsEmpty, bool predictionsCurrent, bool overTerrain, bool abilitySelected, bool meleeOnTarget,
+            MountGrantReader readGrant, out string reason, out string trace)
         {
-            var route = validatedClickRoute;
-            var exact = route != null && ReferenceEquals(validatedClickTarget, target) && turn != null &&
-                ReferenceEquals(validatedClickTurn, turn) &&
-                Time.frameCount - validatedClickFrame <= 1;
-            RememberValidatedClickRoute(null, null, null);
-            return exact ? route : null;
+            var rider = relationship.Rider;
+            var mount = relationship.Mount;
+            var riderAttack = inputCandidate && RiderMeleeClickAdmitted(target);
+            bool stepMode = false, singleMove = false;
+            var grantReason = "<not-read>";
+            var granted = riderAttack && readGrant != null ? readGrant(out stepMode, out singleMove, out grantReason) : 0f;
+            PairedAttackClickProbe.Result probe = null;
+            if (riderAttack)
+            {
+                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target, granted); }
+                catch (Exception error) { TryLogException("Turn-based rider attack click probe failed; native decision kept", error); }
+            }
+            var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
+                predictionsCurrent, overTerrain, abilitySelected, meleeOnTarget, riderAttack,
+                probe != null && probe.AdmissibleNow, probe != null && probe.RouteComplete, probe != null && probe.RouteProven,
+                probe?.RouteMetres ?? float.NaN, granted, out reason);
+            LastAttackClickProbe = probe;
+            RememberValidatedClickProof(target, turn,
+                decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
+                decision == PairedAttackClickAdmission.AdmitInRange ? new List<Vector3>() : null,
+                probe?.Plan ?? default(PairedAttackClickProbe.PlanIdentity));
+            trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason +
+                "; mountGrantedMetres=" + granted.ToString("R") + "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") +
+                "; diagnosticReachMetres=" + (probe?.DiagnosticReachMetres ?? float.NaN).ToString("R") + "; path=" + (probe?.Path.ToString() ?? "<not-run>") +
+                "; probe=" + (probe?.Detail ?? "<not-run>") + "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
+                "; plan={" + (probe?.Plan.ToString() ?? "<not-run>") + "}; proof=" + LastClickProofDisposition;
+            return decision;
         }
 
-        private List<Vector3> stockIntentValidatedRoute;
+        internal void RememberValidatedClickProof(UnitEntityData target, object turn, List<Vector3> route, PairedAttackClickProbe.PlanIdentity plan)
+        {
+            if (pendingClickProof != null) DiscardClickProof("replaced by a later click decision");
+            if (route == null) return;
+            pendingClickProof = new ClickProof
+            {
+                Target = target, Turn = turn, Frame = Time.frameCount, Sequence = ++clickProofSequence, Route = new List<Vector3>(route), Plan = plan
+            };
+            LastClickProofDisposition = "pending:#" + pendingClickProof.Sequence;
+        }
+
+        // A native-accepted click on the rider's context: native's own path rule applies to it, so no override proof belongs to it.
+        internal void DiscardPendingClickProof(string why)
+        {
+            if (pendingClickProof != null) DiscardClickProof(why);
+        }
+
+        private void DiscardClickProof(string why)
+        {
+            pendingClickProof = null;
+            ClickProofDiscardCount++;
+            LastClickProofDisposition = "discarded:" + why;
+        }
+
+        // The exact click's own handling: always clears the pending proof; returns it only for this click.
+        private ClickProof TakeValidatedClickProof(UnitEntityData target, object turn)
+        {
+            var proof = pendingClickProof;
+            if (proof == null) return null;
+            var exact = ReferenceEquals(proof.Target, target) && turn != null && ReferenceEquals(proof.Turn, turn) && Time.frameCount - proof.Frame <= 1;
+            if (!exact) { DiscardClickProof("another click"); return null; }
+            pendingClickProof = null;
+            LastClickProofDisposition = "taken:#" + proof.Sequence;
+            return proof;
+        }
+
+        // Binds the click's proof, or its absence, to the order generation the click starts or continues (undispatched).
+        private void BindClickProof(ClickProof proof, string disposition)
+        {
+            if (intentClickProof != null && !ReferenceEquals(intentClickProof, proof)) ClickProofDiscardCount++;
+            intentClickProof = proof;
+            intentClickProofGeneration = proof == null ? -1 : stockIntent.Generation;
+            LastClickProofDisposition = disposition + (proof == null ? ":none" : ":#" + proof.Sequence);
+        }
+
+        // TryExecuteAction: the order's own wrapper receives the proof bound to its generation and target, once.
+        private void AttachClickProof(MountedPairAttackCommand command, MountedCombatActionKind action, UnitEntityData target)
+        {
+            var proof = intentClickProof;
+            intentClickProof = null;
+            if (proof == null) return;
+            if (action != MountedCombatActionKind.RiderMelee || intentClickProofGeneration != stockIntent.Generation || !ReferenceEquals(proof.Target, target))
+            {
+                ClickProofDiscardCount++;
+                LastClickProofDisposition = "discarded:not-this-order";
+                return;
+            }
+            command.ValidatedApproachRoute = proof.Route;
+            command.ClickPlan = proof.Plan;
+            // Review R7-F1: the destination established at planning is re-examined by every revalidation.
+            var established = proof.Route.Count >= 2 ? proof.Route[proof.Route.Count - 1] : (Vector3?)null;
+            var plan = proof.Plan;
+            command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
+            LastClickProofDisposition = "attached:#" + proof.Sequence;
+        }
 
         // Review R4-F1: the proof for a carrier of a click-admitted turn-based order, recomputed from the CURRENT origin with the
         // CURRENT grant by the same production walk the click used; null when the proof cannot be established. Reviews R6-F1,
         // R7-F1: the proof carries the verified destination and its proven native arrival radius; the destination established
         // at planning is re-examined on the current route.
-        private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established)
+        // PR #70 R1-F9: prediction, revalidation and dispatch must agree on the plan (executor, ordinary mode, first planned weapon,
+        // reach); any difference ends the proof.
+        private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established,
+            PairedAttackClickProbe.PlanIdentity clickPlan, PairedAttackClickProbe.PlanIdentity dispatchPlan)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1266,17 +1376,27 @@ namespace KingmakerMountedCombat.Integration
             string reason;
             var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out reason);
             var probe = PairedAttackClickProbe.Evaluate(rider, mount, target, grant, established);
+            LastRoutePlans = "click{" + clickPlan + "};revalidation{" + probe.Plan + "};dispatch{" + dispatchPlan + "}";
+            if (!probe.Plan.Matches(clickPlan) || !dispatchPlan.Matches(clickPlan))
+            {
+                LastRouteRevalidation = "proven=False;plan-changed;" + LastRoutePlans;
+                TryLog(() => "Turn-based admitted approach refused at revalidation: " + LastRouteRevalidation + ".");
+                return null;
+            }
             if (probe.AdmissibleNow)
-                return new PairedAttackClickProbe.Approach { Route = new List<Vector3> { mount.Position, mount.Position }, ArrivalRadius = PairedAttackClickProbe.ArrivalRadii[0] };
-            var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteComplete, probe.EndpointAdmitsStrike, probe.RouteMetres, grant);
+            {
+                LastRouteRevalidation = "proven=True;in-range;" + LastRoutePlans;
+                return new PairedAttackClickProbe.Approach { Route = new List<Vector3> { mount.Position, mount.Position }, ArrivalRadius = PairedAttackClickProbe.ArrivalRadii[0], Plan = probe.Plan };
+            }
+            var proven = PairedAttackClickAdmissionPolicy.RouteWithinGrant(probe.RouteProven, probe.RouteMetres, grant);
             LastRouteRevalidation = "proven=" + proven + ";routeMetres=" + probe.RouteMetres.ToString("R") + ";grant=" + grant.ToString("R") +
-                ";mountGrant=" + reason + ";probe=" + probe.Detail;
+                ";mountGrant=" + reason + ";probe=" + probe.Detail + ";" + LastRoutePlans;
             TryLog(() => "Turn-based admitted approach revalidated from the current origin: " + LastRouteRevalidation + ".");
-            return proven && probe.Route != null && probe.Route.Count >= 2
-                ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius } : null;
+            return proven ? new PairedAttackClickProbe.Approach { Route = probe.Route, ArrivalRadius = probe.ArrivalRadius, Plan = probe.Plan } : null;
         }
 
         internal string LastRouteRevalidation { get; private set; }
+        internal string LastRoutePlans { get; private set; }
 
         internal void ObserveHoldInput()
         {
@@ -1419,6 +1539,9 @@ namespace KingmakerMountedCombat.Integration
                 observedStockRequest.Frame);
             // Only the click's own command consumes the observation; any other command leaves it intact.
             observedStockRequest.Consume(command);
+            // PR #70 R1-F7: the click's own handling takes the click's proof once, whatever its disposition.
+            var clickProof = playerCommand ? TakeValidatedClickProof(target, turn) : null;
+            if (!turnBased || ownerIsMount) clickProof = null;
             if (!exactObservedRequest && !playerCommand && stockAttack.AiAction != null)
             {
                 // A native brain proposal, never a click: it goes through its own admission. Native Run is refused
@@ -1480,6 +1603,10 @@ namespace KingmakerMountedCombat.Integration
                 stockIntentCommand?.PromoteToPlayerOrigin();
                 automaticRuns.Clear();
                 OwnManualTarget(principal, target, stockIntent.Generation);
+                // PR #70 R1-F7: an undispatched order takes this click's proof (or none, for a native-accepted click); a live carrier
+                // is kept and the click's proof is discarded.
+                if (stockIntentCommand == null || stockIntentCommand.IsFinished) BindClickProof(clickProof, "continued-undispatched");
+                else if (clickProof != null) { ClickProofDiscardCount++; LastClickProofDisposition = "discarded:live-carrier-kept"; }
                 LastStockAttackObservation = "intent-continued;target=" + target.UniqueId;
                 return false;
             }
@@ -1491,7 +1618,7 @@ namespace KingmakerMountedCombat.Integration
             // Review R2-F1: the order's attack kind is fixed here, at acceptance, for its whole lifetime.
             retainedOrder.Begin(stockIntent.Generation, false,
                 ownerIsMount || actionContext != MountedCombatActionKind.RiderRanged);
-            stockIntentValidatedRoute = turnBased && !ownerIsMount ? TakeValidatedClickRoute(target, turn) : null;
+            BindClickProof(clickProof, "new-order");
             StockAttackIntentStartCount++;
             OwnManualTarget(principal, target, stockIntent.Generation);
             LastRejectionCodes = new MountedCombatRejectionCode[0];
@@ -2386,7 +2513,7 @@ namespace KingmakerMountedCombat.Integration
             mountSelection.Release();
             stockIntent.Cancel();
             retainedOrder.Clear();
-            stockIntentValidatedRoute = null;
+            intentClickProof = null;
             stockIntentCommand = null;
             automaticRuns.Clear();
             if (target != null)
@@ -2958,7 +3085,8 @@ namespace KingmakerMountedCombat.Integration
             bool assumeTargetAvailable = false,
             bool ordinaryIntent = false,
             bool nativeActorIntent = false,
-            bool nativeStartGatesReadiness = false)
+            bool nativeStartGatesReadiness = false,
+            bool freshExplicitClick = false)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -3012,8 +3140,8 @@ namespace KingmakerMountedCombat.Integration
                 TargetExists = targetValid,
                 // Native explicit-order rule: only the player's own retained order on an enemy that was already
                 // unconscious admits that downed enemy; every other request still needs a conscious target.
-                TargetAliveAndConscious = assumeTargetAvailable ||
-                    targetState != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(targetState.IsConscious,
+                TargetAliveAndConscious = assumeTargetAvailable || freshExplicitClick && FreshExplicitClickTargetLifeAdmits(target) ||
+                    !freshExplicitClick && targetState != null && UnifiedMountedStockAttackPolicy.TargetLifeAdmits(targetState.IsConscious,
                         targetState.IsDead, targetState.IsFinallyDead,
                         ordinaryIntent && !stockIntent.Automatic && ReferenceEquals(target, stockIntentTarget) &&
                         stockIntent.TargetUnconsciousWhenOrdered),

@@ -32,12 +32,16 @@ namespace UnityEngine
     public static class Time { public static int frameCount; }
 }
 
+// Native PathCompleteState (Assembly-CSharp-firstpass, global namespace): the outcome of a path request.
+public enum PathCompleteState { NotCalculated, Error, Complete, Partial }
+
 namespace Pathfinding
 {
     public class Path
     {
         public List<Vector3> vectorPath = new List<Vector3>();
         public bool error;
+        public PathCompleteState CompleteState = PathCompleteState.Complete;
         public bool IsDone() => true;
     }
 
@@ -89,6 +93,14 @@ namespace TurnBased.Controllers
         public Kingmaker.EntitySystem.Entities.UnitEntityData Unit;
         public TurnStatus Status = TurnStatus.Preparing;
         public bool IsActing;
+        // PR #70 round 2: the native input facts click admission and the movement executor read (engine boundary).
+        public const float MetersOfFiveFootStep = 1.524f;
+        public bool EnabledFiveFootStep, EnabledSingleActionMove, IsOverTerrain;
+        private Kingmaker.EntitySystem.Entities.UnitEntityData m_HighlightedUnit;
+        private Kingmaker.UnitLogic.Commands.UnitCommands m_PredictionCommands;
+        private bool m_NeedNewPredictions;
+        public void SetNativeClick(Kingmaker.EntitySystem.Entities.UnitEntityData highlighted, Kingmaker.UnitLogic.Commands.UnitCommands predictions, bool needNew)
+        { m_HighlightedUnit = highlighted; m_PredictionCommands = predictions; m_NeedNewPredictions = needNew; }
     }
 }
 
@@ -102,14 +114,17 @@ namespace Kingmaker
         // Native Game.CurrentMode (its name is what MountedGameModePolicy reads) and Player.IsInCombat.
         public GameModeFacade CurrentMode = new GameModeFacade("Default");
         public PlayerFacade Player = new PlayerFacade();
+        public SelectedAbilityHandlerFacade SelectedAbilityHandler = new SelectedAbilityHandlerFacade();
     }
+
+    public sealed class SelectedAbilityHandlerFacade { public object Ability; }
 
     public sealed class GameModeFacade { private readonly string name; public GameModeFacade(string name) { this.name = name; } public override string ToString() => name; }
     public sealed class PlayerFacade { public bool IsInCombat = true; }
 
     public sealed class TimeControllerFacade { public TimeSpan GameTime; }
 
-    public sealed class TurnBasedCombatControllerFacade { public TurnBased.Controllers.TurnController CurrentTurn; }
+    public sealed class TurnBasedCombatControllerFacade { public TurnBased.Controllers.TurnController CurrentTurn; public int RoundNumber = 1; public TimeSpan RoundStartTime; }
 }
 
 namespace Kingmaker.View
@@ -118,13 +133,22 @@ namespace Kingmaker.View
     {
         // Native route stand-in: the polyline the harness world returns for this agent (the mount) toward a destination.
         public Func<Vector3, Vector3, List<Vector3>> Route;
+        // PR #70 R1-F5: the native outcome of each request (null: Complete), and every requested destination.
+        public Func<Vector3, Vector3, PathCompleteState> Outcome;
+        public readonly List<Vector3> Queries = new List<Vector3>();
+        public bool NearTheEnd;
+        private bool m_IsInForceMode;
+        private float? m_SavedMinSpeed;
+        private float m_MinSpeed = 0.3f, m_WarmupTime = 0.2f, m_SlowDownTime = 0.2f;
         public Kingmaker.EntitySystem.Entities.UnitEntityData Unit;
         public int FindPathCount;
         public Pathfinding.Path FindPath(Vector3 destination, Pathfinding.OnPathDelegate callback, float? approachRadius = null, bool needLOS = false,
             int ignoreBlockerId = 0)
         {
             FindPathCount++;
-            var path = new Pathfinding.Path { vectorPath = Route(Unit.Position, destination) };
+            Queries.Add(destination);
+            var outcome = Outcome == null ? PathCompleteState.Complete : Outcome(Unit.Position, destination);
+            var path = new Pathfinding.Path { vectorPath = Route(Unit.Position, destination), CompleteState = outcome, error = outcome == PathCompleteState.Error };
             callback?.Invoke(path);
             return path;
         }
@@ -201,6 +225,15 @@ namespace Kingmaker.EntitySystem.Entities
         // Native Standard availability (spent at the first native act of an attack, UnitActionController.UpdateCooldowns).
         public bool HasStandard = true;
         public bool HasStandardAction() => HasStandard;
+        // PR #70 round 2: the native movement and action facts the paired allocation reads.
+        public float CurrentSpeedMps => CombatSpeedMps;
+        public bool MoveRestricted;
+        public bool IsMoveActionRestricted() => MoveRestricted;
+        public bool UsedStandardAction() => !HasStandard || CombatState.Cooldown.StandardAction > 0f;
+        public bool IsAbleToAct() => Descriptor.State.CanAct;
+        // PR #70 R1-F9: an ordinary (full) plan whose first attack uses another weapon than a single attack would.
+        public ItemWeaponFacade FullAttackFirstWeapon;
+        public float FullAttackFirstRange = 1.5f;
         public bool IsStandardActionRestricted() => false;
         public string CharacterName => UniqueId;
         public UnitEntityData(string id) { UniqueId = id; Commands = new Kingmaker.UnitLogic.Commands.UnitCommands(this); }
@@ -337,7 +370,11 @@ namespace Kingmaker.UnitLogic.Commands
             // Native UnitAttack.Init: an explicit single attack plans one attack; an ordinary attack plans the executor's routine.
             AllAttacks = new List<AttackHandInfo>();
             for (var i = 0; i < (IsSingleAttack ? 1 : Math.Max(1, executor.AttackCount)); i++)
-                AllAttacks.Add(new AttackHandInfo { WeaponRange = executor.WeaponRange, Weapon = executor.FirstWeapon, Hand = executor.PrimaryLimb });
+            {
+                var full = !IsSingleAttack && i == 0 && executor.FullAttackFirstWeapon != null;
+                AllAttacks.Add(new AttackHandInfo { WeaponRange = full ? executor.FullAttackFirstRange : executor.WeaponRange,
+                    Weapon = full ? executor.FullAttackFirstWeapon : executor.FirstWeapon, Hand = executor.PrimaryLimb });
+            }
             ApproachRadius = executor.View.Corpulence + Target.View.Corpulence + executor.WeaponRange;
         }
         // Native UnitAttack.OnStart: the attack (release) begins; counted as the single native attack start.
@@ -438,6 +475,7 @@ namespace Kingmaker.UnitLogic.Commands
         public int RunCount;
         public UnitCommands(UnitEntityData owner) { this.owner = owner; }
         public UnitCommand[] Raw => raw;
+        public bool Empty => raw.All(command => command == null) && Queue.Count == 0;
         public UnitCommand Standard => raw[(int)UnitCommand.CommandType.Standard];
         public UnitCommand GetCommand(UnitCommand.CommandType type) => raw[(int)type];
         public bool Contains(UnitCommand command) => command != null && raw[(int)command.Type] == command;
@@ -585,9 +623,67 @@ namespace KingmakerMountedCombat.Integration
         public readonly List<string> Log = new List<string>();
         public HarnessController(UnitEntityData rider, UnitEntityData mount) { relationship.Rider = rider; relationship.Mount = mount; }
         private void TryLog(Func<string> line) { Log.Add(line()); }
-        internal PairedAttackClickProbe.Approach Revalidate(UnitEntityData target) => RevalidateAdmittedClickRoute(target, null);
+        // PR #70 R1-F9: the click's plan (null: the order's own, as an unchanged order has) and the established destination (review R7-F1).
+        internal PairedAttackClickProbe.PlanIdentity? ClickPlan;
+        internal Vector3? Established;
+        internal PairedAttackClickProbe.Approach Revalidate(UnitEntityData target, PairedAttackClickProbe.PlanIdentity dispatch) =>
+            RevalidateAdmittedClickRoute(target, Established, ClickPlan ?? dispatch, dispatch);
         /* REVALIDATE */
         internal string LastRouteRevalidation { get; private set; }
+        internal string LastRoutePlans { get; private set; }
+    }
+
+    // PR #70 R1-F10: the paired participant's click admission and the mount's grant, around the ACTUAL
+    // PairedActivationControls.AdmitPairedAttackClick and PairedActivationLifecycle.PairedMountGrantedMetres. The native TurnController
+    // fields they read are the facade's (engine boundary); addressability and the movement context are stand-ins.
+    internal sealed class HarnessActivation { public TurnController Boundary; public UnitEntityData Principal, Partner; }
+    internal sealed class HarnessPairRelationship { public MountedCombatController CombatOwner; }
+    internal sealed class HarnessPairParticipant
+    {
+        private readonly HarnessActivation activation = new HarnessActivation();
+        private readonly HarnessPairRelationship relationship = new HarnessPairRelationship();
+        private readonly IModLogger logger = new HarnessLogger();
+        internal readonly MountedMovementStateAdapter movementState = new MountedMovementStateAdapter();
+        private static readonly FieldInfo NativeHighlightedUnit = typeof(TurnController).GetField("m_HighlightedUnit", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo NativePredictionCommands = typeof(TurnController).GetField("m_PredictionCommands", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo NativeNeedNewPredictions = typeof(TurnController).GetField("m_NeedNewPredictions", BindingFlags.Instance | BindingFlags.NonPublic);
+        public UnitEntityData Unaddressable;
+        public bool PartnerCanGetUp;
+        internal HarnessPairParticipant(TurnController boundary, UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
+        { activation.Boundary = boundary; activation.Principal = rider; activation.Partner = mount; relationship.CombatOwner = combat; }
+        internal bool CanAddressActor(UnitEntityData actor, TurnController turn) => actor != null && actor != Unaddressable;
+        internal TurnController PairedMovementContext(TurnController native) => native;
+        internal IModLogger Logger => logger;
+        /* PAIR_ADMIT_CLICK */
+        internal int AdmittedAttackClickCount { get; private set; }
+        internal string LastAttackClickDecision { get; private set; }
+        /* PAIR_GRANT */
+    }
+
+    // PR #70 R1-F10: the mount's paired allocation, around the ACTUAL MountedMovementStateAdapter members (allocation, Get, TickDelegated,
+    // RemainingOrderMetres, HasGrantedMovement). The agent pacing fields TickDelegated writes are the facade agent's.
+    internal sealed class MountedMovementStateAdapter
+    {
+        /* ADAPTER_ALLOCATION */
+        private static readonly FieldInfo ForceModeField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_IsInForceMode", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo SavedMinSpeedField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_SavedMinSpeed", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo MinSpeedField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_MinSpeed", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo WarmupField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_WarmupTime", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo SlowdownField = typeof(Kingmaker.View.UnitMovementAgent).GetField("m_SlowDownTime", BindingFlags.Instance | BindingFlags.NonPublic);
+        internal void MaintainLifetimes() { }
+        // Engine boundary: native Prepare of this allocation (production Prepared also writes the native turn fields).
+        internal void PrepareForHarness(UnitEntityData mount)
+        {
+            var allocation = Get(mount);
+            allocation.Prepared = true;
+            allocation.MoveUsed = mount.CombatState.Cooldown.MoveAction;
+            allocation.StandardUsed = mount.CombatState.Cooldown.StandardAction > 0f;
+        }
+        internal float AllocationMoveUsed(UnitEntityData mount) => Get(mount).MoveUsed;
+        /* ADAPTER_GET */
+        /* ADAPTER_TICK */
+        /* ADAPTER_ORDER */
+        /* ADAPTER_HAS */
     }
 
     // Native NativeSingleAttackWeaponResolver: the mount's primary natural attack (the Horse Bite in its first additional limb).
@@ -857,7 +953,11 @@ namespace Harness
         }
     }
     // Native SelectionManager.Instance.SelectedUnits.
-    internal sealed class SelectionManager { public static SelectionManager Instance = new SelectionManager(); public List<UnitEntityData> SelectedUnits = new List<UnitEntityData>(); }
+    internal sealed class SelectionManager { public static SelectionManager Instance = new SelectionManager(); public List<UnitEntityData> SelectedUnits = new List<UnitEntityData>();
+        public UnitEntityData SingleSelectedUnit => SelectedUnits.Count == 1 ? SelectedUnits[0] : null; }
+    // Native SettingsRoot (the auto-stop-after-first-Move setting the movement executor reads).
+    internal sealed class SettingsRoot { public static SettingsRoot Instance = new SettingsRoot(); public SettingBool AutoStopAfterFirstMoveAction = new SettingBool(); }
+    internal sealed class SettingBool { public bool CurrentValue; }
     // Native brain ranking (production NativeBrainRankingReader reads the rider brain's live candidate list as native ranked it).
     internal static class NativeBrainRankingReader
     {
@@ -930,6 +1030,13 @@ namespace Harness
             public UnitEntityData Unaddressable;
             public bool CanAddressActor(UnitEntityData actor, TurnBased.Controllers.TurnController turn) => actor != Unaddressable && (turn == null || turn.Unit == null || true);
             public void RememberPairedMovementInput() { }
+            // PR #70 R1-F10: the paired participant whose ACTUAL PairedMountGrantedMetres the revalidation reads.
+            public HarnessPairParticipant Participant;
+            internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)
+            {
+                if (Participant != null) return Participant.PairedMountGrantedMetres(turn, out step, out singleMove, out reason);
+                step = false; singleMove = false; reason = "no-participant"; return 0f;
+            }
         }
         internal sealed class HarnessAvailability { public bool IsAllowed; public string Feedback; }
         private readonly HarnessGuard overlayWorldInputGuard = new HarnessGuard();
@@ -1067,11 +1174,11 @@ namespace Harness
         private void TryLogException(string phase, Exception exception) { }
 
         // ---- harness entry points: the same calls the production drive makes ----
-        internal void BeginOrder(UnitEntityData target, bool automatic)
+        internal void BeginOrder(UnitEntityData target, bool automatic, bool targetUnconsciousWhenOrdered = false)
         {
             // PR-1 round 7 (R4-F5): bound to the fixture's current turn in turn-based combat, as the production route binds it.
             stockIntent.Begin(target, TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ? Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn : null,
-                false, true, relationship.Rider, relationship.Mount, null, null, 0, automatic);
+                false, true, relationship.Rider, relationship.Mount, null, null, 0, automatic, targetUnconsciousWhenOrdered: targetUnconsciousWhenOrdered);
             retainedOrder.Begin(stockIntent.Generation, automatic, true);
         }
         // TryExecuteAction's acceptance of the order's wrapper (dispatch): the wrapper is the order's own, carries the supersession
@@ -1083,6 +1190,9 @@ namespace Harness
             wrapper.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(generation, issued);
             wrapper.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(generation);   // exactly as TryExecuteAction wires it
             if (stockIntent.Automatic) wrapper.AutomaticOrderAdmissionLost = RetireAutomaticOrderIfNotAdmitted;   // and an automatic order's decision
+            // TryExecuteAction for an ordinary order: the order's own bound proof (PR #70 R1-F7), and the explicit unconscious-target admission.
+            if (!stockIntent.Automatic) AttachClickProof(wrapper, actor == relationship.Mount ? MountedCombatActionKind.MountPrimaryNatural : MountedCombatActionKind.RiderMelee, target);
+            if (!stockIntent.Automatic && stockIntent.TargetUnconsciousWhenOrdered) wrapper.AdmitTargetUnconsciousWhenOrdered();
             activeCommand = wrapper; stockIntentCommand = wrapper;
             OwnManualTarget(actor, target, stockIntent.Automatic ? -1 : stockIntent.Generation);
         }
@@ -1099,12 +1209,30 @@ namespace Harness
         /* CONTROLLER_ADMIT_AUTOMATIC */
         // The production fields beside the decision (the proposing native action and its generation), typed on the facade's AI action.
         private Kingmaker.UnitLogic.Commands.AiActionFacade automaticOrderAction;
-        // PR-2 reconciliation on PR-1's accepted source: the production turn-based click-route members that the spliced TryExecuteAction and
-        // ClearStockAttackIntent touch. This real-time controller facade never admits a turn-based click (RememberValidatedClickRoute is not
-        // reached), so no route is ever set here; the actual revalidation is exercised by HarnessController above.
-        private List<Vector3> stockIntentValidatedRoute;
-        private PairedAttackClickProbe.Approach RevalidateAdmittedClickRoute(UnitEntityData target, Vector3? established) =>
-            throw new InvalidOperationException("turn-based click route revalidation is not reached by the real-time controller facade");
+        // PR #70 round 2 (R1-F7..F10): the ACTUAL click-proof members (admission, take, bind, attach), the rider's click admission with the
+        // fresh target-life rule and the revalidation; the harness drives them through the turn-based entry points below.
+        /* CONTROLLER_CLICK_PROOF */
+        /* CONTROLLER_FRESH_LIFE */
+        /* CONTROLLER_RIDER_CLICK_ADMITTED */
+        /* CONTROLLER_REVALIDATE */
+        internal string LastRouteRevalidation { get; private set; }
+        internal string LastRoutePlans { get; private set; }
+        // TryRouteMountedStockAttack's turn-based dispositions of the exact player click (production lines, same calls): the click's own
+        // handling takes its proof once; a new order binds it to its generation; a continued undispatched order takes this click's proof
+        // (or none), while a live carrier is kept and the click's proof is discarded.
+        internal void StockClickNewOrder(UnitEntityData target, TurnController turn, bool targetUnconsciousWhenOrdered = false)
+        {
+            var clickProof = TakeValidatedClickProof(target, turn);
+            CancelCore("new stock hostile attack", true);
+            BeginOrder(target, false, targetUnconsciousWhenOrdered);
+            BindClickProof(clickProof, "new-order");
+        }
+        internal void StockClickContinue(UnitEntityData target, TurnController turn)
+        {
+            var clickProof = TakeValidatedClickProof(target, turn);
+            if (stockIntentCommand == null || stockIntentCommand.IsFinished) BindClickProof(clickProof, "continued-undispatched");
+            else if (clickProof != null) { ClickProofDiscardCount++; LastClickProofDisposition = "discarded:live-carrier-kept"; }
+        }
         private long automaticOrderActionGeneration = -1;
         /* CONTROLLER_ADMISSION_DECISION */
         // The production retirement entry an automatic wrapper is given (TryExecuteAction: command.AutomaticOrderAdmissionLost).
@@ -1142,6 +1270,9 @@ namespace Harness
             public bool FailFirstDestination;
             public int FailedDestinations;
             public int NativeApproachSteps;
+            // PR #70 R1-F10: the mount's movement passes through the ACTUAL paired allocation (TickDelegated) when set.
+            public Func<float, float> MountMoveTick;
+            public int MountStalls;
         }
 
         private static World NewWorld(Vector3 horse, Vector3 target, Func<Vector3, Vector3, bool> blocker, bool turnBased)
@@ -1246,6 +1377,11 @@ namespace Harness
             else goal = move.Point;
             var length = Kingmaker.Utility.GeometryUtils.MechanicsDistance(goal, mover.Position);
             var step = Math.Min(0.25f, length);
+            if (mover == world.Horse && world.MountMoveTick != null)
+            {
+                step = world.MountMoveTick(step);
+                if (!(step > 0f)) { world.MountStalls++; return; }
+            }
             var offset = goal - mover.Position; offset.y = 0f;
             var before = mover.Position;
             var yawBefore = mover.Orientation;
@@ -3599,7 +3735,7 @@ namespace Harness
                 controller.unifiedTurn.GrantMetres = 9f;
                 var order = Order(world, MountedCombatActionKind.RiderMelee, false);
                 order.ValidatedApproachRoute = new List<Vector3> { new Vector3(0f, 0f, 0f), turnPoint, new Vector3(2f, 0f, 0.6f) }; // the click-time route
-                order.RouteRevalidator = () => controller.Revalidate(world.Target);
+                order.RouteRevalidator = plan => controller.Revalidate(world.Target, plan);
                 world.Rider.Commands.Run(order);
                 order.Start();
                 var carrier = order.DelegatedMove;
@@ -3626,7 +3762,7 @@ namespace Harness
             shortController.unifiedTurn.GrantMetres = 2.75f; // covers the unshifted 2.6 m route, not the shifted 2.9 m one
             var expired = Order(short_, MountedCombatActionKind.RiderMelee, false);
             expired.ValidatedApproachRoute = new List<Vector3> { new Vector3(0f, 0f, 0f), turnPoint, new Vector3(2f, 0f, 0.6f) };
-            expired.RouteRevalidator = () => shortController.Revalidate(short_.Target);
+            expired.RouteRevalidator = plan => shortController.Revalidate(short_.Target, plan);
             short_.Rider.Commands.Run(expired);
             var runsBefore = short_.Horse.Commands.RunCount;
             expired.Start();
@@ -3649,7 +3785,7 @@ namespace Harness
             out MountedPairNativeAdmissionState admissionAtRelease)
         {
             order.ValidatedApproachRoute = new List<Vector3> { world.Horse.Position, world.Horse.Position };
-            order.RouteRevalidator = () => controller.Revalidate(world.Target);
+            order.RouteRevalidator = plan => controller.Revalidate(world.Target, plan);
             world.Rider.Commands.Run(order);
             order.Start();
             var carrier = order.DelegatedMove;
@@ -3682,7 +3818,7 @@ namespace Harness
                 var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, grant);
                 string reason;
                 var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, true, true, true, true, false, false, true, true,
-                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteMetres, grant, probe.EndpointAdmitsStrike, out reason);
+                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteProven, probe.RouteMetres, grant, out reason);
                 var label = "grant " + grant.ToString("0.00") + " m";
                 if (grant == 1.42f)
                 {
@@ -3793,7 +3929,7 @@ namespace Harness
                 var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, spec.Grant);
                 string reason;
                 var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, true, true, true, true, false, false, true, true,
-                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteMetres, spec.Grant, probe.EndpointAdmitsStrike, out reason);
+                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteProven, probe.RouteMetres, spec.Grant, out reason);
                 if (!spec.Admit)
                 {
                     Check(decision == PairedAttackClickAdmission.NativeDecision && probe.Route == null,
@@ -3814,6 +3950,484 @@ namespace Harness
                     atRelease == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && carrier.TravelledMetres <= spec.Grant + 1e-4f,
                     "R7-F1 " + spec.Name + ": carrier revalidation proves it again, the horse stops at " + admittedAt + " and one strike is admitted");
             }
+        }
+
+
+        // ======== PR #70 round 2 (owner instruction 2026-11-26f section 6) ========
+        private sealed class Connected
+        {
+            public World World; public MountedCombatController Combat; public HarnessPairParticipant Pair; public TurnController Context;
+        }
+
+        // Both initiative arrangements: the pair's activation boundary is the rider's turn (rider first) or the mount's (mount first); the
+        // mount's allocation is prepared at that boundary (engine boundary), and every mount movement tick passes through ACTUAL TickDelegated.
+        private static Connected Connect(World world, bool mountFirst)
+        {
+            var context = new TurnController { Unit = mountFirst ? world.Horse : world.Rider, Status = TurnController.TurnStatus.Acting, IsActing = true };
+            Kingmaker.Game.Instance.TurnBasedCombatController.CurrentTurn = context;
+            var combat = new MountedCombatController(world.Rider, world.Horse);
+            var pair = new HarnessPairParticipant(context, world.Rider, world.Horse, combat);
+            combat.unifiedTurn.Participant = pair;
+            pair.movementState.PrepareForHarness(world.Horse);
+            Harness.SelectionManager.Instance.SelectedUnits.Clear();
+            Harness.SelectionManager.Instance.SelectedUnits.Add(world.Rider);
+            world.MountMoveTick = metres =>
+            {
+                var speed = world.Horse.CurrentSpeedMps;
+                var dt = metres / speed;
+                pair.movementState.TickDelegated(context, world.Horse, ref dt);
+                return dt * speed;
+            };
+            return new Connected { World = world, Combat = combat, Pair = pair, Context = context };
+        }
+
+        // An exact mount grant in metres: speed 1 m/s, Standard spent (no conversion), Move cooldown leaving grant + the first tick.
+        private static void GrantMetres(World world, float metres)
+        {
+            world.Horse.CombatSpeedMps = 1f;
+            world.Horse.CombatState.Cooldown.StandardAction = 6f;
+            world.Horse.CombatState.Cooldown.MoveAction = 3f - (metres + MountedMovementState.FirstTickSeconds);
+        }
+
+        // The native click: native IgnoreClick dropped it (true) or accepted it (false); the ACTUAL postfix decides. Returns "admitted".
+        private static bool Click(Connected c, UnitEntityData target, bool nativeIgnored = true)
+        {
+            var predictions = new UnitCommands(c.World.Rider);
+            var predicted = new UnitAttack(target);
+            predicted.Init(c.World.Rider);
+            predictions.Raw[(int)UnitCommand.CommandType.Standard] = predicted;
+            c.Context.SetNativeClick(target, predictions, false);
+            var result = nativeIgnored;
+            c.Pair.AdmitPairedAttackClick(c.Context, ref result);
+            return nativeIgnored && !result;
+        }
+
+        private static MountedPairAttackCommand Dispatch(Connected c, UnitEntityData target)
+        {
+            var order = new MountedPairAttackCommand(c.World.Rider, c.World.Horse, target, MountedCombatActionKind.RiderMelee, c.World.Logger);
+            c.Combat.AcceptWrapper(order, c.World.Rider, target);
+            order.PreStartMovementForbidden = () => false;
+            c.World.Rider.Commands.Run(order);
+            order.Start();
+            return order;
+        }
+
+        private sealed class Spend
+        {
+            public float MountMove; public bool RiderStandard;
+            public override string ToString() => "mountMove=" + MountMove.ToString("0.####") + "s,riderStandard=" + (RiderStandard ? "unspent" : "spent");
+        }
+        private static Spend Observe(Connected c) => new Spend { MountMove = c.World.Horse.CombatState.Cooldown.MoveAction, RiderStandard = c.World.Rider.HasStandard };
+
+        // Native ticks until the carrier is released (the transaction attacks) and then the strike's first act.
+        private static void RunToStrike(Connected c, MountedPairAttackCommand order, out Spend atRelease, out Spend atStrike, out MountedPairNativeAdmissionState admission)
+        {
+            atRelease = null; atStrike = null; admission = MountedPairNativeAdmissionState.Unavailable;
+            var safety = 0;
+            while (!order.IsFinished && order.Transaction.State == MountedCombatTransactionState.Approaching && safety++ < 200)
+            { NativeTick(c.World, c.World.Horse); NativeTick(c.World, c.World.Rider); }
+            if (order.Transaction.State != MountedCombatTransactionState.Attacking) return;
+            atRelease = Observe(c);
+            admission = order.EvaluateCurrentNativeAdmission();
+            for (var tick = 0; tick < 8 && UnitAttack.StandardSpends == 0; tick++)
+            {
+                if (order.IsStarted && !order.IsFinished) order.ActEventDue = true;
+                NativeTick(c.World, c.World.Rider);
+            }
+            atStrike = Observe(c);
+        }
+
+        private static string Spent(Spend before, Spend release, Spend strike) => "before travel {" + before + "}, at carrier release {" + release + "}, at strike {" + strike + "}";
+
+        // R1-F10 (with R1-F7): both initiative arrangements, connected: ACTUAL click admission -> proof taken and bound -> attached to the order's
+        // wrapper -> revalidated carrier -> per-tick allocation debit -> release -> strike. Then exhausted/ended actors, cancellation and retargeting.
+        private static void R2F10Connected()
+        {
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f && from.x > 1.0f;
+            var turnPoint = new Vector3(2f, 0f, 0f);
+            Func<World> make = () =>
+            {
+                var w = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+                w.Horse.View.AgentASP.Route = (from, to) => new List<Vector3> { from, turnPoint, new Vector3(2f, 0f, 1.5f) };
+                return w;
+            };
+            foreach (var mountFirst in new[] { false, true })
+            {
+                var label = mountFirst ? "mount-first arrangement" : "rider-first arrangement";
+                var world = make();
+                var c = Connect(world, mountFirst);
+                var before = Observe(c);
+                var admitted = Click(c, world.Target);
+                var pending = c.Combat.PendingClickProofForDiagnostics;
+                c.Combat.StockClickNewOrder(world.Target, c.Context);
+                var bound = c.Combat.IntentClickProofForDiagnostics;
+                var order = Dispatch(c, world.Target);
+                var attached = c.Combat.LastClickProofDisposition;
+                var carrier = order.DelegatedMove;
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                var debited = atRelease == null ? -1f : atRelease.MountMove - before.MountMove;
+                Check(admitted && pending != null && ReferenceEquals(bound, pending) && attached.StartsWith("attached:", StringComparison.Ordinal) && order.RouteBound &&
+                    carrier != null && carrier.FollowedForcedPath && c.Pair.LastAttackClickDecision.StartsWith("AdmitRoute", StringComparison.Ordinal),
+                    "R1-F10 " + label + ": the ACTUAL click admission's proof (" + c.Pair.LastAttackClickDecision + ") was taken, bound to the order (" + attached + ") and its carrier followed the revalidated route");
+                Check(atRelease != null && atStrike != null && before.MountMove == 0f && before.RiderStandard && atRelease.RiderStandard && !atStrike.RiderStandard &&
+                    Math.Abs(debited - carrier.TravelledMetres / world.Horse.CurrentSpeedMps) < 1e-3f && atStrike.MountMove == atRelease.MountMove &&
+                    Math.Abs(c.Pair.movementState.AllocationMoveUsed(world.Horse) - atRelease.MountMove) < 1e-4f &&
+                    admission == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1 && UnitAttack.StandardSpends == 1,
+                    "R1-F10 " + label + ": " + Spent(before, atRelease, atStrike) + "; the mount paid its travel (" + debited.ToString("0.####") + " s for " +
+                    carrier.TravelledMetres.ToString("0.###") + " m) through the allocation, the rider's Standard was spent once at the strike");
+            }
+            // Exhausted or ended actors keep native's refusal: no proof, no order.
+            foreach (var spec in new[] { "mount movement spent", "rider Standard spent", "mount cannot act", "rider not addressable" })
+            {
+                var world = make();
+                if (spec == "mount movement spent") { world.Horse.CombatState.Cooldown.MoveAction = 3f; world.Horse.CombatState.Cooldown.StandardAction = 6f; }
+                if (spec == "rider Standard spent") world.Rider.HasStandard = false;
+                if (spec == "mount cannot act") world.Horse.Descriptor.State.CanAct = false;
+                var c = Connect(world, false);
+                if (spec == "rider not addressable") c.Pair.Unaddressable = world.Rider;
+                var admitted = Click(c, world.Target);
+                Check(!admitted && c.Combat.PendingClickProofForDiagnostics == null && !c.Combat.HasStockAttackIntent,
+                    "R1-F10 " + spec + ": native refusal kept, no proof (" + (c.Pair.LastAttackClickDecision ?? "<not a rider melee input>") + "; " +
+                    (((HarnessLogger)c.Pair.Logger).Lines.LastOrDefault() ?? "").Split(new[] { "; mountGrant=" }, StringSplitOptions.None).Skip(1).FirstOrDefault()?.Split(';')[0] + ")");
+            }
+            // Cancellation: the live carrier stops, the proof is gone, the mount pays only what it travelled, no strike.
+            {
+                var world = make();
+                var c = Connect(world, false);
+                Click(c, world.Target);
+                c.Combat.StockClickNewOrder(world.Target, c.Context);
+                var order = Dispatch(c, world.Target);
+                var carrier = order.DelegatedMove;
+                NativeTick(world, world.Horse);
+                var paid = Observe(c);
+                c.Combat.Cancel("player cancelled");
+                for (var tick = 0; tick < 12; tick++) { NativeTick(world, world.Horse); NativeTick(world, world.Rider); }
+                var after = Observe(c);
+                Check(carrier != null && carrier.IsFinished && order.IsFinished && c.Combat.IntentClickProofForDiagnostics == null && !c.Combat.HasStockAttackIntent &&
+                    after.MountMove == paid.MountMove && paid.MountMove > 0f && after.RiderStandard && UnitAttack.NativeAttackStarts == 0,
+                    "R1-F10 cancellation: the carrier stopped, the proof is gone; " + paid + " after one tick, unchanged after cancelling (" + after + "); no strike");
+            }
+            // Retargeting while the first order is live: the rider is busy, so the click on another hostile is native's (round-1 rule: a busy
+            // rider's click is never overridden) and native accepts it. The first order and its carrier end; the first click's proof reaches
+            // nothing (the new order keeps native routing) and only the new target is struck.
+            {
+                var world = make();
+                var c = Connect(world, false);
+                Click(c, world.Target);
+                c.Combat.StockClickNewOrder(world.Target, c.Context);
+                var first = Dispatch(c, world.Target);
+                var firstCarrier = first.DelegatedMove;
+                NativeTick(world, world.Horse);
+                var second = new UnitEntityData("hostile-2") { Position = new Vector3(3.6f, 0f, 1.9f) };
+                second.View.Corpulence = 0.5f;
+                UnityEngine.Time.frameCount++;
+                var admitted = !Click(c, second, false);
+                c.Combat.StockClickNewOrder(second, c.Context);
+                var bound = c.Combat.IntentClickProofForDiagnostics;
+                var order = Dispatch(c, second);
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                Check(admitted && first.IsFinished && firstCarrier.IsFinished && bound == null && !order.RouteBound &&
+                    UnitAttack.NativeAttackStarts == 1 && order.StruckTargets.Count >= 1 && order.StruckTargets.All(t => t == second) && first.StruckTargets.Count == 0,
+                    "R1-F10 retarget (native-accepted click on another hostile): the first order and its carrier ended, no proof passed to the new order, only the new target was struck (nativeAccepted=" + admitted + " firstFinished=" + first.IsFinished + " firstCarrierFinished=" + (firstCarrier?.IsFinished) + " boundTarget=" + (bound?.Target?.UniqueId) + " routeBound=" + order.RouteBound + " starts=" + UnitAttack.NativeAttackStarts + " struck=" + string.Join(",", order.StruckTargets.Select(u => u.UniqueId)) + " firstStruck=" + first.StruckTargets.Count + " decision=" + c.Pair.LastAttackClickDecision + " transaction=" + order.Transaction.State + " end=" + order.EndCause + ")");
+            }
+        }
+
+        // R1-F1: the reviewer's 1.412 m opening with a 1.410 m grant, through the ACTUAL admission with the grant read from the allocation.
+        private static void R2F1BeyondGrant()
+        {
+            Func<Vector3, Vector3, bool> slot = (from, to) => !(from.x >= 1.412f && from.x <= 1.428f);
+            foreach (var grant in new[] { 1.410f, 1.42f })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3f, 0f, 0f), slot, true);
+                GrantMetres(world, grant);
+                var c = Connect(world, false);
+                // The prior order: the rider's earlier order on this target, its wrapper accepted and waiting.
+                c.Combat.BeginOrder(world.Target, false);
+                var prior = new MountedPairAttackCommand(world.Rider, world.Horse, world.Target, MountedCombatActionKind.RiderMelee, world.Logger);
+                c.Combat.AcceptWrapper(prior, world.Rider, world.Target);
+                var priorGeneration = c.Combat.Generation;
+                var admitted = Click(c, world.Target);
+                var line = ((HarnessLogger)c.Pair.Logger).Lines.LastOrDefault() ?? "";
+                var label = "grant " + grant.ToString("0.000") + " m";
+                if (grant < 1.412f)
+                {
+                    Check(!admitted && c.Pair.LastAttackClickDecision == "NativeDecision:no-proven-route" && c.Combat.PendingClickProofForDiagnostics == null &&
+                        c.Combat.Generation == priorGeneration && ReferenceEquals(c.Combat.IntentCommand, prior) && !prior.IsFinished &&
+                        world.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null && line.Contains("diagnosticReachMetres=1.41"),
+                        "R1-F1 " + label + ": native refusal and the prior order kept, no replacement carrier; the diagnostic reach only reported (" +
+                        c.Pair.LastAttackClickDecision + "; " + line.Substring(Math.Max(0, line.IndexOf("mountGrantedMetres", StringComparison.Ordinal))).Split(new[] { "; path=" }, StringSplitOptions.None)[0] + ")");
+                    continue;
+                }
+                c.Combat.StockClickNewOrder(world.Target, c.Context);
+                var order = Dispatch(c, world.Target);
+                var carrier = order.DelegatedMove;
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                Check(admitted && prior.IsFinished && carrier != null && carrier.TravelledMetres <= grant + 1e-4f && admission == MountedPairNativeAdmissionState.Admitted &&
+                    UnitAttack.NativeAttackStarts == 1 && atRelease != null && atRelease.MountMove <= 3f - MountedMovementState.FirstTickSeconds + 1e-4f,
+                    "R1-F1 affordable control (" + label + "): admitted (" + c.Pair.LastAttackClickDecision + "), travelled " + carrier?.TravelledMetres.ToString("R") + " m, one strike; " + atRelease);
+            }
+        }
+
+        // R1-F7: an overridden same-target click on an undispatched order, then a native-accepted click on the same target and turn.
+        private static void R2F7ProofOwnership()
+        {
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f && from.x > 1.0f;
+            var turnPoint = new Vector3(2f, 0f, 0f);
+            Func<World> make = () =>
+            {
+                var w = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+                w.Horse.View.AgentASP.Route = (from, to) => new List<Vector3> { from, turnPoint, new Vector3(2f, 0f, 1.5f) };
+                return w;
+            };
+            var world = make();
+            var c = Connect(world, false);
+            Click(c, world.Target);
+            var first = c.Combat.PendingClickProofForDiagnostics;
+            c.Combat.StockClickNewOrder(world.Target, c.Context);
+            UnityEngine.Time.frameCount++;
+            Click(c, world.Target);
+            var second = c.Combat.PendingClickProofForDiagnostics;
+            c.Combat.StockClickContinue(world.Target, c.Context);
+            var boundSecond = second != null && first != null && second.Sequence > first.Sequence && ReferenceEquals(c.Combat.IntentClickProofForDiagnostics, second);
+            var order = Dispatch(c, world.Target);
+            var attached = c.Combat.LastClickProofDisposition;
+            var carrier = order.DelegatedMove;
+            NativeTick(world, world.Horse);
+            UnityEngine.Time.frameCount++;
+            var accepted = Click(c, world.Target, false);
+            c.Combat.StockClickContinue(world.Target, c.Context);
+            Check(boundSecond && attached == "attached:#" + second.Sequence && order.RouteBound && carrier != null && ReferenceEquals(order.DelegatedMove, carrier) &&
+                !carrier.IsFinished && !accepted && c.Combat.PendingClickProofForDiagnostics == null && c.Combat.IntentClickProofForDiagnostics == null,
+                "R1-F7: the undispatched order took the second same-target click's proof (" + attached + "); the native-accepted click on the same target and turn kept the live carrier");
+            Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+            RunToStrike(c, order, out atRelease, out atStrike, out admission);
+            Check(UnitAttack.NativeAttackStarts == 1 && admission == MountedPairNativeAdmissionState.Admitted, "R1-F7: the kept carrier was released and one strike admitted");
+            // No stale transfer: an overridden click whose own handling never arrived, then a native-accepted click on the same target and turn.
+            var w2 = make();
+            var c2 = Connect(w2, false);
+            Click(c2, w2.Target);
+            var stale = c2.Combat.PendingClickProofForDiagnostics;
+            UnityEngine.Time.frameCount++;
+            Click(c2, w2.Target, false);
+            var discarded = c2.Combat.LastClickProofDisposition;
+            c2.Combat.StockClickNewOrder(w2.Target, c2.Context);
+            var plain = Dispatch(c2, w2.Target);
+            Check(stale != null && discarded == "discarded:native-accepted click" && !plain.RouteBound && plain.RouteRevalidationCount == 0 && c2.Combat.IntentClickProofForDiagnostics == null,
+                "R1-F7: a native-accepted click discards the earlier pending proof (" + discarded + "); its order keeps native routing (no stale transfer)");
+        }
+
+        // R1-F8: a fresh click on an already unconscious, living, attackable enemy that needs a short approach; death and loss of
+        // consciousness after ordering invalidate.
+        private static void R2F8FreshTargetLife()
+        {
+            foreach (var spec in new[] { "unconscious when ordered", "falls unconscious after ordering", "dies after ordering" })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.2f, 0f, 0f), null, true);
+                if (spec == "unconscious when ordered") world.Target.Descriptor.State.IsConscious = false;
+                var c = Connect(world, false);
+                var admitted = Click(c, world.Target);
+                c.Combat.StockClickNewOrder(world.Target, c.Context, !world.Target.Descriptor.State.IsConscious);
+                var order = Dispatch(c, world.Target);
+                if (spec == "falls unconscious after ordering") world.Target.Descriptor.State.IsConscious = false;
+                if (spec == "dies after ordering") world.Target.Descriptor.State.IsDead = true;
+                Spend atRelease, atStrike; MountedPairNativeAdmissionState admission;
+                RunToStrike(c, order, out atRelease, out atStrike, out admission);
+                for (var tick = 0; tick < 6; tick++) { NativeTick(world, world.Horse); NativeTick(world, world.Rider); }
+                if (spec == "unconscious when ordered")
+                    Check(admitted && order.RouteBound && UnitAttack.NativeAttackStarts == 1 && order.StruckTargets.Contains(world.Target) &&
+                        !UnifiedMountedStockAttackPolicy.TargetLifeAdmits(false, false, false, false),
+                        "R1-F8 " + spec + ": the fresh click's own fact admitted it (" + c.Pair.LastAttackClickDecision + "), short approach and one strike; round 1 borrowed the earlier intent's (absent) permission and refused");
+                else
+                    Check(admitted && order.IsFinished && UnitAttack.NativeAttackStarts == 0 && order.StruckTargets.Count == 0,
+                        "R1-F8 " + spec + ": the order ended without a strike (" + order.EndCause + ")");
+            }
+        }
+
+        // R1-F5: a nonempty partial result whose last point appears admissible never authorizes movement; complete and error controls.
+        private static void R2F5PathOutcome()
+        {
+            foreach (var outcome in new[] { PathCompleteState.Partial, PathCompleteState.Complete, PathCompleteState.Error })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.2f, 0f, 0f), null, true);
+                var state = outcome;
+                world.Horse.View.AgentASP.Outcome = (from, to) => state;
+                var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 9f);
+                string reason;
+                var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, true, true, true, true, false, false, true, true,
+                    probe.AdmissibleNow, probe.RouteComplete, probe.RouteProven, probe.RouteMetres, 9f, out reason);
+                var lastPoint = world.Horse.View.AgentASP.Route(world.Horse.Position, world.Target.Position).Last();
+                var strike = new MountedPairSingleAttack(world.Target, world.Rider, world.Horse, true, false);
+                strike.Init(world.Rider);
+                var endAdmits = strike.EvaluateNativeAdmissionAtMountPosition(lastPoint, lastPoint - world.Horse.Position) == MountedPairNativeAdmissionState.Admitted;
+                if (outcome == PathCompleteState.Complete)
+                    Check(decision == PairedAttackClickAdmission.AdmitRoute && probe.RouteProven, "R1-F5 complete control: a complete route is admitted (" + decision + ":" + reason + ", " + probe.Detail + ")");
+                else
+                    Check(decision == PairedAttackClickAdmission.NativeDecision && probe.Route == null && probe.Path.ToString() == outcome.ToString() && (outcome == PathCompleteState.Error || endAdmits),
+                        "R1-F5 " + outcome + ": refused although " + (endAdmits ? "its last point admits the strike" : "no route") + " (" + decision + ":" + reason + ", " + probe.Detail + ")");
+            }
+        }
+
+        // R1-F3: a first opening too narrow for any arrival is passed; the 7 mm window through admission and revalidation, with a changed grant
+        // that needs the destination established at planning; a 5 mm window is refused.
+        private static void R2F3Discovery()
+        {
+            Func<Vector3, Vector3, bool> twoOpenings = (from, to) => !(from.x >= 1.218f && from.x <= 1.222f || from.x >= 1.40f && from.x <= 1.50f);
+            var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3f, 0f, 0f), twoOpenings, true);
+            var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 3f);
+            var end = probe.Route == null ? default(Vector3) : probe.Route.Last();
+            Check(probe.RouteProven && probe.Openings == 2 && end.x >= 1.40f + probe.ArrivalRadius && end.x <= 1.50f,
+                "R1-F3 two openings: discovery passed the 4 mm opening and chose destination " + end + ", cost " + probe.RouteMetres.ToString("R") + ", radius " + probe.ArrivalRadius.ToString("R") + " (" + probe.Detail + ")");
+            var controller = new HarnessController(world.Rider, world.Horse);
+            controller.unifiedTurn.GrantMetres = 3f;
+            var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+            Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+            var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+            Check(carrier != null && admittedAt.x >= 1.40f && admittedAt.x <= 1.50f && atRelease == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                "R1-F3 two openings: carrier revalidation proved it again, the horse stopped at " + admittedAt + " and one strike was admitted");
+            // The 7 mm window (1.4115..1.4185 m, no 1 cm grid point): found at a 1.418 m grant through its grant point.
+            Func<Vector3, Vector3, bool> window = (from, to) => !(from.x >= 1.4115f && from.x <= 1.4185f);
+            var w7 = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3f, 0f, 0f), window, true);
+            var click = PairedAttackClickProbe.Evaluate(w7.Rider, w7.Horse, w7.Target, 1.418f);
+            string reason;
+            var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, true, true, true, true, false, false, true, true,
+                click.AdmissibleNow, click.RouteComplete, click.RouteProven, click.RouteMetres, 1.418f, out reason);
+            var established = click.Route == null ? (Vector3?)null : click.Route.Last();
+            Check(decision == PairedAttackClickAdmission.AdmitRoute && click.ArrivalRadius <= 0.003125f + 1e-6f && established.Value.x >= 1.4115f && established.Value.x <= 1.4185f,
+                "R1-F3 7 mm window: click admitted at a 1.418 m grant (" + decision + ":" + reason + ", destination " + established + ", cost " + click.RouteMetres.ToString("R") + ", radius " + click.ArrivalRadius.ToString("R") + ")");
+            // The grant changes to 1.50 m before the carrier: the established destination keeps the window; without it the walk misses it.
+            var without = PairedAttackClickProbe.Evaluate(w7.Rider, w7.Horse, w7.Target, 1.50f);
+            var revalidator = new HarnessController(w7.Rider, w7.Horse) { Established = established };
+            revalidator.unifiedTurn.GrantMetres = 1.50f;
+            var o7 = Order(w7, MountedCombatActionKind.RiderMelee, false);
+            var c7 = RunRouteBound(w7, revalidator, o7, out admittedAt, out atRelease);
+            Check(!without.RouteProven && c7 != null && revalidator.LastRouteRevalidation.StartsWith("proven=True", StringComparison.Ordinal) && admittedAt.x >= 1.4115f &&
+                admittedAt.x <= 1.4185f && atRelease == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                "R1-F3 changed grant (1.418 -> 1.50 m): revalidation with the established destination proves the window again (without it: " + without.Detail +
+                "); the horse stopped at " + admittedAt + " and one strike was admitted");
+            // Refusal control: a 5 mm window holds no supported arrival disc.
+            Func<Vector3, Vector3, bool> narrow = (from, to) => !(from.x >= 1.4175f && from.x <= 1.4225f);
+            var w5 = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3f, 0f, 0f), narrow, true);
+            var refused = PairedAttackClickProbe.Evaluate(w5.Rider, w5.Horse, w5.Target, 3f);
+            Check(!refused.RouteProven && refused.Detail.Contains("arrival-unverifiable"),
+                "R1-F3 5 mm window control: refused (" + refused.Detail + ")");
+        }
+
+        // R1-F2: a bend whose incoming segment enters the round-7 arrival disc while the rider is blind; the outgoing heading lets the rider see.
+        private static void R2F2Bend()
+        {
+            var vertex = new Vector3(2f, 0f, 0f);
+            var outgoing = new Vector3(1.0f, 0f, 0.3f);
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z > 0.1f;
+            Func<World> make = () =>
+            {
+                var w = NewWorld(new Vector3(-0.05f, 0f, 0f), new Vector3(4.2f, 0f, -1.0f), wall, true);
+                w.Horse.View.AgentASP.Route = (from, to) => new List<Vector3> { from, vertex, outgoing };
+                w.Horse.Orientation = 0f;
+                w.Rider.Position = w.Horse.Position + new Vector3(-0.4f, 0f, 0f);
+                return w;
+            };
+            var world = make();
+            var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 9f);
+            var points = new List<Vector3> { world.Horse.Position, vertex, outgoing };
+            var destination = probe.Route == null ? default(Vector3) : probe.Route.Last();
+            var beyondVertex = Kingmaker.Utility.GeometryUtils.MechanicsDistance(vertex, destination);
+            Check(probe.RouteProven && beyondVertex * 0.287f > probe.ArrivalRadius,
+                "R1-F2: the destination " + destination + " is " + beyondVertex.ToString("0.###") + " m past the bend, radius " + probe.ArrivalRadius.ToString("R") +
+                ": no incoming position lies inside its disc (" + probe.Detail + ")");
+            var controller = new HarnessController(world.Rider, world.Horse);
+            controller.unifiedTurn.GrantMetres = 9f;
+            var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+            Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+            var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+            Check(carrier != null && carrier.FollowedForcedPath && carrier.TravelledMetres > 2.05f && carrier.Travelled.Any(p => Math.Abs(p.x - 1.95f) < 1e-3f && Math.Abs(p.z) < 1e-4f) &&
+                atRelease == MountedPairNativeAdmissionState.Admitted && order.CarrierReleaseProven && UnitAttack.NativeAttackStarts == 1 && order.RouteArrivalContradictionCount == 0,
+                "R1-F2: an incoming tick at (1.95,0) passed while the rider was blind; the horse travelled through the turn (" + carrier?.TravelledMetres.ToString("0.###") +
+                " m), the exact carrier was released at " + admittedAt + " and one strike was admitted");
+            // Control: the round-7 choice (the opening's start + radius + 1 mm, checked only at the final heading) completes on the incoming leg.
+            var control = make();
+            Vector3 f, t; List<Vector3> truncated;
+            var oldDestination = PairedAttackClickProbe.PointAt(points, 2.05f + 0.051f, out f, out t, out truncated);
+            var old = new UnitMoveTo(oldDestination, 0.05f) { NeedLoS = false };
+            old.ForcedPath = new Pathfinding.ForcedPath(truncated);
+            control.Horse.Commands.Run(old);
+            var guard = 0;
+            while (!old.IsFinished && guard++ < 40) NativeTick(control, control.Horse);
+            var blind = new MountedPairSingleAttack(control.Target, control.Rider, control.Horse, true, false);
+            blind.Init(control.Rider);
+            var blindState = blind.EvaluateCurrentNativeAdmission();
+            Check(old.IsFinished && control.Horse.Position.x < 2f && Math.Abs(control.Horse.Position.z) < 1e-4f && blindState != MountedPairNativeAdmissionState.Admitted,
+                "R1-F2 control: the round-7 carrier (" + oldDestination + ", 0.05 m) completed on the incoming leg at " + control.Horse.Position + " with the rider blind (" + blindState + ")");
+        }
+
+        // R1-F4: the mount-centred route ends where only the horse could see; a bounded native query to a reachable rider-admissible position.
+        private static void R2F4Lateral()
+        {
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z > 0.2f;
+            foreach (var closed in new[] { false, true })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(4f, 0f, 0f), wall, true);
+                world.Horse.Orientation = 0f;
+                world.Rider.Position = world.Horse.Position + new Vector3(-0.4f, 0f, 0f);
+                var target = world.Target.Position;
+                if (closed) world.Horse.View.AgentASP.Outcome = (from, to) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(to, target) < 1e-4f ? PathCompleteState.Complete : PathCompleteState.Error;
+                var probe = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 9f);
+                if (closed)
+                {
+                    Check(!probe.RouteProven && probe.LateralQueries >= 1 && probe.LateralQueries <= PairedAttackClickProbe.MaxLateralQueries,
+                        "R1-F4 closed lateral path control: refused after " + probe.LateralQueries + " bounded queries (" + probe.Detail + ")");
+                    continue;
+                }
+                var end = probe.Route == null ? default(Vector3) : probe.Route.Last();
+                Check(probe.RouteProven && probe.Lateral && probe.LateralQueries >= 1 && end.z < 0f,
+                    "R1-F4: the mount-centred route never admitted; lateral query " + probe.LateralQueries + " reached " + end + " (cost " + probe.RouteMetres.ToString("R") + ", " + probe.Detail + ")");
+                var controller = new HarnessController(world.Rider, world.Horse);
+                controller.unifiedTurn.GrantMetres = 9f;
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+                var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+                Check(carrier != null && admittedAt.z < 0f && atRelease == MountedPairNativeAdmissionState.Admitted && UnitAttack.NativeAttackStarts == 1,
+                    "R1-F4: the revalidated lateral route was followed to " + admittedAt + " and one strike was admitted");
+            }
+        }
+
+        // R1-F9: executor, ordinary mode, first planned weapon and reach agree at prediction, revalidation and dispatch; a changed plan ends the proof.
+        private static void R2F9Plan()
+        {
+            Func<Vector3, Vector3, bool> wall = (from, to) => from.z < 0.6f && from.x > 1.0f;
+            var turnPoint = new Vector3(2f, 0f, 0f);
+            foreach (var attacks in new[] { 1, 2 })
+            {
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+                world.Horse.View.AgentASP.Route = (from, to) => new List<Vector3> { from, turnPoint, new Vector3(2f, 0f, 1.5f) };
+                world.Rider.AttackCount = attacks;
+                var predicted = PairedAttackClickProbe.Evaluate(world.Rider, world.Horse, world.Target, 9f);
+                var controller = new HarnessController(world.Rider, world.Horse) { ClickPlan = predicted.Plan };
+                controller.unifiedTurn.GrantMetres = 9f;
+                var order = Order(world, MountedCombatActionKind.RiderMelee, false);
+                Vector3 admittedAt; MountedPairNativeAdmissionState atRelease;
+                var carrier = RunRouteBound(world, controller, order, out admittedAt, out atRelease);
+                Check(predicted.Plan.Valid && !predicted.Plan.SingleAttack && carrier != null && UnitAttack.NativeAttackStarts == 1 &&
+                    predicted.Plan.Matches(PairedAttackClickProbe.PlanIdentity.Of(order)) && controller.LastRouteRevalidation.StartsWith("proven=True", StringComparison.Ordinal),
+                    "R1-F9 " + (attacks == 1 ? "single-capable" : "full-capable") + " ordinary order: " + controller.LastRoutePlans);
+            }
+            // Changed plan: the ordinary routine's first attack uses another weapon after the click (same reach).
+            var w = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(3.6f, 0f, 1.6f), wall, true);
+            w.Horse.View.AgentASP.Route = (from, to) => new List<Vector3> { from, turnPoint, new Vector3(2f, 0f, 1.5f) };
+            var atClick = PairedAttackClickProbe.Evaluate(w.Rider, w.Horse, w.Target, 9f);
+            w.Rider.FullAttackFirstWeapon = new ItemWeaponFacade();
+            var single = PairedAttackClickProbe.Evaluate(w.Rider, w.Horse, w.Target, 9f, null, true);
+            var ordinary = PairedAttackClickProbe.Evaluate(w.Rider, w.Horse, w.Target, 9f);
+            var changed = new HarnessController(w.Rider, w.Horse) { ClickPlan = atClick.Plan };
+            changed.unifiedTurn.GrantMetres = 9f;
+            var expired = Order(w, MountedCombatActionKind.RiderMelee, false);
+            Vector3 at; MountedPairNativeAdmissionState rel;
+            RunRouteBound(w, changed, expired, out at, out rel);
+            Check(!single.Plan.Matches(ordinary.Plan) && expired.IsFinished && expired.RouteProofExpiredCount == 1 && expired.DelegatedMove == null &&
+                UnitAttack.NativeAttackStarts == 0 && changed.LastRouteRevalidation.StartsWith("proven=False;plan-changed", StringComparison.Ordinal),
+                "R1-F9 changed-plan control: the forced-single probe's plan differs from the ordinary one; the order ended cleanly (" + changed.LastRouteRevalidation + ")");
         }
 
         // Review R6-F2: a rider carried at a horizontal mount-local offset turns with the mount at a right-angle corner.
@@ -3923,6 +4537,15 @@ namespace Harness
             try { R6F1(); } catch (Exception exception) { Check(false, "R6-F1 threw " + exception); }
             try { R7F1(); } catch (Exception exception) { Check(false, "R7-F1 threw " + exception); }
             try { R6F2(); } catch (Exception exception) { Check(false, "R6-F2 threw " + exception); }
+            try { R2F10Connected(); } catch (Exception exception) { Check(false, "PR-2 R1-F10 threw " + exception); }
+            try { R2F1BeyondGrant(); } catch (Exception exception) { Check(false, "PR-2 R1-F1 threw " + exception); }
+            try { R2F7ProofOwnership(); } catch (Exception exception) { Check(false, "PR-2 R1-F7 threw " + exception); }
+            try { R2F8FreshTargetLife(); } catch (Exception exception) { Check(false, "PR-2 R1-F8 threw " + exception); }
+            try { R2F5PathOutcome(); } catch (Exception exception) { Check(false, "PR-2 R1-F5 threw " + exception); }
+            try { R2F3Discovery(); } catch (Exception exception) { Check(false, "PR-2 R1-F3 threw " + exception); }
+            try { R2F2Bend(); } catch (Exception exception) { Check(false, "PR-2 R1-F2 threw " + exception); }
+            try { R2F4Lateral(); } catch (Exception exception) { Check(false, "PR-2 R1-F4 threw " + exception); }
+            try { R2F9Plan(); } catch (Exception exception) { Check(false, "PR-2 R1-F9 threw " + exception); }
             Console.WriteLine("TOTAL PASS=" + passes + " FAIL=" + failures);
             return failures == 0 ? 0 : 1;
         }

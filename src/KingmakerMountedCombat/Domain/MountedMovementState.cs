@@ -81,10 +81,16 @@ namespace KingmakerMountedCombat.Domain
             if (remaining > 3f) return remaining - 3f;
             return singleMove && moveUsed > 0f ? 0f : remaining;
         }
-        // Reviews R6-F3, R7-F4: the time available across one order, computed by DRY-RUNNING this state's own Advance on an
-        // isolated copy (the live state, cooldowns and actions are never touched) with the real restriction, step, single-move,
-        // Standard and auto-stop inputs, slice after slice, until it grants nothing. Admission therefore equals what successive
-        // execution debits grant for every flag combination.
+        // Reviews R6-F3, R7-F4, PR #70 R1-F6: the time available across one order, computed by DRY-RUNNING this state's own Advance
+        // on an isolated copy (the live state, cooldowns and actions are never touched) with the real restriction, step, single-move,
+        // Standard and auto-stop inputs. Execution debits movement tick by tick (KMC TickDelegated, like installed
+        // TurnController.TickMovement, which re-reads GetRemainingMovementTime(false, EnabledSingleActionMove) before every tick and
+        // clamps the tick to it), so a rule that depends on movement already spent applies after the FIRST tick: with the single-action
+        // limit and three seconds or less remaining (a restricted Move), native ends the movement as soon as MoveAction is positive.
+        // The dry run therefore spends one FirstTickSeconds tick first (not counted: no order relies on it) and then whole slices,
+        // which land exactly on each native threshold (Remaining returns the time to the next one). The result never exceeds what
+        // successive ordinary ticks grant.
+        public const float FirstTickSeconds = 0.001f;
         public float RemainingAcrossOrder(float speed, float stepRange, float moveUsed, bool standardUsed, bool moveRestricted,
             bool step, bool singleMove, bool autoStop)
         {
@@ -95,6 +101,10 @@ namespace KingmakerMountedCombat.Domain
             };
             var total = 0f;
             var used = moveUsed;
+            float firstDebit;
+            if (!(copy.Advance(FirstTickSeconds, speed, stepRange, used, standardUsed, moveRestricted, step, singleMove, false, false, autoStop, out firstDebit) > 0f))
+                return 0f;
+            used += firstDebit;
             for (var slice = 0; slice < 8; slice++)
             {
                 float debit;

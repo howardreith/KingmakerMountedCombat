@@ -226,7 +226,10 @@ namespace KingmakerMountedCombat.Integration
         // single-move flags are the player's input mode (mirrored onto the mount's context); the allowance is the mount's.
         internal void AdmitPairedAttackClick(TurnController context, ref bool result)
         {
-            if (!result || activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
+            if (activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
+            var combat = relationship.CombatOwner;
+            // PR #70 R1-F7: a click native accepts carries native's own route; no earlier override proof may pass to it.
+            if (!result) { combat?.DiscardPendingClickProof("native-accepted click"); return; }
             var rider = activation.Principal;
             var mount = activation.Partner;
             var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
@@ -242,40 +245,21 @@ namespace KingmakerMountedCombat.Integration
             var riderCommandsEmpty = rider != null && rider.Commands.Empty;
             var inputCandidate = meleeOnTarget && riderSelected && riderAddressable && predictionsCurrent && !abilitySelected &&
                 riderCommandsEmpty && !context.IsOverTerrain;
-            var combat = relationship.CombatOwner;
-            var riderAttack = inputCandidate && combat != null && combat.RiderMeleeClickAdmitted(target);
-            // Review R5-F2: the grant is read first and bounds the probe's walk.
-            bool stepMode = false, singleMove = false;
-            var grantReason = "<not-read>";
-            var granted = riderAttack ? PairedMountGrantedMetres(context, out stepMode, out singleMove, out grantReason) : 0f;
-            PairedAttackClickProbe.Result probe = null;
-            if (riderAttack)
-            {
-                try { probe = PairedAttackClickProbe.Evaluate(rider, mount, target, granted); }
-                catch (Exception error) { logger.Exception("Turn-based rider attack click probe failed; native decision kept", error); }
-            }
-            string reason;
-            var decision = PairedAttackClickAdmissionPolicy.Decide(true, true, riderAddressable, riderSelected, riderCommandsEmpty,
-                predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget, riderAttack,
-                probe != null && probe.AdmissibleNow, probe != null && probe.RouteComplete, probe?.RouteMetres ?? float.NaN, granted,
-                probe != null && probe.EndpointAdmitsStrike, out reason);
+            string reason = "no-combat-owner", trace = "<none>";
+            var decision = combat == null ? PairedAttackClickAdmission.NativeDecision :
+                combat.AdmitTurnBasedAttackClick(target, context, inputCandidate, riderAddressable, riderSelected, riderCommandsEmpty,
+                    predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget,
+                    (out bool step, out bool singleMove, out string grantReason) => PairedMountGrantedMetres(context, out step, out singleMove, out grantReason),
+                    out reason, out trace);
             if (decision != PairedAttackClickAdmission.NativeDecision)
             {
                 result = false;
                 AdmittedAttackClickCount++;
             }
-            // Review R4-F1: the admitted order's carrier follows exactly the validated route; any other outcome clears it.
-            // An admitted order of either kind is route-bound: any carrier it later needs is revalidated from its current origin.
-            combat?.RememberValidatedClickRoute(target, context, decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
-                decision == PairedAttackClickAdmission.AdmitInRange ? new System.Collections.Generic.List<UnityEngine.Vector3>() : null);
             if (!meleeOnTarget) return;
             LastAttackClickDecision = decision + ":" + reason;
             logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +
-                "; rider=" + rider.UniqueId + "; target=" + target.UniqueId +
-                "; mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason +
-                "; mountGrantedMetres=" + granted.ToString("R") +
-                "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") + "; probe=" + (probe?.Detail ?? "<not-run>") +
-                "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
+                "; rider=" + rider.UniqueId + "; target=" + target.UniqueId + "; " + trace +
                 "; nativeApproachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
         }
 

@@ -32,6 +32,14 @@ namespace KingmakerMountedCombat.Domain
         // extraSamples: for a segment (from, to), additional parameters t in [0, 1] to evaluate on it (may be null).
         public static bool Walk<TPoint>(IList<TPoint> points, Func<TPoint, TPoint, float> distance, Func<TPoint, TPoint, float, TPoint> lerp,
             Func<TPoint, TPoint, TPoint, bool> admissible, float budget, Func<TPoint, TPoint, IEnumerable<float>> extraSamples,
+            out List<TPoint> route, out float cost) =>
+            Walk(points, distance, lerp, admissible, budget, extraSamples, 0f, out route, out cost);
+
+        // PR #70 R1-F3: startMetres continues discovery past an opening that could not hold an executable arrival. Only arc lengths
+        // beyond startMetres are sampled (the point at startMetres is known not to admit), and refinement never goes back before it;
+        // the grid, the budget point and the supplied points are unchanged.
+        public static bool Walk<TPoint>(IList<TPoint> points, Func<TPoint, TPoint, float> distance, Func<TPoint, TPoint, float, TPoint> lerp,
+            Func<TPoint, TPoint, TPoint, bool> admissible, float budget, Func<TPoint, TPoint, IEnumerable<float>> extraSamples, float startMetres,
             out List<TPoint> route, out float cost)
         {
             route = null;
@@ -40,7 +48,7 @@ namespace KingmakerMountedCombat.Domain
                 return false;
             var start = points[0];
             var walked = new List<TPoint> { start };
-            if (admissible(start, start, start))
+            if (!(startMetres > 0f) && admissible(start, start, start))
             {
                 route = walked;
                 cost = 0f;
@@ -55,6 +63,13 @@ namespace KingmakerMountedCombat.Domain
                 if (segment <= 0f) continue;
                 var remaining = budget - travelled;
                 if (remaining <= 0f) break;
+                if (travelled + segment <= startMetres)
+                {
+                    walked.Add(to);
+                    travelled += segment;
+                    continue;
+                }
+                var floor = startMetres > travelled ? (startMetres - travelled) / segment : 0f;
                 // The part of this segment the budget reaches: all of it, or up to the exact budget point.
                 var limit = remaining >= segment ? 1f : remaining / segment;
                 var samples = new List<float>();
@@ -62,14 +77,14 @@ namespace KingmakerMountedCombat.Domain
                 for (var k = Math.Max(first, 0); k * SampleStepMetres <= travelled + segment * limit + 1e-6f; k++)
                 {
                     var t = (k * SampleStepMetres - travelled) / segment;
-                    if (t > 0f && t <= limit) samples.Add(t);
+                    if (t > floor && t <= limit) samples.Add(t);
                 }
-                samples.Add(limit);
+                if (limit > floor) samples.Add(limit);
                 if (extraSamples != null)
                     foreach (var t in extraSamples(from, to))
-                        if (t > 0f && t <= limit) samples.Add(t);
+                        if (t > floor && t <= limit) samples.Add(t);
                 samples.Sort();
-                var previous = 0f;
+                var previous = floor;
                 foreach (var t in samples)
                 {
                     if (t <= previous) continue;
