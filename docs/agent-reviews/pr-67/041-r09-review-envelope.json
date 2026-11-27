@@ -1,0 +1,176 @@
+{
+  "B": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "H": "1253836aeb8a926b17ec99e7f34bdf024cc8d188",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": null,
+  "amendment_sha256": "none",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 365.3,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 1623552,
+        "input_tokens": 1752647,
+        "output_tokens": 14771,
+        "reasoning_output_tokens": 8143,
+        "total_tokens": 1767418
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21e78-e2c6-7ff2-a18b-ecd73730bd3b",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "pr-5-horse-bite",
+    "sha256": "27e2f45366d8af6fbef2e33d44b027d79dc0a2593cb1e2a7c1df85a0c926b985"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mmr-horse-bite-20261125221703-5f10\\rounds\\r09\\envelope-1.json",
+  "pr": 67,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r09-review",
+  "published": [
+    {
+      "comment_id": 7226623160,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/67#issuecomment-7226623160"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mmr-horse-bite-20261125221703-5f10-r09-c56460",
+  "response_sha256": "9d0fc91974ee5833f77d61b8ad2d64ae26e858e97501e92cfc5ee54a246e3eaa",
+  "result": {
+    "candidate_commit": "1253836aeb8a926b17ec99e7f34bdf024cc8d188",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "ready_for_owner_review",
+    "decision_rationale": "The candidate meets the S07 and S08 offline requirements. The complete reader accepted the producer\u2019s Horse outcomes for both refresh orders and the mixed adoption/supply sequence. Each requested negative control failed at the expected check. The required focused gate passed on the submitted commit. N08 visible playback remains for the owner\u2019s playtest.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Verified the snapshot HEAD, mission digest and gate-log SHA-256 against the controller inputs. The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseBiteFocused.ps1 in Release on this commit. It exited 0 after 86.9 seconds with all four stages and all 15 focused children passing.",
+        "The log records 1548/0 component checks, 153/0 source checks, 3/0 Bite native-contract checks, 54/0 Bite contract checks and 239/0 presentation checks. The Bite native-contract check matched the pinned Horse animation bundle.",
+        "Mounted Shield passed 114/0 contract and 68/0 rollback checks. The gate compared the packet, production and embedded icon bytes and found them identical."
+      ],
+      "inspected": [
+        "The enrolled mission, repository validation policy, feature diff, round-8-to-round-9 changes, prior findings ledger and developer report.",
+        "The Horse binding adapter, strike observer, terminal projection, CaptureMountedOutcome writer, connected fixture, schema-8 reader and Mount Primary reader.",
+        "Controller receipt gate-focused-1253836aeb8a-d43d449b6c4-aa63aedd141-20261127T192524527491Z.json and its matching log."
+      ],
+      "limitations": [
+        "The review was read-only. Execution evidence comes from the controller receipt and log. The controller withheld the mixed foreground transcript.",
+        "The connected fixture uses detached Kingmaker objects, substitutes native handle creation and Unity action-name reads, and sets playback flags. Camera visibility and live attack timing require the owner\u2019s observation."
+      ],
+      "required_gaps": [],
+      "source_inspection_only": [
+        "The binding checks the registered Bite weapon and the Horse\u2019s first additional limb. The strike observer reads presentation facts before the command\u2019s single base.OnAction call, leaving native code in charge of the attack event and expenditure."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "S07"
+        ],
+        "actual": "The fixture prints the mutated source verbatim. The candidate gate log contains a literal NUL on line 1827, causing default ripgrep searches to skip the later tier summary.",
+        "blocking_rationale": "The reader rejected the malformed source and the controller captured the correct verdict. The issue affects text searches of the log.",
+        "blocks_readiness": false,
+        "category": "optional_polish",
+        "expected": "The fixture preserves the raw value for validation and prints a readable representation of the control character.",
+        "id": "R9-F1",
+        "location": {
+          "file": "scripts/Test-MountedAlpha2BiteContract.ps1",
+          "line": 746
+        },
+        "priority": "P3",
+        "requested_correction": "Escape U+0000 when formatting the diagnostic source value.",
+        "requested_evidence": "On the next ordinary focused run, the reader still rejects the raw value and a default text search finds the final tier summary.",
+        "title": "The U+0000 negative control makes the gate log appear binary",
+        "trigger": "The connected fixture logs the outcome after inserting U+0000 into its observed handle source."
+      },
+      {
+        "acceptance_ids": [
+          "S07"
+        ],
+        "actual": "The extraction regex requires exact declaration spacing. In a read-only comparison, adding one space before the opening brace made the lookup fail and would report the function as missing.",
+        "blocking_rationale": "The current declaration loads successfully, and the complete-reader cases separately exercise the production function.",
+        "blocks_readiness": false,
+        "category": "optional_polish",
+        "expected": "The test can load the production validator after a whitespace-only edit.",
+        "id": "R9-F2",
+        "location": {
+          "file": "scripts/Test-MountedAlpha2BiteContract.ps1",
+          "line": 453
+        },
+        "priority": "P3",
+        "requested_correction": "Look up ConvertTo-KmcHandleSource by function name in the PowerShell syntax tree already parsed by this script.",
+        "requested_evidence": "Both declaration spacings resolve the same function, and the existing Mount Primary cases retain their verdicts.",
+        "title": "The Mount Primary test depends on validator declaration spacing",
+        "trigger": "A formatting edit adds whitespace to the ConvertTo-KmcHandleSource declaration."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R4-F2",
+        "rationale": "The producer and envelope use the same Horse ID. Test-ConnectedArtifact assigns both complete CaptureMountedOutcome rows, including actorId and action. The complete reader accepted both refresh orders in both positions and TB adoption followed by RT supply. Changing only the TB actor from horse to horse-2 failed the ownership check."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R8-F1",
+        "rationale": "All four observed and latest sources reach the validator as raw values. It requires a scalar string and compares the two allowed labels with ordinal equality. The complete reader rejected the array-valued TB observation, the array-valued RT registration and the U+0000-modified scalar. Their canonical controls passed."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R8-F2",
+        "rationale": "The candidate gate\u2019s producer lines label the two counters create/adopt, including 1/0 for a supply and 0/1 for an adoption."
+      }
+    ],
+    "request_id": "kmc-codex-mmr-horse-bite-20261125221703-5f10-r09-c56460",
+    "round": 9,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "The Horse Bite path adopts the exact stock handle, supplies one eligible fallback when needed, and records a same-action refresh. Strike and terminal diagnostics preserve which handle was observed at the Bite, even when registration changes afterward.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "For N08, match the logged Bite to a visible bite at normal camera zoom. Check facing, both hoof animations, rider attachment, ordinary attack timing and handle release, and watch for duplicate rolls or damage."
+      ],
+      "scope_reviewed": "PR #67\u2019s MMR-07 binding and diagnostics, the S07 and S08 offline evidence, and the round-9 corrections to the reader and connected fixture.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 9,
+  "validated_at": "2026-11-27T19:32:14Z",
+  "workflow_fingerprint": "52a6f95ca310ef211641458905755468f7b277d905a7ae71b542a3ce343e9e56"
+}

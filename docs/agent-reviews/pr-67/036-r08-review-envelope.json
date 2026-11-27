@@ -1,0 +1,202 @@
+{
+  "B": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "H": "dda42b9c0c3119f63a9f912ac760ad5034e7cfe1",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": null,
+  "amendment_sha256": "none",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 699.2,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 3892224,
+        "input_tokens": 4054970,
+        "output_tokens": 27094,
+        "reasoning_output_tokens": 14995,
+        "total_tokens": 4082064
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21e67-c745-7881-8ff2-2d32282c2262",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "pr-5-horse-bite",
+    "sha256": "27e2f45366d8af6fbef2e33d44b027d79dc0a2593cb1e2a7c1df85a0c926b985"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mmr-horse-bite-20261125221703-5f10\\rounds\\r08\\envelope-1.json",
+  "pr": 67,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r08-review",
+  "published": [
+    {
+      "comment_id": 7226406397,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/67#issuecomment-7226406397"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mmr-horse-bite-20261125221703-5f10-r08-e00afb",
+  "response_sha256": "07ded6afe3400149553303c8ed2a8807c117f23b4d0597457122a48ac2427622",
+  "result": {
+    "candidate_commit": "dda42b9c0c3119f63a9f912ac760ad5034e7cfe1",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "changes_required",
+    "decision_rationale": "The focused gate passed, and both round-6 findings are fixed. Two issues still affect S07 evidence. The connected test validates a fixture-supplied Horse identity, and the schema-8 reader accepts malformed handle sources.\n\n## Continuation for Claude\n\nConfine the correction to the schema-8 reader and its offline fixtures. Give the producer and envelope one Horse identity, then pass both complete CaptureMountedOutcome rows into the reader. Validate the raw observed and latest sources as scalar strings using the same ordinal label comparison as the product. Preserve the verified counter rules, both refresh orders, historical controls and native attack path. Within the existing authorization and budget, capture the focused gate showing that the original writer rows pass and that a mismatched actor or malformed source fails. N08 remains with the owner\u2019s playtest.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Confirmed the controller receipt names the exact candidate and its log matches SHA-256 a7cde0c8c464c49750bc15dcd7e7a69487e83859aa3a68c90b4485bd2524d197. Fast exited 0 in 40.6 seconds with 15/15 focused children, 1548/0 component checks, 153/0 source checks and 52/0 Bite contract checks.",
+        "The gate recorded readable Success outcomes with one child start for both refresh orders. The unreadable terminal control produced SecurityException and PlaybackAccepted=false. Presentation passed 239/0, Mounted Shield passed 114/0, rollback passed 68/0, and the packet, production and embedded icon hashes matched.",
+        "Independently exercised the candidate\u2019s reader functions in memory. All 1,024 scalar-source combinations and 256 small integer-counter combinations matched the expected transitions. Nine malformed counter values were rejected.",
+        "Replayed the reader\u2019s observation checks in memory. The fixture\u2019s actor ID passed, substituting the connected producer\u2019s actor ID failed ownership, and aligning the envelope identity passed. Separately, JSON arrays containing one valid source label passed in both the TB observed and RT latest positions."
+      ],
+      "inspected": [
+        "Controller mission, prior-findings ledger, developer report, transcript notice, gate receipt and log, repository instructions, and the M..H feature diff.",
+        "The correction from 84036b7c through H, including the handle binding, strike observation, metadata boundary, terminal projection, schema-8 writer and reader, connected fixture and Test-Harness consumer."
+      ],
+      "limitations": [
+        "The review used read-only inspection and in-memory predicate checks. Build and complete-reader execution are attributed to the controller\u2019s candidate-bound gate. The full developer session transcript was withheld.",
+        "The offline fixture supplies engine handle creation, action names, playback flags and command completion. Visible playback, native timing and actual roll or damage counts remain unobserved on H."
+      ],
+      "required_gaps": [
+        "Complete-reader acceptance of the actual serialized Horse outcomes with their producer identity.",
+        "Rejection of non-string and ordinally different handle-source values by the schema-8 reader."
+      ],
+      "source_inspection_only": [
+        "The ordinary attack path classifies the registered Bite limb, delegates handle binding to the adapter and calls the native base OnAction once after observation.",
+        "DescribeOutcome takes ActorId from the acting unit, and CaptureMountedOutcome serializes it. The connected fixture\u2019s field-copy list omits both actorId and action."
+      ]
+    },
+    "findings": [
+      {
+        "acceptance_ids": [
+          "MMR-07",
+          "S07"
+        ],
+        "actual": "Test-ConnectedArtifact copies nine fields from each writer row. The producer creates horse-1, but the fixture retains actorId=horse and its own action. The TB ownership check at RuntimeHarness.Common.ps1 line 9085 rejects horse-1 against this envelope. The recorded positive therefore uses a different actor from the serialized outcome.",
+        "blocking_rationale": "A missing or wrong producer actor ID can still receive a passing connected-test verdict. Horse ownership is an explicit condition of the complete reader.",
+        "blocks_readiness": true,
+        "category": "evidence_gap",
+        "expected": "The complete reader accepts the successful, readable Horse outcome emitted by the command, including its actor identity.",
+        "id": "R4-F2",
+        "location": {
+          "file": "scripts/Test-MountedAlpha2BiteContract.ps1",
+          "line": 732
+        },
+        "priority": "P2",
+        "requested_correction": "Use one Horse ID in the producer and envelope. Assign the complete TB and RT Wire results to their respective outcome rows, retaining the unrelated world and UI fixture data.",
+        "requested_evidence": "Show complete-reader acceptance for both refresh orders and the mixed adoption/supply sequence with the writer rows intact. Changing only the TB actor ID should fail the ownership check.",
+        "title": "The connected fixture still substitutes the Horse actor identity",
+        "trigger": "A successful supply-and-refresh outcome is serialized and inserted into the complete schema-8 fixture."
+      },
+      {
+        "acceptance_ids": [
+          "MMR-07",
+          "S07"
+        ],
+        "actual": "The reader casts sources to string before validating them. A JSON array containing only \"stock-created\" passed the observation checks in either position. The transition helper also accepted a string with U+0000 inserted into that label, which the product\u2019s ordinal comparison rejects.",
+        "blocking_rationale": "The external reader can award exact binding credit for a source value outside the production contract.",
+        "blocks_readiness": true,
+        "category": "defect",
+        "expected": "Each observed and latest source is a scalar JSON string equal to stock-created or kmc-supplied under ordinal comparison.",
+        "id": "R8-F1",
+        "location": {
+          "file": "scripts/runtime/RuntimeHarness.Common.ps1",
+          "line": 8835
+        },
+        "priority": "P2",
+        "requested_correction": "Validate the four raw source values before string conversion or typed parameter binding. Use ordinal equality for the two allowed labels, then apply the existing transition table.",
+        "requested_evidence": "Exercise an array-valued TB observed source, an array-valued RT latest source and an ordinally different scalar in the complete-reader fixture. Each should fail while the corresponding canonical strings pass.",
+        "title": "Malformed handle sources receive exact binding credit",
+        "trigger": "A schema-8 artifact reports a supply refreshed to stock before observation, with valid counts but a malformed observed or latest source."
+      },
+      {
+        "acceptance_ids": [
+          "S07"
+        ],
+        "actual": "The label says create/adopt/refresh, but the line prints only creation and adoption counts.",
+        "blocking_rationale": "The binding reports and source transitions already establish that the refresh occurred.",
+        "blocks_readiness": false,
+        "category": "optional_polish",
+        "expected": "The counter names in the diagnostic match the values printed.",
+        "id": "R8-F2",
+        "location": {
+          "file": "scripts/Test-MountedAlpha2BiteContract.ps1",
+          "line": 766
+        },
+        "priority": "P3",
+        "requested_correction": "Label the two values create/adopt.",
+        "requested_evidence": "The next ordinary focused log should show two names for the two counts.",
+        "title": "The fixture log labels a third counter that it does not print",
+        "trigger": "The connected producer prints its per-sequence summary."
+      }
+    ],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_rejected",
+        "finding_id": "R4-F2",
+        "rationale": "Production binding, observation, refresh and terminal projection now produce the requested readable Bite fields. The remaining gap is the final transfer. The fixture supplies the actor ID that satisfies the complete reader\u2019s ownership check."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R6-F1",
+        "rationale": "An initial supply now permits stock at both observation and terminal after a refresh before the strike. The gate exercised both refresh orders in both TB and RT positions and retained the stock-to-supplied rejection."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R6-F2",
+        "rationale": "All six raw counters are validated before conversion. TB and the component-wise RT delta each require exactly one creation or one adoption, with zero rejections. Both decreasing sequences and fractional inputs failed, and TB adoption followed by RT supply passed."
+      }
+    ],
+    "request_id": "kmc-codex-mmr-horse-bite-20261125221703-5f10-r08-e00afb",
+    "round": 8,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "Offline evidence supports stock Bite adoption, same-action refresh and a single fallback for a missing initial handle. The command retains the source observed at the strike separately from the latest registration. The counter checks now distinguish the initial binding of each command.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "N08 / NX-2. At normal play zoom, match the visible Bite to its logged strike, check facing, hooves and rider attachment, and observe whether a duplicate roll or damage event, stuck handle or artificial delay occurs."
+      ],
+      "scope_reviewed": "Draft PR #67 at the fixed candidate, covering MMR-07, S07 and the S08 Mounted Shield regression evidence.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 8,
+  "validated_at": "2026-11-27T19:19:06Z",
+  "workflow_fingerprint": "52a6f95ca310ef211641458905755468f7b277d905a7ae71b542a3ce343e9e56"
+}

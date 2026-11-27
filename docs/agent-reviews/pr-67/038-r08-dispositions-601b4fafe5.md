@@ -1,0 +1,19 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mmr-horse-bite-20261125221703-5f10 key=r08-dispositions-601b4fafe5 part=1/1 sha256=601b4fafe5e000281c5a15a00df38c5f83c3b2d5243c85d847f3aadf27375036 -->
+### Claude Opus — finding dispositions — round 8
+
+Candidate after corrections: `1253836aeb8a926b17ec99e7f34bdf024cc8d188`
+
+- **R4-F2** — `fixed` — commits: `a511a6e1`
+  Owner instruction 2026-11-27c section 6 (Bite recovery after the accepted transport activation). Correction: the connected producer now uses the envelope fixture's Horse identity ("horse"), and Test-ConnectedArtifact assigns the complete CaptureMountedOutcome writer rows (Wire) to mountedTurnHorseOutcome and mountedHorseOutcome; nothing is copied field by field, and the unrelated world and UI fixture data stay. scripts/Test-MountedAlpha2BiteContract.ps1, 54/0 (inside the focused gate gate-focused-1253836aeb8a-d43d449b6c4-aa63aedd141-20261127T192524527491Z; the reader functions are the production RuntimeHarness.Common.ps1, dot-sourced whole). With the writer rows intact the complete reader Assert-KmcHorseNativeControlsUxEvidence accepts all three connected sequences: TB supply-observe-refresh with RT supply-refresh-observe, the swapped positions, and TB adoption followed by RT supply (cumulative (0,1) -> (1,1)); changing only the TB outcome's actorId (to horse-2) is refused by the ownership check ("PASS Horse native Rider/Horse primary ownership...").
+- **R8-F1** — `fixed` — commits: `a511a6e1`
+  Owner instruction 2026-11-27c section 6 (Bite recovery after the accepted transport activation). Correction: ConvertTo-KmcHandleSource (RuntimeHarness.Common.ps1) validates each raw source before any conversion or typed binding: only a scalar string ordinally equal (StringComparison.Ordinal, as the product compares) to "stock-created" or "kmc-supplied" is admitted; Test-KmcHorseHandleTransition takes the raw values (no [string] parameters), Test-KmcHorseSchema8Bindings passes the four raw sources unconverted, and the schema-8 and Mount Primary outcome checks use the same validator. scripts/Test-MountedAlpha2BiteContract.ps1, 54/0 (inside the focused gate gate-focused-1253836aeb8a-d43d449b6c4-aa63aedd141-20261127T192524527491Z; the reader functions are the production RuntimeHarness.Common.ps1, dot-sourced whole). On the intact writer rows (TB supply-observe-refresh, RT supply-refresh-observe) an array-valued TB observed source, an array-valued RT latest source and a TB observed source with U+0000 inserted are each refused by the complete reader, while the canonical rows are accepted; a direct check shows the validator admits only the two labels and refuses an array, a number, a different case and an inserted U+0000. The verified counter rules, both refresh orders, historical controls and the native attack path are unchanged.
+- **R8-F2** — `fixed` — commits: `a511a6e1`
+  Owner instruction 2026-11-27c section 6 (Bite recovery after the accepted transport activation). Optional, done: the producer log line now labels its two values create/adopt.
+
+**Validation (developer-reported):**
+
+| Command | Required | Result | Duration | Scope and limits |
+|---|---|---|---|---|
+| python C:/Dev/agent-review-bite/agent_review.py verify --enrollment kmc-codex-mmr-horse-bite-20261125221703-5f10 --gate focused -- -Tier Fast -Focused Test-MmrHorseBiteFocused.ps1 | yes | pass | 86.9 s | Receipt gate-focused-1253836aeb8a-d43d449b6c4-aa63aedd141-20261127T192524527491Z (Release). Also metered: two direct bite-contract runs (the first stopped because the extracted Mount Primary clauses called the new validator before it was defined; the contract now defines it from the production file's own text). nativeProof=false; offline only. |
+
+_Model-generated developer response (Claude opus / high), posted by the agent-review controller through the owner's GitHub account; not a human review._
