@@ -1,0 +1,828 @@
+PR-4 round 16 Debug focused run: source acdb7198cecfe32fbeedc92e11f76dc95268939a; bin/Release moved aside (absent) for the whole run; command: powershell -File scripts/Test-MmrHorseTripFocused.ps1 -Configuration Debug; started 2026-11-27T18:59:32Z
+bin contents during the run: Debug Observer Release.hidden-r16 Tests 
+MMR-HORSE-TRIP CHILD Test-MmrHorseTripNativeContract.ps1 -Configuration Debug
+PASS built product present: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll
+PASS pinned sharedassets1 identity
+PASS AnimalCompanionUnitMammoth managed script pointer 7324
+PASS AnimalCompanionUnitMammoth authored name
+PASS AnimalCompanionUnitMammoth GUID e7aa96d15a45238438ae4cfb476f6bb9
+PASS AddFacts count 3 at the serialized end
+PASS stock Mammoth AddFacts = [TrippingBite, NaturalArmor7, TripDefenseFourLegs]
+PASS AnimalCompanionUnitDog managed script pointer 7324
+PASS AnimalCompanionUnitDog authored name
+PASS AddFacts count 3 at the serialized end
+PASS stock AnimalCompanionUnitDog carries the same TrippingBite (legitimate; untouched)
+PASS AnimalCompanionUnitWolf managed script pointer 7324
+PASS AnimalCompanionUnitWolf authored name
+PASS AddFacts count 3 at the serialized end
+PASS stock AnimalCompanionUnitWolf carries the same TrippingBite (legitimate; untouched)
+PASS TrippingBite managed script pointer 6001
+PASS TrippingBite authored name
+PASS TrippingBite GUID f957b4444b6fb404e84ae2a5765797bb
+PASS TrippingBite has exactly one component
+PASS $ManeuverOnAttack$8f1ebfd9-eb4e-49a3-9228-5b7b82bc8d16 managed script pointer 7074
+PASS $ManeuverOnAttack$8f1ebfd9-eb4e-49a3-9228-5b7b82bc8d16 authored name
+PASS NaturalArmor7 managed script pointer 3769
+PASS NaturalArmor7 authored name
+PASS TripDefenseFourLegs managed script pointer 6001
+PASS TripDefenseFourLegs authored name
+PASS TripDefenseFourLegs GUID 13c87ac5985cc85498ef9d1ac8b78923
+PASS installed TrippingBite component: ManeuverOnAttack(Category=Bite, Maneuver=Trip)
+PASS the product records the installed TrippingBite identity
+PASS the foreign-GUID control carries the same installed Category (Bite) and Maneuver (Trip) as the stock control
+PASS a stock-GUID feature carrying the Bite/Trip component and an additional effect is not the withheld stock grant (whole-fact treatment needs the verified one-component list)
+PASS fresh construction preserves the mixed stock-GUID feature whole
+PASS only the installed stock identity with its exact Bite/Trip trigger is the withheld grant (another GUID, no trigger, Disarm or Claw are not)
+PASS Horse inherits [NaturalArmor7, TripDefenseFourLegs, another mod's maneuver fact] in order, without the stock TrippingBite
+PASS the stock Mammoth array itself is not mutated
+PASS absent donor facts give none
+PASS the compiled CopyBody builds one bite followed by two hooves (distinct genuine weapons; hands disabled), independently of the filtered facts
+PASS the Horse construction uses that CopyBody
+PASS a sourceless exact stock TrippingBite on the KMC Horse is a repair candidate (reported, removed only on request)
+PASS saved-horse repair excludes the sourceless mixed stock-GUID feature; the single-component stock control stays a candidate
+PASS an independently granted copy that records a source fact, item or cutscene is never a candidate
+PASS another GUID with the same trigger, the stock GUID with Disarm, Claw or no trigger, and unrelated facts are not candidates
+PASS a TrippingBite on any unit other than the exact KMC Horse (stock Dog, Wolf, Mammoth, Riding Dog) is not a candidate
+PASS the positional saved-fact deletion rule is gone from the product
+PASS the only fact removal in the Horse service is its native boundary NativeRemoveTripFact (HorseCompanionBlueprintService.NativeRemoveTripFact)
+PASS RemoveTripFact returns HorseTripRemoval.RemoveExactly's classification with no logger or display-name read (HorseTripRemoval.RemoveExactly,HorseTripRemovalResult.get_Outcome,HorseCompanionBlueprintService.get_TripRepairAppliedCount,HorseCompanionBlueprintService.set_TripRepairAppliedCount)
+PASS PR-4 round 13 (R12-F7): the update path runs the shared HorseTripRepairUpdater.Run (the orchestration the component tests drive) with the service host, whose gate is TripRepairAdmitted and whose removal is RemoveTripFact (HorseTripRepairUpdater.Run,IModLogger.Exception)
+PASS PR-4 round 15 (R12-F1): CompositionRoot.SetEnabled and PerformFailureCleanup delegate to ServiceLifecycleSequence (the sequences the component tests execute), whose repair stop/start reach HorseCompanionBlueprintService.OnServicesStopped/OnServicesStarted (console Stop/Start); Dispose invalidates
+PASS the maintenance surface (DrawTripRepairGui) records intent only (Select/Confirm/Cancel) and never reads or changes a unit or fact (HorseTripRepairConsole`2.RequestPresentation,Array.Empty,GUILayout.Label,HorseTripRepairConsole`2.get_Offers,ICollection`1.get_Count,Array.Empty,GUILayout.Label,IEnumerable`1.GetEnumerator,IEnumerator`1.get_Current,HorseTripRepairOffer.get_HorseName,HorseTripRepairOffer.get_HorseId,HorseTripRepairOffer.get_OwnerName,String.IsNullOrEmpty,HorseTripRepairOffer.get_OwnerName,String.Concat,HorseTripRepairOffer.get_CandidateCount,Int32.ToString,HorseTripRepairOffer.get_CandidateCount,String.Concat,Array.Empty,GUILayout.Label,HorseTripRepairOffer.get_Eligible,HorseTripRepairOffer.get_RefusalText,Array.Empty,GUILayout.Label,HorseTripRepairConsole`2.get_SelectedToken,HorseTripRepairOffer.get_Token,Array.Empty,GUILayout.Button,HorseTripRepairOffer.get_Token,HorseTripRepairConsole`2.Select,HorseTripRepairOffer.get_HorseName,String.Concat,Array.Empty,GUILayout.Label,Array.Empty,GUILayout.BeginHorizontal,HorseTripRepairConsole`2.get_Armed,Array.Empty,GUILayout.Button,HorseTripRepairOffer.get_Token,HorseTripRepairConsole`2.Confirm,Array.Empty,GUILayout.Button,HorseTripRepairConsole`2.Cancel,GUILayout.EndHorizontal,IEnumerator.MoveNext,IDisposable.Dispose,HorseTripRepairConsole`2.get_LastRecord,HorseTripRepairRecord.get_HorseName,HorseTripRepairRecord.get_Disposition,String.Concat,Array.Empty,GUILayout.Label)
+PASS Main binds the repair-only maintenance surface (OnMaintenanceGui); the mod folder is not recorded
+PASS the withdrawn file-request protocol (request polling, claim, archive, recovery, platform file and lease machinery) is absent from the product ()
+PASS the Horse service and the repair policy perform no file operation (old request/result files stay inert) ()
+Mounted alpha 2 native contract (trip) PASS=51 FAIL=0 nativeProof=false
+MMR-HORSE-TRIP CHILD Test-Finalize5CompanionReaders.ps1 -Configuration Debug
+PASS the harness JSON reader keeps a game-written accented name intact
+PASS the producer reader accepts the complete naming and tack observation
+PASS the shared name is the exact accented literal the scenario types
+PASS a duplicated tack refuses
+PASS tack on the stock Mammoth refuses
+PASS a tack the native view did not adopt refuses
+PASS a changed unit identity refuses
+PASS a cancel that renamed refuses
+PASS typing with game hotkeys live refuses
+PASS a dropped glyph refuses
+PASS a cancel that kept the keyboard refuses
+PASS Rename offered to a non-companion refuses
+PASS a blank entry that restored the default name refuses
+PASS a blank entry with no explanation refuses
+PASS a Cancel button that renamed refuses
+PASS a sheet that still offers Default Name refuses
+PASS a duplicated Rename control refuses
+PASS a Rename control over the level line refuses
+PASS a name wrapped below its own line into the level row refuses
+PASS a native-size name whose glyph box touches the level text but stays in its line is accepted (r01 renamed Mammoth)
+PASS a long name running under the control refuses
+PASS a control that moved for another companion refuses
+PASS a UMM entry with an options page refuses
+PASS loaded product artifact: configuration=Debug path=C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll sha256=7b233483f90205f42a051a2fe540484826c0824e697e4f93bd703352c310e88a mvid=5f8fce8d-1e4f-4a7e-8438-23c1c750dd2e
+PASS the compiled Main.OnMaintenanceGui and Chunk7PersistenceScenario.UmmPanelObservation are present
+PASS the compiled observer reports the compiled Main.OnMaintenanceGui as the maintenance panel only
+PASS the reader accepts the compiled observation of the repair-only maintenance callback
+PASS the compiled observer reports an unrelated handler as an options panel
+PASS the reader refuses the compiled observation of an unrelated OnGUI callback (an options page)
+PASS a mixed callback (unrelated, then maintenance) is an options panel
+PASS the reader refuses the mixed callback (unrelated, then maintenance)
+PASS a mixed callback (maintenance, then unrelated) is an options panel
+PASS the reader refuses the mixed callback (maintenance, then unrelated)
+PASS no callback is neither panel
+PASS a non-boolean maintenance-panel observation refuses
+PASS the historical no-panel observation (no maintenancePanel field) is the accepted base fixture
+PASS with the maintenance panel, Mounted Charge off still refuses
+PASS with the maintenance panel, an inactive entry still refuses
+PASS the old UMM display name refuses
+PASS Mounted Charge off at startup refuses
+PASS a character name that kept the reserved slot refuses
+PASS a seat buried in the back refuses (r03: 0.734 under 0.863)
+PASS a pommel 30 cm over the back refuses (r03)
+PASS a fin over a correctly placed seat refuses
+PASS a seat floating 7 cm over the back refuses
+PASS a fit without the rise diagnostic (r01-r03 evidence shape) refuses
+PASS a girth 13 cm into the chest refuses (r04 replay)
+PASS pad shards with no body under them refuse (r04 replay)
+PASS a pad point 17 cm off the flank refuses (r04 replay)
+PASS a fit without the clearance diagnostic (r01-r05 evidence shape) refuses
+PASS a clearance that was not finite refuses
+PASS clearance just inside the envelope (-4 mm, 7.9 cm) is accepted
+PASS a point 6 mm inside the body refuses
+PASS a point 8.1 cm off the coat refuses
+PASS a single unsupported vertex refuses
+PASS a fit without its largest clearance refuses
+PASS a fit without its unsupported count refuses
+PASS a null unsupported count refuses
+PASS a continuation click its plan did not choose refuses
+PASS a continuation plan for another unit refuses
+PASS a continuation plan whose chosen ray was ineligible refuses
+PASS a producer without its continuation plan (r05 shape) refuses
+PASS a dog whose armour class changed under the tack refuses
+PASS an overtip still showing the default name refuses
+PASS an overtip bound to the other companion refuses
+PASS a missing dialog capture refuses
+PASS the consumer reader accepts persisted duplicate names, identities and one tack
+PASS a name lost on load refuses
+PASS a tack duplicated by remount refuses
+PASS a companion that is not the restored mount refuses
+PASS a changed owner refuses
+PASS cold names observed after a naming-service write refuse
+PASS a cold overtip showing the default name refuses
+PASS a cold dog whose speed changed refuses
+PASS a cold fit outside the envelope refuses
+PASS a cold rebuilt tack with shards refuses
+PASS a cold continuation click its plan did not choose refuses
+PASS the cross-run reader accepts the consumer of its own producer
+PASS a consumer of another archive refuses
+PASS a consumer on another binary refuses
+PASS duplicate names that exchanged their units refuse
+PASS a dog whose armour class changed across the reload refuses
+PASS a failed producer is not a source
+PASS 83 F5 companion reader checks
+MMR-HORSE-TRIP CHILD Test-MountedShieldNativeContract.ps1 -Configuration Debug
+PASS pinned sharedassets1 identity
+PASS PowerAttackFeature managed script pointer 6001
+PASS PowerAttackFeature authored name
+PASS PowerAttackFeature GUID 9972f33f977fc724c838e59641b2fca5
+PASS PowerAttackFeature decoding ends exactly at the serialized object end
+PASS ShieldFocus managed script pointer 6001
+PASS ShieldFocus authored name
+PASS ShieldFocus GUID ac57069b6bf8c904086171683992a92a
+PASS ShieldFocusGreater managed script pointer 6001
+PASS ShieldFocusGreater authored name
+PASS ShieldFocusGreater GUID afd05ca5363036c44817c071189b67e1
+PASS BucklerType managed script pointer 1348
+PASS BucklerType authored name
+PASS BucklerType GUID 26fcc43f7d20374498d2e1643381d345
+PASS LightShieldType managed script pointer 1348
+PASS LightShieldType authored name
+PASS LightShieldType GUID d38e8ea23ce653c4582eb3e002555483
+PASS HeavyShieldType managed script pointer 1348
+PASS HeavyShieldType authored name
+PASS HeavyShieldType GUID d1b05b901bab9524388ebfa0435902a6
+PASS TowerShieldType managed script pointer 1348
+PASS TowerShieldType authored name
+PASS TowerShieldType GUID 5f0f4b6e480e7054b8592b5a8b55854a
+  stock BucklerType: base=1 group=4 acp=-1 asf=5 shield=True
+PASS installed BucklerType base shield bonus +1
+  stock LightShieldType: base=1 group=5 acp=-1 asf=5 shield=True
+PASS installed LightShieldType base shield bonus +1
+  stock HeavyShieldType: base=2 group=6 acp=-2 asf=15 shield=True
+PASS installed HeavyShieldType base shield bonus +2
+  stock TowerShieldType: base=4 group=7 acp=-10 asf=50 shield=True
+PASS installed TowerShieldType base shield bonus +4
+PASS stock Power Attack donor: visible single-rank Feat and CombatFeat, IsClassFeature=true
+PASS built product present: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll
+PASS the product resolves exactly the installed Shield Focus and Greater Shield Focus identities
+PASS the Mounted Shield GUID is a distinct KMC identity
+PASS icon resource and sprite names
+PASS the Mounted Shield feat built from stock Power Attack holds the contract
+PASS built feat: stock IsClassFeature=true retained (never forced false), one rank, visible, base game, own group array
+PASS forcing IsClassFeature=false is refused with a Mounted Shield diagnostic
+PASS a substituted icon is refused, never accepted as the required one
+PASS the availability check is a native Prerequisite (evaluated by BlueprintFeature.MeetsPrerequisites)
+PASS the prerequisite passes only while the rule is available, refuses when unset, and adds no prerequisite text
+PASS BucklerType: the production read returns the native base +1 for a mundane and a +5 item alike
+PASS BucklerType with Shield Focus supplies +2
+PASS LightShieldType: the production read returns the native base +1 for a mundane and a +5 item alike
+PASS LightShieldType with Shield Focus supplies +2
+PASS HeavyShieldType: the production read returns the native base +2 for a mundane and a +5 item alike
+PASS HeavyShieldType with Shield Focus supplies +3
+PASS TowerShieldType: the production read returns the native base +4 for a mundane and a +5 item alike
+PASS TowerShieldType with Shield Focus supplies +5
+PASS heavy shield: +3 with Shield Focus, +4 with Greater Shield Focus too (mission ruling)
+PASS no effective shield: zero, focus feats included
+PASS the production write is one non-stacking Shield modifier named by the rider's fact
+PASS a rider supplying +3: normal 13, flat-footed 13, touch 10 (shield excluded from touch)
+PASS a stronger +4 shield source on the mount: AC 14, not 17; the sheet lists the +4 alone (no untyped stack)
+PASS an equal +3 shield source: AC 13
+PASS a weaker +1 shield source: AC 13 and the sheet names Mounted Shield
+PASS independent armor, natural armor, deflection and dodge stay intact: normal 21, flat-footed 20 (no dodge), touch 12 (deflection and dodge only)
+PASS the production removal takes the contribution off through its stat, verified
+PASS after removal only the other sources remain (normal 18, flat-footed 17, touch 12)
+PASS Brilliant Energy with a competing +4: the same melee attack sees AC 10 with Mounted Shield and 10 without (the losing +3 is given back)
+PASS Brilliant Energy touch attack: Mounted Shield never in touch AC, so the same AC with and without it
+PASS the sheet still shows the +4 alone and ordinary AC 19 (10 + armor 5 + shield 4)
+PASS Brilliant Energy without a competing shield: the +3 raised the AC and is ignored like any shield (no correction)
+PASS no Brilliant Energy: no correction
+PASS Brilliant Energy with a force-stacking +4: KMC's +3 raised the AC (22 = 10 + 5 + 4 + 3), nothing is given back, and the same melee attack sees AC 10 with and 10 without Mounted Shield
+PASS Brilliant Energy touch attack with a force-stacking +4: the same AC with and without Mounted Shield
+PASS KMC +3 beside a force-stacking +4 adds 3 (AC 17 = 10 + 4 + 3): the band is measurable
+PASS a shield-ignoring (Brilliant Energy) or touch calculation counts no Mounted Shield AC
+PASS KMC +3 beside an ordinary competing +4 adds 0 (AC 14): no band
+PASS the active off-hand shield with its own Shield modifier on the rider's AC is the effective shield
+PASS the same shield in an inactive slot (for example another weapon set) is not effective
+PASS without its armor component's Shield modifier (natively suppressed) the shield is not effective
+PASS another item's or a spell's Shield modifier does not make the held shield effective
+PASS restoring the matching modifier makes the held shield effective again
+PASS reproduced: a throwing callback leaves the +3 in the stat with no AppliedTo (AC 13)
+PASS reproduced: the native Modifier.Remove() cannot remove it (returns false)
+PASS the production removal removes the untracked modifier through the stat, verifies it, and reports the callback fault
+PASS the identity sweep selects only Mounted Shield's own modifier, never another shield source
+PASS check equal to the attack after the +3 addition fails (native IsPassed and the strict rule agree)
+PASS one higher succeeds
+PASS the same roll without the feat stays 20 and fails
+PASS the addition stacks with the check's other bonuses (untyped), counted once
+PASS the planned "equal" total is the +3 shield-modified result (die 9) and fails
+PASS the planned success total lands one above with the shield and another bonus in the roll
+PASS a die derived from Mobility alone (12) would have tested 25, three above equality: the trap the planned total removes
+PASS an equality total with a native -2 inside the roll is reached by a legal die (19)
+PASS an equality total needing a 22 is unattainable and is not injected
+PASS the production check reaches the planned equality with the native -2 inside the roll (die 19)
+PASS without the legal-die request the historical Sprint 6 injection is unchanged (die 26 for 36 against Mobility 10)
+PASS publication writes every genuine selection without drift
+PASS a selection keeps its entries and offers Mounted Combat, Mounted Archery, Mounted Shield once each
+PASS a selection keeps its entries and offers Mounted Combat, Mounted Archery, Mounted Shield once each
+PASS a selection keeps its entries and offers Mounted Combat, Mounted Archery, Mounted Shield once each
+PASS both optional rules are available while every required list offers them
+PASS disable restores every genuine selection without drift
+PASS every selection returns to its exact original entries
+PASS the first update-failure dispatch reads the owned load and latches before any pair cleanup (PN4-F1)
+PASS the terminal stop suspends Mounted Shield's offers after its benefits stop and before the root reports disabled (PN4-F3)
+PASS only the explicit enable resumes the offers, after its selection transaction succeeds
+PASS every cleanup path detaches the Sprint 6 hooks; the ordinary cleanup leaves the fixture to the polling drain's retry bound (PN14-F1)
+PASS an interrupted child (disposed before completion) drains the shield fixture and reports residue (PN13-F1, PN14-F1)
+PASS the Mammoth parent reads the child's errors after disposing it, so interruption residue reaches its failed artifact (PN14-F1)
+PASS the hooks are detached before the shield fixture drain
+PASS detaching clears the roll hook, disposes the rule observer and clears the armed plan
+PASS a setup write whose callback throws is installed and still owned (AC 14, one obligation)
+PASS releasing another setup leaves the obligation outstanding
+PASS the drain removes the handle-less setup modifier through its stat, verified (AC 10), and clears the obligation
+PASS the removal callback fault is recorded and kept by the setup custody
+PASS a later release that finds nothing left still reports the earlier fault
+PASS the runner declares 900 s for the Mounted Shield rows (compiled host deadline 640 s) and refuses less
+PASS the Shield rows refuse a non-base-only start in the runner before its workflow admission
+PASS with base-only staging both Shield rows take the profile snapshot, enter Areas isolation and restore it after the process exits
+PASS the real runner refuses sprint6-shield-rt without -BaseGameOnly before admission
+PASS the real runner refuses sprint6-shield-tb without -BaseGameOnly before admission
+PASS the DLL embeds exactly one Mounted Shield resource (no master, 512px, generated or review image)
+  icon sha256 packet=fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0 production=fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0 embedded=fd519874e9d231946aad68c46f93a4e0a3a2ea04d4037807e6c7a4d36629f9d0
+PASS packet, production and embedded icon bytes are identical
+PASS the embedded icon is a 64x64 8-bit RGBA PNG
+Mounted Shield native contract PASS=114 FAIL=0 (product C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll sha256=7b233483f90205f42a051a2fe540484826c0824e697e4f93bd703352c310e88a)
+MMR-HORSE-TRIP CHILD Test-MountedShieldSelectionRollback.ps1 -Configuration Debug
+PASS three feats: the first enable succeeds
+PASS three feats: enabled publishes each KMC feat once after the foreign entries (root retains enabled)
+PASS three feats: disable is refused while the Ranger selection is changed outside KMC
+PASS three feats: after the first refused disable (root retains enabled)
+PASS three feats: a second disable is refused
+PASS three feats: after the second refused disable (root retains enabled)
+PASS three feats: each refused disable reports the Ranger drift
+PASS three feats: the other mod's Ranger selection is never overwritten by a refused disable
+PASS three feats: once the drift is gone the disable succeeds
+PASS three feats: after the successful disable every list is exactly its original (root retains disabled)
+PASS three feats: enable is refused while the Ranger selection is changed outside KMC
+PASS three feats: after the first refused enable (root retains disabled)
+PASS three feats: a second enable is refused
+PASS three feats: after the second refused enable (root retains disabled)
+PASS three feats: the other mod's Ranger selection is never overwritten by a refused enable
+PASS three feats: once the drift is gone the enable succeeds
+PASS three feats: after the successful enable each KMC feat is offered once (root retains enabled)
+PASS three feats: the Ranger selection holds its original entries and one Horse
+PASS three feats: a repeated enable is idempotent
+PASS three feats: a repeated enable adds no duplicate (root retains enabled)
+PASS three feats: a faulted service refuses the disable
+PASS three feats: after a faulted refusal the stored state and every list are unchanged (root retains enabled)
+PASS Mounted Archery not registered: the first enable succeeds
+PASS Mounted Archery not registered: enabled publishes each KMC feat once after the foreign entries (root retains enabled)
+PASS Mounted Archery not registered: disable is refused while the Ranger selection is changed outside KMC
+PASS Mounted Archery not registered: after the first refused disable (root retains enabled)
+PASS Mounted Archery not registered: a second disable is refused
+PASS Mounted Archery not registered: after the second refused disable (root retains enabled)
+PASS Mounted Archery not registered: each refused disable reports the Ranger drift
+PASS Mounted Archery not registered: the other mod's Ranger selection is never overwritten by a refused disable
+PASS Mounted Archery not registered: once the drift is gone the disable succeeds
+PASS Mounted Archery not registered: after the successful disable every list is exactly its original (root retains disabled)
+PASS Mounted Archery not registered: enable is refused while the Ranger selection is changed outside KMC
+PASS Mounted Archery not registered: after the first refused enable (root retains disabled)
+PASS Mounted Archery not registered: a second enable is refused
+PASS Mounted Archery not registered: after the second refused enable (root retains disabled)
+PASS Mounted Archery not registered: the other mod's Ranger selection is never overwritten by a refused enable
+PASS Mounted Archery not registered: once the drift is gone the enable succeeds
+PASS Mounted Archery not registered: after the successful enable each KMC feat is offered once (root retains enabled)
+PASS Mounted Archery not registered: the Ranger selection holds its original entries and one Horse
+PASS Mounted Archery not registered: a repeated enable is idempotent
+PASS Mounted Archery not registered: a repeated enable adds no duplicate (root retains enabled)
+PASS Mounted Archery not registered: a faulted service refuses the disable
+PASS Mounted Archery not registered: after a faulted refusal the stored state and every list are unchanged (root retains enabled)
+PASS both lists drifted: the enable is refused
+PASS both lists drifted: a second enable is refused
+PASS a refused enable writes neither the drifted combat list nor the Ranger list
+PASS a refused enable leaves no withdrawal behind
+PASS the stored desired state stays disabled
+PASS once both lists are back the enable succeeds
+PASS the later successful enable publishes Mounted Combat, Mounted Archery and Mounted Shield (root retains enabled)
+PASS the terminal stop suspends only Mounted Shield: it leaves every list, Mounted Combat and Mounted Archery stay once
+PASS the native CanSelect refuses the suspended Mounted Shield at its membership test (no prerequisite is consulted)
+PASS an ordinary enable call while suspended succeeds
+PASS an ordinary enable call while suspended does not reopen Mounted Shield
+PASS the explicit enable's resume offers Mounted Shield once again in every list (root retains enabled)
+PASS the suspension is cleared
+PASS a new service is Pending
+PASS an enable that faults the pending registration is refused
+PASS the refused pending enable leaves the stored state as it was
+PASS a stop with no publication yet is kept by the service
+PASS the enable after registration succeeds
+PASS the first publication after a pre-registration stop leaves Mounted Shield out and offers the other two
+PASS the explicit enable's resume offers Mounted Shield after a pre-registration stop (root retains enabled)
+PASS the enable after registration succeeds (foreign-append case)
+PASS the resume reinserts Mounted Shield once after Mounted Archery and keeps the foreign append
+PASS a foreign append before the resume withdraws nothing
+PASS the untouched required list offers Mounted Shield once
+TOTAL PASS=68 FAIL=0
+MMR-HORSE-TRIP CHILD Test-MountedArcheryFeatContract.ps1 -Configuration Debug
+PASS pinned sharedassets1 identity
+PASS pinned MonoScript asset identity
+PASS MonoScript 6001 is Kingmaker.Blueprints.Classes.BlueprintFeature
+PASS PowerAttackFeature managed script pointer is BlueprintFeature
+PASS PowerAttackFeature authored name
+PASS PowerAttackFeature GUID 9972f33f977fc724c838e59641b2fca5
+PASS PowerAttackFeature decoding ends exactly at the serialized object end
+PASS Dodge managed script pointer is BlueprintFeature
+PASS Dodge authored name
+PASS Dodge GUID 97e216dbb46ae3c4faef90cf6bbe6fd5
+PASS Dodge decoding ends exactly at the serialized object end
+PASS Mobility managed script pointer is BlueprintFeature
+PASS Mobility authored name
+PASS Mobility GUID 2a6091b97ad940943b46262600eaeaeb
+PASS Mobility decoding ends exactly at the serialized object end
+PASS PointBlankShot managed script pointer is BlueprintFeature
+PASS PointBlankShot authored name
+PASS PointBlankShot GUID 0da0c194d6e1d43419eb8d990b28e0ab
+PASS PointBlankShot decoding ends exactly at the serialized object end
+PASS RapidShotFeature managed script pointer is BlueprintFeature
+PASS RapidShotFeature authored name
+PASS RapidShotFeature GUID 9c928dc570bb9e54a9649b3ebfe47a41
+PASS RapidShotFeature decoding ends exactly at the serialized object end
+PASS Toughness managed script pointer is BlueprintFeature
+PASS Toughness authored name
+PASS Toughness GUID d09b20029e9abfe4480b356c92095623
+PASS Toughness decoding ends exactly at the serialized object end
+  stock RapidShotFeature: groups=[2,1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat RapidShotFeature holds IsClassFeature=true
+  stock Mobility: groups=[2,1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat Mobility holds IsClassFeature=true
+  stock Dodge: groups=[2,1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat Dodge holds IsClassFeature=true
+  stock PowerAttackFeature: groups=[2,1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat PowerAttackFeature holds IsClassFeature=true
+  stock PointBlankShot: groups=[2,1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat PointBlankShot holds IsClassFeature=true
+  stock Toughness: groups=[1] ranks=1 IsClassFeature=True hidden=False/False/False icon=True
+PASS stock feat Toughness holds IsClassFeature=true
+PASS stock Power Attack is a visible single-rank Feat and CombatFeat
+PASS built product present: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll
+PASS exact native icon field
+PASS product exposes the registration construction and validation it runs
+  built Mounted Archery: groups=[CombatFeat,Feat] ranks=1 IsClassFeature=True hidden=False/False/False dlc=None
+PASS the released 0.2.9 rule rejects the feat built from stock Power Attack (reproduces the reported exception)
+PASS the product contract accepts the feat built from stock Power Attack
+PASS built feat: visible single-rank Feat and CombatFeat, stock class flag, KMC icon, base-game DLC
+PASS built feat owns its group array (the stock donor is not aliased)
+  diagnostic sample: Mounted Archery did not retain the single-rank combat-feat contract: ranks=2 (expected 1); icon is not KMC's Mounted Archery icon. Feature groups=[CombatFeat,Feat] ranks=2 IsClassFeature=True icon=other HideInUI=False HideInCharacterSheetAndLevelUp=False HideNotAvailibleInUI=False; donor PowerAttackFeature groups=[CombatFeat,Feat] ranks=1 IsClassFeature=True icon=other HideInUI=False HideInCharacterSheetAndLevelUp=False HideNotAvailibleInUI=False.
+PASS a diverged class flag is named with both values
+PASS several failures are listed with feature and donor facts
+PASS restored feat is accepted again
+PASS publication writes every selection without drift
+PASS a selection keeps its entries and order and offers Mounted Combat then Mounted Archery once
+PASS a selection keeps its entries and order and offers Mounted Combat then Mounted Archery once
+PASS a selection keeps its entries and order and offers Mounted Combat then Mounted Archery once
+PASS Mounted Archery is available, so the ranged penalty and its reduction apply
+PASS disable restores every selection without drift
+PASS a selection returns to its exact original
+PASS a selection returns to its exact original
+PASS a selection returns to its exact original
+PASS without Mounted Archery only Mounted Combat is offered and the penalty stays off
+Mounted Archery feat contract PASS=54 FAIL=0 (product C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll sha256=7b233483f90205f42a051a2fe540484826c0824e697e4f93bd703352c310e88a)
+MMR-HORSE-TRIP CHILD chunk7\Test-Chunk7RangerSelectionContract.ps1
+PASS historical7 exact original array is admitted by reference
+PASS historical7 exact one-item append preserves every original reference
+PASS historical7 disable restores exact original references
+PASS historical7 equal-GUID replacement refuses destructive restoration
+PASS historical7 reordered current references refuse restoration
+PASS historical7 audit accepts exact prefix and exact appended Horse
+PASS historical7 audit accepts exact original restore
+PASS historical7 audit refuses equal-GUID foreign Horse object
+PASS historical7 Features reference and contents remain untouched
+PASS historical7 Features replacement refuses
+PASS historical7 already appended surface is not readmitted as original
+PASS historical7 additional unknown entry refuses
+PASS historical7 null entry 0 refuses
+PASS historical7 duplicate entry 0 refuses
+PASS historical7 foreign entry 0 refuses
+PASS historical7 audit refuses changed prefix 0
+PASS historical7 audit refuses changed restore 0
+PASS historical7 changed casing 0 refuses
+PASS historical7 changed order 0 refuses
+PASS historical7 null entry 1 refuses
+PASS historical7 duplicate entry 1 refuses
+PASS historical7 foreign entry 1 refuses
+PASS historical7 audit refuses changed prefix 1
+PASS historical7 audit refuses changed restore 1
+PASS historical7 changed casing 1 refuses
+PASS historical7 changed order 1 refuses
+PASS historical7 null entry 2 refuses
+PASS historical7 duplicate entry 2 refuses
+PASS historical7 foreign entry 2 refuses
+PASS historical7 audit refuses changed prefix 2
+PASS historical7 audit refuses changed restore 2
+PASS historical7 changed casing 2 refuses
+PASS historical7 changed order 2 refuses
+PASS historical7 null entry 3 refuses
+PASS historical7 duplicate entry 3 refuses
+PASS historical7 foreign entry 3 refuses
+PASS historical7 audit refuses changed prefix 3
+PASS historical7 audit refuses changed restore 3
+PASS historical7 changed casing 3 refuses
+PASS historical7 changed order 3 refuses
+PASS historical7 null entry 4 refuses
+PASS historical7 duplicate entry 4 refuses
+PASS historical7 foreign entry 4 refuses
+PASS historical7 audit refuses changed prefix 4
+PASS historical7 audit refuses changed restore 4
+PASS historical7 changed casing 4 refuses
+PASS historical7 changed order 4 refuses
+PASS historical7 null entry 5 refuses
+PASS historical7 duplicate entry 5 refuses
+PASS historical7 foreign entry 5 refuses
+PASS historical7 audit refuses changed prefix 5
+PASS historical7 audit refuses changed restore 5
+PASS historical7 changed casing 5 refuses
+PASS historical7 changed order 5 refuses
+PASS historical7 null entry 6 refuses
+PASS historical7 duplicate entry 6 refuses
+PASS historical7 foreign entry 6 refuses
+PASS historical7 audit refuses changed prefix 6
+PASS historical7 audit refuses changed restore 6
+PASS historical7 changed casing 6 refuses
+PASS historical7 changed order 6 refuses
+PASS native12 exact original array is admitted by reference
+PASS native12 exact one-item append preserves every original reference
+PASS native12 disable restores exact original references
+PASS native12 equal-GUID replacement refuses destructive restoration
+PASS native12 reordered current references refuse restoration
+PASS native12 audit accepts exact prefix and exact appended Horse
+PASS native12 audit accepts exact original restore
+PASS native12 audit refuses equal-GUID foreign Horse object
+PASS native12 Features reference and contents remain untouched
+PASS native12 Features replacement refuses
+PASS native12 already appended surface is not readmitted as original
+PASS native12 additional unknown entry refuses
+PASS native12 null entry 0 refuses
+PASS native12 duplicate entry 0 refuses
+PASS native12 foreign entry 0 refuses
+PASS native12 audit refuses changed prefix 0
+PASS native12 audit refuses changed restore 0
+PASS native12 changed casing 0 refuses
+PASS native12 changed order 0 refuses
+PASS native12 null entry 1 refuses
+PASS native12 duplicate entry 1 refuses
+PASS native12 foreign entry 1 refuses
+PASS native12 audit refuses changed prefix 1
+PASS native12 audit refuses changed restore 1
+PASS native12 changed casing 1 refuses
+PASS native12 changed order 1 refuses
+PASS native12 null entry 2 refuses
+PASS native12 duplicate entry 2 refuses
+PASS native12 foreign entry 2 refuses
+PASS native12 audit refuses changed prefix 2
+PASS native12 audit refuses changed restore 2
+PASS native12 changed casing 2 refuses
+PASS native12 changed order 2 refuses
+PASS native12 null entry 3 refuses
+PASS native12 duplicate entry 3 refuses
+PASS native12 foreign entry 3 refuses
+PASS native12 audit refuses changed prefix 3
+PASS native12 audit refuses changed restore 3
+PASS native12 changed casing 3 refuses
+PASS native12 changed order 3 refuses
+PASS native12 null entry 4 refuses
+PASS native12 duplicate entry 4 refuses
+PASS native12 foreign entry 4 refuses
+PASS native12 audit refuses changed prefix 4
+PASS native12 audit refuses changed restore 4
+PASS native12 changed casing 4 refuses
+PASS native12 changed order 4 refuses
+PASS native12 null entry 5 refuses
+PASS native12 duplicate entry 5 refuses
+PASS native12 foreign entry 5 refuses
+PASS native12 audit refuses changed prefix 5
+PASS native12 audit refuses changed restore 5
+PASS native12 changed casing 5 refuses
+PASS native12 changed order 5 refuses
+PASS native12 null entry 6 refuses
+PASS native12 duplicate entry 6 refuses
+PASS native12 foreign entry 6 refuses
+PASS native12 audit refuses changed prefix 6
+PASS native12 audit refuses changed restore 6
+PASS native12 changed casing 6 refuses
+PASS native12 changed order 6 refuses
+PASS native12 null entry 7 refuses
+PASS native12 duplicate entry 7 refuses
+PASS native12 foreign entry 7 refuses
+PASS native12 audit refuses changed prefix 7
+PASS native12 audit refuses changed restore 7
+PASS native12 changed casing 7 refuses
+PASS native12 changed order 7 refuses
+PASS native12 null entry 8 refuses
+PASS native12 duplicate entry 8 refuses
+PASS native12 foreign entry 8 refuses
+PASS native12 audit refuses changed prefix 8
+PASS native12 audit refuses changed restore 8
+PASS native12 changed casing 8 refuses
+PASS native12 changed order 8 refuses
+PASS native12 null entry 9 refuses
+PASS native12 duplicate entry 9 refuses
+PASS native12 foreign entry 9 refuses
+PASS native12 audit refuses changed prefix 9
+PASS native12 audit refuses changed restore 9
+PASS native12 changed casing 9 refuses
+PASS native12 changed order 9 refuses
+PASS native12 null entry 10 refuses
+PASS native12 duplicate entry 10 refuses
+PASS native12 foreign entry 10 refuses
+PASS native12 audit refuses changed prefix 10
+PASS native12 audit refuses changed restore 10
+PASS native12 changed casing 10 refuses
+PASS native12 changed order 10 refuses
+PASS native12 null entry 11 refuses
+PASS native12 duplicate entry 11 refuses
+PASS native12 foreign entry 11 refuses
+PASS native12 audit refuses changed prefix 11
+PASS native12 audit refuses changed restore 11
+PASS native12 changed casing 11 refuses
+PASS native12 changed order 11 refuses
+PASS base-only gate accepts exact native twelve plus owned Horse and Riding Dog
+PASS base-only gate refuses a missing Riding Dog
+PASS audit refuses a missing Riding Dog
+PASS base-only gate refuses historical seven plus additions before dispatch
+PASS base-only gate refuses a foreign Horse object
+PASS base-only gate refuses missing append
+PASS base-only gate refuses extra appended entry
+PASS base-only gate refuses absent selection or Horse
+PASS base-only gate refuses changed native prefix 0
+PASS base-only gate refuses changed native prefix 1
+PASS base-only gate refuses changed native prefix 2
+PASS base-only gate refuses changed native prefix 3
+PASS base-only gate refuses changed native prefix 4
+PASS base-only gate refuses changed native prefix 5
+PASS base-only gate refuses changed native prefix 6
+PASS base-only gate refuses changed native prefix 7
+PASS base-only gate refuses changed native prefix 8
+PASS base-only gate refuses changed native prefix 9
+PASS base-only gate refuses changed native prefix 10
+PASS base-only gate refuses changed native prefix 11
+PASS null surface diagnostic is explicit
+PASS empty original surface refuses
+PASS failure retains count and bounds emitted identities at32
+PASS large foreign surface produces bounded diagnostic text
+PASS null appended surface refuses
+PASS null restored surface refuses
+TOTAL PASS=183 FAIL=0
+MMR-HORSE-TRIP CHILD chunk7\Test-Chunk7ReplaySubscriberContract.ps1 -Configuration Debug
+INFO product C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll MVID 5f8fce8d-1e4f-4a7e-8438-23c1c750dd2e declares kmc-global-subscribers-r2; native Assembly-CSharp MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7
+PASS the real resolver admits the release 0.2.11 and the private alpha 0.2.12-alpha.1 under kmc-global-subscribers-r2
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.10
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.10-alpha.1
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.16-beta.1
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.16-alpha
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 1.2.16-alpha.1
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.16-alpha.1.2
+PASS refuses the real resolver under kmc-global-subscribers-r2 for 0.2.x
+PASS the compiled producer declares a revision the reader holds and the real resolver admits the candidate version
+PASS producer and reader declare the same process-owned subscribers and interfaces
+PASS the installed EventBus registers exactly the reviewed interfaces for compiled MountedLifecycleSubscriber (15)
+PASS the installed EventBus registers exactly the reviewed interfaces for compiled NativeMountedControlService (2)
+PASS the installed EventBus registers exactly the reviewed interfaces for compiled MountedCombatDefenseService (2)
+PASS the installed EventBus registers exactly the reviewed interfaces for compiled RidingDogTackService (2)
+PASS the compiled Horse fact registers exactly one ISceneHandler row, as producer and reader both expect
+PASS every compiled production EventBus subscriber type is reviewed: process-owned, the Horse fact or the Divine Mount fact
+PASS the producer rule accepts the genuine settled inventory beside one and two Horse facts
+PASS the reader boundary accepts the same genuine inventory under the declared revision
+PASS refuses the genuine current inventory under the historical revision
+PASS the producer rule refuses the genuine inventory with a process-owned subscriber that is not subscribed
+PASS refuses the reader boundary on the genuine inventory with a process-owned subscriber that is not subscribed
+PASS the producer rule refuses the genuine inventory with a second live lifecycle instance
+PASS refuses the reader boundary on the genuine inventory with a second live lifecycle instance
+PASS the producer rule refuses the genuine inventory with a live Divine Mount fact
+PASS refuses the reader boundary on the genuine inventory with a live Divine Mount fact
+PASS the detached EventBus holds no KMC subscriber after the probe
+PASS reader Horse owner profiles are exactly the compiled profiles that mount the KMC Horse blueprint
+PASS historical revision lists the subscriber interfaces the qualified chunk7 source declares (v0.1.0-chunk7-qualified.96 e6c4e953)
+PASS historical Horse owner profiles are the ones the qualified chunk7 catalog declared
+REPLAY SUBSCRIBER CONTRACT PASS=29 FAIL=0 UNASSESSED=0; compiled metadata on the detached EventBus, not native repeated-world evidence.
+MMR-HORSE-TRIP CHILD Test-FinalizeF1LocalizationKeys.ps1
+PASS 23 literal native and feat localization consumers have registrations, including both Charge keys
+MMR-HORSE-TRIP CHILD Test-UmmBuildReference.ps1
+PASS pinned UMM 0.31.1 build reference: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\cached-archive\obj\references\umm-0.31.1\UnityModManager.dll
+PASS genuine cached archive extracts the exact DLL without network
+PASS pinned UMM 0.31.1 build reference: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\cached-archive\obj\references\umm-0.31.1\UnityModManager.dll
+PASS warm cache reuses verified DLL without writing or downloading
+PASS present changed DLL is refused and preserved
+PASS present changed archive is refused and preserved without download
+PASS pinned UMM 0.31.1 build reference: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\download-transport\obj\references\umm-0.31.1\UnityModManager.dll
+PASS missing cache downloads once through a stubbed external transport and verifies genuine bytes
+PASS pinned UMM 0.31.1 build reference: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\download-transport\obj\references\umm-0.31.1\UnityModManager.dll
+PASS verified DLL alone remains an offline reusable build reference
+PASS bad downloaded bytes are refused before publishing and temporary state is cleaned
+PASS pinned UMM 0.31.1 build reference: C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\changed-manifest\obj\references\umm-0.31.1\UnityModManager.dll
+PASS changed manifest DLL hash is refused even with a previously valid warm cache
+PASS declared minimum must match the build baseline before reusing a warm cache
+RESTORE HELPER PASS 9 FAIL 0
+RECEIPT=C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\umm-build-reference-tests\c4c70d6b25074f14b2bb96879a6f6029\receipt.json
+MMR-HORSE-TRIP CHILD Test-Chunk7NativeLoaderContracts.ps1
+PASS exact native base-only loader inventory
+PASS additional native Managed assembly is recorded with hash and MVID
+PASS additional native UMM dependency has a file-backed identity
+PASS dynamic assembly identities retained without qualification claim
+PASS refuses foreign active mod
+PASS refuses foreign disabled mod
+PASS refuses KMC inactive
+PASS refuses KMC enabled string
+PASS refuses missing loaded Harmony
+PASS refuses changed loaded KMC
+PASS refuses changed loaded gameplay
+PASS refuses foreign Mods assembly
+PASS refuses external file-backed assembly
+PASS refuses Managed sibling prefix path
+PASS refuses Managed nested foreign directory
+PASS refuses Managed traversal outside exact roots
+PASS refuses non-dynamic assembly without location
+PASS refuses non-dynamic assembly with whitespace location
+PASS refuses relative file-backed assembly location
+PASS refuses KMC loaded from Managed instead of candidate path
+PASS refuses KMC loaded from another Mods directory
+PASS refuses missing observed assembly hash
+PASS refuses malformed observed assembly hash
+PASS refuses missing observed MVID
+PASS refuses malformed observed MVID
+PASS refuses empty observed MVID
+PASS refuses missing assembly identity field
+PASS refuses assembly observation error hidden by PASS
+PASS refuses dynamic assembly claims a file identity
+PASS refuses dynamic KMC cannot stand in for candidate
+PASS refuses duplicated required loaded gameplay assembly
+PASS refuses process ID string
+PASS exact pinned Harmony memory identity and UMM candidate cache
+PASS refuses another reviewed loader 0.31.1.0 cannot stand in for selected runtime 0.33.0
+PASS refuses mixed selected runtime and 0.31.1.0 fullName
+PASS refuses mixed selected runtime and 0.31.1.0 mvid
+PASS refuses mixed selected runtime and 0.31.1.0 sha256
+PASS refuses another reviewed loader 0.33.2.0 cannot stand in for selected runtime 0.33.0
+PASS refuses mixed selected runtime and 0.33.2.0 fullName
+PASS refuses mixed selected runtime and 0.33.2.0 mvid
+PASS refuses mixed selected runtime and 0.33.2.0 sha256
+PASS native UInt16 cache suffix 0
+PASS native UInt16 cache suffix 65535
+PASS refuses memory unknown name
+PASS refuses memory version
+PASS refuses memory public key
+PASS refuses memory dynamic flag
+PASS refuses memory null location
+PASS refuses memory whitespace location
+PASS refuses memory relative location
+PASS refuses memory claimed hash
+PASS refuses memory empty hash string
+PASS refuses memory missing MVID
+PASS refuses memory zero MVID
+PASS refuses memory MVID case
+PASS refuses memory MVID aliases candidate
+PASS refuses memory extra observation field
+PASS refuses duplicate known memory module
+PASS refuses 0Harmony creator name
+PASS refuses 0Harmony creator fullName
+PASS refuses 0Harmony creator mvid
+PASS refuses 0Harmony creator sha256
+PASS refuses 0Harmony creator location
+PASS refuses 0Harmony creator singleton array name
+PASS refuses 0Harmony creator singleton array fullName
+PASS refuses 0Harmony creator singleton array mvid
+PASS refuses 0Harmony creator singleton array sha256
+PASS refuses 0Harmony missing creator
+PASS refuses 0Harmony duplicate creator
+PASS refuses 0Harmony missing dependency role
+PASS refuses 0Harmony changed dependency bytes
+PASS refuses 0Harmony duplicate dependency role
+PASS refuses 0Harmony dependency singleton array relativePath
+PASS refuses 0Harmony dependency singleton array sha256
+PASS refuses UnityModManager creator name
+PASS refuses UnityModManager creator fullName
+PASS refuses UnityModManager creator mvid
+PASS refuses UnityModManager creator sha256
+PASS refuses UnityModManager creator location
+PASS refuses UnityModManager creator singleton array name
+PASS refuses UnityModManager creator singleton array fullName
+PASS refuses UnityModManager creator singleton array mvid
+PASS refuses UnityModManager creator singleton array sha256
+PASS refuses UnityModManager missing creator
+PASS refuses UnityModManager duplicate creator
+PASS refuses UnityModManager missing dependency role
+PASS refuses UnityModManager changed dependency bytes
+PASS refuses UnityModManager duplicate dependency role
+PASS refuses UnityModManager dependency singleton array relativePath
+PASS refuses UnityModManager dependency singleton array sha256
+PASS refuses invalid native cache suffix -1
+PASS refuses invalid native cache suffix 65536
+PASS refuses invalid native cache suffix 0001
+PASS refuses invalid native cache suffix 1.0
+PASS refuses invalid native cache suffix 1e2
+PASS refuses invalid native cache suffix x
+PASS refuses invalid native cache suffix 1.cache.pdb
+PASS refuses cache foreign candidate sha256
+PASS refuses cache foreign candidate mvid
+PASS refuses cache outside exact candidate directory
+PASS reader parses
+LOADER CONTRACT PASS 101 FAIL 0
+MMR-HORSE-TRIP CHILD Test-FrozenProductSource.ps1
+PASS actual source validator recognizes properties with LF
+PASS actual source validator recognizes properties with CRLF
+PASS archived production retains its identity under a later clean harness
+PASS actual WhatIf entry validates archived bytes and preserves the later ShouldProcess request
+PASS actual WhatIf entry still rejects an incorrect original-freeze hash
+PASS package admission rechecks the archived product without relabeling it
+PASS another manifest path cannot borrow archived admission
+PASS changed harness cannot keep an earlier admission
+PASS changed package is refused
+PASS dirty archived worktree is refused
+PASS dirty execution worktree is refused
+PASS changed original freeze is refused
+PASS execution checkout cannot impersonate archived source
+PASS wrong frozen tree is refused even with a matching record hash
+PASS changed suite bytes are refused
+PASS committed loader build pin change requires another candidate
+PASS unchanged product inputs remain reusable after restoring loader build pin
+PASS committed loader reference restore helper change requires another candidate
+PASS unchanged product inputs remain reusable after restoring loader reference restore helper
+PASS committed build bootstrap change requires another candidate
+PASS unchanged product inputs remain reusable after restoring build bootstrap
+PASS committed production change requires another candidate
+PASS actual launcher refuses incomplete archived-source pins before preflight
+FROZEN PRODUCT SOURCE PASS=23 FAIL=0; disposable fixture retained at C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\frozen-source-test-6682eb1c61914283b59b780ad1c82261
+MMR-HORSE-TRIP CHILD Test-UmmLoaderContracts.ps1 -Reference C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\references\umm-0.31.1\UnityModManager.dll -Profile umm-0.31.1 -IgnoreLocalProfile -Configuration Debug
+UMM DECLARED MINIMUM 0.31.1 (Info.json ManagerVersion; a support declaration, not assessed by inspecting another version)
+UMM REFERENCE C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\obj\references\umm-0.31.1\UnityModManager.dll version 0.31.1.0 SHA-256 2e038ff23ab01d538dfef792096e1f5c04802d1edac3660db20d0d54c167c2c4 MVID 230caa64-1cae-4f42-a86c-8f16b5faba9e length 204288
+PASS UMM identity [umm-0.31.1] exact version
+PASS UMM identity [umm-0.31.1] SHA-256
+PASS UMM identity [umm-0.31.1] MVID
+PASS UMM identity [umm-0.31.1] file length
+PASS UMM identity [umm-0.31.1] UI token 06000151 get_Instance
+PASS UMM identity [umm-0.31.1] UI token 06000152 get_Opened
+PASS UMM identity [umm-0.31.1] UI token 0600016A ToggleWindow
+PASS UMM API ModEntry.Info UnityModManagerNet.UnityModManager+ModInfo readable
+PASS UMM API ModEntry.Logger UnityModManagerNet.UnityModManager+ModEntry+ModLogger readable
+PASS UMM API ModEntry.OnGUI System.Action`1[UnityModManagerNet.UnityModManager+ModEntry] assignable
+PASS UMM API ModEntry.OnSessionStop System.Action`1[UnityModManagerNet.UnityModManager+ModEntry] assignable
+PASS UMM API ModEntry.OnUpdate System.Action`2[UnityModManagerNet.UnityModManager+ModEntry,System.Single] assignable
+PASS UMM API ModEntry.OnUnload System.Func`2[UnityModManagerNet.UnityModManager+ModEntry,System.Boolean] assignable
+PASS UMM API ModEntry.OnToggle System.Func`3[UnityModManagerNet.UnityModManager+ModEntry,System.Boolean,System.Boolean] assignable
+PASS UMM API ModInfo.Id System.String readable
+PASS UMM API ModLogger.Log(System.String) void
+PASS UMM API ModLogger.Warning(System.String) void
+PASS UMM API ModLogger.Error(System.String) void
+PASS UMM API ModLogger.LogException(System.String,System.Exception) void
+PASS UMM API UI is a MonoBehaviour capture host
+PASS UMM API UI.Instance static UI getter
+PASS UMM API UI.Opened Boolean getter
+PASS UMM API UI.ToggleWindow(System.Boolean) void
+PASS UMM API the compiled product's loader references were read from its metadata (20 members, the production entry and logger among them)
+PASS UMM API every loader member the compiled product references binds by name and signature and is public (20 of 20)
+INFO compiled product C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll MVID 5f8fce8d-1e4f-4a7e-8438-23c1c750dd2e was built against 0.31.1.0 and binds 20 loader members
+UMM IDENTITY PASS profile umm-0.31.1 (parameter)
+UMM API PASS reference 0.31.1.0
+UMM NATIVE EXECUTION not run by this check
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+MMR-HORSE-TRIP CHILD Test-UmmLoaderContracts.ps1 -Profile umm-0.33.0 -IgnoreLocalProfile -Configuration Debug
+UMM DECLARED MINIMUM 0.31.1 (Info.json ManagerVersion; a support declaration, not assessed by inspecting another version)
+UMM REFERENCE C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\Kingmaker_Data\Managed\UnityModManager\UnityModManager.dll version 0.33.0.0 SHA-256 63e5baf7b1738e4091b5fd17ccb738ecdb4d1dbf246061dfd55dc52835d52691 MVID 54059519-2754-445a-b5ee-fdb9326336e2 length 204800
+PASS UMM identity [umm-0.33.0] exact version
+PASS UMM identity [umm-0.33.0] SHA-256
+PASS UMM identity [umm-0.33.0] MVID
+PASS UMM identity [umm-0.33.0] file length
+PASS UMM identity [umm-0.33.0] UI token 06000151 get_Instance
+PASS UMM identity [umm-0.33.0] UI token 06000152 get_Opened
+PASS UMM identity [umm-0.33.0] UI token 0600016A ToggleWindow
+PASS UMM API ModEntry.Info UnityModManagerNet.UnityModManager+ModInfo readable
+PASS UMM API ModEntry.Logger UnityModManagerNet.UnityModManager+ModEntry+ModLogger readable
+PASS UMM API ModEntry.OnGUI System.Action`1[UnityModManagerNet.UnityModManager+ModEntry] assignable
+PASS UMM API ModEntry.OnSessionStop System.Action`1[UnityModManagerNet.UnityModManager+ModEntry] assignable
+PASS UMM API ModEntry.OnUpdate System.Action`2[UnityModManagerNet.UnityModManager+ModEntry,System.Single] assignable
+PASS UMM API ModEntry.OnUnload System.Func`2[UnityModManagerNet.UnityModManager+ModEntry,System.Boolean] assignable
+PASS UMM API ModEntry.OnToggle System.Func`3[UnityModManagerNet.UnityModManager+ModEntry,System.Boolean,System.Boolean] assignable
+PASS UMM API ModInfo.Id System.String readable
+PASS UMM API ModLogger.Log(System.String) void
+PASS UMM API ModLogger.Warning(System.String) void
+PASS UMM API ModLogger.Error(System.String) void
+PASS UMM API ModLogger.LogException(System.String,System.Exception) void
+PASS UMM API UI is a MonoBehaviour capture host
+PASS UMM API UI.Instance static UI getter
+PASS UMM API UI.Opened Boolean getter
+PASS UMM API UI.ToggleWindow(System.Boolean) void
+PASS UMM API the compiled product's loader references were read from its metadata (20 members, the production entry and logger among them)
+PASS UMM API every loader member the compiled product references binds by name and signature and is public (20 of 20)
+INFO compiled product C:\Dev\KingmakerMountedCombatLab\worktrees\mmr-horse-trip\bin\Debug\KingmakerMountedCombat.dll MVID 5f8fce8d-1e4f-4a7e-8438-23c1c750dd2e was built against 0.31.1.0 and binds 20 loader members
+UMM IDENTITY PASS profile umm-0.33.0 (parameter)
+UMM API PASS reference 0.33.0.0
+UMM NATIVE EXECUTION not run by this check
+TOTAL PASS=25 FAIL=0 UNASSESSED=0
+MMR-HORSE-TRIP FOCUSED PASS (13 of 13 children) nativeProof=false
+METERED PR-4 r16 Debug full focused wrapper (Release absent) 31.1 s | get mounted-alpha2-melee-pose-20261124: spent 364.85 of 390 min; remaining 25.15 min; entries 435 (running 0, interrupted 0, unreconciled 0) 
+exit status: 0

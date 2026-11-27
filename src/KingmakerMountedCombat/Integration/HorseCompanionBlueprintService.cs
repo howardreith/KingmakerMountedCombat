@@ -315,10 +315,13 @@ namespace KingmakerMountedCombat.Integration
         {
             var player = Game.Instance?.Player;
             var party = player?.PartyCharacters;
-            if (party == null || horseFeature == null) { return; }
+            // PR-4 round 13 (R12-F2): no party (a world discard or unload) drops every repair offer and consent.
+            if (party == null) { ProcessTripRepairConsole(false); return; }
+            if (horseFeature == null) { return; }
 
             observedOwnersThisUpdate.Clear();
             expiredObservationOwners.Clear();
+            loadedHorsesThisUpdate.Clear();
             try
             {
                 foreach (var reference in party)
@@ -334,6 +337,14 @@ namespace KingmakerMountedCombat.Integration
                     {
                         observedOwnersThisUpdate.Add(owner.UniqueId);
                         var pet = owner.Descriptor.Pet;
+                        // MMR-06: reports a saved Horse's sourceless stock TrippingBite; nothing is removed without the owner's request.
+                        try { ObserveInheritedTripCandidates(pet); }
+                        catch (Exception exception)
+                        {
+                            // The object stays pending (LoadedInstanceRepairLedger) and is examined again on a later settled update.
+                            if (!inheritedFactRepairFailureReported) logger.Exception("KMC Horse Trip repair candidate report (retried later)", exception);
+                            inheritedFactRepairFailureReported = true;
+                        }
                         var rank = fact.GetRank();
                         // Int32 default formatting only varies by the negative sign.
                         // Retain that value, not a culture or native object.
@@ -384,6 +395,9 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
 
+                // MMR-06 (PR-4 round 12): the owner's confirmed in-game Horse Trip repair, against the horses loaded in this enumeration.
+                ProcessTripRepairConsole();
+
                 // This cache contains observation values only, never native progression
                 // or cleanup obligations. Retire absence only after a complete
                 // authoritative PartyCharacters enumeration, not a partial read.
@@ -395,6 +409,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 observedOwnersThisUpdate.Clear();
                 expiredObservationOwners.Clear();
+                loadedHorsesThisUpdate.Clear();
             }
         }
 
@@ -518,6 +533,7 @@ namespace KingmakerMountedCombat.Integration
             expiredObservationOwners.Clear();
             divineMountPetByOwner.Clear();
             disposed = true;
+            InvalidateTripRepair();
             state = HorseCompanionBlueprintState.Disposed;
         }
 
@@ -633,7 +649,8 @@ namespace KingmakerMountedCombat.Integration
             horseUnit.Skills = CopySkills(nativeHorse.Skills);
             horseUnit.MaxHP = nativeHorse.MaxHP;
             horseUnit.AdditionalTemplates = CloneArray(mammothUnit.AdditionalTemplates);
-            horseUnit.AddFacts = CloneArray(mammothUnit.AddFacts);
+            // The Mammoth's facts without its inert TrippingBite (MMR-06): HorseCompanionBlueprintService.InheritedFacts.cs.
+            horseUnit.AddFacts = HorseInheritedFacts(mammothUnit.AddFacts);
             horseUnit.ComponentsArray = new BlueprintComponent[]
             {
                 CopyAddClassLevels(classLevels, "KMC_Horse_AddClassLevels"),
@@ -651,6 +668,9 @@ namespace KingmakerMountedCombat.Integration
             addPet.UpgradeLevel = 4;
             upgradeLevel = addPet.UpgradeLevel;
             horseFeature.ComponentsArray = new BlueprintComponent[] { addPet, CreateNoCompanionPrerequisite("KMC_Horse_NoCompanion") };
+
+            logger.Info("Horse registered from the stock Mammoth: stockFacts=" + string.Join(",", CloneArray(mammothUnit.AddFacts).Select(fact => fact?.name)) +
+                "; droppedStockTrippingBite=" + CloneArray(mammothUnit.AddFacts).Count(IsStockTrippingBite) + ".");
 
             AddExactBlueprintRegistration(library, horsePortrait);
             AddExactBlueprintRegistration(library, horseUnit);

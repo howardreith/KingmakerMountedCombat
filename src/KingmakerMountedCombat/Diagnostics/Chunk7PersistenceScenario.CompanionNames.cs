@@ -23,6 +23,8 @@ using Newtonsoft.Json.Linq;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
+using KingmakerMountedCombat.Domain;
+
 namespace KingmakerMountedCombat.Diagnostics
 {
     // F5 (PET-01, PET-02): the exploration Manual route with the Riding Dog pair, plus the companion naming and tack
@@ -331,7 +333,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["windowOpen"] = ui.Opened, ["tab"] = ui.tabId, ["id"] = mod?.Info.Id, ["displayName"] = mod?.Info.DisplayName,
-                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = mod?.OnGUI != null,
+                ["version"] = mod?.Info.Version, ["active"] = mod?.Active, ["optionsPanel"] = UmmPanelObservation(mod?.OnGUI)[0],
+                ["maintenancePanel"] = UmmPanelObservation(mod?.OnGUI)[1],
                 ["chargeEnabled"] = settings.EnableMountedCharge
             };
         }
@@ -593,6 +596,15 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { row["error"] = exception.GetType().Name + ": " + exception.Message; }
             f5Shots.Add(row);
             f5ShotPending = false;
+        }
+
+        // PR-4 rounds 13-14 (R12-F6, R13-F1): the production classification of the complete OnGUI callback (Domain.UmmPanelPolicy) against the
+        // authorized repair-only handler Main.OnMaintenanceGui: {optionsPanel, maintenancePanel}.
+        internal static bool[] UmmPanelObservation(Delegate onGui)
+        {
+            bool options, maintenance;
+            UmmPanelPolicy.Classify(onGui, typeof(Main).GetMethod("OnMaintenanceGui", BindingFlags.NonPublic | BindingFlags.Static), out options, out maintenance);
+            return new[] { options, maintenance };
         }
     }
 }

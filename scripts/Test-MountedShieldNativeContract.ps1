@@ -514,12 +514,25 @@ function At([string[]]$Rows, [string]$Name) { [Array]::IndexOf($Rows, $Name) }
 $handle = Calls ($rootType.GetMethod('HandleUpdateFailure', $any))
 $load = At $handle 'MountedPersistenceService.get_LoadInFlight'; $cleanup = At $handle 'CompositionRoot.PerformFailureCleanup'; $latch = At $handle 'CompositionRoot.failureCleanupPending'
 Check ($load -ge 0 -and $latch -gt $load -and $cleanup -gt $latch) 'the first update-failure dispatch reads the owned load and latches before any pair cleanup (PN4-F1)'
-$perform = Calls ($rootType.GetMethod('PerformFailureCleanup', $any))
-$disable = At $perform 'MountedShieldService.Disable'; $suspend = At $perform 'HorseCompanionBlueprintService.SuspendMountedShieldOffers'; $stopped = At $perform 'CompositionRoot.set_IsEnabled'
-Check ($disable -ge 0 -and $suspend -gt $disable -and $stopped -gt $suspend) 'the terminal stop suspends Mounted Shield''s offers after its benefits stop and before the root reports disabled (PN4-F3)'
-$enable = Calls ($rootType.GetMethod('SetEnabled', $any))
-$resume = At $enable 'HorseCompanionBlueprintService.ResumeMountedShieldOffers'; $selection = At $enable 'HorseCompanionBlueprintService.SetSelectionEnabled'
-Check ($resume -gt $selection -and @($enable | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -eq 1) 'only the explicit enable resumes the offers, after its selection transaction succeeds'
+# PR-4 round 15 (R12-F1): CompositionRoot.PerformFailureCleanup and SetEnabled delegate to Domain.ServiceLifecycleSequence over the
+# root's LifecycleBoundary; the same orders are read from the sequence's IL and each boundary member is checked to reach the same service.
+$sequenceType = KmcType 'KingmakerMountedCombat.Domain.ServiceLifecycleSequence'
+$boundaryType = @($rootType.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'LifecycleBoundary' })[0]
+function BoundaryCalls([string]$Name) { Calls ($boundaryType.GetMethod($Name, $any)) }
+$perform = Calls ($sequenceType.GetMethod('FailureCleanup', $any))
+$disable = At $perform 'IServiceLifecycleBoundary.DisableShield'; $suspend = At $perform 'IServiceLifecycleBoundary.SuspendShieldOffers'; $stopped = At $perform 'IServiceLifecycleBoundary.set_IsEnabled'
+Check ((At (Calls ($rootType.GetMethod('PerformFailureCleanup', $any))) 'ServiceLifecycleSequence.FailureCleanup') -ge 0 -and
+    $disable -ge 0 -and $suspend -gt $disable -and $stopped -gt $suspend -and
+    (At (BoundaryCalls 'DisableShield') 'MountedShieldService.Disable') -ge 0 -and (At (BoundaryCalls 'SuspendShieldOffers') 'HorseCompanionBlueprintService.SuspendMountedShieldOffers') -ge 0 -and
+    (At (BoundaryCalls 'set_IsEnabled') 'CompositionRoot.set_IsEnabled') -ge 0) 'the terminal stop suspends Mounted Shield''s offers after its benefits stop and before the root reports disabled (PN4-F3)'
+$enable = Calls ($sequenceType.GetMethod('Enable', $any))
+$selection = At $enable 'IServiceLifecycleBoundary.EnableSelection'; $services = At $enable 'IServiceLifecycleBoundary.EnableServices'
+$remaining = Calls ($rootType.GetMethod('EnableRemainingServices', $any))
+$resumers = @($rootType.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly) + @($boundaryType.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) | Where-Object { $null -ne $_.GetMethodBody() -and
+    @(Calls $_ | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -gt 0 } | ForEach-Object { $_.Name })
+Check ((At (Calls ($rootType.GetMethod('SetEnabled', $any))) 'ServiceLifecycleSequence.Enable') -ge 0 -and $selection -ge 0 -and $services -gt $selection -and
+    (At (BoundaryCalls 'EnableSelection') 'HorseCompanionBlueprintService.SetSelectionEnabled') -ge 0 -and (At (BoundaryCalls 'EnableServices') 'CompositionRoot.EnableRemainingServices') -ge 0 -and
+    @($remaining | Where-Object { $_ -ceq 'HorseCompanionBlueprintService.ResumeMountedShieldOffers' }).Count -eq 1 -and ($resumers -join ',') -ceq 'EnableRemainingServices') 'only the explicit enable resumes the offers, after its selection transaction succeeds'
 # PN13-F1: every interruption path detaches the roll hook and observers before the shield fixture drain.
 $tranche = KmcType 'KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche'
 $best = Calls ($tranche.GetMethod('BestEffortCleanup', $any)); $terminate = Calls ($tranche.GetMethod('TerminateSprint6Fixture', $any)); $detach = Calls ($tranche.GetMethod('DetachSprint6Hooks', $any))

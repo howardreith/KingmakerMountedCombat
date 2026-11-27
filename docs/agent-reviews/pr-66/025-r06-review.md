@@ -1,0 +1,250 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mmr-horse-trip-20261125213249-4b8b key=r06-review part=1/1 sha256=8fc505348f3953c81a772fd5f5cd08f4f7ec0ef58019f3651ee62aaf83f64bf0 -->
+### Codex GPT-6.2 Astra — review — round 6 — candidate `729bda7443`
+
+**Decision:** `changes_required` — The focused gate passed. Source inspection found that a replacement claim can be discarded using its predecessor’s archive record, and that the final rename and deletion can act on a different file from the one verified. The restart result can also misreport a completed removal.
+
+Continuation for Claude
+
+Keep each archive record with the claim that created it. Bind terminal publication and retirement to the verified file through the operation that changes its name or deletes it. Make the interruption result describe what recovery knows about the horse. Keep the correction within the existing repair policy, file adapter and focused fixtures, preserving horse/fact selection, the world-write gate, guarded folders and supported platforms. Exercise the four failure paths below and run the existing candidate-bound focused Fast gate within the authorized budget. N07 and N10 remain owner playtest observations.
+
+#### Findings
+
+**R6-F1** · P2 · defect · blocks readiness — A replacement claim can inherit the previous claim’s archive record
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:138`; acceptance: MMR-06, S06
+- Trigger: A’s archive commits, retirement fails, and B replaces .claimed before the same session retries.
+- Expected: B gets its own interrupted result and archive before retirement. A’s archive remains bound to A.
+- Actual: Process calls Take(B) when the claim identity changes. Take resets the decision and result but retains CommittedArchive. Close sees A’s existing archive, skips B’s archive commit, then verifies and deletes B. The next poll can process C.
+- Why it blocks / does not: The owner loses B’s request bytes even though the policy reports that B was settled.
+- Requested correction: Reset all per-claim publication state when taking a different claim. Retain the committed archive across retries of the same claim.
+- Requested evidence: Hold A against retirement after its archive commits. Release the handle, replace .claimed with B and queue C before polling the same session. Verify A’s applied bytes, B’s interrupted bytes and result, B’s intact fact, and C’s subsequent processing.
+
+**R5-F1** · P2 · defect · blocks readiness — The staged replacement reaches the terminal name before verification
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:644`; acceptance: MMR-06, S06
+- Trigger: The completed .pending file is renamed away and another file takes its name before Commit performs File.Move.
+- Expected: The first bytes visible under A’s terminal suffix belong to A. A publication failure leaves the claim available for retry.
+- Actual: The staging handle still refers to A after the recorded rename-replacement. File.Move(pending, target) publishes the replacement, and ReadShared checks it afterward. Cleanup removed it in the fixture. A reader can already see the wrong bytes under .applied and can hold that file against cleanup.
+- Why it blocks / does not: A terminal archive can identify the wrong request to its reader. Deleting it afterward cannot retract that observation.
+- Requested correction: Publish the verified staged file with its identity protected through the terminal rename. Keep failure cleanup tied to files owned by that attempt.
+- Requested evidence: Extend the existing staging-replacement case to inspect the terminal name at first visibility. Verify that a reader can never obtain replacement bytes under A’s suffix, then check one byte-exact archive and one removal after completion.
+
+**R4-F3** · P2 · defect · blocks readiness — Retirement deletes a renameable pathname after verifying a file handle
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:594`; acceptance: MMR-06, S06
+- Trigger: The .retiring directory entry changes between the digest comparison and File.Delete.
+- Expected: The deletion affects only the file whose bytes passed the identity check. A replacement remains recoverable.
+- Actual: Close hashes the open stream, which permits renaming through FileShare.Delete, then calls File.Delete(retiring) by pathname. If the verified file is renamed aside and B takes that name, the digest belongs to A and the deletion removes B.
+- Why it blocks / does not: A’s retirement can still consume replacement bytes before B receives its own disposition.
+- Requested correction: Make deletion conditional on the identity of the actual held file through retirement. Preserve any displaced replacement for its interrupted result and archive.
+- Requested evidence: Exercise a local rename-replacement after the retirement handle has verified A and before deletion. Show that the rename is excluded or B survives for settlement before C, with A removed exactly once.
+
+**R6-F2** · P2 · defect · blocks readiness — Restart reporting can deny a removal that already occurred
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:96`; acceptance: MMR-06, S06
+- Trigger: A session removes the fact and exits with .claimed still present. A fresh session then reports the claim as interrupted.
+- Expected: The result names the horse, explains that recovery performed no further removal, and leaves the earlier outcome open for the owner to check.
+- Actual: InterruptedResult says KMC “made no change for it.” A prior session may already have removed the fact and written an Applied result before archival failed. Recovery overwrites that result with an unsupported claim. A subsequent bite-triggered Trip also cannot identify this particular fact when an independent trigger is present.
+- Why it blocks / does not: The owner uses this result to decide whether the saved horse needs another repair. It gives certainty about a prior mutation that recovery cannot establish.
+- Requested correction: Limit the message to what this recovery did. Direct the owner to check the exact repair candidate before submitting a new request.
+- Requested evidence: Extend the existing fresh-session archive-failure case to inspect the result after the prior session removed one fact. Verify truthful recovery wording, the horse ID, retry guidance and zero additional removals.
+
+#### Prior finding assessments
+
+- **R4-F1** — `fix_verified` — The candidate gate exercised a failure after half the payload was written and a separate flush failure. Each left the claim present and no terminal archive. Retry completed one archive with one removal total. The final-rename obstruction control also passed.
+- **R4-F2** — `fix_verified` — A fresh session retained the interrupted decision while a reader blocked retirement. Four failed polls produced one interruption archive and one result write. Releasing the reader allowed settlement and then the waiting request.
+- **R4-F3** — `fix_rejected` — B survived the tested interruption-archive obstruction in both recovery modes. The remaining defect is at the final deletion. File.Delete resolves the renameable retirement name independently of the handle that was verified.
+- **R5-F1** — `fix_rejected` — The in-place edit was excluded. The rename-replacement succeeded, and Commit detected the changed bytes only after moving them to A’s terminal name. The recorded zero archives after the failed poll establishes successful cleanup in that run.
+- **R5-F2** — `fix_verified` — In the successful late-replacement case, B received its own Interrupted result naming horse-B and explaining how to retry. The fixture checked B’s archive and intact fact alongside A’s applied archive before allowing C to run.
+
+#### Evidence assessment
+
+- **Inspected:** The enrolled mission, repository instructions, validation policy, current handoffs, developer report, prior findings ledger and controller receipt with its referenced log.; The M..H feature diff and the correction since 2b59c0e8, including horse construction, saved-fact selection, composition-root wiring, claim publication and retirement, and their focused fixtures.
+- **Executed verification:** Read-only checks confirmed HEAD, the supplied merge base, the enrolled mission SHA-256 and the gate log SHA-256 of 847f64be25ed034e9e8663959bb2a6a6e803d6c906a0f7f2c5bb0ab588cd68ac.; The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 on the exact candidate. It exited 0 in 33.8 seconds. Components passed 1555/1555, Validate-Source passed 153/153 and all 12 focused children passed.; The Windows fixtures exercised partial payload write and flush failures, the final-rename obstruction, four locked recovery polls with one archive and one result write, and same-session and fresh-session settlement of B after its archive was obstructed.; The installed-data and compiled Trip checks passed 51/51. Mounted Shield passed 114/114, with matching packet, production and embedded icon SHA-256 values. The loader checks covered the 0.31.1 build reference and installed 0.33.0 contracts.
+- **Source inspection only:** The recorded staging-replacement fixture counted archives after cleanup. The interval between File.Move and read-back, and the effect of a reader holding the published file, were assessed from source.; The retirement fixture replaces .claimed before the retirement handle opens. The subsequent pathname deletion, the transfer of CommittedArchive between identities, and the meaning of the restart message were traced through the production policy and file host.
+- **Required gaps:** Observe the first bytes visible under the terminal suffix when the staging name is replaced, and exercise replacement at the actual retirement deletion.; Combine a committed archive, a failed retirement and a change of claim identity before the next poll. Check B’s own archive before C runs.; Inspect the owner-facing interruption result after a known removal in a previous session.
+- **Limitations:** The review was read-only. The controller receipt establishes the candidate gate execution. The withheld developer session transcript does not independently establish the additional local runs listed in the report.; The gate supplies Windows filesystem and offline engine-contract evidence. Live bite damage, Trip delivery, save/reload behavior and Linux/Mono filesystem behavior were not observed.
+
+#### Summary
+
+- **Delivered behavior:** The installed-data checks identify the Mammoth donor’s stock Bite-to-Trip fact. New KMC horses filter that fact while retaining one bite and two hooves. Existing horses require an explicit request for one matching sourceless fact. The outstanding defects concern publication, retirement and reporting of that request.
+- **Scope reviewed:** Final PR-4 source and offline acceptance for MMR-06 and S06, the five pending findings, their directly affected file lifecycle, and the S08 Mounted Shield regression evidence.
+- **Pending later-phase work:** none
+- **Unresolved questions:** none
+- **Remaining owner review:** N07. Observe a plain horse landing a damaging bite without intrinsic Trip, with a legitimate dog, wolf or independently granted maneuver as a control when available.; N10. Play a pre-repair horse through save/reload or an area transition and confirm one usable pair, correct effects and ordinary action entitlement.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Owner guidance bound to this review: none.
+
+Owner amendments bound to this review: none.
+
+Codex CLI `0.170.0`, thread `01a21a5d-8764-72a0-a96f-f3b83d6ffaaa`, duration 647.0s, response sha256 `190801f9c0f85e12d906159042cd0b3f4ebdef29ada2be5a47120b268b117e8a`, request `kmc-codex-mmr-horse-trip-20261125213249-4b8b-r06-739c4e`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "729bda744312f657d331bc2ba1cb3497733791d0",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed. Source inspection found that a replacement claim can be discarded using its predecessor\u2019s archive record, and that the final rename and deletion can act on a different file from the one verified. The restart result can also misreport a completed removal.\n\nContinuation for Claude\n\nKeep each archive record with the claim that created it. Bind terminal publication and retirement to the verified file through the operation that changes its name or deletes it. Make the interruption result describe what recovery knows about the horse. Keep the correction within the existing repair policy, file adapter and focused fixtures, preserving horse/fact selection, the world-write gate, guarded folders and supported platforms. Exercise the four failure paths below and run the existing candidate-bound focused Fast gate within the authorized budget. N07 and N10 remain owner playtest observations.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Read-only checks confirmed HEAD, the supplied merge base, the enrolled mission SHA-256 and the gate log SHA-256 of 847f64be25ed034e9e8663959bb2a6a6e803d6c906a0f7f2c5bb0ab588cd68ac.",
+      "The controller ran Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 on the exact candidate. It exited 0 in 33.8 seconds. Components passed 1555/1555, Validate-Source passed 153/153 and all 12 focused children passed.",
+      "The Windows fixtures exercised partial payload write and flush failures, the final-rename obstruction, four locked recovery polls with one archive and one result write, and same-session and fresh-session settlement of B after its archive was obstructed.",
+      "The installed-data and compiled Trip checks passed 51/51. Mounted Shield passed 114/114, with matching packet, production and embedded icon SHA-256 values. The loader checks covered the 0.31.1 build reference and installed 0.33.0 contracts."
+    ],
+    "inspected": [
+      "The enrolled mission, repository instructions, validation policy, current handoffs, developer report, prior findings ledger and controller receipt with its referenced log.",
+      "The M..H feature diff and the correction since 2b59c0e8, including horse construction, saved-fact selection, composition-root wiring, claim publication and retirement, and their focused fixtures."
+    ],
+    "limitations": [
+      "The review was read-only. The controller receipt establishes the candidate gate execution. The withheld developer session transcript does not independently establish the additional local runs listed in the report.",
+      "The gate supplies Windows filesystem and offline engine-contract evidence. Live bite damage, Trip delivery, save/reload behavior and Linux/Mono filesystem behavior were not observed."
+    ],
+    "required_gaps": [
+      "Observe the first bytes visible under the terminal suffix when the staging name is replaced, and exercise replacement at the actual retirement deletion.",
+      "Combine a committed archive, a failed retirement and a change of claim identity before the next poll. Check B\u2019s own archive before C runs.",
+      "Inspect the owner-facing interruption result after a known removal in a previous session."
+    ],
+    "source_inspection_only": [
+      "The recorded staging-replacement fixture counted archives after cleanup. The interval between File.Move and read-back, and the effect of a reader holding the published file, were assessed from source.",
+      "The retirement fixture replaces .claimed before the retirement handle opens. The subsequent pathname deletion, the transfer of CommittedArchive between identities, and the meaning of the restart message were traced through the production policy and file host."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "Process calls Take(B) when the claim identity changes. Take resets the decision and result but retains CommittedArchive. Close sees A\u2019s existing archive, skips B\u2019s archive commit, then verifies and deletes B. The next poll can process C.",
+      "blocking_rationale": "The owner loses B\u2019s request bytes even though the policy reports that B was settled.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "B gets its own interrupted result and archive before retirement. A\u2019s archive remains bound to A.",
+      "id": "R6-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 138
+      },
+      "priority": "P2",
+      "requested_correction": "Reset all per-claim publication state when taking a different claim. Retain the committed archive across retries of the same claim.",
+      "requested_evidence": "Hold A against retirement after its archive commits. Release the handle, replace .claimed with B and queue C before polling the same session. Verify A\u2019s applied bytes, B\u2019s interrupted bytes and result, B\u2019s intact fact, and C\u2019s subsequent processing.",
+      "title": "A replacement claim can inherit the previous claim\u2019s archive record",
+      "trigger": "A\u2019s archive commits, retirement fails, and B replaces .claimed before the same session retries."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "The staging handle still refers to A after the recorded rename-replacement. File.Move(pending, target) publishes the replacement, and ReadShared checks it afterward. Cleanup removed it in the fixture. A reader can already see the wrong bytes under .applied and can hold that file against cleanup.",
+      "blocking_rationale": "A terminal archive can identify the wrong request to its reader. Deleting it afterward cannot retract that observation.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The first bytes visible under A\u2019s terminal suffix belong to A. A publication failure leaves the claim available for retry.",
+      "id": "R5-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 644
+      },
+      "priority": "P2",
+      "requested_correction": "Publish the verified staged file with its identity protected through the terminal rename. Keep failure cleanup tied to files owned by that attempt.",
+      "requested_evidence": "Extend the existing staging-replacement case to inspect the terminal name at first visibility. Verify that a reader can never obtain replacement bytes under A\u2019s suffix, then check one byte-exact archive and one removal after completion.",
+      "title": "The staged replacement reaches the terminal name before verification",
+      "trigger": "The completed .pending file is renamed away and another file takes its name before Commit performs File.Move."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "Close hashes the open stream, which permits renaming through FileShare.Delete, then calls File.Delete(retiring) by pathname. If the verified file is renamed aside and B takes that name, the digest belongs to A and the deletion removes B.",
+      "blocking_rationale": "A\u2019s retirement can still consume replacement bytes before B receives its own disposition.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The deletion affects only the file whose bytes passed the identity check. A replacement remains recoverable.",
+      "id": "R4-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 594
+      },
+      "priority": "P2",
+      "requested_correction": "Make deletion conditional on the identity of the actual held file through retirement. Preserve any displaced replacement for its interrupted result and archive.",
+      "requested_evidence": "Exercise a local rename-replacement after the retirement handle has verified A and before deletion. Show that the rename is excluded or B survives for settlement before C, with A removed exactly once.",
+      "title": "Retirement deletes a renameable pathname after verifying a file handle",
+      "trigger": "The .retiring directory entry changes between the digest comparison and File.Delete."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "InterruptedResult says KMC \u201cmade no change for it.\u201d A prior session may already have removed the fact and written an Applied result before archival failed. Recovery overwrites that result with an unsupported claim. A subsequent bite-triggered Trip also cannot identify this particular fact when an independent trigger is present.",
+      "blocking_rationale": "The owner uses this result to decide whether the saved horse needs another repair. It gives certainty about a prior mutation that recovery cannot establish.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The result names the horse, explains that recovery performed no further removal, and leaves the earlier outcome open for the owner to check.",
+      "id": "R6-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 96
+      },
+      "priority": "P2",
+      "requested_correction": "Limit the message to what this recovery did. Direct the owner to check the exact repair candidate before submitting a new request.",
+      "requested_evidence": "Extend the existing fresh-session archive-failure case to inspect the result after the prior session removed one fact. Verify truthful recovery wording, the horse ID, retry guidance and zero additional removals.",
+      "title": "Restart reporting can deny a removal that already occurred",
+      "trigger": "A session removes the fact and exits with .claimed still present. A fresh session then reports the claim as interrupted."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R4-F1",
+      "rationale": "The candidate gate exercised a failure after half the payload was written and a separate flush failure. Each left the claim present and no terminal archive. Retry completed one archive with one removal total. The final-rename obstruction control also passed."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R4-F2",
+      "rationale": "A fresh session retained the interrupted decision while a reader blocked retirement. Four failed polls produced one interruption archive and one result write. Releasing the reader allowed settlement and then the waiting request."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R4-F3",
+      "rationale": "B survived the tested interruption-archive obstruction in both recovery modes. The remaining defect is at the final deletion. File.Delete resolves the renameable retirement name independently of the handle that was verified."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R5-F1",
+      "rationale": "The in-place edit was excluded. The rename-replacement succeeded, and Commit detected the changed bytes only after moving them to A\u2019s terminal name. The recorded zero archives after the failed poll establishes successful cleanup in that run."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R5-F2",
+      "rationale": "In the successful late-replacement case, B received its own Interrupted result naming horse-B and explaining how to retry. The fixture checked B\u2019s archive and intact fact alongside A\u2019s applied archive before allowing C to run."
+    }
+  ],
+  "request_id": "kmc-codex-mmr-horse-trip-20261125213249-4b8b-r06-739c4e",
+  "round": 6,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The installed-data checks identify the Mammoth donor\u2019s stock Bite-to-Trip fact. New KMC horses filter that fact while retaining one bite and two hooves. Existing horses require an explicit request for one matching sourceless fact. The outstanding defects concern publication, retirement and reporting of that request.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "N07. Observe a plain horse landing a damaging bite without intrinsic Trip, with a legitimate dog, wolf or independently granted maneuver as a control when available.",
+      "N10. Play a pre-repair horse through save/reload or an area transition and confirm one usable pair, correct effects and ordinary action entitlement."
+    ],
+    "scope_reviewed": "Final PR-4 source and offline acceptance for MMR-06 and S06, the five pending findings, their directly affected file lifecycle, and the S08 Mounted Shield regression evidence.",
+    "unresolved_questions": []
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

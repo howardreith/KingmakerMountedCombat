@@ -1737,7 +1737,11 @@ public static class KmcContinuousDriveProbe
                     flagWrites+=marks.Count;
                 }
                 var failureCleanup=false;
-                foreach(var lambda in Lambdas(root,"PerformFailureCleanup"))
+                // PR-4 round 15 (R12-F1): CompositionRoot.PerformFailureCleanup delegates to ServiceLifecycleSequence.FailureCleanup; the
+                // per-pair cleanup is the root's LifecycleBoundary.VisitPairsForFailureCleanup (its lambda lives in that nested type's display class).
+                var lifecycleBoundary=root.GetNestedType("LifecycleBoundary",Any);
+                var sequence=root.Assembly.GetType("KingmakerMountedCombat.Domain.ServiceLifecycleSequence",true);
+                foreach(var lambda in Lambdas(lifecycleBoundary,"VisitPairsForFailureCleanup"))
                 {
                     var body=Body(lambda);
                     if(Count(body,"GameMountedRelationshipService","Dismount")==1 && One(body,"GameMountedRelationshipService","Dismount")<One(body,policy,"IsWithoutResidue") &&
@@ -1745,15 +1749,19 @@ public static class KmcContinuousDriveProbe
                 }
                 // The stop held back by stick-movement cleanup alone is latched, and taken again by Update once no pair
                 // owes any.
-                var failure=Body(Required(root,"PerformFailureCleanup",0));
+                var failure=Body(Required(sequence,"FailureCleanup",1));
                 var latched=0; var disabled=-1;
                 for(var i=0;i<failure.Count;i++)
                 {
-                    if(failure[i].Op==OpCodes.Stfld && failure[i].Field!=null && failure[i].Field.Name=="failureCleanupPending") latched++;
-                    if(Is(failure[i],"CompositionRoot","set_IsEnabled")) disabled=i;
+                    if(Is(failure[i],"IServiceLifecycleBoundary","set_FailureCleanupPending")) latched++;
+                    if(Is(failure[i],"IServiceLifecycleBoundary","set_IsEnabled")) disabled=i;
                 }
+                var latchWrite=Body(Required(lifecycleBoundary,"set_FailureCleanupPending",1));
+                var latchStores=0; foreach(var ins in latchWrite) if(ins.Op==OpCodes.Stfld && ins.Field!=null && ins.Field.Name=="failureCleanupPending") latchStores++;
+                var delegated=Count(Body(Required(root,"PerformFailureCleanup",0)),"ServiceLifecycleSequence","FailureCleanup")==1 &&
+                    Count(Body(Required(lifecycleBoundary,"set_IsEnabled",1)),"CompositionRoot","set_IsEnabled")==1 && latchStores==1;
                 var rootUpdate=Body(Required(root,"UpdateCore",-1));
-                if(latched!=1 || disabled<0 || First(failure,null,"Visit")>disabled ||
+                if(!delegated || latched!=1 || disabled<0 || First(failure,null,"VisitPairsForFailureCleanup")>disabled ||
                     One(rootUpdate,"MountedWorldService","get_AnyContinuousDriveCleanupPending")>One(rootUpdate,"CompositionRoot","PerformFailureCleanup"))
                     throw new InvalidOperationException("the runtime-error stop is not deferred until retained stick-movement cleanup is established");
                 var with=Find(dismount,policy,"WithRetainedStickMovement");

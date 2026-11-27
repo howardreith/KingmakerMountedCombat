@@ -541,6 +541,10 @@
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
+    <Compile Include="Domain\HorseInheritedFactRepairPolicy.cs" />
+    <Compile Include="Domain\HorseTripRepairPolicy.cs" />
+    <Compile Include="Domain\ServiceLifecycleSequence.cs" />
+    <Compile Include="Domain\MountedWorldWriteGate.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />
@@ -609,6 +613,7 @@
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedCombatFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedArcheryFeat.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.MountedShieldFeat.cs" />
+    <Compile Include="Integration\HorseCompanionBlueprintService.InheritedFacts.cs" />
     <Compile Include="Integration\HorseCompanionBlueprintService.DivineMount.cs" />
     <Compile Include="Integration\DivineMountComponents.cs" />
     <Compile Include="Domain\DivineMountPolicy.cs" />

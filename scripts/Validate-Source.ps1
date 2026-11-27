@@ -50,9 +50,10 @@ Assert-Kmc ($info.DisplayName -ceq "Mr. Bard's Kingmaker Mounted Combat") 'UMM s
 # The UMM entry has no options page, and nothing outside explicit lab scenarios can switch Mounted Charge off.
 $ordinaryChargeWriters = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -Filter '*.cs' |
     Where-Object { $_.FullName -notmatch '\\Diagnostics\\' -and [IO.File]::ReadAllText($_.FullName) -match 'EnableMountedCharge\s*=[^=]' })
-Assert-Kmc ($mainText -notmatch 'OnGUI\s*=' -and $ordinaryChargeWriters.Count -eq 0 -and
+# PR-4 round 12 (OWNER AMENDMENT revision 1): the only OnGUI binding is the repair-only Horse Trip maintenance section.
+Assert-Kmc (([regex]::Matches($mainText, 'OnGUI\s*=')).Count -eq 1 -and $mainText -match 'modEntry\.OnGUI\s*=\s*OnMaintenanceGui;' -and $ordinaryChargeWriters.Count -eq 0 -and
     (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs')) -match 'EnableMountedCharge = true;') `
-    'the UMM entry has no options panel and Mounted Charge has no ordinary switch'
+    'the UMM entry has no options panel (only the repair-only maintenance section) and Mounted Charge has no ordinary switch'
 Assert-Kmc ($typeMap.authority.kingmakerMvid -ceq '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'type map binds exact Kingmaker MVID'
 Assert-Kmc ($fingerprint.kingmaker.displayVersion -ceq '2.1.7b') 'fingerprint binds Kingmaker 2.1.7b'
 
@@ -126,11 +127,16 @@ Assert-Kmc ($productionText -notmatch '[A-Za-z]:\\') 'production source contains
 # of the cleanup call in the disable branch, and disposal must take its one
 # bounded drain before unpatching anything.
 $compositionRoot = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs')
-$disableBranch = [Regex]::Match($compositionRoot, '(?s)// Always execute idempotent cleanup.*?lifecycle\.HandleModDisable\(\)')
-$beforeCleanup = if ($disableBranch.Success) { $compositionRoot.Substring(0, $disableBranch.Index) } else { '' }
-Assert-Kmc ($disableBranch.Success -and
-    $beforeCleanup -match 'persistence\.SaveSuspended' -and
-    $beforeCleanup -match 'persistence\.LoadInFlight') 'disable refuses both live persistence operations before cleanup'
+# PR-4 round 15 (R12-F1): the disable branch is ServiceLifecycleSequence.Disable (CompositionRoot.SetEnabled delegates to it); its two
+# live-operation refusals must stand ahead of the cleanup call there, and the root's boundary must map them to the persistence state.
+$lifecycleSequence = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ServiceLifecycleSequence.cs')
+$disableMethod = [Regex]::Match($lifecycleSequence, '(?s)public static bool Disable\(IServiceLifecycleBoundary b\).*?// Always execute idempotent cleanup.*?b\.HandleModDisable\(\)')
+$beforeCleanup = if ($disableMethod.Success) { $disableMethod.Value } else { '' }
+Assert-Kmc ($disableMethod.Success -and
+    $beforeCleanup -match 'if \(b\.SaveOrTeardownBusy\)' -and $beforeCleanup -match 'if \(b\.LoadInFlight\)' -and
+    $compositionRoot -match 'public bool SaveOrTeardownBusy => root\.persistence\.SaveSuspended \|\| root\.world\.AnyChargeFenced \|\| !root\.relationship\.AllTeardownOwnersReady;' -and
+    $compositionRoot -match 'public bool LoadInFlight => root\.persistence\.LoadInFlight;' -and
+    $compositionRoot -match 'return enabled \? ServiceLifecycleSequence\.Enable\(lifecycleBoundary\) : ServiceLifecycleSequence\.Disable\(lifecycleBoundary\);') 'disable refuses both live persistence operations before cleanup'
 $disposeBody = [Regex]::Match($compositionRoot, '(?s)public void Dispose\(\).*?patches\.Dispose\(\)')
 Assert-Kmc ($disposeBody.Success -and $disposeBody.Value -match 'persistence\.DrainForTeardown\(') 'disposal drains an owned archive worker before unpatching'
 

@@ -25,7 +25,9 @@ namespace KingmakerMountedCombat
                 modEntry.OnToggle = OnToggle;
                 modEntry.OnUnload = OnUnload;
                 modEntry.OnUpdate = OnUpdate;
-                // No OnGUI: the mod has no player options, so UMM shows only its standard entry and built-in controls.
+                // PR-4 round 12 (OWNER AMENDMENT revision 1, owner instruction 2026-11-27b section 4): the only OnGUI content is the repair-only
+                // Horse Trip maintenance section (no player options or settings framework).
+                modEntry.OnGUI = OnMaintenanceGui;
                 // Removal preparation is reached in game (RemovalPreparationShortcut); the README describes it.
                 modEntry.OnSessionStop = OnSessionStop;
                 logger.Info("Kingmaker Mounted Combat " + BuildIdentity.ProductVersion + " loaded with mounted combat services.");
@@ -111,6 +113,12 @@ namespace KingmakerMountedCombat
                 modEntry.Logger.LogException("OnUnload", exception);
                 return false;
             }
+        }
+
+        private static void OnMaintenanceGui(UnityModManager.ModEntry modEntry)
+        {
+            try { root?.DrawMaintenanceGui(); }
+            catch (Exception exception) { modEntry.Logger.LogException("OnGUI", exception); }
         }
 
         private static void OnUpdate(UnityModManager.ModEntry modEntry, float deltaTime)

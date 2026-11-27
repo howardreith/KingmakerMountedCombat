@@ -5056,12 +5056,16 @@ try {
         $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
         Assert-Test ($mainSource.Contains('root?.HandleUpdateFailure(exception);')) 'OnUpdate does not delegate every escaped failure to the fail-closed composition boundary'
         Assert-Test ($rootSource.Contains('runtimeAutomation?.Abort(exception);')) 'composition boundary does not abort active automation after an update failure'
-        Assert-Test ($rootSource.Contains('var errors = world.Visit(pair =>') -and
+        # PR-4 round 15 (R12-F1): the root's per-pair failure cleanup is its LifecycleBoundary.VisitPairsForFailureCleanup, and the stop and
+        # disable sequences that decide on its result are Domain/ServiceLifecycleSequence.cs (CompositionRoot delegates to them).
+        $lifecycleSequenceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ServiceLifecycleSequence.cs')
+        Assert-Test ($rootSource.Contains('var errors = root.world.Visit(pair =>') -and
             $rootSource.Contains('pair.Combat.Cancel("world update failure");') -and
             $rootSource.Contains('pair.Relationship.Dismount(CleanupTrigger.Exception)') -and
-            $rootSource.Contains('if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);')) `
+            $rootSource.Contains('private void PerformFailureCleanup() => ServiceLifecycleSequence.FailureCleanup(lifecycleBoundary);') -and
+            $lifecycleSequenceSource.Contains('if (errors.Length != 0) throw new AggregateException("World update cleanup retained owners.", errors);')) `
             'composition boundary does not independently service every pair and retain update-failure cleanup errors'
-        Assert-Test ($rootSource.Contains('Always execute idempotent cleanup on a disable request')) 'repeated disable requests can bypass idempotent cleanup'
+        Assert-Test ($lifecycleSequenceSource.Contains('Always execute idempotent cleanup on a disable request')) 'repeated disable requests can bypass idempotent cleanup'
         Assert-Test ($hostSource.Contains('TryCompleteFailure(exception ??')) 'runtime abort does not commit a bounded FAIL result and quit'
         Assert-Test ($serviceSource.Contains('cleanupRetryRequired || coordinator.State == RelationshipState.Faulted')) 'frame validation does not detect a prior lifecycle cleanup failure'
         Assert-Test ($serviceSource.Contains('RetryFailedCleanupOrThrow();')) 'faulted lifecycle cleanup is not retried or escalated into the fail-closed update boundary'

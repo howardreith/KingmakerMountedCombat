@@ -1,4 +1,4 @@
-[CmdletBinding()] param()
+[CmdletBinding()] param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 # F5 reader: synthetic producer/consumer observations, one accepted shape and the refusals that matter.
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'runtime\Finalize5CompanionEvidence.ps1')
@@ -75,6 +75,52 @@ $p=Clone $producer; $p.companionNames.sheetMammothRenamed.textClearOfLevel=$fals
 $p=Clone $producer; $p.companionNames.sheetMammothLong.textClearOfControl=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a long name running under the control refuses'
 $p=Clone $producer; $p.companionNames.sheetDog.control.yMin=622; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a control that moved for another companion refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$true; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a UMM entry with an options page refuses'
+# PR-4 rounds 13-15 (R12-F6, R13-F1, R14-F2): the compiled product's own observer. The built KingmakerMountedCombat.dll for the requested
+# -Configuration (forwarded by Test-Tiers.ps1 through Test-MmrHorseTripFocused.ps1) is loaded with the installed game assemblies, as the native
+# contracts load it; a delegate is bound to the compiled Main.OnMaintenanceGui and passed through the production
+# Chunk7PersistenceScenario.UmmPanelObservation; its returned fields are what the reader receives. No UI is drawn.
+$repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$productDll=Join-Path $repoRoot ('bin\'+$Configuration+'\KingmakerMountedCombat.dll')
+if(-not(Test-Path -LiteralPath $productDll -PathType Leaf)){throw ('The '+$Configuration+' product is not built: '+$productDll)}
+$layout=(Get-Content -Raw -LiteralPath (Join-Path ([IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))) 'environment-intake.json')|ConvertFrom-Json).requestedLayout
+$managed=Join-Path (Join-Path $layout.kingmakerInstallDir 'Kingmaker_Data') 'Managed'
+$script:resolving=@{}
+[AppDomain]::CurrentDomain.add_AssemblyResolve({ param($sender,$eventArgs)
+    $short=($eventArgs.Name -split ',')[0]
+    if($short.EndsWith('.resources') -or $script:resolving.ContainsKey($short)){return $null}
+    $loaded=@([AppDomain]::CurrentDomain.GetAssemblies()|Where-Object{$_.GetName().Name -eq $short})|Select-Object -First 1
+    if($loaded){return $loaded}
+    $script:resolving[$short]=$true
+    try{ foreach($dir in @($managed,(Join-Path $managed 'UnityModManager'))){ $path=Join-Path $dir ($short+'.dll'); if(Test-Path -LiteralPath $path){return [Reflection.Assembly]::LoadFile($path)} }; return $null }
+    finally{ $script:resolving.Remove($short) } })
+$kmc=[Reflection.Assembly]::LoadFile($productDll)
+Check ([string]::Equals($kmc.Location,$productDll,[StringComparison]::OrdinalIgnoreCase)) ('loaded product artifact: configuration='+$Configuration+' path='+$kmc.Location+' sha256='+(Get-FileHash -LiteralPath $productDll -Algorithm SHA256).Hash.ToLowerInvariant()+' mvid='+$kmc.ManifestModule.ModuleVersionId)
+$any=[Reflection.BindingFlags]'Static,Public,NonPublic'
+$mainType=$kmc.GetType('KingmakerMountedCombat.Main',$true)
+$authorized=$mainType.GetMethod('OnMaintenanceGui',$any)
+$observer=$kmc.GetType('KingmakerMountedCombat.Diagnostics.Chunk7PersistenceScenario',$true).GetMethod('UmmPanelObservation',$any)
+Check ($null -ne $authorized -and $null -ne $observer) 'the compiled Main.OnMaintenanceGui and Chunk7PersistenceScenario.UmmPanelObservation are present'
+$modEntryType=$authorized.GetParameters()[0].ParameterType
+$onGuiType=$modEntryType.GetField('OnGUI').FieldType
+$maintenance=[Delegate]::CreateDelegate($onGuiType,$authorized)
+# An unrelated static handler of the same UMM callback type (not the product's), for the unrelated and mixed controls.
+Add-Type -TypeDefinition 'public static class KmcUmmUnrelatedHandler { public static void Draw(UnityModManagerNet.UnityModManager.ModEntry entry) { } }' -ReferencedAssemblies $modEntryType.Assembly.Location
+$other=[Delegate]::CreateDelegate($onGuiType,[KmcUmmUnrelatedHandler].GetMethod('Draw'))
+function Observe($Callback){ $fields=[bool[]]$observer.Invoke($null,[object[]]@(,$Callback)); [pscustomobject]@{optionsPanel=$fields[0];maintenancePanel=$fields[1]} }
+function WithPanel($Observation){ $p=Clone $producer; $p.companionNames.ummEntry.optionsPanel=$Observation.optionsPanel; $p.companionNames.ummEntry|Add-Member -NotePropertyName maintenancePanel -NotePropertyValue $Observation.maintenancePanel; $p }
+$o=Observe $maintenance; Check ($o.optionsPanel -eq $false -and $o.maintenancePanel -eq $true) 'the compiled observer reports the compiled Main.OnMaintenanceGui as the maintenance panel only'
+Assert-KmcFinalize5CompanionNames $request (WithPanel $o) $false; Check $true 'the reader accepts the compiled observation of the repair-only maintenance callback'
+$o=Observe $other; Check ($o.optionsPanel -eq $true -and $o.maintenancePanel -eq $false) 'the compiled observer reports an unrelated handler as an options panel'
+Refuses { Assert-KmcFinalize5CompanionNames $request (WithPanel $o) $false } 'the reader refuses the compiled observation of an unrelated OnGUI callback (an options page)'
+$o=Observe ([Delegate]::Combine($other,$maintenance)); Check ($o.optionsPanel -eq $true -and $o.maintenancePanel -eq $false) 'a mixed callback (unrelated, then maintenance) is an options panel'
+Refuses { Assert-KmcFinalize5CompanionNames $request (WithPanel $o) $false } 'the reader refuses the mixed callback (unrelated, then maintenance)'
+$o=Observe ([Delegate]::Combine($maintenance,$other)); Check ($o.optionsPanel -eq $true -and $o.maintenancePanel -eq $false) 'a mixed callback (maintenance, then unrelated) is an options panel'
+Refuses { Assert-KmcFinalize5CompanionNames $request (WithPanel $o) $false } 'the reader refuses the mixed callback (maintenance, then unrelated)'
+$o=Observe $null; Check ($o.optionsPanel -eq $false -and $o.maintenancePanel -eq $false) 'no callback is neither panel'
+$p=Clone $producer; $p.companionNames.ummEntry|Add-Member -NotePropertyName maintenancePanel -NotePropertyValue 'yes'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a non-boolean maintenance-panel observation refuses'
+Check (-not ($producer.companionNames.ummEntry.PSObject.Properties.Name -contains 'maintenancePanel')) 'the historical no-panel observation (no maintenancePanel field) is the accepted base fixture'
+$p=WithPanel (Observe $maintenance); $p.companionNames.ummEntry.chargeEnabled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'with the maintenance panel, Mounted Charge off still refuses'
+$p=WithPanel (Observe $maintenance); $p.companionNames.ummEntry.active=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'with the maintenance panel, an inactive entry still refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.displayName='Kingmaker Mounted Combat'; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'the old UMM display name refuses'
 $p=Clone $producer; $p.companionNames.ummEntry.chargeEnabled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'Mounted Charge off at startup refuses'
 $p=Clone $producer; $p.companionNames.riderNameUnstyled=$false; Refuses { Assert-KmcFinalize5CompanionNames $request $p $false } 'a character name that kept the reserved slot refuses'
