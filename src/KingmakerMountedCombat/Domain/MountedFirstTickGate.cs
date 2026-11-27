@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Domain
     {
         // The exact carrier command the request installed; the gate applies only to a tick of this command.
         object Carrier { get; }
-        MountedFirstTickVerdict Decide(float allowedMetres, float deltaTime, out string detail);
+        // PR #70 R6-F2 (round 8): a commit also states the metres it grants this tick (the adapter shortens the tick to them, never lengthens it).
+        MountedFirstTickVerdict Decide(float allowedMetres, float deltaTime, out float grantedMetres, out string detail);
     }
 }

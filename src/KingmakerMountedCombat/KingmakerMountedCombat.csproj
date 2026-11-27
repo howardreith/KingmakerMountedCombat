@@ -520,6 +520,7 @@
     <Compile Include="Domain\MountedFirstTickGate.cs" />
     <Compile Include="Domain\PairedMovementInputPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
+    <Compile Include="Integration\MountedAgentSteering.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.RangedMovement.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />

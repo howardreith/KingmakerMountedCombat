@@ -1,9 +1,10 @@
 # PR-2 first-tick replacement boundary (R1-F6)
 
-Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4). This note records how the restricted single-action approach is decided
+Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7 and 8. This note records how the restricted single-action approach is decided
 and how a click reaches that decision, checked against the installed assemblies. Round 7 replaces round 6's bare mount carrier with a
 **provisional order on the rider** (R1-F6, R5-F3, R6-F1..R6-F7). The round-5 TwoActions workaround stays removed; the player's single-action
-selection is never rewritten. R5-F1 and R5-F2 are unchanged.
+selection is never rewritten. R5-F1 and R5-F2 are unchanged. Round 8 keeps the verified round-7 path (R1-F6, R6-F3..R6-F6) and corrects
+R5-F3, R6-F1, R6-F2, R6-F7 and R7-F1..R7-F5 (section 6). Line numbers below are at the round-8 commit.
 
 ## 1. Installed contracts
 
@@ -23,9 +24,9 @@ Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intak
 
 ## 2. Production path from click to strike (file:line at this commit)
 
-1. **Click routing.** `MountedCombatController.TryRouteMountedStockAttack` (MountedCombatController.cs:1944) takes the click's proof. A proof
+1. **Click routing.** `MountedCombatController.TryRouteMountedStockAttack` (MountedCombatController.cs:2039) takes the click's proof. A proof
    admitted in `single-move-first-tick` mode (`proof.FirstTick`) that does not continue the retained order's own target goes to
-   `BeginProvisionalOrder` (:2043 -> :1525). Nothing of the previous order, manual target or Hold is touched; native Run of the click's
+   `BeginProvisionalOrder` (:2138 -> :1534). Nothing of the previous order, manual target or Hold is touched; native Run of the click's
    `UnitAttack` is refused as for every routed click.
 2. **Provisional order.** `BeginProvisionalOrder` refuses before installing anything when any rider or mount work is live
    (`pair-work-live`, `rider-holds-live-work`, `mount-holds-live-work`) or the route is missing. It publishes the request, then calls
@@ -36,32 +37,32 @@ Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intak
    rider's Standard slot. Any failure (a native Run that throws before installation included) refuses and sweeps the request: no gate,
    no active command.
 3. **Post-Run target and Hold hooks.** `PatchMethods.ClickManualTargetAssignment` (MountedPatchController.cs:1038) asks
-   `DefersClickTargetAssignment` (:1803): the click's own assignment of B to the rider is deferred for a pending provisional order of that
+   `DefersClickTargetAssignment` (:1898): the click's own assignment of B to the rider is deferred for a pending provisional order of that
    exact click, and suppressed for one that click refused. `NativeRunHoldWrite` (MountedPatchController.cs:1085) asks `NativeRunKeepsHold`
-   (:3163): the Run of the provisional command (rider) or of its carrier (mount) keeps the Hold and records that it did.
+   (:3266): the Run of the provisional command (rider) or of its carrier (mount) keeps the Hold and records that it did.
 4. **Native eligibility and phase.** The rider's own command fills the turn's `m_Commands`, so the installed Tick moves a Preparing turn to
    Acting. The wrapper is `activeCommand`, so `NativeActorEligibleForCommand` (PairedActivationLifecycle.cs:747) admits its carrier through
    `OwnsExactPairedNativeCommand` (MountedCombatController.cs:214, `activeCommand.DelegatedMove`). Nothing globally admits off-turn mount
    commands, forces Acting or grants an action.
 5. **Carrier and gate.** The wrapper starts (UnitActionController) and, needing an approach, calls its own `BeginDelegatedMove`
-   (MountedPairAttackCommand.cs:1859). Its carrier follows a route revalidated from the **current** origin by `RevalidateAdmittedClickRoute`
-   (:1819), which marks the approach `FirstTick` when the grant reason is `single-move-first-tick` (the grant is then only the route-search
+   (MountedPairAttackCommand.cs:1861). Its carrier follows a route revalidated from the **current** origin by `RevalidateAdmittedClickRoute`
+   (:1914), which marks the approach `FirstTick` when the grant reason is `single-move-first-tick` (the grant is then only the route-search
    ceiling). Only after the carrier holds the mount's Move slot and its ownership proofs passed is `FirstTickCarrierIssued` invoked
-   (MountedPairAttackCommand.cs:1966) -> `BindFirstTickCarrier` (:1575), which binds the request's gate to that exact carrier. Every later
+   (MountedPairAttackCommand.cs:1970) -> `BindFirstTickCarrier` (:1586), which binds the request's gate to that exact carrier. Every later
    carrier of the same command (a replan) is bound to the same request: a pending one decides it, a refused one refuses it until the sweep.
 6. **Movement hook.** `UnitMoveController` -> `MountMovementPrefix` (MountedPatchController.cs:2055) -> `TryOverrideMountTurnMovement`
-   (:3273; the provisional order is the active attack, the turn is Acting) -> `UnifiedMountedTurnCoordinator.TickMountMovement`
+   (:3376; the provisional order is the active attack, the turn is Acting) -> `UnifiedMountedTurnCoordinator.TickMountMovement`
    (UnifiedMountedTurnCoordinator.cs:631) -> `MountedMovementStateAdapter.TickDelegated` (MountedMovementStateAdapter.cs:223, gate at :230).
-7. **First-tick decision.** The allowance is `min(deltaTime, Remaining) x speed`, before any debit. `DecideFirstTickProposal` (:1619) rechecks
+7. **First-tick decision.** The allowance is `min(deltaTime, Remaining) x speed`, before any debit. `DecideFirstTickProposal` (:1634, predicates in `EvaluateFirstTickDecision` :1695) rechecks
    from live state: the turn, mount addressability, that the provisional order is still the active command in the rider's Standard slot,
    that the carrier still holds the Move slot, no other mount work, target validity under the **click-time** target-life fact, and the
    rider's entitlement through the dispatcher's own `RiderMeleeClickAdmitted` (Standard, action eligibility, attack capability; the
-   provisional command counts as the pair's own transaction). `PairedAttackClickProbe.EvaluateFirstTick` (PairedAttackClickProbe.cs:196)
+   provisional command counts as the pair's own transaction). `PairedAttackClickProbe.EvaluateFirstTick` (PairedAttackClickProbe.cs:195)
    judges the tick from the mount's **current position** toward the carrier path's **next waypoint** (points within 1 mm are passed, as the
    mover passes them): travel = min(allowance, distance to that waypoint), so a tick never crosses a waypoint. In range: commit in place;
    the route end reached: the proven arrival disc; otherwise the interior stop under the travelled heading. On commit the carrier's path is
    cut at the stop, so the tick's actual displacement is the predicted one.
-8. **Commit.** `CommitProvisionalOrder` (:1687) -> `AcceptStockRequest(..., committing)` -> `CommitAcceptedProvisional` (:2118). Only the previous
+8. **Commit.** `CommitProvisionalOrder` (:1755) -> `AcceptStockRequest(..., committing)` -> `CommitAcceptedProvisional` (:2213). Only the previous
    **intent** is retired: the provisional command is detached from the active slot for that one `CancelCore` and restored after it. Intent B
    starts with the click's facts (its target-life fact), the retained-order ledger records the provisional command and its exact carrier as
    B's own, the supersession check and own-move announcements are wired, the deferred manual-target write and Hold clears are applied once
@@ -69,19 +70,19 @@ Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intak
    Success is read from the actual state (`HasStockAttackIntent`, a new generation that owns B, `stockIntentCommand == activeCommand ==` the
    command, ledger current), never from a routing return value. A failure before retirement leaves everything as it was and refuses; a
    failure after the effects is judged by that same state (the round-7 case shows it committed).
-9. **Refusal.** The tick is zeroed before any debit. `SweepFirstTickProposal` (:1766), from `TryDriveStockAttackIntent` (:2731) in the same
+9. **Refusal.** The tick is zeroed before any debit. `SweepFirstTickProposal` (:1835), from `TryDriveStockAttackIntent` (:2834) in the same
    frame's controller update, ends the exact provisional command (`InterruptOwnedCommand`) and its exact carrier (only if it still holds the
    Move slot), clears the active slot, releases the gate and lets the previous order resume. A refused request is never revived; repeated
    sweeps change nothing and never touch newer work.
 10. **Ownership, release and strike.** After a commit the order owns the exact carrier as its `delegatedMove`; its `TickApproach` stops and
-    removes that carrier at the admitted position (or settles an already finished one) before `StartChildAttack` (MountedPairAttackCommand.cs:2129),
+    removes that carrier at the admitted position (or settles an already finished one) before `StartChildAttack` (MountedPairAttackCommand.cs:2133),
     in either processing order. A provisional order that reaches its strike without a decided tick (no carrier needed, or the target came into
-    reach) is committed only in place (`ProvisionalStrikeGate` at :2137 -> `AdmitProvisionalStrike` :1718), otherwise it ends unstarted.
+    reach) is committed only in place (`ProvisionalStrikeGate` at :2153, after the three-plan check -> `AdmitProvisionalStrike` :1786), otherwise it ends unstarted.
 
 ## 3. Retirement, newer clicks and accepted orders
 
-- Every newer accepted click retires a pending provisional order and its exact carrier first (`RetirePendingReplacement`, :2057), the
-  same-target `Continue` branch included (R6-F5). A cancellation does the same (`CancelCore`, :1866). The proposal's own commit is the only
+- Every newer accepted click retires a pending provisional order and its exact carrier first (`RetirePendingReplacement`, :2152), the
+  same-target `Continue` branch included (R6-F5). A cancellation does the same (`CancelCore`, :1961). The proposal's own commit is the only
   acceptance that keeps it.
 - A pending request is also settled when its command ends, is replaced in the active slot, its carrier is lost, its turn changes, or its
   target becomes invalid under the click's fact.
@@ -119,3 +120,37 @@ refuses dispatch (labelled as not player-reachable).
   controller relative to `UnitActionController` (the harness ticks the turn first); whether native `CanMoveInTurnBased`'s denial branch ends a
   zeroed carrier (the replan case covers both outcomes); and the turn being Acting after a refused provisional order (no action is spent, as
   for an unmounted rider whose issued attack is interrupted).
+
+## 6. Round 8 corrections
+
+- **R6-F2 (live steering).** In the restricted mode the decision reads the movement agent's own path and cursor (`MountedAgentSteering`:
+  `UnitMovementAgent.Path`, `m_NextPointIndex` 0x04001193, `m_NextWaypoint` 0x04001196, the fields `NativeGroundMovementObservation` reads;
+  the native contract asserts them). It refuses when the agent's path is not the carrier's (`agent-path-not-carrier`) or the cursor does not
+  match its waypoint, and judges travel from the mount's position toward the waypoint at the agent's cursor. The command's `ForcedPath` is no
+  longer rewritten: a commit grants only the travel to the predicted stop and `TickDelegated` (MountedMovementStateAdapter.cs:243) shortens
+  the tick to it, so the executed stop and the debit are the predicted ones however the agent would round a waypoint.
+- **R7-F1 (mode changes).** Every route-bound turn-based carrier is bound to a gate (provisional or ordinary), whatever mode its revalidation
+  saw. At the first debit the decision reads the current mode with the production grant reader `PairedMountGrantedMetres`: the restricted tick
+  as above; an ordinary grant must cover the carrier's remaining route (then the tick and later ticks move normally); anything else refuses a
+  moving approach. A provisional order therefore always commits before its carrier's first debit.
+- **R7-F2.** The live wrapper's three-plan comparison (`LivePlanDisagreement`) is required before any commit, and in `StartChildAttack` it now
+  runs before the provisional commit gate.
+- **R7-F4.** A strike admissible where the pair stands commits in place on the rider's own entitlement; any movement needs the mount's current
+  authority from `PairedMountGrantedMetres` (addressable, not needing to stand, able to act and move, movement left).
+- **R6-F1.** An actual later write of the rider's target, observed at the installed-command hook (`ObserveWorkAgainstProvisional`, :1873) or a
+  later click's assignment, is kept at the commit, the same target included.
+- **R7-F3.** Work native accepts on either participant while a provisional order is pending is classified with the existing ledger rule;
+  competing work supersedes the request at once (its gate refuses), and the sweep ends only its own command and carrier. Coexisting work and the
+  successor keep their normal treatment.
+- **R6-F7.** The whole decision is contained (a throwing read refuses and the sweep settles the exact request). The commit stages every fallible
+  read (action, weapons, combat state, display name, Hold facts) before retiring the previous generation, and applies both Holds last.
+- **R7-F5.** A pending door settlement owns the pair: the provisional installation is declined (`door-settlement-pending`) instead of
+  cancelling it; an accepted ordinary retarget still cancels it normally.
+- **R5-F3 (supersedes the reachability argument of section 4).** A previously accepted order with an idle, eligible rider IS reachable:
+  `SettleOrderTerminal`'s `RiderEndedForHorse` branch keeps a generation after a zero-delivery rider terminal on the rider's own capability
+  branch, for the horse's recheck. The round-8 control reaches it through the player's native-accepted click on A and native's turn-based
+  force-finish of A's unstarted wrapper (the actual terminal hooks), then clicks B in that interval. It records A's intent and ledger
+  generation, B's carrier, the first-tick allowance, both actors' spending, and A's disposition at B's decision (before that frame's ordinary
+  drive) and after it (A's own next drive completes it when the horse cannot follow).
+- **Residual limit.** A first restricted tick toward a nearby intermediate waypoint is capped at that waypoint (conservative: refused unless
+  that stop admits the strike).

@@ -185,16 +185,15 @@ namespace KingmakerMountedCombat.Integration
         // across both tiers, and the walk of each returned path decides with its actual headings (TryApproach).
         internal const int LateralTierShare = MaxLateralQueries / 2;
 
-        // PR #70 R1-F6 (rounds 6-7): the restricted single-action move grants ONE tick. Round 7 (R6-F2): the tick is judged from LIVE state: the
-        // mount's current position and the carrier's executable segment, i.e. toward the next waypoint of the carrier's path the native mover
-        // steers to (points within a millimetre of the mount are passed, as the mover passes them). The tick carries the mount
-        // min(allowance, distance to that waypoint): it never crosses the waypoint (the caller cuts the carrier's path at the stop, so the
-        // native mover stops there whether or not it would have turned the corner). The strike is then judged with the production admission:
+        // PR #70 R1-F6 (rounds 6-8): the restricted single-action move grants ONE tick, judged from LIVE state (R6-F2): the mount's current
+        // position and the movement agent's executable segment, toward the waypoint at the agent's own cursor on the agent's own path (points
+        // within a millimetre of the mount are passed, as the mover passes them). The tick carries the mount min(allowance, distance to that
+        // waypoint) and never crosses it: the caller grants only that travel (the adapter shortens the tick to it). The strike is then judged with the production admission:
         // already admissible where the pair stands (in range: nothing moves); the route's end reached (the proven arrival disc, DiscAdmits); or
         // an interior stop, admitted under the heading of the segment travelled. carrierPath null: the in-place judgement only. On success the
         // result's Route is [current position, stop] and RouteMetres the travel.
-        internal static Result EvaluateFirstTick(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> carrierPath, float arrivalRadius,
-            float allowedMetres)
+        internal static Result EvaluateFirstTick(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> carrierPath, int cursor,
+            float arrivalRadius, float allowedMetres)
         {
             var result = new Result();
             if (rider?.View == null || mount?.View == null || target?.View == null) { result.Detail = "unavailable"; return result; }
@@ -206,7 +205,8 @@ namespace KingmakerMountedCombat.Integration
             if (result.AdmissibleNow) { result.Detail = "in-range"; return result; }
             if (carrierPath == null || carrierPath.Count < 1) { result.Detail = "no-carrier-path"; return result; }
             var origin = mount.Position;
-            var next = 0;
+            // Round 8 (R6-F2): from the movement agent's own cursor (the waypoint it steers to), never from the path's start.
+            var next = Math.Max(0, cursor);
             while (next < carrierPath.Count && GeometryUtils.MechanicsDistance(carrierPath[next], origin) <= WaypointPassedMetres) next++;
             if (next >= carrierPath.Count) { result.Detail = "carrier-path-exhausted(origin=" + origin + ")"; return result; }
             var waypoint = carrierPath[next];

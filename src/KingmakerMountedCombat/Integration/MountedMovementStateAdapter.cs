@@ -235,7 +235,12 @@ namespace KingmakerMountedCombat.Integration
                     mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
                 var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * mount.CurrentSpeedMps;
                 string gateDetail;
-                var verdict = gate.Decide(allowedMetres, deltaTime, out gateDetail);
+                float grantedMetres;
+                var verdict = gate.Decide(allowedMetres, deltaTime, out grantedMetres, out gateDetail);
+                // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
+                // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
+                if (verdict == MountedFirstTickVerdict.Commit && grantedMetres < allowedMetres && mount.CurrentSpeedMps > 0f)
+                    deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / mount.CurrentSpeedMps);
                 if (verdict != MountedFirstTickVerdict.Commit)
                 {
                     var tick = deltaTime;

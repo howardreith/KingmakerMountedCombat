@@ -484,6 +484,8 @@ namespace KingmakerMountedCombat.Integration
             return null;
         }
         internal bool RouteBound => ValidatedApproachRoute != null;
+        // PR #70 R7-F2 (round 8): the same three-plan comparison, asked by the first-tick decision before any commit.
+        internal string LivePlanDisagreement() => ClickPlanDisagreement();
         internal int RouteRevalidationCount { get; private set; }
         // Review R6-F1: a route-bound carrier is a point command to the proof's destination (inside the admissible opening) with
         // the proof's arrival radius: every position native's proximity rule accepts as arrival admits the strike.
@@ -1886,7 +1888,7 @@ namespace KingmakerMountedCombat.Integration
             // and grant (native TickApproaching follows a ForcedPath before any visualizer path); when no proof exists, or native
             // would complete the carrier at once without admitting the strike (review R6-F1), the approach ends cleanly instead
             // of falling back to native routing.
-            var firstTickRoute = false;
+            var routeBoundCarrier = false;
             if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
                 var plansDisagree = ClickPlanDisagreement();
@@ -1901,7 +1903,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 RouteRevalidationCount++;
                 var approach = RouteRevalidator?.Invoke(CurrentPlanIdentity());
-                firstTickRoute = approach != null && approach.FirstTick;
+                routeBoundCarrier = true;
                 var route = approach?.Route;
                 var arrived = route != null && route.Count >= 2 && approach.ArrivalRadius > 0f && !route[0].Equals(route[route.Count - 1]) &&
                     Kingmaker.Utility.GeometryUtils.SqrMechanicsDistance(route[route.Count - 1], mount.Position) <= approach.ArrivalRadius * approach.ArrivalRadius;
@@ -1962,8 +1964,10 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException(
                     "Exact delegated mount movement did not acquire only the active Move slot.");
             }
-            // PR #70 R1-F6 (round 7): only now, with the exact carrier holding the mount's Move slot, is its first-tick decision bound to it.
-            if (firstTickRoute && !chargeMode) FirstTickCarrierIssued?.Invoke(delegatedMove);
+            // PR #70 R1-F6 (rounds 7-8): only now, with the exact carrier holding the mount's Move slot, is its first-tick decision bound to it.
+            // Round 8 (R7-F1): every route-bound turn-based carrier is bound, whatever mode its revalidation saw, so the movement mode in force
+            // at its first debit decides.
+            if (routeBoundCarrier && !chargeMode) FirstTickCarrierIssued?.Invoke(delegatedMove);
 
             if (ObserveChargeStep(MountedChargeTransactionStep.CarrierOwnershipProven))
             {
@@ -2133,17 +2137,6 @@ namespace KingmakerMountedCombat.Integration
             if (EndIfAutomaticOrderNotAdmitted()) return;
             if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
-            // PR #70 R1-F6 (round 7): a provisional order strikes only once the controller committed it (in place, when no tick decided it).
-            if (ProvisionalOrder && (ProvisionalStrikeGate == null || !ProvisionalStrikeGate() || ProvisionalOrder))
-            {
-                if (!IsFinished)
-                {
-                    if (!transaction.IsTerminal) transaction.Cancel("The provisional turn-based order was not accepted before its strike.");
-                    RecordEndCause(MountedAttackEndCause.Cancelled, "provisional order not accepted");
-                    Interrupt();
-                }
-                return;
-            }
             // PR #70 R1-F9: a click-admitted order strikes only with the plan its click proved, also when it reaches the strike without a
             // carrier (in range at dispatch, or the target came into range before dispatch).
             var plansDisagree = ClickPlanDisagreement();
@@ -2153,6 +2146,18 @@ namespace KingmakerMountedCombat.Integration
                 if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan changed after its click (" + plansDisagree + ").");
                 RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
                 Interrupt();
+                return;
+            }
+            // PR #70 R1-F6 (round 7), R7-F2 (round 8): a provisional order strikes only once the controller committed it (in place, when no tick
+            // decided it), and only after the three plans agreed above.
+            if (ProvisionalOrder && (ProvisionalStrikeGate == null || !ProvisionalStrikeGate() || ProvisionalOrder))
+            {
+                if (!IsFinished)
+                {
+                    if (!transaction.IsTerminal) transaction.Cancel("The provisional turn-based order was not accepted before its strike.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "provisional order not accepted");
+                    Interrupt();
+                }
                 return;
             }
             if (!childAttack.TryPrepareNativeStartAdmission())

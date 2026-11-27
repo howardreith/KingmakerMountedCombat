@@ -203,4 +203,11 @@ Check ($null -ne $controllerType.GetMethod('BeginProvisionalOrder', $any) -and $
     $null -ne $controllerType.GetMethod('DefersClickTargetAssignment', $any) -and $null -ne $controllerType.GetMethod('BindFirstTickCarrier', $any) -and
     $null -eq $controllerType.GetMethod('BeginFirstTickProposal', $any) -and $null -ne $commandType.GetField('FirstTickCarrierIssued', $any) -and
     $null -ne $commandType.GetField('ProvisionalStrikeGate', $any) -and $null -ne $approachType.GetField('FirstTick', $any)) 'PR-2 R1-F6 (round 7): the provisional request is a rider pair command (BeginProvisionalOrder/CommitAcceptedProvisional), its gate is bound by its own carrier creation (FirstTickCarrierIssued -> BindFirstTickCarrier; Approach.FirstTick), the click''s native assignment is deferred (DefersClickTargetAssignment), and round 6''s bare mount carrier (BeginFirstTickProposal) is absent'
+# ---- PR-2 round 8 (R6-F2, R7-F2): the first restricted tick is judged on the movement agent's own steering state ------------------------------
+$steering = KmcType 'KingmakerMountedCombat.Integration.MountedAgentSteering'
+$nextIndex = $steering.GetField('NextIndex', $any).GetValue($null); $nextWaypoint = $steering.GetField('NextWaypoint', $any).GetValue($null)
+Check ($null -ne $nextIndex -and $null -ne $nextWaypoint -and $nextIndex.DeclaringType.FullName -ceq 'Kingmaker.View.UnitMovementAgent' -and $nextIndex.MetadataToken -eq 0x04001193 -and
+    $nextWaypoint.MetadataToken -eq 0x04001196 -and $nextWaypoint.FieldType.FullName -ceq 'UnityEngine.Vector2' -and $null -ne $agentType.GetProperty('Path', $any)) 'PR-2 R6-F2 (round 8): the product reads the installed agent''s own steering (UnitMovementAgent.Path, m_NextPointIndex 04001193, m_NextWaypoint 04001196 as Vector2) for the first restricted tick'
+$gateType = KmcType 'KingmakerMountedCombat.Domain.IMountedFirstTickGate'
+Check ($gateType.GetMethod('Decide').GetParameters().Count -eq 4 -and $null -ne $commandType.GetMethod('LivePlanDisagreement', $any)) 'PR-2 R6-F2/R7-F2 (round 8): a first-tick commit states its granted metres (the adapter shortens the tick to them) and the live wrapper''s three-plan comparison is asked before any commit'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
