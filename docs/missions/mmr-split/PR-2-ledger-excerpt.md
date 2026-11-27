@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T15:24:43+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T15:50:39+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -114,6 +114,16 @@ SHA-256 `81b505561a4a3eb5d7d21c9d70af8a83e9239726822526638f59bd837ebd3ef5`
 ```
 SHA-256 `d0db221a16fed8055a09d0d9183fa64e0feaabdeaf383876c283bcb6264c577c`
 
+```json
+{"candidate": "8f64faf52e69c6ac55c03a750f22a894137083c9", "controller_status": "ACTIVE (4 of 5)", "decision": "changes_required", "executions": "PR-2 4 of 5; product child 41 of 51; lifetime 48 of 58; infrastructure 5 of 6; combined 53 of 64", "kind": "review_result", "new_blocking": ["R4-F1", "R4-F2", "R4-F3"], "pr": "PR-2", "prev_sha256": "a4c1e9d27825f14a323c3131f54256713815c8fb800949654ed7d6a438db6ec3", "rejected": ["R1-F6", "R1-F7", "R1-F10"], "round": 4, "seq": 160, "utc": "2026-11-27T15:42:31+00:00", "verified": ["R1-F9", "R2-F3", "R3-F1"]}
+```
+SHA-256 `c1a82cfa2782bff9a179739104da629e6f18b499b459e3f259855ddd5909c604`
+
+```json
+{"authority": "owner instructions 2026-11-27a section 6 and 2026-11-27b section 3 (the last allowed PR-2 execution)", "budget": "spent 287.6 of 360 min", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-2-ledger-excerpt.md with this entry", "checks": "harness 325/0, components 1545/0, lifecycle contract 99/0, approach native contract 19/0", "child_usage": "PR-2 4 of 5 before; 5 of 5 after", "counterexamples": "R1-F6 restricted single move at 1/60 s and 0.1 s incl. the 0.12 m opening and an unaffordable new target with a prior order; R4-F1 cancel before the first tick then an affordable ground move; R1-F7 throwing dispatch (transpiler executed under installed Harmony 1.2); R4-F2 unscoped read and scoped direct input; R4-F3 heading-independent farther flank; R1-F10 both roster orders through production SuppressPairedCandidate", "executions": "product child 41 -> 42 of 51; lifetime 48 -> 49 of 58; infrastructure 5 of 6; combined 53 -> 54 of 64", "kind": "pre_review_check", "pr": "PR-2", "prev_sha256": "c1a82cfa2782bff9a179739104da629e6f18b499b459e3f259855ddd5909c604", "round": 5, "seq": 161, "utc": "2026-11-27T15:50:39+00:00"}
+```
+SHA-256 `c4790df7597eeb27fb35fa5481793741cc4ed3c8d7f58427a4aa13ed4fc9ee1f`
+
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
 candidate, so it could not be verified there. This excerpt and docs/missions/mmr-split/PR-2-submission-checklist.md close that
@@ -134,4 +144,5 @@ gap without rewriting the chronology:
   mission section 4.1 stop and round 3 proceeded under the remaining numerical cap without a separate override of that stop;
   seq 139: the prospective stopping policy (the operator two-rejection stop is superseded; controller stops preserved);
 - seq 150: the supported resume to a completed-round cap of 5; seq 152-154: owner instruction 2026-11-27b (docs/missions/mmr-split/owner-authorization-2026-11-27b.md), the budget increase to 360 minutes and the correction of the 27a explanation (the resume reset the consecutive-open counters);
-- the last entry: the round-4 pre-review check.
+- seq 155: the round-4 pre-review check; seq 160: the round-4 result;
+- the last entry: the round-5 pre-review check.
