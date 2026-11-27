@@ -257,6 +257,9 @@ namespace Kingmaker.UnitLogic.Commands.Base
         public virtual UnitEntityData TargetUnit => null;
         // Native act event due on the next Tick (the attack animation's act, or its pretend-act time).
         public bool ActEventDue;
+        // Native UnitCommand.Animation still playing (PR-1 round 14): after the act sets a Result, installed UnitCommand.Tick calls OnEnded
+        // only once Animation is null or finished (0x060027A7, IL_01BC..IL_01DB); until then the command keeps ticking unfinished.
+        public bool AnimationPlaying;
         public static int NativeDeadlineInterrupts;
         public virtual int GetTargetLOSObjectId() => 7;
         public bool IsUnitEnoughClose => IsUnitCloseEnough(ApproachPoint, Executor.Position, Executor.EyePosition, ApproachRadius, NeedLoS, GetTargetLOSObjectId());
@@ -279,8 +282,9 @@ namespace Kingmaker.UnitLogic.Commands.Base
                 ActEventDue = false;
                 var result = OnAction();
                 IsActed = true;
-                if (result != ResultType.None) { Result = result; OnEnded(); return; }
+                if (result != ResultType.None) Result = result;
             }
+            if (Result != ResultType.None && !AnimationPlaying) { OnEnded(); return; }
             if (TimeSinceStart > 9f) { NativeDeadlineInterrupts++; Interrupt(); }
         }
         // Native UnitCommand.ForceFinishForTurnBased -> ForceFinish: IsActed set without OnAction, the result, then OnEnded.
@@ -3431,6 +3435,98 @@ namespace Harness
                 "PR-1 R12-F4 one held cooling drive builds the stationary strike probe once and retains the target with zero movement or spending");
         }
 
+
+        // PR-1 round 14 (R13-F1): only the horse is held and the target stays eligible in stationary reach. The rider's automatic two-attack
+        // routine delivers its final act while its animation is still playing (native UnitCommand.Tick: Result=Success, the plan exhausted,
+        // IsFinished false until the animation finishes). A controller drive in that interval keeps the same generation and target with no
+        // retirement and no travel; when the animation finishes, the eligible horse follows through on the same target without a fresh
+        // proposal; one Standard per acting unit. Control: the target genuinely leaving stationary reach in that interval is retired.
+        private static void Round14HeldFinalActRecovery()
+        {
+            foreach (var leaves in new[] { false, true })
+            {
+                var label = leaves ? "control: target leaves stationary reach" : "target stays eligible";
+                var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(1.5f, 0f, 0f), null, false);
+                var controller = Controller7(world, false);
+                world.Horse.HoldState = true;   // only the horse is held
+                Harness.NativeBrainRankingReader.Ranked = null;
+                controller.Propose(Proposal(world.Target), false);
+                var wrapper = world.Rider.Commands.Standard as MountedPairAttackCommand;
+                if (wrapper == null) { Check(false, "PR-1 R13-F1 " + label + ": no wrapper (" + controller.LastFeedback + ")"); continue; }
+                var generation = controller.Generation; var admitted = controller.AutomaticAdmittedCount;
+                Deliver(world, wrapper, world.Rider);   // first act
+                wrapper.AnimationPlaying = true;        // the final act's animation keeps playing after its OnAction
+                wrapper.ActEventDue = true; NativeTick(world, world.Rider);
+                var interval = wrapper.Result == UnitCommand.ResultType.Success && wrapper.GetAttackIndex() == wrapper.AllAttacks.Count && !wrapper.IsFinished;
+                var moves = UnitCommands.MoveSubmissions; var horseBefore = world.Horse.Position; var retired = controller.AutomaticAdmissionRetiredCount;
+                if (leaves) world.Target.Position = new Vector3(5f, 0f, 0f);
+                controller.Drive();   // during the finishing animation
+                var sameOrder = controller.HasStockAttackIntent && controller.Generation == generation && controller.IntentTarget == world.Target;
+                var retiredInInterval = controller.AutomaticAdmissionRetiredCount - retired; var retirement = controller.LastAutomaticRetirement;
+                wrapper.AnimationPlaying = false; NativeTick(world, world.Rider);   // the animation finishes: native OnEnded
+                for (var tick = 0; tick < 6 && UnitAttack.Acts(world.Horse) == 0; tick++)
+                {
+                    controller.Drive();
+                    var horseWrapper = world.Horse.Commands.Standard as MountedPairAttackCommand;
+                    if (horseWrapper != null && horseWrapper.IsStarted && !horseWrapper.IsActed) horseWrapper.ActEventDue = true;
+                    NativeTick(world, world.Rider); NativeTick(world, world.Horse);
+                }
+                var horseStruck = (world.Horse.Commands.Standard as MountedPairAttackCommand)?.StruckTargets;
+                Console.WriteLine("  R14 held final act (" + label + "): interval=" + interval + " sameOrder=" + sameOrder + " retiredInInterval=" + retiredInInterval + " retirement=" + retirement +
+                    " moves=" + (UnitCommands.MoveSubmissions - moves) + " displaced=" + !world.Horse.Position.Equals(horseBefore) + " riderEnded=" + wrapper.IsFinished + "/" + wrapper.Result +
+                    " riderActs=" + UnitAttack.Acts(world.Rider) + " horseActs=" + UnitAttack.Acts(world.Horse) + " horseStruck=" + (horseStruck == null ? "<none>" : string.Join(",", horseStruck.ConvertAll(u => u.UniqueId).ToArray())) +
+                    " spends=" + UnitAttack.StandardSpends + " freshProposals=" + (controller.AutomaticAdmittedCount - admitted) + " generation=" + controller.Generation + "/" + generation);
+                if (!leaves)
+                    Check(interval && sameOrder && retiredInInterval == 0 && UnitCommands.MoveSubmissions == moves && world.Horse.Position.Equals(horseBefore) &&
+                        wrapper.IsFinished && wrapper.Result == UnitCommand.ResultType.Success && UnitAttack.Acts(world.Rider) == 2 && UnitAttack.Acts(world.Horse) >= 1 &&
+                        horseStruck != null && horseStruck.Count >= 1 && horseStruck.TrueForAll(u => u == world.Target) && UnitAttack.StandardSpends == 2 &&
+                        controller.AutomaticAdmittedCount == admitted && controller.Generation == generation,
+                        "PR-1 R13-F1 held horse, eligible target: a drive while the rider's final act is still animating keeps the same generation and target (no retirement, no travel); after the animation the horse follows through on the same target without a fresh proposal; one Standard per acting unit");
+                else
+                    Check(interval && !sameOrder && retiredInInterval == 1 && retirement == "hold out of reach" && UnitCommands.MoveSubmissions == moves && UnitAttack.Acts(world.Horse) == 0,
+                        "PR-1 R13-F1 control: a target that genuinely leaves stationary reach during the finishing animation is retired (hold out of reach); no horse strike, no travel");
+            }
+        }
+
+        // PR-1 round 14 (R13-F2): the released-strike range-loss control. An automatic two-attack routine on restricted B delivered its first act;
+        // B leaves the action's range; the controller drive retires the generation. The wrapper is sampled immediately after that drive, before
+        // any engine tick: its cause, transaction state and ownership of the remaining native routine. B then returns to legal reach before the
+        // next act; the routine completes natively with the original Standard cost and the retired generation dispatches nothing more.
+        private static void Round14ReleasedStrikeRangeLoss()
+        {
+            var world = NewWorld(new Vector3(0f, 0f, 0f), new Vector3(2.2f, 0f, 0f), null, false);
+            var controller = Controller7(world, false);
+            var b = new UnitEntityData("hostile-b") { Position = new Vector3(0f, 0f, 1.6f) };
+            world.Rider.CachedSight = unit => true;
+            world.Rider.CombatState.AIData.UnreachableUnits.Add(b);
+            Harness.NativeBrainRankingReader.Ranked = Rank(world, b, world.Target);
+            controller.Propose(Proposal(world.Target), false);
+            var wrapper = PairWrapperOn(world, b);
+            if (wrapper == null) { Check(false, "PR-1 R13-F2: no wrapper on B (" + controller.LastFeedback + ")"); return; }
+            Deliver(world, wrapper, world.Rider);
+            var spendsAfterFirst = UnitAttack.StandardSpends; var dispatches = Dispatches(controller);
+            b.Position = new Vector3(0f, 0f, 4f);   // outside the action's range
+            controller.Drive();                      // the retiring drive
+            // Sampled now, before any engine tick.
+            var causeNow = wrapper.EndCause; var transactionNow = wrapper.Transaction.State; var finishedNow = wrapper.IsFinished;
+            var ownsSlot = world.Rider.Commands.Standard == wrapper; var remaining = wrapper.AllAttacks.Count - wrapper.GetAttackIndex();
+            var retired = !controller.HasStockAttackIntent; var retirement = controller.LastAutomaticRetirement;
+            Console.WriteLine("  R14 released range loss, after the retiring drive: retired=" + retired + " (" + retirement + ") cause=" + causeNow + " transaction=" + transactionNow +
+                " finished=" + finishedNow + " ownsSlot=" + ownsSlot + " remainingAttacks=" + remaining);
+            b.Position = new Vector3(0f, 0f, 1.6f);  // legal reach again before the next act
+            wrapper.ActEventDue = true; NativeTick(world, world.Rider);
+            for (var tick = 0; tick < 3; tick++) { controller.Drive(); NativeTick(world, world.Rider); NativeTick(world, world.Horse); }
+            Console.WriteLine("  R14 released range loss, completion: result=" + wrapper.Result + " finished=" + wrapper.IsFinished + " struck=" + wrapper.StruckTargets.Count +
+                " transaction=" + wrapper.Transaction.State + " spends=" + UnitAttack.StandardSpends + " (after first act " + spendsAfterFirst + ") redispatches=" + (Dispatches(controller) - dispatches));
+            Check(retired && retirement == "automatic target outside native admission" && causeNow == MountedAttackEndCause.Unrecorded && transactionNow == MountedCombatTransactionState.Attacking &&
+                !finishedNow && ownsSlot && remaining == 1,
+                "PR-1 R13-F2 immediately after the retiring drive (no engine tick): the generation is released, the delivered wrapper has no cause recorded, its transaction is still Attacking and it still owns the remaining native routine in its slot");
+            Check(wrapper.IsFinished && wrapper.Result == UnitCommand.ResultType.Success && wrapper.StruckTargets.Count == 2 && wrapper.StruckTargets.TrueForAll(u => u == b) &&
+                wrapper.Transaction.State == MountedCombatTransactionState.Completed && UnitAttack.StandardSpends == spendsAfterFirst && spendsAfterFirst == 1 &&
+                Dispatches(controller) == dispatches && !controller.HasStockAttackIntent,
+                "PR-1 R13-F2 with legal reach restored before the next act, the routine completes natively (Success, both acts on B, transaction Completed) with the original Standard cost and zero redispatches from the retired generation");
+        }
+
         private static void Record(World world, MountedCombatController controller, MountedPairAttackCommand wrapper, string label, string expected, long moves, long spends)
         {
             var outcome = wrapper.DeliveredOutcome;
@@ -3497,6 +3593,8 @@ namespace Harness
             try { Round13AiOffAfterDelivery(); } catch (Exception exception) { Check(false, "PR-1 round 13 AI off after delivery threw " + exception); }
             try { Round13HeldDuringApproach(); } catch (Exception exception) { Check(false, "PR-1 round 13 held during approach threw " + exception); }
             try { Round13OneProbePerDrive(); } catch (Exception exception) { Check(false, "PR-1 round 13 one probe per drive threw " + exception); }
+            try { Round14HeldFinalActRecovery(); } catch (Exception exception) { Check(false, "PR-1 round 14 held final act threw " + exception); }
+            try { Round14ReleasedStrikeRangeLoss(); } catch (Exception exception) { Check(false, "PR-1 round 14 released range loss threw " + exception); }
             try { Round7DeliveredOutcome(); } catch (Exception exception) { Check(false, "PR-1 round 7 delivered outcome threw " + exception); }
             try { Round7TerminalToDispatch(); } catch (Exception exception) { Check(false, "PR-1 round 7 terminal to dispatch threw " + exception); }
             try { Round7RestrictedProposal(); } catch (Exception exception) { Check(false, "PR-1 round 7 restricted proposal threw " + exception); }

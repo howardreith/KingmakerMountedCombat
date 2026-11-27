@@ -1046,6 +1046,10 @@ namespace KingmakerMountedCombat.Integration
         private bool strikeDelivered;
         internal bool StrikeReleased => strikeDelivered || childAttack != null && (childAttack.LastAttackRule != null || GetAttackIndex() > 0);
 
+        // PR-1 round 14 (R13-F1): the released routine has no planned attack left (native UnitAttack.PlannedAttack is null once m_AttackIndex
+        // reached the plan's count); native keeps the command running until its animation finishes (UnitCommand.Tick ends it only then).
+        internal bool AttackPlanExhausted => StrikeReleased && childAttack != null && childAttack.PlannedAttack == null;
+
         // PR-1 review R2-F1: set by the controller for an ordinary order: its retained generation was superseded by newer
         // accepted player work. Checked at start, before release and during windup, so an installed wrapper stops too.
         internal Func<bool> RetainedOrderSupersededCheck;

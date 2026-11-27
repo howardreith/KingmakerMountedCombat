@@ -1935,8 +1935,13 @@ namespace KingmakerMountedCombat.Integration
             LastStockAttackObservation = "tb-intent-complete-resources";
         }
 
+        // PR-1 round 14 (R13-F1): a released wrapper whose attack plan is exhausted (its final act delivered, its native animation still
+        // finishing, IsFinished false) has no next attack to judge, so its own admission would read Unavailable; the retained target's
+        // current stationary eligibility for future dispatch is then assessed with the production planned-strike probe
+        // (StationaryStrikeAdmissible) instead, never inferred from the empty plan.
         private bool StockIntentStrikeAdmissibleNow() =>
-            stockIntentCommand != null && !stockIntentCommand.IsFinished ? stockIntentCommand.StrikeAdmissibleNow() : StationaryStrikeAdmissible(stockIntentTarget);
+            stockIntentCommand != null && !stockIntentCommand.IsFinished && !stockIntentCommand.AttackPlanExhausted
+                ? stockIntentCommand.StrikeAdmissibleNow() : StationaryStrikeAdmissible(stockIntentTarget);
 
         // PR-1 review R5-F3: before a wrapper exists, a melee order's stationary admission is the planned mounted melee strike (mount origin,
         // planned weapon, command sight), not the rider-only reach shortcut; ranged orders keep their rider reach rule.
