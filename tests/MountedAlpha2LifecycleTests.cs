@@ -150,7 +150,7 @@ namespace KingmakerMountedCombat.Tests
             float cooldown;
             // Partially spent first Move (1.5 s), TwoActions, auto-stop off: 4.5 s across the order; the mount pays the conversion.
             var executed = Execute(1.5f, false, false, false, out cooldown);
-            const float first = MountedMovementState.FirstTickSeconds + 1e-4f;
+            const float first = 1e-4f;   // PR #70 R2-F1: the full allowance, at the original precision
             TestRunner.True(Math.Abs(Admission(1.5f, false, false, false) - 4.5f) < first && Admission(1.5f, false, false, false) <= executed + 1e-4f &&
                 Math.Abs(executed - 4.5f) < 1e-3f && cooldown > 3f,
                 "The order allowance did not match execution across the conversion: admission " + Admission(1.5f, false, false, false) + ", executed " + executed + ", cooldown " + cooldown);
@@ -187,14 +187,14 @@ namespace KingmakerMountedCombat.Tests
             RestrictedSingleMoveMatchesSuccessiveTicks();
         }
 
-        // PR #70 R1-F6: the installed per-tick rule. TurnController.TickMovement re-reads GetRemainingMovementTime(false,
-        // EnabledSingleActionMove) before every tick and clamps the tick to it; with the single-action limit and remaining time of
-        // three seconds or less (a restricted Move: 3 x (1 - 0) - 0 = 3), it returns 0 once MoveAction is positive. KMC's executor
-        // (TickDelegated -> Advance) applies the same rule tick by tick. The prediction (RemainingAcrossOrder) is compared with
-        // successive ordinary ticks at two frame lengths and with the mount's resulting Move debit, for every restriction, step,
-        // single-move, Standard and auto-stop combination: it never exceeds what execution grants, and for the restricted single
-        // move it grants nothing (execution moves one tick and stops). Lawful five-foot steps, spent-Standard behaviour and the
-        // Standard conversion keep their allowances.
+        // PR #70 R1-F6 / R2-F1 (round 3): the installed per-tick rule. TurnController.TickMovement re-reads GetRemainingMovementTime(false,
+        // EnabledSingleActionMove) before every tick and clamps the tick to it; with the single-action limit and remaining time of three
+        // seconds or less (a restricted Move) it returns 0 once MoveAction is positive, so native grants exactly the first tick, whose
+        // length is the engine frame's. The prediction (RemainingAcrossOrder) is compared with successive ordinary ticks at two frame
+        // lengths and with the mount's resulting Move debit for every restriction, step, single-move, Standard and auto-stop combination:
+        // it equals execution everywhere except the first-tick-only state, where it is 0 (FirstTickOnly; click admission keeps native's
+        // decision there) while execution moves one frame's tick. Steps, ordinary movement, a spent Standard and the conversion keep their
+        // full allowances (1.524 m step at 9 m/s, 3 s, 4.5 s).
         private static void RestrictedSingleMoveMatchesSuccessiveTicks()
         {
             const float speed = 9f, step = 1.524f;
@@ -215,24 +215,31 @@ namespace KingmakerMountedCombat.Tests
                                             if (!(granted > 0f)) break;
                                             used += debit; executed += granted; ticks++;
                                         }
-                                        var predicted = new MountedMovementState().RemainingAcrossOrder(speed, step, moveUsed, standardUsed, restricted, stepMode, single, autoStop);
+                                        var fresh = new MountedMovementState();
+                                        var firstTickOnly = fresh.FirstTickOnly(moveUsed, standardUsed, restricted, stepMode, single);
+                                        var predicted = fresh.RemainingAcrossOrder(speed, step, moveUsed, standardUsed, restricted, stepMode, single, autoStop);
                                         var label = "dt=" + dt.ToString("0.###") + " restricted=" + restricted + " step=" + stepMode + " single=" + single +
                                             " standardUsed=" + standardUsed + " autoStop=" + autoStop + " moveUsed=" + moveUsed + ": predicted " + predicted.ToString("R") +
-                                            " s, executed " + executed.ToString("R") + " s in " + ticks + " ticks, mount Move debit " + (used - moveUsed).ToString("R");
-                                        TestRunner.True(predicted <= executed + 1e-4f && (stepMode || Math.Abs((used - moveUsed) - executed) < 1e-4f),
-                                            "PR-2 R1-F6: the prediction exceeded successive ordinary ticks or the debit disagreed (" + label + ").");
-                                        TestRunner.True(executed - predicted <= dt + MountedMovementState.FirstTickSeconds + 1e-4f,
-                                            "PR-2 R1-F6: the prediction lost more than one tick (" + label + ").");
-                                        if (restricted && single && !standardUsed && !stepMode && moveUsed == 0f && dt == 0.1f)
+                                            " s, executed " + executed.ToString("R") + " s in " + ticks + " ticks, mount Move debit " + (used - moveUsed).ToString("R") +
+                                            ", firstTickOnly=" + firstTickOnly;
+                                        TestRunner.True(stepMode || Math.Abs((used - moveUsed) - executed) < 1e-4f, "PR-2 R1-F6: the mount's debit disagreed with its travel (" + label + ").");
+                                        if (firstTickOnly)
                                         {
-                                            Console.WriteLine("    R1-F6 restricted single move: " + label);
-                                            TestRunner.True(predicted == 0f && ticks == 1, "PR-2 R1-F6: the restricted single move was predicted as travel (" + label + ").");
+                                            TestRunner.True(predicted == 0f && ticks == 1 && Math.Abs(executed - Math.Min(dt, 3f)) < 1e-5f,
+                                                "PR-2 R1-F6: the first-tick-only state was predicted as travel or executed more than one tick (" + label + ").");
+                                            if (restricted && dt == 0.1f && !autoStop) Console.WriteLine("    R1-F6 first-tick-only: " + label);
                                         }
+                                        else
+                                            TestRunner.True(Math.Abs(predicted - executed) < 1e-3f, "PR-2 R2-F1: the prediction differs from successive ordinary ticks (" + label + ").");
                                     }
-            // The unrestricted single move still predicts its one Move action; a spent Standard clears the limit (one ordinary Move).
-            TestRunner.True(Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, false, false, false, true, false) - 3f) < MountedMovementState.FirstTickSeconds + 1e-4f &&
-                Math.Abs(new MountedMovementState().RemainingAcrossOrder(speed, step, 0f, true, false, false, true, false) - 3f) < MountedMovementState.FirstTickSeconds + 1e-4f,
-                "PR-2 R1-F6: the unrestricted single move or the spent-Standard case changed.");
+            var probe = new MountedMovementState();
+            Console.WriteLine("    R2-F1 full allowances: fresh step " + (probe.RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) * speed).ToString("R") +
+                " m at 9 m/s; spent Standard " + probe.RemainingAcrossOrder(speed, step, 0f, true, false, false, false, false).ToString("R") + " s; conversion from 1.5 s used " +
+                probe.RemainingAcrossOrder(speed, step, 1.5f, false, false, false, false, false).ToString("R") + " s");
+            TestRunner.True(Math.Abs(probe.RemainingAcrossOrder(speed, step, 0f, false, false, true, false, false) * speed - 1.524f) < 1e-4f &&
+                Math.Abs(probe.RemainingAcrossOrder(speed, step, 0f, true, false, false, false, false) - 3f) < 1e-4f &&
+                Math.Abs(probe.RemainingAcrossOrder(speed, step, 1.5f, false, false, false, false, false) - 4.5f) < 1e-4f,
+                "PR-2 R2-F1: a step, the spent-Standard Move or the conversion lost part of its allowance.");
         }
 
         private static readonly MountedAcceptedWorkFacts PlayerMove = new MountedAcceptedWorkFacts { PlayerOrder = true, NeedsApproach = true };

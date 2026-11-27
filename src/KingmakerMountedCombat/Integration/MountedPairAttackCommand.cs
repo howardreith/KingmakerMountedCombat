@@ -455,6 +455,14 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 R1-F9: the plan identity the click proved; every revalidation receives this order's own plan at dispatch.
         internal PairedAttackClickProbe.PlanIdentity ClickPlan;
         internal Func<PairedAttackClickProbe.PlanIdentity, PairedAttackClickProbe.Approach> RouteRevalidator;
+        // PR #70 R1-F9 (round 3): the plan native would build for this order NOW (UnitAttack.OnStart re-plans against the actual actor
+        // state), from an unrun attack of the same executor, target and mode; this order's own plan was built when it was run.
+        private PairedAttackClickProbe.PlanIdentity CurrentPlanIdentity()
+        {
+            var plan = new MountedPairSingleAttack(attackTarget, rider, mount, true, IsSingleAttack);
+            plan.Init(rider);
+            return PairedAttackClickProbe.PlanIdentity.Of(plan);
+        }
         internal bool RouteBound => ValidatedApproachRoute != null;
         internal int RouteRevalidationCount { get; private set; }
         // Review R6-F1: a route-bound carrier is a point command to the proof's destination (inside the admissible opening) with
@@ -1861,7 +1869,7 @@ namespace KingmakerMountedCombat.Integration
             if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
             {
                 RouteRevalidationCount++;
-                var approach = RouteRevalidator?.Invoke(PairedAttackClickProbe.PlanIdentity.Of(this));
+                var approach = RouteRevalidator?.Invoke(CurrentPlanIdentity());
                 var route = approach?.Route;
                 var arrived = route != null && route.Count >= 2 && approach.ArrivalRadius > 0f && !route[0].Equals(route[route.Count - 1]) &&
                     Kingmaker.Utility.GeometryUtils.SqrMechanicsDistance(route[route.Count - 1], mount.Position) <= approach.ArrivalRadius * approach.ArrivalRadius;
@@ -2091,6 +2099,16 @@ namespace KingmakerMountedCombat.Integration
             if (EndIfAutomaticOrderNotAdmitted()) return;
             if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
+            // PR #70 R1-F9: a click-admitted order strikes only with the plan its click proved, also when it reaches the strike without a
+            // carrier (in range at dispatch, or the target came into range before dispatch).
+            if (RouteBound && ClickPlan.Valid && !ClickPlan.Matches(CurrentPlanIdentity()))
+            {
+                RouteProofExpiredCount++;
+                if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan changed after its click.");
+                RecordEndCause(MountedAttackEndCause.Cancelled, "click plan changed");
+                Interrupt();
+                return;
+            }
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");

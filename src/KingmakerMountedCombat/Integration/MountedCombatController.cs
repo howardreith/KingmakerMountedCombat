@@ -1178,6 +1178,13 @@ namespace KingmakerMountedCombat.Integration
             activeClick = ++clickSerial;
             riderCommandedByClick = false;
             mountCommandedByClick = false;
+            // PR #70 R1-F7: native PointerController.Tick evaluates IgnoreClick and then runs this click's handler in the same frame; the
+            // pending proof belongs to this bracket only.
+            if (pendingClickProof != null)
+            {
+                if (pendingClickProof.ClickSerial < 0 && pendingClickProof.Frame == Time.frameCount) pendingClickProof.ClickSerial = activeClick;
+                else DiscardClickProof("not followed by its own click");
+            }
         }
 
         // The click's own ManualTarget assignment (from the transpiled OnClick call site) inside the open bracket.
@@ -1192,6 +1199,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var serial = activeClick;
             activeClick = -1;
+            // PR #70 R1-F7: a proof its own click handling did not take is abandoned with the click.
+            if (pendingClickProof != null && pendingClickProof.ClickSerial == serial) DiscardClickProof("click handling ended without taking it");
             if (disposed || serial < 0 || clicked == null || !handled) return;
             riderSelection.ObserveClickAssignment(serial, relationship.Rider?.CombatState?.ManualTarget, clicked, riderCommandedByClick);
             mountSelection.ObserveClickAssignment(serial, relationship.Mount?.CombatState?.ManualTarget, clicked, mountCommandedByClick);
@@ -1239,6 +1248,8 @@ namespace KingmakerMountedCombat.Integration
             public object Turn;
             public int Frame;
             public long Sequence;
+            // PR #70 R1-F7 (round 3): the serial of the exact click bracket (BeginClickObservation) whose own handling may take it.
+            public long ClickSerial = -1;
             public List<Vector3> Route;
             public PairedAttackClickProbe.PlanIdentity Plan;
         }
@@ -1262,7 +1273,7 @@ namespace KingmakerMountedCombat.Integration
         // this decision's: a route, an in-range marker or nothing.
         internal PairedAttackClickAdmission AdmitTurnBasedAttackClick(UnitEntityData target, object turn, bool inputCandidate, bool riderAddressable,
             bool riderSelected, bool riderCommandsEmpty, bool predictionsCurrent, bool overTerrain, bool abilitySelected, bool meleeOnTarget,
-            MountGrantReader readGrant, out string reason, out string trace)
+            MountGrantReader readGrant, PairedAttackClickProbe.PlanIdentity predictedPlan, out string reason, out string trace)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -1280,6 +1291,13 @@ namespace KingmakerMountedCombat.Integration
                 predictionsCurrent, overTerrain, abilitySelected, meleeOnTarget, riderAttack,
                 probe != null && probe.AdmissibleNow, probe != null && probe.RouteComplete, probe != null && probe.RouteProven,
                 probe?.RouteMetres ?? float.NaN, granted, out reason);
+            // PR #70 R1-F9: the click's own native prediction (the UnitAttack native IgnoreClick evaluated) must plan the strike the probe
+            // proved: same executor, mode, first weapon and reach.
+            if (decision != PairedAttackClickAdmission.NativeDecision && (probe == null || !probe.Plan.Matches(predictedPlan)))
+            {
+                decision = PairedAttackClickAdmission.NativeDecision;
+                reason = "prediction-plan-mismatch";
+            }
             LastAttackClickProbe = probe;
             RememberValidatedClickProof(target, turn,
                 decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
@@ -1289,7 +1307,7 @@ namespace KingmakerMountedCombat.Integration
                 "; mountGrantedMetres=" + granted.ToString("R") + "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") +
                 "; diagnosticReachMetres=" + (probe?.DiagnosticReachMetres ?? float.NaN).ToString("R") + "; path=" + (probe?.Path.ToString() ?? "<not-run>") +
                 "; probe=" + (probe?.Detail ?? "<not-run>") + "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
-                "; plan={" + (probe?.Plan.ToString() ?? "<not-run>") + "}; proof=" + LastClickProofDisposition;
+                "; plan={" + (probe?.Plan.ToString() ?? "<not-run>") + "}; predicted={" + predictedPlan + "}; proof=" + LastClickProofDisposition;
             return decision;
         }
 
@@ -1322,7 +1340,8 @@ namespace KingmakerMountedCombat.Integration
         {
             var proof = pendingClickProof;
             if (proof == null) return null;
-            var exact = ReferenceEquals(proof.Target, target) && turn != null && ReferenceEquals(proof.Turn, turn) && Time.frameCount - proof.Frame <= 1;
+            var exact = ReferenceEquals(proof.Target, target) && turn != null && ReferenceEquals(proof.Turn, turn) && Time.frameCount - proof.Frame <= 1 &&
+                proof.ClickSerial >= 0 && proof.ClickSerial == activeClick;
             if (!exact) { DiscardClickProof("another click"); return null; }
             pendingClickProof = null;
             LastClickProofDisposition = "taken:#" + proof.Sequence;
@@ -2514,6 +2533,7 @@ namespace KingmakerMountedCombat.Integration
             stockIntent.Cancel();
             retainedOrder.Clear();
             intentClickProof = null;
+            if (pendingClickProof != null) DiscardClickProof("order cleared");
             stockIntentCommand = null;
             automaticRuns.Clear();
             if (target != null)

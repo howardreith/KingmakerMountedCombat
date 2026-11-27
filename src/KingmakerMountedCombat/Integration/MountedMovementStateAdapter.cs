@@ -294,6 +294,15 @@ namespace KingmakerMountedCombat.Integration
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * actor.CurrentSpeedMps;
         }
 
+        // PR #70 R1-F6: the allocation is in the state where native grants exactly one frame's tick (MountedMovementState.FirstTickOnly).
+        internal bool FirstTickOnly(UnitEntityData actor, bool step, bool singleMove)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return false;
+            return allocation.Movement.FirstTickOnly(Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
+                allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove);
+        }
+
         internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)
         {
             Allocation allocation;

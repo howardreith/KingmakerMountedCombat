@@ -171,7 +171,9 @@ namespace KingmakerMountedCombat.Integration
             return PathOutcome.Complete;
         }
 
-        // Candidate rider-admissible positions on a ring just inside pair reach around the target, nearest to the mount first.
+        // Candidate rider-admissible positions on a ring just inside pair reach around the target, nearest to the mount first. PR #70
+        // R2-F3: a candidate is kept when the strike is admitted there under ANY of LateralDirections headings, because the heading the
+        // returned path arrives with is not known before the query; the walk of the returned path then decides with its actual headings.
         private static IEnumerable<Vector3> LateralCandidates(Vector3 mount, Vector3 target, float pairRadius, Func<Vector3, Vector3, Vector3, bool> admits)
         {
             var ring = pairRadius - LateralInsetMetres;
@@ -181,7 +183,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 var angle = k * 2d * Math.PI / LateralDirections;
                 var point = new Vector3(target.x + ring * (float)Math.Cos(angle), target.y, target.z + ring * (float)Math.Sin(angle));
-                if (admits(point, mount, point)) candidates.Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
+                var admitted = false;
+                for (var h = 0; h < LateralDirections && !admitted; h++)
+                {
+                    var heading = h * 2d * Math.PI / LateralDirections;
+                    admitted = admits(point, point, new Vector3(point.x + (float)Math.Sin(heading), point.y, point.z + (float)Math.Cos(heading)));
+                }
+                if (admitted) candidates.Add(new KeyValuePair<float, Vector3>(GeometryUtils.MechanicsDistance(mount, point), point));
             }
             candidates.Sort((a, b) => a.Key.CompareTo(b.Key));
             foreach (var candidate in candidates) yield return candidate.Value;
@@ -204,7 +212,8 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 result.Openings = opening + 1;
-                var openingEnd = OpeningEnd(points, openingStart, admits);
+                bool measured;
+                var openingEnd = OpeningEnd(points, openingStart, admits, out measured);
                 List<Vector3> route;
                 float destination, radius;
                 if (TryChooseArrival(points, openingStart, openingEnd, budget, admits, established, out route, out destination, out radius))
@@ -212,7 +221,7 @@ namespace KingmakerMountedCombat.Integration
                     result.Route = route;
                     result.RouteMetres = destination;
                     result.ArrivalRadius = radius;
-                    result.Detail = "route(opening=" + openingStart.ToString("R") + ".." + openingEnd.ToString("R") + ";openings=" + result.Openings +
+                    result.Detail = "route(opening=" + openingStart.ToString("R") + ".." + openingEnd.ToString("R") + (measured ? "" : "(route end)") + ";openings=" + result.Openings +
                         ";destination=" + destination.ToString("R") + ";radius=" + radius.ToString("R") + ")";
                     return true;
                 }
@@ -231,9 +240,15 @@ namespace KingmakerMountedCombat.Integration
                 ? reach : float.NaN;
         }
 
-        // The last admissible arc length of the opening that begins at openingStart (1 cm march, then bisection).
-        internal static float OpeningEnd(IList<Vector3> points, float openingStart, Func<Vector3, Vector3, Vector3, bool> admits)
+        // The last admissible arc length of the opening that begins at openingStart (1 cm march, then bisection). PR #70 R2-F2: measured
+        // is false when the route ENDS while the strike is still admitted: the route end is then not the far edge of the legal area, and
+        // the arrival disc around a destination near it is judged by its own samples (which reach beyond the route end).
+        internal static float OpeningEnd(IList<Vector3> points, float openingStart, Func<Vector3, Vector3, Vector3, bool> admits) =>
+            OpeningEnd(points, openingStart, admits, out _);
+
+        internal static float OpeningEnd(IList<Vector3> points, float openingStart, Func<Vector3, Vector3, Vector3, bool> admits, out bool measured)
         {
+            measured = true;
             var length = RouteLength(points);
             var last = openingStart;
             for (var s = openingStart + MountedRouteWalker.SampleStepMetres; ; s += MountedRouteWalker.SampleStepMetres)
@@ -250,7 +265,7 @@ namespace KingmakerMountedCombat.Integration
                     return low;
                 }
                 last = s;
-                if (s >= length) return length;
+                if (s >= length) { measured = false; return length; }
             }
         }
 
@@ -294,12 +309,13 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
             var establishedMetres = established.HasValue ? ArcLengthOf(points, established.Value) : float.NaN;
+            // PR #70 R1-F3: every candidate centre inside the opening and within the grant is judged by the disc and route checks
+            // themselves; no inward margin pre-excludes a centre (for example a grid point that holds the smallest supported disc).
+            var high = Math.Min(openingEnd, budget);
+            if (high < openingStart) return false;
             foreach (var candidate in ArrivalRadii)
             {
-                var low = openingStart + candidate + BoundaryMarginMetres;
-                var high = Math.Min(openingEnd - candidate - BoundaryMarginMetres, budget);
-                if (high < low) continue;
-                foreach (var s in Centres(low, high, candidate, budget, establishedMetres))
+                foreach (var s in Centres(openingStart, high, candidate, budget, establishedMetres))
                 {
                     Vector3 from, to;
                     List<Vector3> truncated;
@@ -312,17 +328,20 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        // Arrival centres tried for one radius: the earliest, the established position, the grant point, the middle, then the
-        // opening's positions at half-radius spacing (bounded), then the latest.
-        private static IEnumerable<float> Centres(float low, float high, float radius, float budget, float established)
+        // Arrival centres tried for one radius, within [start, high]: the opening's start plus the radius, the established position, the
+        // grant point, the 1 cm grid points of the walk, the middle, positions at half-radius spacing (bounded), and the latest.
+        private static IEnumerable<float> Centres(float start, float high, float radius, float budget, float established)
         {
-            yield return low;
-            if (!float.IsNaN(established) && established >= low && established <= high) yield return established;
-            if (budget >= low && budget <= high) yield return budget;
-            yield return (low + high) * 0.5f;
-            var step = Math.Max(radius * 0.5f, InDiscSampleMetres);
+            if (start + radius <= high) yield return start + radius;
+            if (!float.IsNaN(established) && established >= start && established <= high) yield return established;
+            if (budget >= start && budget <= high) yield return budget;
             var count = 0;
-            for (var s = low + step; s < high && count < MaxCentreSamples; s += step, count++) yield return s;
+            for (var k = (int)Math.Ceiling(start / MountedRouteWalker.SampleStepMetres); k * MountedRouteWalker.SampleStepMetres <= high && count < MaxCentreSamples; k++, count++)
+                yield return k * MountedRouteWalker.SampleStepMetres;
+            yield return (start + high) * 0.5f;
+            var step = Math.Max(radius * 0.5f, InDiscSampleMetres);
+            count = 0;
+            for (var s = start + step; s < high && count < MaxCentreSamples; s += step, count++) yield return s;
             yield return high;
         }
 
@@ -353,34 +372,42 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // PR #70 R1-F2: every position of the route before the destination that lies inside the arrival radius (where native
-        // proximity could complete the carrier), sampled every InDiscSampleMetres with its own segment's heading, admits the strike.
+        // proximity could complete the carrier) admits the strike. The mount's ACTUAL starting pose (current orientation, no travel) is
+        // checked when the start already lies inside the disc, since native completes the carrier there at once. Each segment's part
+        // inside the disc is computed stably in double precision (closest point, then the half chord from the perpendicular distance)
+        // and sampled every InDiscSampleMetres plus both ends, each with its own segment heading.
         internal static bool RouteInsideDiscAdmits(IList<Vector3> points, float destinationMetres, Vector3 centre, float radius,
             Func<Vector3, Vector3, Vector3, bool> admits)
         {
-            var travelled = 0f;
+            if (points.Count == 0) return true;
+            if (GeometryUtils.SqrMechanicsDistance(points[0], centre) <= radius * radius && !admits(points[0], points[0], points[0])) return false;
+            var travelled = 0d;
             for (var index = 1; index < points.Count && travelled < destinationMetres; index++)
             {
                 var from = points[index - 1]; var to = points[index];
-                var segment = GeometryUtils.MechanicsDistance(from, to);
-                if (segment <= 0f) continue;
-                var limit = Math.Min(1f, (destinationMetres - travelled) / segment);
-                var dx = to.x - from.x; var dz = to.z - from.z; var fx = from.x - centre.x; var fz = from.z - centre.z;
-                var a = dx * dx + dz * dz; var b = 2f * (fx * dx + fz * dz); var c = fx * fx + fz * fz - radius * radius;
-                var discriminant = b * b - 4f * a * c;
-                if (discriminant >= 0f)
+                double dx = to.x - from.x, dz = to.z - from.z;
+                var length = Math.Sqrt(dx * dx + dz * dz);
+                if (length <= 0d) continue;
+                var limit = Math.Min(1d, (destinationMetres - travelled) / length);
+                double fx = centre.x - from.x, fz = centre.z - from.z;
+                var closest = (fx * dx + fz * dz) / (length * length);
+                double px = from.x + dx * closest - centre.x, pz = from.z + dz * closest - centre.z;
+                var perpendicularSqr = px * px + pz * pz;
+                var r2 = (double)radius * radius;
+                if (perpendicularSqr <= r2)
                 {
-                    var root = (float)Math.Sqrt(discriminant);
-                    var t0 = Math.Max(0f, (-b - root) / (2f * a));
-                    var t1 = Math.Min(limit, (-b + root) / (2f * a));
+                    var half = Math.Sqrt(r2 - perpendicularSqr) / length;
+                    var t0 = Math.Max(0d, closest - half);
+                    var t1 = Math.Min(limit, closest + half);
                     if (t1 >= t0)
                     {
-                        var step = InDiscSampleMetres / segment;
+                        var step = InDiscSampleMetres / length;
                         for (var t = t0; t < t1; t += step)
-                            if (!admits(Vector3.Lerp(from, to, t), from, to)) return false;
-                        if (!admits(Vector3.Lerp(from, to, t1), from, to)) return false;
+                            if (!admits(Vector3.Lerp(from, to, (float)t), from, to)) return false;
+                        if (!admits(Vector3.Lerp(from, to, (float)t1), from, to)) return false;
                     }
                 }
-                travelled += segment;
+                travelled += length;
             }
             return true;
         }

@@ -250,7 +250,7 @@ namespace KingmakerMountedCombat.Integration
                 combat.AdmitTurnBasedAttackClick(target, context, inputCandidate, riderAddressable, riderSelected, riderCommandsEmpty,
                     predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget,
                     (out bool step, out bool singleMove, out string grantReason) => PairedMountGrantedMetres(context, out step, out singleMove, out grantReason),
-                    out reason, out trace);
+                    PairedAttackClickProbe.PlanIdentity.Of(predicted), out reason, out trace);
             if (decision != PairedAttackClickAdmission.NativeDecision)
             {
                 result = false;

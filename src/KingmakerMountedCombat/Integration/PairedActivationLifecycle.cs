@@ -96,6 +96,8 @@ namespace KingmakerMountedCombat.Integration
             step = input.EnabledFiveFootStep;
             singleMove = input.EnabledSingleActionMove;
             if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
+            // PR #70 R1-F6: native grants one frame's tick only; no route can be proven against it.
+            if (movementState.FirstTickOnly(mount, step, singleMove)) { reason = "single-move-first-tick-only"; return 0f; }
             reason = "granted";
             return movementState.RemainingOrderMetres(mount, step, singleMove);
         }

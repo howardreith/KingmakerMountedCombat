@@ -87,10 +87,19 @@ namespace KingmakerMountedCombat.Domain
         // TurnController.TickMovement, which re-reads GetRemainingMovementTime(false, EnabledSingleActionMove) before every tick and
         // clamps the tick to it), so a rule that depends on movement already spent applies after the FIRST tick: with the single-action
         // limit and three seconds or less remaining (a restricted Move), native ends the movement as soon as MoveAction is positive.
-        // The dry run therefore spends one FirstTickSeconds tick first (not counted: no order relies on it) and then whole slices,
-        // which land exactly on each native threshold (Remaining returns the time to the next one). The result never exceeds what
-        // successive ordinary ticks grant.
-        public const float FirstTickSeconds = 0.001f;
+        // PR #70 R2-F1/R1-F6 (round 3): whole slices land exactly on each native threshold (Remaining returns the time to the next
+        // one), so the dry run equals successive ordinary ticks for every state except one: the single-action limit with three seconds
+        // or less remaining and no Move spent yet (a restricted Move), where native grants exactly the FIRST tick, whose length is the
+        // engine frame's and cannot be known before execution. FirstTickOnly names that state; the order allowance is 0 there, and
+        // click admission keeps native's own decision for it (KMC never authorizes travel whose length depends on a frame). Every other
+        // allowance (steps, ordinary movement, a spent Standard, the lawful conversion) is the full executed amount.
+        public bool FirstTickOnly(float moveUsed, bool standardUsed, bool moveRestricted, bool step, bool singleMove)
+        {
+            if (step || !EffectiveSingleMove(singleMove, standardUsed) || moveUsed > 0f) return false;
+            if ((!AiStep && MetresStepped > 0f) || ForcedTravelRecorded) return false;
+            var remaining = Math.Max(0f, Math.Min(6f, 3f * ((moveRestricted ? 1f : 2f) - (standardUsed ? 1f : 0f)) - moveUsed));
+            return remaining > 0f && remaining <= 3f;
+        }
         public float RemainingAcrossOrder(float speed, float stepRange, float moveUsed, bool standardUsed, bool moveRestricted,
             bool step, bool singleMove, bool autoStop)
         {
@@ -99,12 +108,9 @@ namespace KingmakerMountedCombat.Domain
                 TimeMoved = TimeMoved, TimeForced = TimeForced, TimeStepped = TimeStepped, MetresStepped = MetresStepped,
                 StepImmune = StepImmune, AiStep = AiStep, AutoStopPending = AutoStopPending
             };
+            if (FirstTickOnly(moveUsed, standardUsed, moveRestricted, step, singleMove)) return 0f;
             var total = 0f;
             var used = moveUsed;
-            float firstDebit;
-            if (!(copy.Advance(FirstTickSeconds, speed, stepRange, used, standardUsed, moveRestricted, step, singleMove, false, false, autoStop, out firstDebit) > 0f))
-                return 0f;
-            used += firstDebit;
             for (var slice = 0; slice < 8; slice++)
             {
                 float debit;
