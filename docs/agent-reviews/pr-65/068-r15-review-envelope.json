@@ -1,0 +1,132 @@
+{
+  "B": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "H": "aa15e1f2277364ed9dc2c2c322462fa4a9166322",
+  "M": "783b2b3dea3303e10cc4379dfa0a36ceac66a76b",
+  "amendment_revision": null,
+  "amendment_sha256": "none",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "fatal": false,
+  "guidance_revision": null,
+  "guidance_sha256": "none",
+  "invocation": {
+    "completed": true,
+    "duration_s": 347.9,
+    "errors": [],
+    "exit_code": 0,
+    "failed": false,
+    "observed": {
+      "approval_policy": "never",
+      "cli_version": "0.170.0",
+      "network": "restricted",
+      "observed_effort": "max",
+      "observed_model": "gpt-6.2-astra",
+      "plan_type": "pro",
+      "rollout_found": true,
+      "sandbox": "read-only",
+      "source": "Codex session rollout (CLI-recorded thread settings; not model-authored)",
+      "subagent_suspected": false,
+      "turn_efforts": [
+        "max"
+      ],
+      "turn_models": [
+        "gpt-6.2-astra"
+      ],
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 731136,
+        "input_tokens": 821558,
+        "output_tokens": 13048,
+        "reasoning_output_tokens": 5406,
+        "total_tokens": 834606
+      }
+    },
+    "requested": {
+      "effort": "max",
+      "model": "gpt-6.2-astra",
+      "sandbox": "read-only"
+    },
+    "thread_id": "01a21ad2-61b5-7841-8a20-87ef85c2e2ea",
+    "timed_out": false
+  },
+  "mission": {
+    "id": "pr-1-attack-orders",
+    "sha256": "b518dd67c2c712a1d7a6f4a221e696fb7fc4b18aae9b6e3ebfd9b6ffce9bfddf"
+  },
+  "ok": true,
+  "path": "~\\.agent-review\\state\\kmc-codex-mmr-attack-orders-20261125103400-6cef\\rounds\\r15\\envelope-1.json",
+  "pr": 65,
+  "project_sha256": "712dc8a0ca55341b2ce645500fc4463ced54d31256a55870fc22c94eeef4cacd",
+  "protocol": "agent-review.v1",
+  "publication": "r15-review",
+  "published": [
+    {
+      "comment_id": 7208196958,
+      "of": 1,
+      "part": 1,
+      "url": "https://github.com/howardreith/KingmakerMountedCombat/pull/65#issuecomment-7208196958"
+    }
+  ],
+  "raw_result_if_rejected": null,
+  "reasons": [],
+  "repository": "howardreith/KingmakerMountedCombat",
+  "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r15-04c464",
+  "response_sha256": "0d417b6baa9e01d94d72a00839cf1ef11793b0c8bb1e8a6ee72d86121d05ae8d",
+  "result": {
+    "candidate_commit": "aa15e1f2277364ed9dc2c2c322462fa4a9166322",
+    "checkpoint_id": "final",
+    "checkpoint_type": "final",
+    "decision": "ready_for_owner_review",
+    "decision_rationale": "PR-1 meets the source and offline acceptance criteria for S04, S05 and S08. Both round-14 findings are verified, and the controller recorded a passing focused gate on the submitted commit. Native gameplay confirmation remains with the owner.",
+    "evidence_assessment": {
+      "executed_verification": [
+        "Matched the supplied 9,990-line feature diff to Git M..H across all 31 files. The production source tree matches round 14 exactly.",
+        "Recomputed all 46 ledger-entry SHA-256 digests, checked the links between consecutively excerpted entries and confirmed that all 44 earlier entries match the round-14 snapshot.",
+        "Verified the controller receipt against HEAD and the gate log's SHA-256. The focused Fast gate exited 0 in 46.9 seconds. All four stages and all 15 focused children passed, including 1,542 component checks, 153 source checks, 82 lifecycle checks and 208 attack-path checks. The Mounted Shield check matched the packet, production and embedded icon bytes."
+      ],
+      "inspected": [
+        "The enrolled mission, repository validation policy, developer report, prior findings ledger and candidate-bound gate evidence.",
+        "The round-15 changes to PR-1-ledger-excerpt.md and AttackPathHarnessTemplate.cs, the recorded review ceilings, and the production dispatch, automatic admission and pre-start approach paths exercised by the harness."
+      ],
+      "limitations": [
+        "The review used the supplied operator-ledger excerpt. The external ledger and sibling controller states were outside the snapshot.",
+        "The controller withheld the mixed-session transcript. Its receipt and log establish the required focused run. The separately reported direct harness run has no independent receipt in the supplied evidence.",
+        "R13-F3 remains an accepted optional deferral for duplicate admission checks during an out-of-range approach."
+      ],
+      "required_gaps": [],
+      "source_inspection_only": [
+        "Production source and assembly-contract checks establish where native attack planning, start and spending occur. The attack-path harness exercises production methods with a simulated engine. In-game timing and damage attribution remain unmeasured."
+      ]
+    },
+    "findings": [],
+    "prior_finding_assessments": [
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R14-F1",
+        "rationale": "Entry 104 preserves the original omission. Entry 106 reconciles round-14 submission at 29 recorded child rounds plus the one executed, unsettled PR-5 review, giving 30 child and 37 lifetime executions. Entry 107 predates the candidate gate and records 14 of 15 PR-1 rounds used, 31 of 42 child and 38 of 49 lifetime executions before round 15, and projected totals of 32 and 39 afterward."
+      },
+      {
+        "assessment": "fix_verified",
+        "finding_id": "R14-F2",
+        "rationale": "Round11InstalledWrapper now labels EndCause as sampled after the wrapper tick and before the retiring drive. Round14ReleasedStrikeRangeLoss independently observed the wrapper immediately after that drive with cause Unrecorded, transaction Attacking, its slot retained and one attack remaining. The routine then completed with two total acts on B, one modeled Standard spent and zero redispatches."
+      }
+    ],
+    "request_id": "kmc-codex-mmr-attack-orders-20261125103400-6cef-r15-04c464",
+    "round": 15,
+    "schema_version": "agent-review.review.v1",
+    "summary": {
+      "delivered_behavior": "An ordinary turn-based melee order retains the target for an eligible horse during the current paired activation. Real-time melee preserves explicit orders, uses distance to choose among equally ranked eligible native targets, and permits legal approach while the strike awaits native readiness.",
+      "pending_later_phase_work": [],
+      "remaining_owner_review": [
+        "N04. Confirm horse-owned attacks by actor, target and weapon in both initiative arrangements. Check that a spent or ended horse gets no repeat attack.",
+        "N05. Observe real-time engagement with two eligible hostiles and verify AI-off, Stop, Hold and explicit-target behavior.",
+        "N06. Compare order acceptance, carrier creation, first movement, strike readiness and first attack against an equivalent unmounted control."
+      ],
+      "scope_reviewed": "PR-1 covers MMR-03, MMR-04 and MMR-05, including the Mounted Shield regression gate. Round 15 changed the ledger excerpt and one harness message. Integrated packaging and delivery belong to PR-6.",
+      "unresolved_questions": []
+    }
+  },
+  "round": 15,
+  "validated_at": "2026-11-27T02:31:12Z",
+  "workflow_fingerprint": "6d613defe7bfe2f01a5818a2cd41b281965f438c45a0ca37ce15957e4dcffe19"
+}
