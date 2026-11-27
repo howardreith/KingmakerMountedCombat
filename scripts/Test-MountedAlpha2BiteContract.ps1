@@ -449,6 +449,10 @@ Check ($writerNames.Count -eq 24 -and $readerNames.Count -eq 24 -and $candidateA
 # observed source is unrecorded) fails both; the registered Bite with the same flags passes; a historical artifact (registration
 # source, no readability field) passes; an unreadable fact fails.
 $clauses = [regex]::Match($commonText, '(?s)(\$outcome\.attackAnimationHandleCreated -ne \$true -or \$outcome\.attackAnimationActed -ne \$true -or.*?attackAnimationFactsUnreadable\)\) -or)')
+# PR-5 round 9 (R8-F1): the extracted clauses call the production source validator; its exact text is taken from the same file.
+$sourceValidator = [regex]::Match($commonText, '(?s)function ConvertTo-KmcHandleSource\(\$Value\) \{.*?\r?\n\}')
+if (-not $sourceValidator.Success) { throw 'ConvertTo-KmcHandleSource is missing from RuntimeHarness.Common.ps1' }
+. ([scriptblock]::Create($sourceValidator.Value))
 $readerRejects = [scriptblock]::Create('param($outcome) (' + $clauses.Groups[1].Value + ' $false)')
 function P3([string]$Source, $Unreadable = $null, [switch]$Historical) {
     $o = [ordered]@{ attackAnimationHandleCreated = $true; attackAnimationActed = $true; attackAnimationFinished = $true; attackAnimationInterrupted = $false; attackAnimationHandleSource = $Source }
@@ -556,7 +560,7 @@ function Wire($o) { $j = $capture.Invoke($null, [object[]]@($o, $true)); $j.ToSt
 function Snapshot([string]$Last, $Created, $Adopted) { [pscustomobject][ordered]@{ delegatedLocomotionRestoreCount = 0; lastDelegatedLocomotionSource = 'none'; lastDelegatedLocomotionSpeed = 0;
     horsePrimaryHandleCreateCount = $Created; horsePrimaryHandleAdoptCount = $Adopted; horsePrimaryHandleRejectCount = 0; lastHorsePrimaryHandleSource = $Last;
     lastHorsePrimaryActionName = 'HorseAnimationSet_Bite'; lastHorsePrimaryActionType = 'SpecialAttack' } }
-$schema8 = [regex]::Match($commonText, "(?s)if \(\[string\]\`$o\.mountedTurnHorseOutcome\.attackAnimationHandleSource -cnotin .*?\) \{\s*throw 'PASS Horse native animation did not prove")
+$schema8 = [regex]::Match($commonText, "(?s)if \(\`$null -eq \(ConvertTo-KmcHandleSource \`$o\.mountedTurnHorseOutcome\.attackAnimationHandleSource\) .*?\) \{\s*throw 'PASS Horse native animation did not prove")
 $schema8Clause = $schema8.Value.Substring(4, $schema8.Value.LastIndexOf(') {') - 4)
 $schema8Rejects = [scriptblock]::Create('param($o) (' + $schema8Clause + ')')
 function Schema8($Tb, $Rt, $Snapshot) { [pscustomobject]@{ mountedTurnHorseOutcome = $Tb; mountedHorseOutcome = $Rt; mountedTurnHorseAnimation = $Snapshot[0]; mountedHorseAnimation = $Snapshot[1] } }
@@ -652,7 +656,9 @@ function New-ConnectedHorse {
     $limbs = [Activator]::CreateInstance([Collections.Generic.List`1].MakeGenericType($slotType)); $limbs.Add($slot); $limbs.Add((New-Native $slotType)); $limbs.Add((New-Native $slotType))
     $body = New-Native $unitBodyType; SetField $body $unitBodyType 'm_AdditionalLimbs' $limbs
     $d = New-Native $descriptorType; SetField $d $descriptorType '<Blueprint>k__BackingField' $bp; SetField $d $descriptorType '<Body>k__BackingField' $body
-    $u = New-Native $entityType; SetField $u $entityType '<Descriptor>k__BackingField' $d; SetField $u $entityBase '<UniqueId>k__BackingField' 'horse-1'
+    # PR-5 round 9 (R4-F2): the connected producer uses the envelope fixture's Horse identity ("horse"), so the serialized writer rows are
+    # read unchanged by the complete reader's ownership checks.
+    $u = New-Native $entityType; SetField $u $entityType '<Descriptor>k__BackingField' $d; SetField $u $entityBase '<UniqueId>k__BackingField' 'horse'
     @{ Horse = $u; BiteSlot = $slot }
 }
 function New-ConnectedCommand($Pair) {
@@ -722,15 +728,18 @@ function Invoke-ConnectedSequence($Adapter, [string]$Order, [switch]$Adopt, [swi
 function Readable($r) { $o = $r.Outcome; $null -ne $o -and $r.Delivered -eq 1 -and $o.Result -ceq 'Success' -and $o.ChildAttackStartCount -eq 1 -and $null -eq $o.AttackAnimationFactsUnreadable -and (Accepted $o) }
 $outcomeKeys = @('result','childAttackStartCount','attackAnimationHandleCreated','attackAnimationHandleSource','attackAnimationActionName','attackAnimationActionType','attackAnimationActed','attackAnimationFinished','attackAnimationInterrupted')
 $snapshotKeys = @('horsePrimaryHandleCreateCount','horsePrimaryHandleAdoptCount','horsePrimaryHandleRejectCount','lastHorsePrimaryHandleSource','lastHorsePrimaryActionName','lastHorsePrimaryActionType')
-function Test-ConnectedArtifact($Tb, $Rt, [string]$Label) {
+function Test-ConnectedArtifact($Tb, $Rt, [string]$Label, [scriptblock]$Mutate = $null) {
     $root = Join-Path $repoRoot ('obj\bite-contract-connected-' + [Guid]::NewGuid().ToString('N'))
     try {
         $fixture = New-KmcHorseNativeControlsUxFixture -EvidenceRoot $root -ProductVersion ([string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion))
         $fixtureAccepted = Test-KmcHorseNativeControlsUxFixture $fixture
         $obs = $fixture.Artifact.observations
         $tbWire = Wire $Tb.Outcome; $rtWire = Wire $Rt.Outcome
-        foreach ($k in $outcomeKeys) { $obs.mountedTurnHorseOutcome[$k] = $tbWire.$k; $obs.mountedHorseOutcome[$k] = $rtWire.$k }
+        # PR-5 round 9 (R4-F2): the complete CaptureMountedOutcome writer rows replace the two Horse outcome rows (nothing copied field by
+        # field; the unrelated world and UI fixture data stay); $Mutate may then change one value for a negative control.
+        $obs.mountedTurnHorseOutcome = $tbWire; $obs.mountedHorseOutcome = $rtWire
         foreach ($k in $snapshotKeys) { $obs.mountedTurnHorseAnimation[$k] = $Tb.Snapshot.$k; $obs.mountedHorseAnimation[$k] = $Rt.Snapshot.$k }
+        if ($null -ne $Mutate) { & $Mutate $obs }
         Update-KmcHorseNativeControlsUxFixture $fixture
         $accepted = Test-KmcHorseNativeControlsUxFixture $fixture
         $reason = $null; if (-not $accepted) { try { Assert-KmcHorseNativeControlsUxEvidence -Request $fixture.Request -Manifest $fixture.Manifest -Status PASS -SubscenarioResults @($fixture.Subresult) } catch { $reason = $_.Exception.Message } }
@@ -763,7 +772,7 @@ foreach ($r in @($tbA, $rtA, $tbB, $rtB, $tbC, $rtC, $unreadableRun)) {
     $o = $r.Outcome
     Write-Host ('  R4-F2 producer ' + $r.Order + ': delivered=' + $r.Delivered + ' result=' + $o.Result + ' childStarts=' + $o.ChildAttackStartCount + ' observed=' + $o.AttackAnimationObservation + ' source=' + $o.AttackAnimationHandleSource +
         ' registered=' + $o.AttackAnimationRegisteredSource + ' action=' + $o.AttackAnimationActionName + ' factsUnreadable=' + $o.AttackAnimationFactsUnreadable + ' playbackAccepted=' + (Accepted $o) +
-        ' | counts create/adopt/refresh=' + $r.Snapshot.horsePrimaryHandleCreateCount + '/' + $r.Snapshot.horsePrimaryHandleAdoptCount + ' latest=' + $r.Snapshot.lastHorsePrimaryHandleSource + ' transactionReady=' + $r.Run.TransactionReady)
+        ' | counts create/adopt=' + $r.Snapshot.horsePrimaryHandleCreateCount + '/' + $r.Snapshot.horsePrimaryHandleAdoptCount + ' latest=' + $r.Snapshot.lastHorsePrimaryHandleSource + ' transactionReady=' + $r.Run.TransactionReady)
 }
 $producerOk = (Readable $tbA) -and (Readable $rtA) -and (Readable $tbB) -and (Readable $rtB) -and (Readable $tbC) -and (Readable $rtC) -and
     $tbA.Outcome.AttackAnimationHandleSource -ceq 'kmc-supplied' -and $tbA.Outcome.AttackAnimationRegisteredSource -ceq 'stock-created' -and
@@ -777,6 +786,21 @@ $connectedA = Test-ConnectedArtifact $tbA $rtA 'TB supply-observe-refresh, RT su
 $connectedB = Test-ConnectedArtifact $tbB $rtB 'TB supply-refresh-observe, RT supply-observe-refresh'
 $connectedC = Test-ConnectedArtifact $tbC $rtC 'TB adoption, RT supply (cumulative (0,1) -> (1,1))'
 Check ($connectedA -and $connectedB -and $connectedC) 'PR-5 R4-F2/R6-F1: the serialized producer outcomes and adapter counts (compiled writer, production snapshot writer), placed in the existing complete native-controls fixture, are accepted by Assert-KmcHorseNativeControlsUxEvidence for both refresh orders in both TB and RT positions and for adoption then supply'
+# PR-5 round 9 (R4-F2, R8-F1): negative controls on the same intact writer rows, one change each. Changing only the TB Horse outcome's
+# actor fails the ownership check; an array-valued TB observed source, an array-valued RT latest source and an ordinally different scalar
+# (U+0000 inserted into the label) each fail; the canonical rows (above) pass.
+$nul = [string][char]0
+$negatives = [ordered]@{
+    'TB actor changed only' = { param($o) $o.mountedTurnHorseOutcome.actorId = 'horse-2' }
+    'TB observed source as a JSON array' = { param($o) $o.mountedTurnHorseOutcome.attackAnimationHandleSource = @([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource) }
+    'RT latest source as a JSON array' = { param($o) $o.mountedHorseAnimation['lastHorsePrimaryHandleSource'] = @([string]$o.mountedHorseAnimation['lastHorsePrimaryHandleSource']) }
+    'TB observed source ordinally different (U+0000 inserted)' = { param($o) $v = [string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource; $o.mountedTurnHorseOutcome.attackAnimationHandleSource = $v.Substring(0, 5) + $nul + $v.Substring(5) }
+}
+$negativeResults = foreach ($name in $negatives.Keys) { -not (Test-ConnectedArtifact $tbA $rtA ('negative: ' + $name) $negatives[$name]) }
+Check (@($negativeResults | Where-Object { -not $_ }).Count -eq 0 -and @($negativeResults).Count -eq 4) 'PR-5 R4-F2/R8-F1: on the intact writer rows, changing only the TB actor fails the ownership check, and an array-valued TB observed source, an array-valued RT latest source and an ordinally different scalar source each fail the complete reader'
+$canonicalSources = @('stock-created','kmc-supplied') | ForEach-Object { ConvertTo-KmcHandleSource $_ }
+Check ((($canonicalSources -join ',') -ceq 'stock-created,kmc-supplied') -and $null -eq (ConvertTo-KmcHandleSource @('stock-created')) -and $null -eq (ConvertTo-KmcHandleSource ('stock-' + $nul + 'created')) -and
+    $null -eq (ConvertTo-KmcHandleSource 1) -and $null -eq (ConvertTo-KmcHandleSource 'Stock-Created')) 'PR-5 R8-F1: ConvertTo-KmcHandleSource admits only the two scalar labels by ordinal equality (an array, a number, a different case or an inserted U+0000 is refused)'
 }
 
 # R3-F2: a serialized current outcome (the production ReportTerminalOnce outcome through the tranche's own JSON settings) passes the

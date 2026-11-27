@@ -8388,7 +8388,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
                     ($null -eq $outcome.PSObject.Properties['attackAnimationHandleSource'] -or
                     $null -eq $outcome.PSObject.Properties['attackAnimationFactsUnreadable'])) -or
                 ($null -ne $outcome.PSObject.Properties['attackAnimationHandleSource'] -and
-                    [string]$outcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied')) -or
+                    $null -eq (ConvertTo-KmcHandleSource $outcome.attackAnimationHandleSource)) -or
                 ($null -ne $outcome.PSObject.Properties['attackAnimationFactsUnreadable'] -and
                     -not [string]::IsNullOrEmpty([string]$outcome.attackAnimationFactsUnreadable)) -or
                 [long]$rules.riderAttackRules -ne 0L -or [long]$rules.mountAttackRules -ne 1L -or
@@ -8812,11 +8812,24 @@ function ConvertTo-KmcHandleCount($Value) {
 #            stock-created/stock-created accept (same-action stock refresh before the strike); stock-created/kmc-supplied reject
 #   adoption stock-created/stock-created accept; every other combination reject
 # Unregistered (unrecorded) and unknown sources are rejected.
-function Test-KmcHorseHandleTransition([string]$Observed, [string]$Last, $Created, $Adopted) {
+# PR-5 round 9 (R8-F1): a raw handle source the schema-8 reader consumes, validated BEFORE any string conversion or typed binding: a
+# scalar JSON string ordinally equal (as the product compares it, StringComparison.Ordinal) to "stock-created" or "kmc-supplied". An
+# array, an object, a number, a boolean, a missing value or an ordinally different string (for example one with an inserted U+0000) is
+# $null, which every caller rejects.
+function ConvertTo-KmcHandleSource($Value) {
+    if ($null -eq $Value -or -not ($Value -is [string])) { return $null }
+    foreach ($label in @('stock-created','kmc-supplied')) { if ([string]::Equals($Value, $label, [StringComparison]::Ordinal)) { return $label } }
+    return $null
+}
+
+function Test-KmcHorseHandleTransition($Observed, $Last, $Created, $Adopted) {
     if ($null -eq $Created -or $null -eq $Adopted) { return $false }
-    if ($Observed -cnotin @('stock-created','kmc-supplied') -or $Last -cnotin @('stock-created','kmc-supplied')) { return $false }
-    if ($Created -eq 1 -and $Adopted -eq 0) { return -not ($Observed -ceq 'stock-created' -and $Last -ceq 'kmc-supplied') }
-    if ($Created -eq 0 -and $Adopted -eq 1) { return $Observed -ceq 'stock-created' -and $Last -ceq 'stock-created' }
+    $observedSource = ConvertTo-KmcHandleSource $Observed; $lastSource = ConvertTo-KmcHandleSource $Last
+    if ($null -eq $observedSource -or $null -eq $lastSource) { return $false }
+    $observedStock = [string]::Equals($observedSource, 'stock-created', [StringComparison]::Ordinal)
+    $lastStock = [string]::Equals($lastSource, 'stock-created', [StringComparison]::Ordinal)
+    if ($Created -eq 1 -and $Adopted -eq 0) { return -not ($observedStock -and -not $lastStock) }
+    if ($Created -eq 0 -and $Adopted -eq 1) { return $observedStock -and $lastStock }
     return $false
 }
 
@@ -8832,8 +8845,9 @@ function Test-KmcHorseSchema8Bindings($Observations) {
     $rtRejected = ConvertTo-KmcHandleCount $rt.horsePrimaryHandleRejectCount
     if ($null -eq $tbCreated -or $null -eq $tbAdopted -or $null -eq $tbRejected -or $null -eq $rtCreated -or $null -eq $rtAdopted -or $null -eq $rtRejected) { return $false }
     if ($tbRejected -ne 0 -or $rtRejected -ne 0) { return $false }
-    return (Test-KmcHorseHandleTransition ([string]$Observations.mountedTurnHorseOutcome.attackAnimationHandleSource) ([string]$tb.lastHorsePrimaryHandleSource) $tbCreated $tbAdopted) -and
-        (Test-KmcHorseHandleTransition ([string]$Observations.mountedHorseOutcome.attackAnimationHandleSource) ([string]$rt.lastHorsePrimaryHandleSource) ($rtCreated - $tbCreated) ($rtAdopted - $tbAdopted))
+    # PR-5 round 9 (R8-F1): the four raw sources are passed unconverted; ConvertTo-KmcHandleSource validates each.
+    return (Test-KmcHorseHandleTransition $Observations.mountedTurnHorseOutcome.attackAnimationHandleSource $tb.lastHorsePrimaryHandleSource $tbCreated $tbAdopted) -and
+        (Test-KmcHorseHandleTransition $Observations.mountedHorseOutcome.attackAnimationHandleSource $rt.lastHorsePrimaryHandleSource ($rtCreated - $tbCreated) ($rtAdopted - $tbAdopted))
 }
 
 function Assert-KmcHorseNativeControlsUxEvidence {
@@ -9104,8 +9118,8 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             )
             Assert-KmcExactProperties $o.mountedTurnHorseAnimation $animationNames 'Horse native controls mountedTurnHorseAnimation'
             Assert-KmcExactProperties $o.mountedHorseAnimation $animationNames 'Horse native controls mountedHorseAnimation'
-            if ([string]$o.mountedTurnHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
-                [string]$o.mountedHorseOutcome.attackAnimationHandleSource -cnotin @('stock-created','kmc-supplied') -or
+            if ($null -eq (ConvertTo-KmcHandleSource $o.mountedTurnHorseOutcome.attackAnimationHandleSource) -or
+                $null -eq (ConvertTo-KmcHandleSource $o.mountedHorseOutcome.attackAnimationHandleSource) -or
                 # PR-5 reviews R4-F2/R5-F1/R6-F1/R6-F2: the outcome's source is the handle observed at its own strike, the snapshot's the latest
                 # registration. Each command's raw counters are validated first; its (created, adopted) pair must be exactly one initial
                 # supply or one initial adoption (TB from its snapshot, RT from the difference of the cumulative RT and TB snapshots), with
