@@ -1,0 +1,274 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mmr-horse-trip-20261125213249-4b8b key=r02-review part=1/1 sha256=81d3a5f10d9b48737420f9b16d52aec41a182d2b52816154065bcddad15b62fd -->
+### Codex GPT-6.2 Astra — review — round 2 — candidate `b36f08a757`
+
+**Decision:** `changes_required` — The focused gate passed, and the fresh-Horse construction fix is supported. Four defects still block saved-horse repair. An observer-only guarded run can consume the player's claim, a native exception can produce a false Applied result, a verified no-op loses its retry, and a replacement claim can receive another request's archive suffix.
+
+## Continuation for Claude
+
+Round 2 exhausts PR-4's two-round allocation. Preserve this result for the owner's decision. If further work is authorized, keep the correction within the repair service and its focused tests. Recognize the observer-only guarded launch, classify the actual feature collection after every attempted removal, and bind archival to the bytes that received the decision. Preserve the fresh-Horse filter, native combat authority, request-free observer control and existing safety guards.
+
+The next review needs offline cases using the observer's actual launch arguments, a native removal that changes a neighboring fact and then throws, a removal that returns without changing anything, and a claim replaced during publication. Bind the focused Fast gate to the corrected candidate. N07 and N10 remain owner playtest observations.
+
+#### Findings
+
+**R1-F1** · P1 · defect · blocks readiness — The request-free guarded control still opens the player's repair folder
+- Location: `src/KingmakerMountedCombat/CompositionRoot.cs:82`; acceptance: MMR-06, S06
+- Trigger: The repository runs chunk7-normal-player-control while the player's KMC user-data folder contains a stranded .claimed file.
+- Expected: A guarded process accesses repair files only through a proven run-owned folder. Without that binding, it skips claim recovery.
+- Actual: CompositionRoot uses runtimeAutomation != null to identify a guarded run. Invoke-KingmakerRuntimeScenario.ps1:1226 launches this control with only -kmcObserverRequest arguments, so CreateFromCommandLine returns null. The observer redirects SaveManager and area paths, while KMC's UserDataParent resolves to the player's ApplicationPaths.persistentDataPath. Once the fixture party loads, the repair poll can overwrite the player's result and rename the stranded claim to .interrupted.
+- Why it blocks / does not: A disposable control can consume a player's repair record and change a protected profile surface.
+- Requested correction: Recognize the observer-only guarded launch when selecting the repair folder. Suppress the poll there unless the service has a verified run-owned folder. Preserve the control's request-free KMC startup.
+- Requested evidence: Exercise the production launch classification with the observer-only arguments and a null KMC host. Seed the player folder with a claim and result, then verify identical filenames and bytes after polling. Retain the ordinary-play and KMC-isolated controls.
+
+**R1-F2** · P1 · defect · blocks readiness — A native removal exception can still be recorded as an exact success
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:181`; acceptance: MMR-06, S06
+- Trigger: RemoveFact throws after changing the collection, or a post-removal check throws before the adapter verifies the delta.
+- Expected: Applied requires verification that only the requested instance disappeared. Retry requires verified absence of change. An inconsistent or unreadable outcome is terminal.
+- Actual: TripRepairFileHost.Remove checks the feature delta only after RemoveFact returns. If RemoveFact changes the target and a neighbor and then throws, that check is skipped. A failure while enumerating the post-removal candidates also skips it. The policy catches the ordinary exception, sees the target absent in StillPresent and publishes Applied. The test host injects FailRemovalAfter only after its delta check has succeeded.
+- Why it blocks / does not: The result can tell the owner that exactly the requested fact was removed after another fact was lost. If the target survives a partial change, presence alone can also release the claim for another attempt.
+- Requested correction: Capture the relevant feature identities before calling native removal and classify the collection on both return and exception. Preserve an unverified or inconsistent outcome through reporting retries. Count an application only after exact removal is established.
+- Requested evidence: Inject a native-boundary callback that removes the target and a neighbor and then throws before the adapter's checks. Verify a terminal failure, no Applied result and no second removal after reload. Keep the positive control where only the target disappeared before the exception.
+
+**R1-F4** · P2 · defect · blocks readiness — Archival can still move different bytes from the claim that was verified
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:421`; acceptance: MMR-06, S06
+- Trigger: A held .claimed file is edited or replaced after TryReadClaim returns and before Close renames it in the same poll.
+- Expected: The bytes committed to a terminal archive are the bytes bound to that decision. A replacement receives its own conservative disposition.
+- Actual: TryReadClaim hashes the bytes and closes the read handle. Publish subsequently calls Close with only the suffix. Close moves whatever occupies ClaimPath at line 421. If the claim for horse A is replaced with bytes for horse B during the result write, those bytes can be archived as .applied even though only A's fact was removed.
+- Why it blocks / does not: The archive can attribute removal to the wrong request and consume the replacement. This breaks the required link between the owner's bytes, the horse and the disposition.
+- Requested correction: Carry the bound identity through finalization. Protect the file through archival or verify the captured file before assigning its terminal suffix. Preserve replacement bytes and single-use removal semantics.
+- Requested evidence: Replace A's .claimed file with B's bytes during publication, after the successful claim read. Verify that B's bytes never appear in A's .applied archive, the result names the correct horse, and the original repair executes once.
+
+**R2-F1** · P2 · defect · blocks readiness — A removal that returns without effect now consumes the request
+- Location: `src/KingmakerMountedCombat/Integration/HorseCompanionBlueprintService.InheritedFacts.cs:204`; acceptance: MMR-06, S06
+- Trigger: Native RemoveFact returns normally with the target and all neighboring features still present.
+- Expected: A verified unchanged collection leaves the request eligible for retry, or yields to a newer request through the existing supersession path.
+- Actual: When both counts are unchanged and the target is present, the adapter throws HorseTripRemovalIntegrityException. The new policy treats every such exception as terminal before reaching the still-present retry branch. It writes a failure and archives the request as .uncertain. The existing retry test injects an exception before removal, which takes a different path.
+- Why it blocks / does not: A harmless no-op consumes an explicit owner request that mission section 6 requires the service to retain or supersede.
+- Requested correction: Give verified no-change its own outcome in the production removal classification and route it through the existing return-or-supersede branch.
+- Requested evidence: Have the native removal return normally with the original feature collection intact. Verify that the request survives, the next successful attempt removes exactly once, and a newer waiting request is preserved.
+
+#### Prior finding assessments
+
+- **R1-F1** — `fix_rejected` — The fixture-intake case is covered. The repository also has an observer-only guarded control that loads a party with runtimeAutomation null. It still selects the player's folder.
+- **R1-F2** — `fix_rejected` — A failed final presence read and an explicitly signaled integrity failure now stay terminal. An exception inside native removal or the adapter's earlier verification can still reach Applied solely because the target is absent.
+- **R1-F3** — `fix_verified` — The predicate requires one Bite/Trip component. The candidate gate exercised a stock-GUID feature carrying an additional AddStatBonus and verified preservation in fresh construction and exclusion from saved-horse repair.
+- **R1-F4** — `fix_rejected` — The raw digest distinguishes the BOM replacement between polls, and the sharing-violation test preserves the session. The archive rename still operates on an unbound pathname after the digest check.
+- **R1-F5** — `fix_verified` — The return-rename collision now produces Superseded. The recorded real-folder case preserved A's archive and B's request, then applied once to B after both horses loaded.
+- **R1-F6** — `fix_verified` — The contract invoked compiled CopyBody on distinct weapon objects and checked bite/hoof/hoof by reference. The foreign-GUID control used the installed Bite and Trip values and survived the filter.
+- **R1-F7** — `fix_verified` — The candidate log includes nativeProof=false on both the 49-check Trip summary and the 12-of-12 focused summary.
+- **R1-F8** — `fix_verified` — Entry 18 reconciles the enrolled ceilings, and the committed supplemental instruction hashes to the value cited in entry 14. Before this review PR-4 had used 1 of 2 rounds, with 4 child rounds and 11 lifetime rounds spent. The gate ended at 81.66 minutes. All fit the enrolled limits independently of the larger supplemental ceilings.
+
+#### Evidence assessment
+
+- **Inspected:** The controller request, mission, developer report, prior findings, transcript notice, gate receipt and raw log, plus AGENTS.md, the validation policy and current handoffs.; The 17-file feature diff, the correction from 8fc887ad to the candidate, and the affected horse construction, write gate, repair policy, file operations, native adapter and test host.; The guarded launcher, RuntimeAutomationHost creation, observer save routing and profile protection used by the request-free normal-player control.
+- **Executed verification:** Verified the detached HEAD, the enrolled mission SHA-256 and the 2,598-line feature diff against Git. The eight whole-file extraction paths matched 46444b30 at 1430b081. git diff --check passed.; Verified the controller's receipt for this exact candidate and its log SHA-256 300a5f0559f9070fb45df73987dc6906e1ed9d9e7daf88b930acaf3081a70dd9. Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 exited 0 in 35.3 seconds. The log records 1,541 component passes, 153 source checks, 49 Trip checks and 12 of 12 focused children.; The log records the carried R7-F5 refusal and supersession retry cases, the new file-backed regression cases, the compiled bite/hoof/hoof control and the mixed-feature controls. Mounted Shield passed 114 contract checks, including embedded icon byte identity, and 68 rollback checks. The product DLL SHA-256 was acd85a0aec0e438310544c1249a1f4bf084c428cc81d29dfdec7636852cfc9e5.; Verified the committed accounting instruction's Git blob SHA-256 and the hashes of ledger entries 14 through 19. The gate recorded 81.07 minutes before admission and 81.66 minutes after completion on the existing budget ID.
+- **Source inspection only:** Traced the observer-only launcher through a null KMC automation host to the player's persistent data path. The observer redirects native save operations separately.; Traced the production RemoveFact exception and no-op paths against the different injection order in the passing component host.; Traced the interval between reading the claim digest and moving the file at ClaimPath. The recorded replacement test changes the file between polls.
+- **Required gaps:** Exercise repair-folder selection with the observer-only launch arguments and a stranded claim in the player's folder.; Exercise the production removal classification when native code throws before verification and when it returns after changing nothing.; Replace a held claim after its digest has been read and before archival. Check the archive bytes, result, horse identities and removal count.
+- **Limitations:** The review used read-only inspection and controller-recorded execution. The foreground transcript was withheld. The two reported diagnostic script runs therefore receive no separate execution credit.; The gate is offline and reports nativeProof=false. It establishes the stock donor and compiled construction path. Live hit, damage, Trip delivery and save/reload behavior remain unobserved on this candidate.; A stock-GUID feature with additional components is deliberately retained whole, so a modified feature can retain its Trip effect.
+
+#### Summary
+
+- **Delivered behavior:** Fresh KMC horses omit the stock Mammoth's single-component TrippingBite grant and retain their bite and two hooves. Existing matches are reported for an explicit owner request. Refusals and supersessions remain frozen through the tested reporting failures. Four saved-horse repair defects block readiness.
+- **Scope reviewed:** Draft PR #66 at the final checkpoint, covering MMR-06, S06 and the S08 regression gate. All eight round-1 dispositions were assessed against the fixed candidate.
+- **Pending later-phase work:** none
+- **Unresolved questions:** none
+- **Remaining owner review:** Decide how to proceed at PR-4's two-round limit.; N07 covers a live plain-horse bite hit and damage without intrinsic Trip, with legitimate dog, wolf or granted-maneuver controls where available.; N10 covers an existing horse across reload or area transition, including pair identity, shield effects and action ownership.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Owner guidance bound to this review: none.
+
+Owner amendments bound to this review: none.
+
+Codex CLI `0.170.0`, thread `01a215cd-acd5-7d82-91e6-22e4becb520f`, duration 664.8s, response sha256 `7eed1c297e554108e6570fe222b2f6377ed64aef2997c1fe109dc512e668da1b`, request `kmc-codex-mmr-horse-trip-20261125213249-4b8b-r02-735acd`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "b36f08a7570e43ee6a042c2d7af9ce8546a1c185",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed, and the fresh-Horse construction fix is supported. Four defects still block saved-horse repair. An observer-only guarded run can consume the player's claim, a native exception can produce a false Applied result, a verified no-op loses its retry, and a replacement claim can receive another request's archive suffix.\n\n## Continuation for Claude\n\nRound 2 exhausts PR-4's two-round allocation. Preserve this result for the owner's decision. If further work is authorized, keep the correction within the repair service and its focused tests. Recognize the observer-only guarded launch, classify the actual feature collection after every attempted removal, and bind archival to the bytes that received the decision. Preserve the fresh-Horse filter, native combat authority, request-free observer control and existing safety guards.\n\nThe next review needs offline cases using the observer's actual launch arguments, a native removal that changes a neighboring fact and then throws, a removal that returns without changing anything, and a claim replaced during publication. Bind the focused Fast gate to the corrected candidate. N07 and N10 remain owner playtest observations.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Verified the detached HEAD, the enrolled mission SHA-256 and the 2,598-line feature diff against Git. The eight whole-file extraction paths matched 46444b30 at 1430b081. git diff --check passed.",
+      "Verified the controller's receipt for this exact candidate and its log SHA-256 300a5f0559f9070fb45df73987dc6906e1ed9d9e7daf88b930acaf3081a70dd9. Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 exited 0 in 35.3 seconds. The log records 1,541 component passes, 153 source checks, 49 Trip checks and 12 of 12 focused children.",
+      "The log records the carried R7-F5 refusal and supersession retry cases, the new file-backed regression cases, the compiled bite/hoof/hoof control and the mixed-feature controls. Mounted Shield passed 114 contract checks, including embedded icon byte identity, and 68 rollback checks. The product DLL SHA-256 was acd85a0aec0e438310544c1249a1f4bf084c428cc81d29dfdec7636852cfc9e5.",
+      "Verified the committed accounting instruction's Git blob SHA-256 and the hashes of ledger entries 14 through 19. The gate recorded 81.07 minutes before admission and 81.66 minutes after completion on the existing budget ID."
+    ],
+    "inspected": [
+      "The controller request, mission, developer report, prior findings, transcript notice, gate receipt and raw log, plus AGENTS.md, the validation policy and current handoffs.",
+      "The 17-file feature diff, the correction from 8fc887ad to the candidate, and the affected horse construction, write gate, repair policy, file operations, native adapter and test host.",
+      "The guarded launcher, RuntimeAutomationHost creation, observer save routing and profile protection used by the request-free normal-player control."
+    ],
+    "limitations": [
+      "The review used read-only inspection and controller-recorded execution. The foreground transcript was withheld. The two reported diagnostic script runs therefore receive no separate execution credit.",
+      "The gate is offline and reports nativeProof=false. It establishes the stock donor and compiled construction path. Live hit, damage, Trip delivery and save/reload behavior remain unobserved on this candidate.",
+      "A stock-GUID feature with additional components is deliberately retained whole, so a modified feature can retain its Trip effect."
+    ],
+    "required_gaps": [
+      "Exercise repair-folder selection with the observer-only launch arguments and a stranded claim in the player's folder.",
+      "Exercise the production removal classification when native code throws before verification and when it returns after changing nothing.",
+      "Replace a held claim after its digest has been read and before archival. Check the archive bytes, result, horse identities and removal count."
+    ],
+    "source_inspection_only": [
+      "Traced the observer-only launcher through a null KMC automation host to the player's persistent data path. The observer redirects native save operations separately.",
+      "Traced the production RemoveFact exception and no-op paths against the different injection order in the passing component host.",
+      "Traced the interval between reading the claim digest and moving the file at ClaimPath. The recorded replacement test changes the file between polls."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "CompositionRoot uses runtimeAutomation != null to identify a guarded run. Invoke-KingmakerRuntimeScenario.ps1:1226 launches this control with only -kmcObserverRequest arguments, so CreateFromCommandLine returns null. The observer redirects SaveManager and area paths, while KMC's UserDataParent resolves to the player's ApplicationPaths.persistentDataPath. Once the fixture party loads, the repair poll can overwrite the player's result and rename the stranded claim to .interrupted.",
+      "blocking_rationale": "A disposable control can consume a player's repair record and change a protected profile surface.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A guarded process accesses repair files only through a proven run-owned folder. Without that binding, it skips claim recovery.",
+      "id": "R1-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/CompositionRoot.cs",
+        "line": 82
+      },
+      "priority": "P1",
+      "requested_correction": "Recognize the observer-only guarded launch when selecting the repair folder. Suppress the poll there unless the service has a verified run-owned folder. Preserve the control's request-free KMC startup.",
+      "requested_evidence": "Exercise the production launch classification with the observer-only arguments and a null KMC host. Seed the player folder with a claim and result, then verify identical filenames and bytes after polling. Retain the ordinary-play and KMC-isolated controls.",
+      "title": "The request-free guarded control still opens the player's repair folder",
+      "trigger": "The repository runs chunk7-normal-player-control while the player's KMC user-data folder contains a stranded .claimed file."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "TripRepairFileHost.Remove checks the feature delta only after RemoveFact returns. If RemoveFact changes the target and a neighbor and then throws, that check is skipped. A failure while enumerating the post-removal candidates also skips it. The policy catches the ordinary exception, sees the target absent in StillPresent and publishes Applied. The test host injects FailRemovalAfter only after its delta check has succeeded.",
+      "blocking_rationale": "The result can tell the owner that exactly the requested fact was removed after another fact was lost. If the target survives a partial change, presence alone can also release the claim for another attempt.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Applied requires verification that only the requested instance disappeared. Retry requires verified absence of change. An inconsistent or unreadable outcome is terminal.",
+      "id": "R1-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 181
+      },
+      "priority": "P1",
+      "requested_correction": "Capture the relevant feature identities before calling native removal and classify the collection on both return and exception. Preserve an unverified or inconsistent outcome through reporting retries. Count an application only after exact removal is established.",
+      "requested_evidence": "Inject a native-boundary callback that removes the target and a neighbor and then throws before the adapter's checks. Verify a terminal failure, no Applied result and no second removal after reload. Keep the positive control where only the target disappeared before the exception.",
+      "title": "A native removal exception can still be recorded as an exact success",
+      "trigger": "RemoveFact throws after changing the collection, or a post-removal check throws before the adapter verifies the delta."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "TryReadClaim hashes the bytes and closes the read handle. Publish subsequently calls Close with only the suffix. Close moves whatever occupies ClaimPath at line 421. If the claim for horse A is replaced with bytes for horse B during the result write, those bytes can be archived as .applied even though only A's fact was removed.",
+      "blocking_rationale": "The archive can attribute removal to the wrong request and consume the replacement. This breaks the required link between the owner's bytes, the horse and the disposition.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The bytes committed to a terminal archive are the bytes bound to that decision. A replacement receives its own conservative disposition.",
+      "id": "R1-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 421
+      },
+      "priority": "P2",
+      "requested_correction": "Carry the bound identity through finalization. Protect the file through archival or verify the captured file before assigning its terminal suffix. Preserve replacement bytes and single-use removal semantics.",
+      "requested_evidence": "Replace A's .claimed file with B's bytes during publication, after the successful claim read. Verify that B's bytes never appear in A's .applied archive, the result names the correct horse, and the original repair executes once.",
+      "title": "Archival can still move different bytes from the claim that was verified",
+      "trigger": "A held .claimed file is edited or replaced after TryReadClaim returns and before Close renames it in the same poll."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "When both counts are unchanged and the target is present, the adapter throws HorseTripRemovalIntegrityException. The new policy treats every such exception as terminal before reaching the still-present retry branch. It writes a failure and archives the request as .uncertain. The existing retry test injects an exception before removal, which takes a different path.",
+      "blocking_rationale": "A harmless no-op consumes an explicit owner request that mission section 6 requires the service to retain or supersede.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "A verified unchanged collection leaves the request eligible for retry, or yields to a newer request through the existing supersession path.",
+      "id": "R2-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Integration/HorseCompanionBlueprintService.InheritedFacts.cs",
+        "line": 204
+      },
+      "priority": "P2",
+      "requested_correction": "Give verified no-change its own outcome in the production removal classification and route it through the existing return-or-supersede branch.",
+      "requested_evidence": "Have the native removal return normally with the original feature collection intact. Verify that the request survives, the next successful attempt removes exactly once, and a newer waiting request is preserved.",
+      "title": "A removal that returns without effect now consumes the request",
+      "trigger": "Native RemoveFact returns normally with the target and all neighboring features still present."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R1-F1",
+      "rationale": "The fixture-intake case is covered. The repository also has an observer-only guarded control that loads a party with runtimeAutomation null. It still selects the player's folder."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R1-F2",
+      "rationale": "A failed final presence read and an explicitly signaled integrity failure now stay terminal. An exception inside native removal or the adapter's earlier verification can still reach Applied solely because the target is absent."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F3",
+      "rationale": "The predicate requires one Bite/Trip component. The candidate gate exercised a stock-GUID feature carrying an additional AddStatBonus and verified preservation in fresh construction and exclusion from saved-horse repair."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R1-F4",
+      "rationale": "The raw digest distinguishes the BOM replacement between polls, and the sharing-violation test preserves the session. The archive rename still operates on an unbound pathname after the digest check."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F5",
+      "rationale": "The return-rename collision now produces Superseded. The recorded real-folder case preserved A's archive and B's request, then applied once to B after both horses loaded."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F6",
+      "rationale": "The contract invoked compiled CopyBody on distinct weapon objects and checked bite/hoof/hoof by reference. The foreign-GUID control used the installed Bite and Trip values and survived the filter."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F7",
+      "rationale": "The candidate log includes nativeProof=false on both the 49-check Trip summary and the 12-of-12 focused summary."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R1-F8",
+      "rationale": "Entry 18 reconciles the enrolled ceilings, and the committed supplemental instruction hashes to the value cited in entry 14. Before this review PR-4 had used 1 of 2 rounds, with 4 child rounds and 11 lifetime rounds spent. The gate ended at 81.66 minutes. All fit the enrolled limits independently of the larger supplemental ceilings."
+    }
+  ],
+  "request_id": "kmc-codex-mmr-horse-trip-20261125213249-4b8b-r02-735acd",
+  "round": 2,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "Fresh KMC horses omit the stock Mammoth's single-component TrippingBite grant and retain their bite and two hooves. Existing matches are reported for an explicit owner request. Refusals and supersessions remain frozen through the tested reporting failures. Four saved-horse repair defects block readiness.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "Decide how to proceed at PR-4's two-round limit.",
+      "N07 covers a live plain-horse bite hit and damage without intrinsic Trip, with legitimate dog, wolf or granted-maneuver controls where available.",
+      "N10 covers an existing horse across reload or area transition, including pair identity, shield effects and action ownership."
+    ],
+    "scope_reviewed": "Draft PR #66 at the final checkpoint, covering MMR-06, S06 and the S08 regression gate. All eight round-1 dispositions were assessed against the fixed candidate.",
+    "unresolved_questions": []
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._

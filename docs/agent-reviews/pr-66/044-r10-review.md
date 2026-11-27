@@ -1,0 +1,374 @@
+<!-- agent-review:v1 enrollment=kmc-codex-mmr-horse-trip-20261125213249-4b8b key=r10-review part=1/1 sha256=8c9c2c43ae282dfbafd146d7914f6a0e976c03b36fffa59169f1c7a0f75fe116 -->
+### Codex GPT-6.2 Astra — review — round 10 — candidate `9f2d8c0978`
+
+**Decision:** `changes_required` — The focused gate passed. The saved-horse repair can still act on an unfinished Unix request, delete a replacement file during cleanup, or publish multiple archives for one decision. Recovery can also consume the wrong entry or skip genuine unfinished work from an earlier build.
+
+## Continuation for Claude
+
+Keep the correction within the existing request, publication and recovery paths. Give Unix submissions a clear completion point before fact selection. Bind fallback publication, cleanup and retry to the same owned attempt, preserve the user's file permissions, and distinguish an uncertain lookup from a confirmed replacement. Match complete recovery filenames from both producer generations and verify that the entry actually recovered is still pending.
+
+Use the focused filesystem fixtures to exercise the failure boundaries named in the findings, then run the candidate-bound Fast gate. Preserve the verified Windows writer exclusion, Unix no-follow reads, frozen decisions, exact horse/fact selection and fresh-horse construction. Native gameplay observations remain with the owner's playtest.
+
+#### Findings
+
+**R10-F1** · P1 · defect · blocks readiness — Failed archive cleanup can unlink a replacement file
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:744`; acceptance: MMR-06, S06
+- Trigger: A write or flush fails, and a local save replaces the terminal entry after cleanup examines it but before cleanup deletes it.
+- Expected: Failed publication cleans up only the file created by that attempt. A replacement keeps its name and contents.
+- Actual: ProtectedCreate calls lstat, compares device and inode, then calls Unlink(terminal). A rename can occur between those calls. Unlink resolves the name again and removes its new occupant.
+- Why it blocks / does not: An ordinary local file replacement can be deleted during repair error handling. Retrying the horse request cannot restore those bytes.
+- Requested correction: Make cleanup conditional on ownership through the operation that removes the entry. Where that guarantee is unavailable, retain bounded recoverable state without deleting an independently resolved name.
+- Requested evidence: On the protected-create path, fault the write or flush and substitute a foreign file after the cleanup identity observation. Verify its name and bytes survive, the claim stays recoverable, and the retry completes with one removal.
+
+**R10-F2** · P2 · defect · blocks readiness — The Unix reader can authorize a request while its writer is still active
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:636`; acceptance: MMR-06, S06
+- Trigger: A writer saves directly to the documented request filename and pauses after flushing the first of two horse lines.
+- Expected: Selection uses the owner's completed submission. A malformed multi-horse submission leaves both horses intact.
+- Actual: The Unix deciding open verifies file type and reads to the current EOF. It permits an existing writer to keep writing through its descriptor across the claim rename. The first horse line alone can reach RemoveExactly before the second line arrives.
+- Why it blocks / does not: A completed two-horse request authorizes zero removals. The first horse can already have lost its fact.
+- Requested correction: Establish a completion point for the documented Unix submission workflow before the poll can authorize removal. Keep the one-horse payload and the no-follow descriptor read.
+- Requested evidence: Exercise an ordinary Unix writer paused after its first horse line across two polls. Complete the second line and verify a malformed refusal and zero removals throughout. Retain a completed single-horse control.
+
+**R5-F1** · P2 · defect · blocks readiness — Fallback publication assumes the terminal file is unreadable while it is being written
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:722`; acceptance: MMR-06, S06
+- Trigger: Unnamed-file publication is unavailable and the local filesystem or an ordinary permission restore leaves the terminal inode accessible before fchmod.
+- Expected: Every successful publication exposes the complete bytes that authorized the frozen decision from the first readable instant.
+- Actual: The fallback creates the terminal name before writing and assumes the requested mode of zero makes it inaccessible. It never establishes that protection for the directory in use. A local volume with mount-defined permissions can expose the file immediately. A same-account permission restore can also reopen the inode during the write. The final identity comparison checks only device and inode.
+- Why it blocks / does not: A reader can receive an empty or partial Applied archive, or an in-place write can change the bytes subsequently accepted under that suffix.
+- Requested correction: Use a fallback whose protection of the completed payload is established before exposing the terminal name. Preserve the claim when that protection is unavailable on the particular filesystem.
+- Requested evidence: Exercise the alternate path after descriptor-link failure with effective access differing from the requested creation mode. Observe the terminal during a partial write and at first readability. Verify correct bytes or a recoverable refusal, then one archive and one removal.
+
+**R9-F3** · P2 · defect · blocks readiness — Metadata failures can leave an untracked archive on every fallback retry
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:734`; acceptance: MMR-06, S06
+- Trigger: Protected creation succeeds, but examining the new descriptor or looking up its name after publication fails.
+- Expected: An uncertain attempt remains bounded and recoverable. Once its archive is published, a retry finishes verification or retirement exactly once.
+- Actual: A failed initial fstat leaves the newly created file untracked. After fchmod succeeds, a failed lstat is treated as a confirmed replacement and clears known. Commit then throws before recording the archive. On retry, ArchiveTarget sees the existing file and chooses a timestamped name.
+- Why it blocks / does not: One transient lookup failure can produce two readable Applied archives for one removal. Repeated metadata failures can leave a new file on every poll.
+- Requested correction: Retain the attempt's target and publication state across metadata failures. Distinguish a lookup error from an observed different inode before choosing a new archive name.
+- Requested evidence: Inject repeated initial fstat failures and a transient lstat failure immediately after successful fchmod. Count all terminal and private files across polls. After recovery, verify one readable archive containing the original bytes and one removal.
+
+**R9-F4** · P2 · defect · blocks readiness — Recovery still accepts filenames with data after the suffix
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:1084`; acceptance: MMR-06, S06
+- Trigger: A Unix repair folder contains a regular file whose name matches a private shape except for a final line feed, with bytes different from the digest in the settled name.
+- Expected: Recovery accepts only complete filenames that a known retirement producer can emit.
+- Actual: Both filename expressions end with the .NET $ anchor, which also matches before a final line feed. The directory scan admits every name with the claim prefix. An otherwise matching settled filename followed by a line feed can therefore be moved to .claimed and reported as Interrupted.
+- Why it blocks / does not: An idle poll can still consume an unrecognized owner file and overwrite a valid result.
+- Requested correction: Require the match to consume the entire filename for both retiring and settled records.
+- Requested evidence: Check both valid shapes with a trailing line feed. They must be ignored. Preserve the corresponding exact-name positive controls, the older completed record and the backup.
+
+**R10-F3** · P2 · defect · blocks readiness — Recovery skips unfinished claims from the earlier producer
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:1081`; acceptance: MMR-06, S06
+- Trigger: An earlier build stopped after moving a claim to its GUID-based retiring name and the next poll runs on this candidate.
+- Expected: Known unfinished records from either producer remain recoverable. The older 32-hex settled record retains its completed disposition.
+- Actual: Commit 395b56ac moved unfinished claims to .claimed.<32 lowercase hex>.retiring. The new expression accepts only eight hex digits. A fresh poll skips that genuine unfinished entry and can process a newer request first.
+- Why it blocks / does not: The older claim can permanently lose its interruption result and archive even though its exact bytes remain in the player's folder.
+- Requested correction: Recognize the exact legacy 32-hex retiring shape alongside the current one. Keep the distinct legacy settled shape excluded.
+- Requested evidence: Start a fresh session with a producer-shaped legacy retiring entry, a legacy completed settled record and a queued request. Verify the stranded entry receives its own byte-exact Interrupted archive before the queued request runs, with the completed record intact.
+
+**R10-F4** · P2 · defect · blocks readiness — Recovery can move a different entry from the one it classified
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:1107`; acceptance: MMR-06, S06
+- Trigger: A local restore replaces a pending-looking settled entry between the recovery read and the move to .claimed.
+- Expected: The entry admitted for interruption is still the unfinished entry identified during recovery.
+- Actual: RecoverRetiring reads and classifies an entry, closes it, and stores only its pathname in pending. File.Move later takes the current occupant. If a restore puts the completed, digest-matching record back at that name, the subsequent claim read has lost the settled filename and treats the completed bytes as Interrupted.
+- Why it blocks / does not: Recovery can overwrite a correct Applied result even though the file it actually moved was a completed retirement.
+- Requested correction: Carry the original recovery classification through the move and verify the entry actually taken before publishing an interruption. Preserve a completed or ineligible replacement under its proper name.
+- Requested evidence: Restore the digest-matching completed bytes after a settled entry was classified pending and before the recovery move. Verify the completed record, Applied result and archive survive, with zero additional removals. Keep the genuinely stranded replacement control.
+
+**R10-F5** · P2 · defect · blocks readiness — Fallback publication widens access to private request text
+- Location: `src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs:732`; acceptance: MMR-06, S06
+- Trigger: A private request is archived through protected creation in a directory other local accounts can traverse.
+- Expected: Publishing a repair archive respects the player's restrictive file permissions.
+- Actual: ProtectedCreate calls fchmod with a fixed 0644. That explicitly grants group and other read access even when the player created the request privately under umask 077. The archive contains the request's exact bytes, including any comments.
+- Why it blocks / does not: On a traversable local data directory the fallback discloses a private request to additional accounts.
+- Requested correction: Publish with owner-only access or permissions that preserve the request's effective restrictions.
+- Requested evidence: Publish a private request through the fallback under a restrictive umask and inspect the final access mode along with the archive bytes.
+
+#### Prior finding assessments
+
+- **R5-F1** — `fix_rejected` — The unnamed-file link removes the staging-name substitution, and the tested mode-zero setup preserved A's bytes. The alternate path still relies on the terminal inode remaining inaccessible throughout the write. The simulation enforces that with a Windows share mode, a stronger guarantee than the fallback establishes.
+- **R9-F1** — `fix_verified` — The Windows deciding handle uses read and delete sharing. The gate observed zero removals while a writer held the first line, a malformed refusal after the second line, and one successful removal with a read-only holder.
+- **R9-F2** — `fix_verified` — Unix ReadEligible opens with O_NOFOLLOW, establishes regular-file type with fstat and reads through that descriptor. Both simulated open-boundary substitutions supplied zero removals and zero copied target archives. The ordinary claim and recovery controls passed.
+- **R9-F3** — `fix_rejected` — The directory obstruction kept the file count at three across three polls under both mechanisms, and the successful retry left no staging alias. Protected-create metadata failures still leave an untracked target and cause retries to allocate further names.
+- **R9-F4** — `fix_rejected` — The tested 32-hex completed record and ordinary backup both survived intact. The new expressions still accept an unrecognized Unix filename with a trailing line feed, as confirmed by the read-only matcher check.
+
+#### Evidence assessment
+
+- **Inspected:** The enrolled mission and its pinned digest, repository instructions, validation policy, current handoffs, developer report, prior findings ledger, transcript notice and controller evidence.; The 6,671-line feature diff, the correction from 239264fc to H, the horse blueprint and live repair adapters, the file lifecycle and its component tests, and the operation/failure table.; The earlier retirement producer in 395b56ac, the previous recovery reader, and the checked-in Linux Perl probe and output.
+- **Executed verification:** Confirmed the controller receipt for H and independently matched its log SHA-256, 020250c8c1dbfa3fa56aa48a4df6d0850440f6820f1ee33d044295c4b936e226. Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 exited 0 in 62.5 seconds with the worktree unchanged.; The gate recorded 1,568 component checks, 153 source checks and 12 of 12 focused children passing. The Trip contract passed 52 checks and Mounted Shield passed 114. The packet, production and embedded Shield icon hashes matched.; The Windows writer test recorded two blocked polls, zero removals and a Malformed refusal after close. The read-only holder control completed one removal. The simulated POSIX tests recorded link rejection, ordinary-file controls, three directory-obstructed polls under each publication mechanism and preservation of the tested older settled record.; A read-only .NET matcher check confirmed that both recovery expressions accept a final line feed and that the retiring expression rejects the earlier 32-hex identifier.
+- **Source inspection only:** The consequences of an open Unix writer, a failed fallback metadata lookup, a replacement between lstat and unlink, and the unconditional 0644 publication mode were traced from production code.; The legacy producer's filename and the interval between classifying a settled entry and moving it were verified from Git history and candidate source. The gate did not exercise those upgrade or replacement cases.
+- **Required gaps:** A complete Unix submission test with a writer paused between horse lines.; Fallback publication evidence covering effective access during the write, replacement during failed cleanup, metadata errors before and after publication, restrictive archive permissions, and exactly one archive after retry.; Recovery evidence covering a genuine legacy retiring entry, filenames with trailing data, and replacement between classification and recovery.
+- **Limitations:** The controller withheld the mixed foreground transcript. Its receipt and log establish the candidate-bound gate execution.; The Unix C# cases ran over a Windows simulation. Its Fchmod returns success without changing access, and its exclusive sharing ends at close. The separate Debian/WSL2 Perl output records selected syscall behavior. Production C# execution on Linux, macOS and Unity Mono remains unverified.; The review used read-only inspection and an in-memory matcher check. The gate reports nativeProof=false. Live bite damage, Trip behavior and save/reload outcomes remain owner observations.
+
+#### Summary
+
+- **Delivered behavior:** The installed-data and compiled-product checks isolate the source to the Mammoth donor's stock Bite-to-Trip fact. Fresh KMC Horse construction filters that fact and retains one bite and two hooves. Existing horses keep their facts on ordinary load. An admitted owner request selects an exact horse and candidate, and a terminal decision stays frozen through reporting retries.
+- **Scope reviewed:** Final PR-4 source/offline acceptance for MMR-06, the saved-horse request lifecycle, the carried terminal-decision regression and the S08 Mounted Shield neighbors.
+- **Pending later-phase work:** none
+- **Unresolved questions:** none
+- **Remaining owner review:** N07. Observe a plain horse land a damaging bite without intrinsic Trip, alongside legitimate dog, wolf, Riding Dog or explicitly granted maneuvers where available.; N10. Observe an existing horse across save/reload or an area transition, including usability, a single pair, correct effects and ordinary action availability.
+
+#### Provenance (controller-recorded)
+
+| | Requested | Observed |
+|---|---|---|
+| Model | `gpt-6.2-astra` | `gpt-6.2-astra` (turns ['gpt-6.2-astra']) |
+| Reasoning effort | `max` | `max` (turns ['max']) |
+| Sandbox / approvals | read-only / never | `read-only` / `never` |
+
+Owner guidance bound to this review: none.
+
+Owner amendments bound to this review: none.
+
+Codex CLI `0.170.0`, thread `01a21d54-dd3e-71c0-924a-9eacb2ece533`, duration 879.9s, response sha256 `601d0ab23b9ff1be24f98a8999a52f8f8df237dcaee21af9b091b2110bbb983b`, request `kmc-codex-mmr-horse-trip-20261125213249-4b8b-r10-008453`. Observed values come from the Codex session rollout's recorded thread settings, not from the model's own statements; the serving backend's model identity is not separately exposed.
+
+<details><summary>Complete structured review (agent-review.review.v1)</summary>
+
+```json
+{
+  "candidate_commit": "9f2d8c0978c415a35c19f5ede3e4b0cf2997208f",
+  "checkpoint_id": "final",
+  "checkpoint_type": "final",
+  "decision": "changes_required",
+  "decision_rationale": "The focused gate passed. The saved-horse repair can still act on an unfinished Unix request, delete a replacement file during cleanup, or publish multiple archives for one decision. Recovery can also consume the wrong entry or skip genuine unfinished work from an earlier build.\n\n## Continuation for Claude\n\nKeep the correction within the existing request, publication and recovery paths. Give Unix submissions a clear completion point before fact selection. Bind fallback publication, cleanup and retry to the same owned attempt, preserve the user's file permissions, and distinguish an uncertain lookup from a confirmed replacement. Match complete recovery filenames from both producer generations and verify that the entry actually recovered is still pending.\n\nUse the focused filesystem fixtures to exercise the failure boundaries named in the findings, then run the candidate-bound Fast gate. Preserve the verified Windows writer exclusion, Unix no-follow reads, frozen decisions, exact horse/fact selection and fresh-horse construction. Native gameplay observations remain with the owner's playtest.",
+  "evidence_assessment": {
+    "executed_verification": [
+      "Confirmed the controller receipt for H and independently matched its log SHA-256, 020250c8c1dbfa3fa56aa48a4df6d0850440f6820f1ee33d044295c4b936e226. Test-Tiers.ps1 -Tier Fast -Focused Test-MmrHorseTripFocused.ps1 exited 0 in 62.5 seconds with the worktree unchanged.",
+      "The gate recorded 1,568 component checks, 153 source checks and 12 of 12 focused children passing. The Trip contract passed 52 checks and Mounted Shield passed 114. The packet, production and embedded Shield icon hashes matched.",
+      "The Windows writer test recorded two blocked polls, zero removals and a Malformed refusal after close. The read-only holder control completed one removal. The simulated POSIX tests recorded link rejection, ordinary-file controls, three directory-obstructed polls under each publication mechanism and preservation of the tested older settled record.",
+      "A read-only .NET matcher check confirmed that both recovery expressions accept a final line feed and that the retiring expression rejects the earlier 32-hex identifier."
+    ],
+    "inspected": [
+      "The enrolled mission and its pinned digest, repository instructions, validation policy, current handoffs, developer report, prior findings ledger, transcript notice and controller evidence.",
+      "The 6,671-line feature diff, the correction from 239264fc to H, the horse blueprint and live repair adapters, the file lifecycle and its component tests, and the operation/failure table.",
+      "The earlier retirement producer in 395b56ac, the previous recovery reader, and the checked-in Linux Perl probe and output."
+    ],
+    "limitations": [
+      "The controller withheld the mixed foreground transcript. Its receipt and log establish the candidate-bound gate execution.",
+      "The Unix C# cases ran over a Windows simulation. Its Fchmod returns success without changing access, and its exclusive sharing ends at close. The separate Debian/WSL2 Perl output records selected syscall behavior. Production C# execution on Linux, macOS and Unity Mono remains unverified.",
+      "The review used read-only inspection and an in-memory matcher check. The gate reports nativeProof=false. Live bite damage, Trip behavior and save/reload outcomes remain owner observations."
+    ],
+    "required_gaps": [
+      "A complete Unix submission test with a writer paused between horse lines.",
+      "Fallback publication evidence covering effective access during the write, replacement during failed cleanup, metadata errors before and after publication, restrictive archive permissions, and exactly one archive after retry.",
+      "Recovery evidence covering a genuine legacy retiring entry, filenames with trailing data, and replacement between classification and recovery."
+    ],
+    "source_inspection_only": [
+      "The consequences of an open Unix writer, a failed fallback metadata lookup, a replacement between lstat and unlink, and the unconditional 0644 publication mode were traced from production code.",
+      "The legacy producer's filename and the interval between classifying a settled entry and moving it were verified from Git history and candidate source. The gate did not exercise those upgrade or replacement cases."
+    ]
+  },
+  "findings": [
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "ProtectedCreate calls lstat, compares device and inode, then calls Unlink(terminal). A rename can occur between those calls. Unlink resolves the name again and removes its new occupant.",
+      "blocking_rationale": "An ordinary local file replacement can be deleted during repair error handling. Retrying the horse request cannot restore those bytes.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Failed publication cleans up only the file created by that attempt. A replacement keeps its name and contents.",
+      "id": "R10-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 744
+      },
+      "priority": "P1",
+      "requested_correction": "Make cleanup conditional on ownership through the operation that removes the entry. Where that guarantee is unavailable, retain bounded recoverable state without deleting an independently resolved name.",
+      "requested_evidence": "On the protected-create path, fault the write or flush and substitute a foreign file after the cleanup identity observation. Verify its name and bytes survive, the claim stays recoverable, and the retry completes with one removal.",
+      "title": "Failed archive cleanup can unlink a replacement file",
+      "trigger": "A write or flush fails, and a local save replaces the terminal entry after cleanup examines it but before cleanup deletes it."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "The Unix deciding open verifies file type and reads to the current EOF. It permits an existing writer to keep writing through its descriptor across the claim rename. The first horse line alone can reach RemoveExactly before the second line arrives.",
+      "blocking_rationale": "A completed two-horse request authorizes zero removals. The first horse can already have lost its fact.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Selection uses the owner's completed submission. A malformed multi-horse submission leaves both horses intact.",
+      "id": "R10-F2",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 636
+      },
+      "priority": "P2",
+      "requested_correction": "Establish a completion point for the documented Unix submission workflow before the poll can authorize removal. Keep the one-horse payload and the no-follow descriptor read.",
+      "requested_evidence": "Exercise an ordinary Unix writer paused after its first horse line across two polls. Complete the second line and verify a malformed refusal and zero removals throughout. Retain a completed single-horse control.",
+      "title": "The Unix reader can authorize a request while its writer is still active",
+      "trigger": "A writer saves directly to the documented request filename and pauses after flushing the first of two horse lines."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "The fallback creates the terminal name before writing and assumes the requested mode of zero makes it inaccessible. It never establishes that protection for the directory in use. A local volume with mount-defined permissions can expose the file immediately. A same-account permission restore can also reopen the inode during the write. The final identity comparison checks only device and inode.",
+      "blocking_rationale": "A reader can receive an empty or partial Applied archive, or an in-place write can change the bytes subsequently accepted under that suffix.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Every successful publication exposes the complete bytes that authorized the frozen decision from the first readable instant.",
+      "id": "R5-F1",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 722
+      },
+      "priority": "P2",
+      "requested_correction": "Use a fallback whose protection of the completed payload is established before exposing the terminal name. Preserve the claim when that protection is unavailable on the particular filesystem.",
+      "requested_evidence": "Exercise the alternate path after descriptor-link failure with effective access differing from the requested creation mode. Observe the terminal during a partial write and at first readability. Verify correct bytes or a recoverable refusal, then one archive and one removal.",
+      "title": "Fallback publication assumes the terminal file is unreadable while it is being written",
+      "trigger": "Unnamed-file publication is unavailable and the local filesystem or an ordinary permission restore leaves the terminal inode accessible before fchmod."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "A failed initial fstat leaves the newly created file untracked. After fchmod succeeds, a failed lstat is treated as a confirmed replacement and clears known. Commit then throws before recording the archive. On retry, ArchiveTarget sees the existing file and chooses a timestamped name.",
+      "blocking_rationale": "One transient lookup failure can produce two readable Applied archives for one removal. Repeated metadata failures can leave a new file on every poll.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "An uncertain attempt remains bounded and recoverable. Once its archive is published, a retry finishes verification or retirement exactly once.",
+      "id": "R9-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 734
+      },
+      "priority": "P2",
+      "requested_correction": "Retain the attempt's target and publication state across metadata failures. Distinguish a lookup error from an observed different inode before choosing a new archive name.",
+      "requested_evidence": "Inject repeated initial fstat failures and a transient lstat failure immediately after successful fchmod. Count all terminal and private files across polls. After recovery, verify one readable archive containing the original bytes and one removal.",
+      "title": "Metadata failures can leave an untracked archive on every fallback retry",
+      "trigger": "Protected creation succeeds, but examining the new descriptor or looking up its name after publication fails."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "Both filename expressions end with the .NET $ anchor, which also matches before a final line feed. The directory scan admits every name with the claim prefix. An otherwise matching settled filename followed by a line feed can therefore be moved to .claimed and reported as Interrupted.",
+      "blocking_rationale": "An idle poll can still consume an unrecognized owner file and overwrite a valid result.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Recovery accepts only complete filenames that a known retirement producer can emit.",
+      "id": "R9-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 1084
+      },
+      "priority": "P2",
+      "requested_correction": "Require the match to consume the entire filename for both retiring and settled records.",
+      "requested_evidence": "Check both valid shapes with a trailing line feed. They must be ignored. Preserve the corresponding exact-name positive controls, the older completed record and the backup.",
+      "title": "Recovery still accepts filenames with data after the suffix",
+      "trigger": "A Unix repair folder contains a regular file whose name matches a private shape except for a final line feed, with bytes different from the digest in the settled name."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "Commit 395b56ac moved unfinished claims to .claimed.<32 lowercase hex>.retiring. The new expression accepts only eight hex digits. A fresh poll skips that genuine unfinished entry and can process a newer request first.",
+      "blocking_rationale": "The older claim can permanently lose its interruption result and archive even though its exact bytes remain in the player's folder.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Known unfinished records from either producer remain recoverable. The older 32-hex settled record retains its completed disposition.",
+      "id": "R10-F3",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 1081
+      },
+      "priority": "P2",
+      "requested_correction": "Recognize the exact legacy 32-hex retiring shape alongside the current one. Keep the distinct legacy settled shape excluded.",
+      "requested_evidence": "Start a fresh session with a producer-shaped legacy retiring entry, a legacy completed settled record and a queued request. Verify the stranded entry receives its own byte-exact Interrupted archive before the queued request runs, with the completed record intact.",
+      "title": "Recovery skips unfinished claims from the earlier producer",
+      "trigger": "An earlier build stopped after moving a claim to its GUID-based retiring name and the next poll runs on this candidate."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "RecoverRetiring reads and classifies an entry, closes it, and stores only its pathname in pending. File.Move later takes the current occupant. If a restore puts the completed, digest-matching record back at that name, the subsequent claim read has lost the settled filename and treats the completed bytes as Interrupted.",
+      "blocking_rationale": "Recovery can overwrite a correct Applied result even though the file it actually moved was a completed retirement.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "The entry admitted for interruption is still the unfinished entry identified during recovery.",
+      "id": "R10-F4",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 1107
+      },
+      "priority": "P2",
+      "requested_correction": "Carry the original recovery classification through the move and verify the entry actually taken before publishing an interruption. Preserve a completed or ineligible replacement under its proper name.",
+      "requested_evidence": "Restore the digest-matching completed bytes after a settled entry was classified pending and before the recovery move. Verify the completed record, Applied result and archive survive, with zero additional removals. Keep the genuinely stranded replacement control.",
+      "title": "Recovery can move a different entry from the one it classified",
+      "trigger": "A local restore replaces a pending-looking settled entry between the recovery read and the move to .claimed."
+    },
+    {
+      "acceptance_ids": [
+        "MMR-06",
+        "S06"
+      ],
+      "actual": "ProtectedCreate calls fchmod with a fixed 0644. That explicitly grants group and other read access even when the player created the request privately under umask 077. The archive contains the request's exact bytes, including any comments.",
+      "blocking_rationale": "On a traversable local data directory the fallback discloses a private request to additional accounts.",
+      "blocks_readiness": true,
+      "category": "defect",
+      "expected": "Publishing a repair archive respects the player's restrictive file permissions.",
+      "id": "R10-F5",
+      "location": {
+        "file": "src/KingmakerMountedCombat/Domain/HorseTripRepairPolicy.cs",
+        "line": 732
+      },
+      "priority": "P2",
+      "requested_correction": "Publish with owner-only access or permissions that preserve the request's effective restrictions.",
+      "requested_evidence": "Publish a private request through the fallback under a restrictive umask and inspect the final access mode along with the archive bytes.",
+      "title": "Fallback publication widens access to private request text",
+      "trigger": "A private request is archived through protected creation in a directory other local accounts can traverse."
+    }
+  ],
+  "prior_finding_assessments": [
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R5-F1",
+      "rationale": "The unnamed-file link removes the staging-name substitution, and the tested mode-zero setup preserved A's bytes. The alternate path still relies on the terminal inode remaining inaccessible throughout the write. The simulation enforces that with a Windows share mode, a stronger guarantee than the fallback establishes."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R9-F1",
+      "rationale": "The Windows deciding handle uses read and delete sharing. The gate observed zero removals while a writer held the first line, a malformed refusal after the second line, and one successful removal with a read-only holder."
+    },
+    {
+      "assessment": "fix_verified",
+      "finding_id": "R9-F2",
+      "rationale": "Unix ReadEligible opens with O_NOFOLLOW, establishes regular-file type with fstat and reads through that descriptor. Both simulated open-boundary substitutions supplied zero removals and zero copied target archives. The ordinary claim and recovery controls passed."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R9-F3",
+      "rationale": "The directory obstruction kept the file count at three across three polls under both mechanisms, and the successful retry left no staging alias. Protected-create metadata failures still leave an untracked target and cause retries to allocate further names."
+    },
+    {
+      "assessment": "fix_rejected",
+      "finding_id": "R9-F4",
+      "rationale": "The tested 32-hex completed record and ordinary backup both survived intact. The new expressions still accept an unrecognized Unix filename with a trailing line feed, as confirmed by the read-only matcher check."
+    }
+  ],
+  "request_id": "kmc-codex-mmr-horse-trip-20261125213249-4b8b-r10-008453",
+  "round": 10,
+  "schema_version": "agent-review.review.v1",
+  "summary": {
+    "delivered_behavior": "The installed-data and compiled-product checks isolate the source to the Mammoth donor's stock Bite-to-Trip fact. Fresh KMC Horse construction filters that fact and retains one bite and two hooves. Existing horses keep their facts on ordinary load. An admitted owner request selects an exact horse and candidate, and a terminal decision stays frozen through reporting retries.",
+    "pending_later_phase_work": [],
+    "remaining_owner_review": [
+      "N07. Observe a plain horse land a damaging bite without intrinsic Trip, alongside legitimate dog, wolf, Riding Dog or explicitly granted maneuvers where available.",
+      "N10. Observe an existing horse across save/reload or an area transition, including usability, a single pair, correct effects and ordinary action availability."
+    ],
+    "scope_reviewed": "Final PR-4 source/offline acceptance for MMR-06, the saved-horse request lifecycle, the carried terminal-decision regression and the S08 Mounted Shield neighbors.",
+    "unresolved_questions": []
+  }
+}
+```
+</details>
+
+_Model-generated review by Codex using the requested model, posted by the agent-review controller through the owner's GitHub account. Not a human review or approval._
