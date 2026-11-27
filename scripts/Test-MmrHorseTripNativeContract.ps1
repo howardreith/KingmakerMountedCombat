@@ -209,7 +209,9 @@ Check (-not (IsCandidate $horseGuid $otherSourceless) -and -not (IsCandidate $ho
     -not (IsCandidate $horseGuid $armor) -and -not (IsCandidate $horseGuid $null)) 'another GUID with the same trigger, the stock GUID with Disarm, Claw or no trigger, and unrelated facts are not candidates'
 Check (-not (IsCandidate $mammothGuid $inheritedTrip) -and -not (IsCandidate '0123456789abcdef0123456789abcdef' $inheritedTrip) -and -not (IsCandidate $null $inheritedTrip)) 'a TrippingBite on any unit other than the exact KMC Horse (stock Dog, Wolf, Mammoth, Riding Dog) is not a candidate'
 Check ($null -eq $service.GetMethod('StaleInheritedAttackManeuvers', $any) -and $null -eq $service.GetMethod('DonorSuccessorFeature', $any)) 'the positional saved-fact deletion rule is gone from the product'
-# Structural: the only product code in the service that removes a fact is the owner-request host's Remove.
+# PR-4 round 12 (OWNER AMENDMENT revision 1): structural checks of the confirmed in-game repair action. The only product code in the
+# service that removes a fact is its native-boundary method, reached only through HorseTripRemoval.RemoveExactly from RemoveTripFact,
+# which the console's guarded Execute calls; the withdrawn file-request protocol and its platform file machinery are gone.
 $removers = New-Object 'System.Collections.Generic.List[string]'
 foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
     foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
@@ -222,92 +224,36 @@ foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
         }
     }
 }
-Check ($removers.Count -eq 1 -and $removers[0] -ceq 'TripRepairFileHost.NativeRemove') ('the only fact removal in the Horse service is the owner-request host''s native boundary, classified by HorseTripRemoval.RemoveExactly (' + ($removers -join ', ') + ')')
-# PR-4 review R3-F1: the production removal wrapper returns its classification with no diagnostic in between; the report (display
-# name and logger) is a separate host method, which the policy calls inside its own containment after the classification returned.
+Check ($removers.Count -eq 1 -and $removers[0] -ceq 'HorseCompanionBlueprintService.NativeRemoveTripFact') ('the only fact removal in the Horse service is its native boundary NativeRemoveTripFact (' + ($removers -join ', ') + ')')
 function CalleeNames([Reflection.MethodBase]$Method) {
     $names = New-Object 'System.Collections.Generic.List[string]'; $il = $Method.GetMethodBody().GetILAsByteArray()
     for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) { try { $c = $Method.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)); $names.Add($c.DeclaringType.Name + '.' + $c.Name) } catch { } } }
     , $names
 }
-$fileHost = @($service.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'TripRepairFileHost' })[0]
-$wrapperCalls = CalleeNames ($fileHost.GetMethod('RemoveExactly', $any)); $reportCalls = CalleeNames ($fileHost.GetMethod('ReportRemoval', $any))
-$processDecide = @((KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy').GetMethods($any) | Where-Object { $_.Name -ceq 'DecideClaimed' })[0]
-$decideClauses = @($processDecide.GetMethodBody().ExceptionHandlingClauses | Where-Object { $_.Flags -eq 'Clause' })
-Check (@($wrapperCalls | Where-Object { $_ -like '*.Info' -or $_ -like '*.get_CharacterName' }).Count -eq 0 -and @($wrapperCalls | Where-Object { $_ -ceq 'HorseTripRemoval.RemoveExactly' }).Count -eq 1 -and
-    @($reportCalls | Where-Object { $_ -like '*.Info' }).Count -eq 1 -and $decideClauses.Count -ge 1) ('PR-4 R3-F1: TripRepairFileHost.RemoveExactly returns HorseTripRemoval''s classification with no logger or display-name read; ReportRemoval holds the diagnostic, called by the policy inside a catch (' + ($wrapperCalls -join ',') + ')')
-$policy = KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy'
-Check ($policy.GetField('RequestFileName').GetRawConstantValue() -ceq 'horse-trip-repair-request.txt' -and $policy.GetField('FolderName').GetRawConstantValue() -ceq 'KingmakerMountedCombat' -and $null -eq $policy.GetField('CandidateReportFileName')) 'the owner-facing request file and user-data folder names; no candidate report file (candidates are logged only)'
-# Review R4-F6: no file is written into the Mods tree. The request lives in <persistence data parent>/KingmakerMountedCombat (the composition
-# root resolves it through NativePersistenceIsolation.UserDataParent and HorseTripRepairPaths.Folder), the mod folder is no longer recorded, and the
-# Horse service itself calls no System.IO.File method (every file operation is HorseTripRepairFiles, run only for an owner request).
+$removeCalls = CalleeNames ($service.GetMethod('RemoveTripFact', $any))
+Check (@($removeCalls | Where-Object { $_ -ceq 'HorseTripRemoval.RemoveExactly' }).Count -eq 1 -and @($removeCalls | Where-Object { $_ -like '*.Info' -or $_ -like '*.get_CharacterName' }).Count -eq 0) ('RemoveTripFact returns HorseTripRemoval.RemoveExactly''s classification with no logger or display-name read (' + ($removeCalls -join ',') + ')')
+$processCalls = CalleeNames ($service.GetMethod('ProcessTripRepairConsole', $any))
+$executeIndex = [array]::IndexOf([string[]]$processCalls, 'HorseTripRepairConsole`2.Execute'); $infoIndex = [array]::IndexOf([string[]]$processCalls, 'IModLogger.Info')
+Check ($executeIndex -ge 0 -and @($processCalls | Where-Object { $_ -like '*TripRepairAdmitted' }).Count -eq 1) ('the update-path ProcessTripRepairConsole executes the console behind the world-write gate (TripRepairAdmitted) (' + ($processCalls -join ',') + ')')
+$guiCalls = CalleeNames ($service.GetMethod('DrawTripRepairGui', $any))
+Check (@($guiCalls | Where-Object { $_ -like '*.RemoveFact' -or $_ -like '*.Execute' -or $_ -like '*.Observe' -or $_ -like '*RemoveTripFact' -or $_ -like '*get_Progression' -or $_ -like '*get_Descriptor' }).Count -eq 0 -and
+    @($guiCalls | Where-Object { $_ -like '*.Select' -or $_ -like '*.Confirm' -or $_ -like '*.Cancel' }).Count -ge 3) ('the maintenance surface (DrawTripRepairGui) records intent only (Select/Confirm/Cancel) and never reads or changes a unit or fact (' + ($guiCalls -join ',') + ')')
 $mainType = KmcType 'KingmakerMountedCombat.Main'
-Check ($null -eq $mainType.GetProperty('ModDirectory', $any)) 'the mod folder (UMM ModEntry.Path) is not recorded for the repair'
-$rootCtor = @((KmcType 'KingmakerMountedCombat.CompositionRoot').GetConstructors($any))
-$userData = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('UserDataParent', $any).GetGetMethod($true)
-$folderOf = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('Folder')
-$selectFolder = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('SelectFolder')
-$isIsolated = (KmcType 'KingmakerMountedCombat.Integration.NativePersistenceIsolation').GetProperty('IsIsolated', $any).GetGetMethod($true)
-$isGuarded = (KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPaths').GetMethod('IsGuardedLaunch')
-function CallsAny([Type]$Type, [Reflection.MethodBase]$Target) {
-    foreach ($t in @($Type) + @($Type.GetNestedTypes($any))) {
-        foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly)) + @($t.GetConstructors($any + [Reflection.BindingFlags]::DeclaredOnly))) {
-            $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray()
-            for ($i = 0; $i -le $il.Length - 5; $i++) { if (($il[$i] -eq 0x28 -or $il[$i] -eq 0x6F) -and [BitConverter]::ToInt32($il, $i + 1) -eq $Target.MetadataToken) { try { if ($m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) -eq $Target) { return $true } } catch { } } }
-        }
-    }
-    $false
-}
-$root = KmcType 'KingmakerMountedCombat.CompositionRoot'
-# PR-4 review R1-F1: one compiled method of the composition root selects the folder from the automation host, the isolation
-# binding and the data parent; SelectFolder refuses a guarded run without a bound isolated root.
-$automationField = $root.GetField('runtimeAutomation', $any)
-$selectors = New-Object 'System.Collections.Generic.List[string]'
-foreach ($t in @($root) + @($root.GetNestedTypes($any))) {
-    foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly))) {
-        $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray(); $seen = @{}
-        for ($i = 0; $i -le $il.Length - 5; $i++) {
-            if ($il[$i] -ne 0x28 -and $il[$i] -ne 0x6F -and $il[$i] -ne 0x7B) { continue }
-            try { $member = $m.Module.ResolveMember([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
-            if ($member -eq $selectFolder) { $seen.select = $true } elseif ($member -eq $isIsolated) { $seen.isolated = $true }
-            elseif ($member -eq $userData) { $seen.parent = $true } elseif ($member -eq $automationField) { $seen.automation = $true }
-            elseif ($member -eq $isGuarded) { $seen.guarded = $true }
-        }
-        if ($seen.Count -eq 5) { $selectors.Add($t.Name + '.' + $m.Name) }
-    }
-}
-Check ($selectors.Count -eq 1 -and -not (CallsAny $root $folderOf)) ('the composition root selects the repair folder in one method from runtimeAutomation, NativePersistenceIsolation.IsIsolated and UserDataParent through SelectFolder (' + ($selectors -join ', ') + ')')
-$observerArgs = [string[]]@('Kingmaker.exe', '-applaunch', '640820', '-kmcObserverRequest', 'C:\evidence\observer-request.json', '-kmcObserverToken', 't', '-kmcObserverRequestSha256', 'AB')
-Check ([bool]$isGuarded.Invoke($null, @($false, $observerArgs)) -and [bool]$isGuarded.Invoke($null, @($false, [string[]]@('Kingmaker.exe', '-kmcRuntimeRequest', 'r.json'))) -and
-    -not [bool]$isGuarded.Invoke($null, @($false, [string[]]@('Kingmaker.exe', '-applaunch', '640820')))) 'PR-4 R1-F1 (round 3): the compiled classification calls the observer-only control (-kmcObserverRequest, no KMC host) and a hostless -kmcRuntimeRequest guarded; an ordinary Steam launch is not'
-Check ($null -eq $selectFolder.Invoke($null, @($true, $false, 'C:\player')) -and $selectFolder.Invoke($null, @($true, $true, 'C:\run')) -ceq 'C:\run\KingmakerMountedCombat' -and
-    $selectFolder.Invoke($null, @($false, $false, 'C:\player')) -ceq 'C:\player\KingmakerMountedCombat') 'a guarded run without a bound isolated root has no repair folder; an isolated run uses its own data parent; ordinary play the player''s'
+Check ($null -ne $mainType.GetMethod('OnMaintenanceGui', $any) -and $null -eq $mainType.GetProperty('ModDirectory', $any)) 'Main binds the repair-only maintenance surface (OnMaintenanceGui); the mod folder is not recorded'
+$withdrawn = @('HorseTripRepairFiles', 'HorseTripRepairPaths', 'HorseTripRepairSession', 'IHorseTripRepairHost`1', 'UnixFiles', 'LibcPosixFiles', 'IPosixFiles', 'VerifiedFileOperations', 'PathnamePublication', 'HorseTripRepairDecision')
+$present = @($withdrawn | Where-Object { $null -ne $kmc.GetType('KingmakerMountedCombat.Domain.' + $_, $false) })
+Check ($present.Count -eq 0 -and $null -eq $service.GetProperty('RepairDirectory', $any) -and $null -eq $service.GetMethod('ProcessHorseTripRepairRequest', $any) -and
+    @($service.GetNestedTypes($any) | Where-Object { $_.Name -ceq 'TripRepairFileHost' }).Count -eq 0) ('the withdrawn file-request protocol (request polling, claim, archive, recovery, platform file and lease machinery) is absent from the product (' + ($present -join ', ') + ')')
 $fileCalls = New-Object 'System.Collections.Generic.List[string]'
-foreach ($t in @($service) + @($service.GetNestedTypes($any))) {
+foreach ($t in @($service) + @($service.GetNestedTypes($any)) + @(KmcType 'KingmakerMountedCombat.Domain.HorseTripRepairPolicy')) {
     foreach ($m in @($t.GetMethods($any + [Reflection.BindingFlags]::DeclaredOnly))) {
         $body = $m.GetMethodBody(); if ($null -eq $body) { continue }; $il = $body.GetILAsByteArray()
         for ($i = 0; $i -le $il.Length - 5; $i++) {
-            if ($il[$i] -ne 0x28) { continue }
+            if ($il[$i] -ne 0x28 -and $il[$i] -ne 0x6F) { continue }
             try { $callee = $m.Module.ResolveMethod([BitConverter]::ToInt32($il, $i + 1)) } catch { continue }
-            if ($callee.DeclaringType -eq [IO.File] -or $callee.DeclaringType -eq [IO.Directory]) { $fileCalls.Add($t.Name + '.' + $m.Name + '->' + $callee.Name) }
+            if ($callee.DeclaringType -eq [IO.File] -or $callee.DeclaringType -eq [IO.Directory] -or $callee.DeclaringType -eq [IO.FileStream]) { $fileCalls.Add($t.Name + '.' + $m.Name + '->' + $callee.Name) }
         }
     }
 }
-Check ($fileCalls.Count -eq 0) ('the Horse service performs no file operation of its own (' + ($fileCalls -join ', ') + ')')
-# PR-4 round 8 (R7-F2): the exclusive open used for publication and retirement on Windows goes straight to kernel32 CreateFileW with an
-# explicit access mask (no managed FileStream overload whose rights handling differs between runtimes): the compiled Open passes
-# GENERIC_READ|DELETE (claims) and GENERIC_READ|GENERIC_WRITE|DELETE (staged archives), sharing 0 and FILE_FLAG_OPEN_REPARSE_POINT.
-$verified = KmcType 'KingmakerMountedCombat.Domain.VerifiedFileOperations'
-$open = $verified.GetMethod('Open', $any)
-$createFile = $verified.GetMethod('CreateFileW', $any)
-$pinvoke = ($createFile.Attributes -band [Reflection.MethodAttributes]::PinvokeImpl) -ne 0
-$openIl = $open.GetMethodBody().GetILAsByteArray()
-$ints = New-Object 'System.Collections.Generic.List[uint32]'
-for ($i = 0; $i -le $openIl.Length - 5; $i++) { if ($openIl[$i] -eq 0x20) { $ints.Add([BitConverter]::ToUInt32($openIl, $i + 1)) } }
-$callsCreate = $false
-for ($i = 0; $i -le $openIl.Length - 5; $i++) { if ($openIl[$i] -eq 0x28) { try { if ($open.Module.ResolveMethod([BitConverter]::ToInt32($openIl, $i + 1)) -eq $createFile) { $callsCreate = $true } } catch { } } }
-$readDelete = [uint32]2147549184; $genericWrite = [uint32]1073741824; $reparseFlags = [uint32]2097280   # 0x80010000 (GENERIC_READ|DELETE), 0x40000000 (GENERIC_WRITE, OR-ed in for a staged archive), 0x00200080
-Write-Host ('  R7-F2 compiled Open: pinvoke=' + $pinvoke + ' callsCreateFileW=' + $callsCreate + ' constants=' + (($ints | ForEach-Object { '0x{0:X8}' -f $_ }) -join ','))
-Check ($pinvoke -and $callsCreate -and $ints.Contains($readDelete) -and $ints.Contains($genericWrite) -and $ints.Contains($reparseFlags) -and
-    $null -eq ($verified.GetMethods($any) | Where-Object { $_.Name -eq 'Open' -and @($_.GetParameters() | Where-Object { $_.ParameterType.Name -eq 'FileSystemRights' }).Count -gt 0 })) 'PR-4 R7-F2: the Windows exclusive open is kernel32 CreateFileW with an explicit access mask including DELETE (0x80010000 for claims, with GENERIC_WRITE 0x40000000 added for staged archives) and FILE_FLAG_OPEN_REPARSE_POINT (the sharing argument is the literal 0 in source); no managed FileSystemRights overload is involved'
+Check ($fileCalls.Count -eq 0) ('the Horse service and the repair policy perform no file operation (old request/result files stay inert) (' + ($fileCalls -join ', ') + ')')
 Write-Host ('Mounted alpha 2 native contract (trip) PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

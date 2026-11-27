@@ -50,9 +50,10 @@ Assert-Kmc ($info.DisplayName -ceq "Mr. Bard's Kingmaker Mounted Combat") 'UMM s
 # The UMM entry has no options page, and nothing outside explicit lab scenarios can switch Mounted Charge off.
 $ordinaryChargeWriters = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -Filter '*.cs' |
     Where-Object { $_.FullName -notmatch '\\Diagnostics\\' -and [IO.File]::ReadAllText($_.FullName) -match 'EnableMountedCharge\s*=[^=]' })
-Assert-Kmc ($mainText -notmatch 'OnGUI\s*=' -and $ordinaryChargeWriters.Count -eq 0 -and
+# PR-4 round 12 (OWNER AMENDMENT revision 1): the only OnGUI binding is the repair-only Horse Trip maintenance section.
+Assert-Kmc (([regex]::Matches($mainText, 'OnGUI\s*=')).Count -eq 1 -and $mainText -match 'modEntry\.OnGUI\s*=\s*OnMaintenanceGui;' -and $ordinaryChargeWriters.Count -eq 0 -and
     (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs')) -match 'EnableMountedCharge = true;') `
-    'the UMM entry has no options panel and Mounted Charge has no ordinary switch'
+    'the UMM entry has no options panel (only the repair-only maintenance section) and Mounted Charge has no ordinary switch'
 Assert-Kmc ($typeMap.authority.kingmakerMvid -ceq '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') 'type map binds exact Kingmaker MVID'
 Assert-Kmc ($fingerprint.kingmaker.displayVersion -ceq '2.1.7b') 'fingerprint binds Kingmaker 2.1.7b'
 

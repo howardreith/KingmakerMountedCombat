@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly DiagnosticSettings settings;
         private readonly HorseCompanionBlueprintService horseCompanion;
+        // PR-4 round 12 (OWNER AMENDMENT revision 1): the repair-only maintenance surface drawn in the Unity Mod Manager window.
+        internal void DrawMaintenanceGui() => horseCompanion?.DrawTripRepairGui();
         private readonly MountedWorldService world;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
@@ -73,17 +75,10 @@ namespace KingmakerMountedCombat
                     horseCompanion, settings, lifecycleLedger, logger);
                 world.BindControls(nativeControls);
                 persistence = new MountedPersistenceService(world, settings, logger);
-                // MMR-06: the owner-requested saved-Horse Trip repair uses the same update-time write gate as Mounted Shield's
-                // writes; its request and result live in the KMC user-data folder beside the save roots (the isolated data parent
-                // under a guarded run), never in the Mods tree (review R4-F6).
+                // MMR-06: the owner's confirmed saved-Horse Trip repair (PR-4 round 12) uses the same update-time write gate as Mounted
+                // Shield's writes. No repair file is read or written.
                 horseCompanion.InheritedFactRepairAllowed = () => MountedWorldWriteGate.Allows(IsEnabled, persistence.SaveSuspended,
                     persistence.AreaTransitionPending, persistence.CombatRestorationPending, persistence.ActiveSaveWorkerRunning, persistence.LoadInFlight);
-                // PR-4 review R1-F1: a guarded run without a bound isolated root touches no repair file. A guarded run is the KMC
-                // runtime host or the repository's observer-only control (-kmcObserverRequest with no KMC automation host).
-                var launchArguments = Environment.GetCommandLineArgs();
-                horseCompanion.RepairDirectory = () => HorseTripRepairPaths.SelectFolder(
-                    HorseTripRepairPaths.IsGuardedLaunch(runtimeAutomation != null, launchArguments),
-                    NativePersistenceIsolation.IsIsolated, NativePersistenceIsolation.UserDataParent);
                 world.ArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 world.AdmissionFenced = () => persistence.HasSaveAdmissionFence;
                 explorationObserver = new MountedExplorationObserver(world, logger);

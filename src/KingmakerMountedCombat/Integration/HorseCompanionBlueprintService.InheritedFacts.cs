@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
 using Kingmaker.Blueprints.Facts;
@@ -23,7 +22,8 @@ namespace KingmakerMountedCombat.Integration
     // bite and the Horse's body limbs are untouched.
     // A Horse created earlier keeps its sourceless copy until its owner asks for this exact repair (review R3 R1-F1): the
     // saved state cannot tell the inherited copy from one granted another way (HorseTripRepairPolicy), so KMC reports each
-    // candidate and removes one fact from one horse only on the owner's written request.
+    // candidate and removes one fact from one horse only through the owner's confirmed in-game maintenance action (PR-4 round 12,
+    // OWNER AMENDMENT revision 1: the Unity Mod Manager window's Horse Trip repair section; the earlier file request is withdrawn).
     internal sealed partial class HorseCompanionBlueprintService
     {
         // Stock TrippingBite (installed 2.1.7b sharedassets1; scripts/Test-MountedAlpha2NativeContract.ps1 pins it).
@@ -34,20 +34,15 @@ namespace KingmakerMountedCombat.Integration
         private readonly LoadedInstanceRepairLedger<UnitEntityData> tripCandidateReportedHorses =
             new LoadedInstanceRepairLedger<UnitEntityData>();
         private readonly List<UnitEntityData> loadedHorsesThisUpdate = new List<UnitEntityData>();
-        // Requests whose removal happened in this game process, until their reporting finished (review R4-F5).
-        private readonly HorseTripRepairSession tripRepairSession = new HorseTripRepairSession();
-        private float nextTripRepairRequestCheck;
-        private string lastTripRepairNotice;
+        // PR-4 round 12: the confirmed maintenance action's consent and records (Domain.HorseTripRepairConsole). The UI only reads its
+        // snapshots and records intent; Observe/Execute run here, in the ordinary update.
+        private readonly HorseTripRepairConsole<UnitEntityData, Feature> tripRepair = new HorseTripRepairConsole<UnitEntityData, Feature>();
+        private object tripRepairSessionMarker, tripRepairSessionPlayer, tripRepairSessionArea;
         private bool tripRepairFailureReported;
         private bool inheritedFactRepairFailureReported;
 
         // Set by the composition root: its update-time write gate (MountedWorldWriteGate). Unset means not allowed.
         internal Func<bool> InheritedFactRepairAllowed { get; set; }
-
-        // Set by the composition root: the KMC user-data folder (<persistence data parent>/KingmakerMountedCombat, review R4-F6),
-        // never the Mods tree. Only the owner's request and its outcome live there; candidates are reported in the log. KMC
-        // never creates the folder. Unset or missing means no request is read.
-        internal Func<string> RepairDirectory { get; set; }
 
         internal int TripRepairAppliedCount { get; private set; }
 
@@ -104,125 +99,107 @@ namespace KingmakerMountedCombat.Integration
             }, out count);
         }
 
-        // Log only (review R4-F6): nothing is written on discovery.
+        // Log only: nothing is written or removed on discovery.
         private void ReportTripCandidate(UnitEntityData horse, int candidates)
         {
-            var directory = RepairDirectory?.Invoke();
-            var request = HorseTripRepairPolicy.FormatRequestLine(horse.UniqueId);
             logger.Info("KMC Horse Trip repair candidate (MMR-06; not removed automatically): horse=" + horse.UniqueId +
                 "; name=" + horse.CharacterName + "; fact=TrippingBite " + StockTrippingBiteGuid + " (sourceless, Bite->Trip); count=" + candidates +
-                (candidates == 1 ? string.Empty : " (more than one: a request will be refused, the inherited copy cannot be singled out)") +
-                ". KMC 0.2.16-alpha.1 and earlier granted exactly this fact; if you did not grant it yourself and want it removed, back up " +
-                "your save and write the single line '" + request + "' into " +
-                Path.Combine(directory ?? "<user data>/" + HorseTripRepairPolicy.FolderName, HorseTripRepairPolicy.RequestFileName) +
-                " (create the folder if needed). Only that fact on that horse is removed; bite and hoof attacks stay.");
+                (candidates == 1 ? string.Empty : " (more than one: the inherited copy cannot be singled out, so no repair is offered)") +
+                ". KMC 0.2.16-alpha.1 and earlier granted exactly this fact; if you did not grant it yourself, back up your save and use the " +
+                "Horse Trip repair section of Kingmaker Mounted Combat in the Unity Mod Manager window (Ctrl+F10) to remove exactly that fact " +
+                "from that horse. Bite and hoof attacks stay.");
         }
 
-        // The owner's request, read at most every two seconds; a failure leaves the request in place and is retried.
-        private void ProcessHorseTripRepairRequest()
+        // The load/session context a consent is bound to: a new Player object (every load) or a new loaded area is a new marker.
+        private object TripRepairSessionMarker()
         {
-            var now = UnityEngine.Time.realtimeSinceStartup;
-            if (now < nextTripRepairRequestCheck) { return; }
-            nextTripRepairRequestCheck = now + 2f;
-            var directory = RepairDirectory?.Invoke();
-            HorseTripRepairDecision decision;
-            TripRepairFileHost host = null;
+            var player = Kingmaker.Game.Instance?.Player;
+            var area = Kingmaker.Game.Instance?.CurrentlyLoadedArea;
+            if (tripRepairSessionMarker == null || !ReferenceEquals(player, tripRepairSessionPlayer) || !ReferenceEquals(area, tripRepairSessionArea))
+            {
+                tripRepairSessionPlayer = player; tripRepairSessionArea = area; tripRepairSessionMarker = new object();
+            }
+            return tripRepairSessionMarker;
+        }
+
+        // PR-4 round 12: the update-path half of the confirmed maintenance action, against the horses loaded in this enumeration. Stable
+        // snapshots go to the UI; an armed confirmation is executed once after the session, the world-write gate, the live object and its
+        // exact single candidate are rechecked. The record is stored by the console before it is logged here, so a logging failure cannot
+        // repeat the removal. Old request/result files in the KMC user-data folder are never read.
+        private void ProcessTripRepairConsole()
+        {
+            var marker = TripRepairSessionMarker();
             try
             {
-                decision = HorseTripRepairPolicy.ProcessFolder(directory, files => host = new TripRepairFileHost(this, files),
-                    TripRepairAdmitted(), tripRepairSession);
+                tripRepair.Observe(marker, loadedHorsesThisUpdate.Select(horse => new HorseTripRepairConsole<UnitEntityData, Feature>.Live
+                {
+                    Unit = horse, Id = horse.UniqueId, Name = horse.CharacterName, Owner = horse.Descriptor?.Master.Value?.CharacterName,
+                    Candidates = horse.Descriptor?.Progression?.Features == null ? new List<Feature>() : TripRepairCandidates(horse)
+                }).ToList());
+                var record = tripRepair.Execute(marker, TripRepairAdmitted(),
+                    unit => loadedHorsesThisUpdate.Contains(unit) && unit.Descriptor?.Progression?.Features != null,
+                    TripRepairCandidates, RemoveTripFact);
+                tripRepairFailureReported = false;
+                if (record != null) logger.Info("KMC Horse Trip repair (MMR-06, confirmed in-game action): " + record + ".");
             }
             catch (Exception exception)
             {
-                if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair request (kept; retried later)", exception);
+                if (!tripRepairFailureReported) logger.Exception("KMC Horse Trip repair action (nothing repeated; confirm again if needed)", exception);
                 tripRepairFailureReported = true;
-                return;
             }
-            tripRepairFailureReported = false;
-            if (host == null || decision == HorseTripRepairDecision.NoRequest || decision == HorseTripRepairDecision.Pending) { return; }
-            var notice = decision + ":" + host.RequestText;
-            if (decision != HorseTripRepairDecision.Apply && string.Equals(notice, lastTripRepairNotice, StringComparison.Ordinal)) { return; }
-            lastTripRepairNotice = notice;
-            logger.Info("KMC Horse Trip repair request: decision=" + decision + "; folder=" + directory +
-                (decision == HorseTripRepairDecision.HorseNotLoaded ? " (request kept until that horse is loaded in the party)" : string.Empty) +
-                "; result=" + (host.Result ?? "<kept>") + ".");
         }
 
-        // The policy's host: the file lifecycle (HorseTripRepairFiles, user-data folder) and the loaded horse's FeatureCollection.
-        private sealed class TripRepairFileHost : IHorseTripRepairHost<Feature>
+        // PR-4 reviews R1-F2/R2-F1/R3-F1: removes this one instance and classifies the result; an application is counted only for an exact
+        // removal; no diagnostic sits between the native call and the classification.
+        private HorseTripRemovalResult RemoveTripFact(UnitEntityData horse, Feature fact)
         {
-            private readonly HorseCompanionBlueprintService owner;
-            private readonly HorseTripRepairFiles files;
-            private UnitEntityData horse;
-
-            internal TripRepairFileHost(HorseCompanionBlueprintService owner, HorseTripRepairFiles files)
-            {
-                this.owner = owner;
-                this.files = files;
-            }
-
-            internal string RequestText { get; private set; }
-
-            internal string Result { get; private set; }
-
-            public bool TryReadRequest(out string text)
-            {
-                var present = files.TryReadRequest(out text);
-                RequestText = text;
-                return present;
-            }
-
-            public bool TryReadClaim(out string text, out string identity)
-            {
-                var present = files.TryReadClaim(out text, out identity);
-                if (present) RequestText = text;
-                return present;
-            }
-
-            public IList<Feature> CandidatesOf(string horseId, out bool loaded)
-            {
-                horse = owner.loadedHorsesThisUpdate.FirstOrDefault(unit => string.Equals(unit.UniqueId, horseId, StringComparison.Ordinal));
-                loaded = horse?.Descriptor?.Progression?.Features != null;
-                return loaded ? TripRepairCandidates(horse) : new List<Feature>();
-            }
-
-            // PR-4 reviews R1-F2/R2-F1: the live collection (an unavailable one throws: it is not proof of absence).
-            private IEnumerable<Feature> ReadFeatures()
-            {
-                var features = horse?.Descriptor?.Progression?.Features;
-                if (features == null) throw new InvalidOperationException("The horse's feature collection is unavailable.");
-                return features.Enumerable;
-            }
-
-            // The native boundary alone; every check is HorseTripRemoval's classification after it returns or throws.
-            private void NativeRemove(Feature fact) => horse.Descriptor.Progression.Features.RemoveFact(fact);
-
-            // Removes this one instance and classifies the result; an application is counted only for an exact removal.
-            // PR-4 review R3-F1: returns the classification with no fallible diagnostic in between; the report is separate.
-            public HorseTripRemovalResult RemoveExactly(Feature fact)
-            {
-                var removal = HorseTripRemoval.RemoveExactly(fact, ReadFeatures, NativeRemove);
-                if (removal.Outcome == HorseTripRemovalOutcome.Removed) owner.TripRepairAppliedCount++;
-                return removal;
-            }
-
-            // Called by the policy after the classified outcome returned, inside its containment (a display-name read or logger fault
-            // cannot change the decision).
-            public void ReportRemoval(string horseId, HorseTripRemovalResult removal) =>
-                owner.logger.Info("KMC Horse Trip repair removal (MMR-06): horse=" + horse?.UniqueId + "; name=" + horse?.CharacterName +
-                    "; outcome=" + removal.Outcome + "; " + removal.Detail + ".");
-
-            public void Claim() => files.Claim();
-
-            public bool ReleaseClaim() => files.ReleaseClaim();
-
-            public void WriteResult(string result)
-            {
-                Result = result;
-                files.WriteResult(result);
-            }
-
-            public bool Close(bool claimed, string suffix, string boundIdentity, HorseTripRepairSession session = null) => files.Close(claimed, suffix, boundIdentity, session);
+            var removal = HorseTripRemoval.RemoveExactly(fact, () => ReadTripFeatures(horse), feature => NativeRemoveTripFact(horse, feature));
+            if (removal.Outcome == HorseTripRemovalOutcome.Removed) TripRepairAppliedCount++;
+            return removal;
         }
+
+        // The live collection (an unavailable one throws: it is not proof of absence).
+        private static IEnumerable<Feature> ReadTripFeatures(UnitEntityData horse)
+        {
+            var features = horse?.Descriptor?.Progression?.Features;
+            if (features == null) throw new InvalidOperationException("The horse's feature collection is unavailable.");
+            return features.Enumerable;
+        }
+
+        // The native boundary alone (the only fact removal in this service).
+        private static void NativeRemoveTripFact(UnitEntityData horse, Feature fact) => horse.Descriptor.Progression.Features.RemoveFact(fact);
+
+        // PR-4 round 12: the maintenance surface (Unity Mod Manager OnGUI). It reads the console's immutable snapshots and records intent
+        // only (Select/Confirm/Cancel); it never reads or changes a unit or a fact.
+        internal void DrawTripRepairGui()
+        {
+            UnityEngine.GUILayout.Label("Horse Trip repair (MMR-06). KMC 0.2.16-alpha.1 and earlier gave the KMC Horse the stock 'Tripping Bite' " +
+                "fact (a bite hit can trip). New horses no longer receive it.");
+            var offers = tripRepair.Offers;
+            if (offers.Count == 0) UnityEngine.GUILayout.Label("No loaded party Horse carries a sourceless stock Tripping Bite fact.");
+            foreach (var offer in offers)
+            {
+                UnityEngine.GUILayout.Label(offer.HorseName + " (" + offer.HorseId + ")" + (string.IsNullOrEmpty(offer.OwnerName) ? string.Empty : ", companion of " + offer.OwnerName) +
+                    ": " + offer.CandidateCount + " sourceless Tripping Bite fact" + (offer.CandidateCount == 1 ? "." : "s."));
+                if (!offer.Eligible) { UnityEngine.GUILayout.Label("More than one copy: the inherited copy cannot be singled out, so no repair is offered."); continue; }
+                if (tripRepair.SelectedToken != offer.Token)
+                {
+                    if (UnityEngine.GUILayout.Button("Repair this horse...")) tripRepair.Select(offer.Token);
+                    continue;
+                }
+                UnityEngine.GUILayout.Label("Remove exactly this one 'Tripping Bite' fact from " + offer.HorseName + "? The save cannot prove where a " +
+                    "sourceless copy came from: remove it only if you did not grant it yourself. Back up your save first. Bite and hoof attacks, " +
+                    "other facts and other companions stay. The repair is applied on the next game update; saving keeps it.");
+                UnityEngine.GUILayout.BeginHorizontal();
+                if (UnityEngine.GUILayout.Button(tripRepair.Armed ? "Confirmed - applying..." : "Confirm removal")) tripRepair.Confirm(offer.Token);
+                if (UnityEngine.GUILayout.Button("Cancel")) tripRepair.Cancel();
+                UnityEngine.GUILayout.EndHorizontal();
+            }
+            var last = tripRepair.LastRecord;
+            if (last != null) UnityEngine.GUILayout.Label("Last repair: " + last.HorseName + " - " + last.Disposition + ".");
+        }
+
+        // Disabling or unloading drops every consent.
+        private void InvalidateTripRepair() => tripRepair.Invalidate();
     }
 }

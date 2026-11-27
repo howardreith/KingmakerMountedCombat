@@ -1,3 +1,7 @@
+> **Superseded (round 12).** OWNER AMENDMENT revision 1 (owner instruction 2026-11-27b section 4) withdrew the file-request protocol this
+> table describes; the protocol is removed from the product. The table is kept as the record of rounds 9-11. The current repair is the
+> confirmed in-game action (docs/missions/mmr-split/PR-4-repair-action.md).
+
 # PR-4 Horse Trip repair: operation and failure table (round 11)
 
 Owner instruction 2026-11-26f section 7 asked for this table before the round-9 implementation; owner instruction 2026-11-27a section 7

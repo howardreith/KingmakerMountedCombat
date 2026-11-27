@@ -393,8 +393,8 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
 
-                // MMR-06: the owner's explicit Horse Trip repair request, against the horses loaded in this enumeration.
-                ProcessHorseTripRepairRequest();
+                // MMR-06 (PR-4 round 12): the owner's confirmed in-game Horse Trip repair, against the horses loaded in this enumeration.
+                ProcessTripRepairConsole();
 
                 // This cache contains observation values only, never native progression
                 // or cleanup obligations. Retire absence only after a complete
@@ -531,6 +531,7 @@ namespace KingmakerMountedCombat.Integration
             expiredObservationOwners.Clear();
             divineMountPetByOwner.Clear();
             disposed = true;
+            InvalidateTripRepair();
             state = HorseCompanionBlueprintState.Disposed;
         }
 
