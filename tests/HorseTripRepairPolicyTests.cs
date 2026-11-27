@@ -37,7 +37,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R3-F2: a failed final archive write is resumed before a newer request; a fresh session settles it as interrupted", FinalPublicationFailureResumes);
             runner.Run("PR-4 R1-F4: bytes changed after verification never enter the decision's archive and keep their own disposition", ChangedAfterVerification);
             runner.Run("PR-4 R3-F1: an exact removal whose native exception message is unreadable is applied once; a reloaded fact is preserved", UnreadableNativeMessage);
-            runner.Run("PR-4 R4-F1: a failed archive commit leaves no partial terminal file; the retry commits one complete archive", FailedCommitLeavesNoPartialArchive);
+            runner.Run("PR-4 R4-F1: an obstructed final archive rename (after a complete write and flush) leaves no partial terminal file; the retry commits one complete archive", FailedCommitLeavesNoPartialArchive);
+            runner.Run("PR-4 R4-F1 (round 6): a failure during the actual payload write or flush leaves no partial terminal archive; the retry commits one complete archive, one removal", WriteOrFlushFailureLeavesNoPartialArchive);
+            runner.Run("PR-4 R5-F1 (round 6): a change to the staged archive at publication is excluded or refused; the final archive holds exactly A, one removal", PendingArchiveChangeIsExcludedOrRefused);
+            runner.Run("PR-4 R4-F3/R5-F2 (round 6): a replacement at retirement keeps its own Interrupted result and archive, survives its failed publication and settles before C; A removed once", ReplacementAtRetirementTakesItsOwnLifecycle);
+            runner.Run("PR-4 R4-F2 (round 6): a locked recovered claim in a fresh session produces one interruption archive, then completes; the waiting request then runs", LockedRecoveredClaimArchivesOnce);
             runner.Run("PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds", BlockedRetirementCommitsOnce);
             runner.Run("PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once", ReplacementDuringRetirement);
         }
@@ -816,9 +820,181 @@ namespace KingmakerMountedCombat.Tests
                 var claimPath = Path.Combine(folders.UserData, Claimed);
                 folders.Request(forA);
                 host.files.BeforeRetire = () => { host.files.BeforeRetire = null; File.WriteAllText(claimPath, forB); };
-                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && Archive(folders, Applied) == forA && Archive(folders, Interrupted) == forB && host.Removals == 1 &&
+                // PR-4 round 6 (R5-F2): B is left at the claim name by A's retirement and settled by its own Interrupted lifecycle next.
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && Archive(folders, Applied) == forA && Archive(folders, Claimed) == forB && host.Removals == 1 &&
+                    Run(host, session) == HorseTripRepairDecision.Interrupted && Archive(folders, Interrupted) == forB &&
                     !Directory.GetFiles(folders.UserData).Any(path => path.EndsWith(HorseTripRepairPolicy.AppliedSuffix, StringComparison.Ordinal) && File.ReadAllText(path) == forB),
-                    "R4-F3: B's bytes changed after the retirement check were deleted without a disposition, or reached A's archive.");
+                    "R4-F3: B's bytes changed during retirement were deleted without a disposition, or reached A's archive.");
+            }
+        }
+
+
+        // A staging stream for the narrow write/flush fault seam (HorseTripRepairFiles.StagingWriteSeam): the actual payload write reaches
+        // the private file and then fails (Write: half the bytes are written first), or the whole payload is written and the flush fails.
+        private sealed class FaultingStream : Stream
+        {
+            private readonly Stream inner; private readonly bool failWrite;
+            public FaultingStream(Stream inner, bool failWrite) { this.inner = inner; this.failWrite = failWrite; }
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                if (!failWrite) { inner.Write(buffer, offset, count); return; }
+                inner.Write(buffer, offset, count / 2); inner.Flush();
+                throw new IOException("injected failure during the archive payload write");
+            }
+            public override void Flush() { if (!failWrite) throw new IOException("injected failure during the archive payload flush"); inner.Flush(); }
+            public override bool CanRead => false; public override bool CanSeek => false; public override bool CanWrite => true;
+            public override long Length => inner.Length; public override long Position { get => inner.Position; set => throw new NotSupportedException(); }
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+        }
+
+        private static int Count(Folders folders, string suffix) =>
+            Directory.GetFiles(folders.UserData).Count(path => path.EndsWith(suffix, StringComparison.Ordinal));
+
+        private static bool NoStaging(Folders folders) =>
+            !Directory.GetFiles(folders.UserData).Any(path => path.EndsWith(".pending", StringComparison.Ordinal) || path.EndsWith(HorseTripRepairFiles.RetiringSuffix, StringComparison.Ordinal));
+
+        // Owner instruction 2026-11-26d section 7, case 5 (PR-4 review R4-F1): the actual payload write, or its flush, fails after the private
+        // file was created (narrow fault seam at that I/O operation). No partial terminal archive and no private file is left; the claim is
+        // still present; the retry produces one complete archive with the original bytes, one removal in total.
+        private static void WriteOrFlushFailureLeavesNoPartialArchive()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            foreach (var failWrite in new[] { true, false })
+            using (var folders = new Folders())
+            {
+                var label = failWrite ? "write" : "flush";
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                var created = 0;
+                host.files.StagingWriteSeam = stream => { created++; host.files.StagingWriteSeam = null; return new FaultingStream(stream, failWrite); };
+                folders.Request(forA);
+                TestRunner.True(Throws(() => Run(host, session)) && created == 1 && host.Removals == 1 && File.Exists(Path.Combine(folders.UserData, Claimed)) &&
+                    Count(folders, Applied) == 0 && NoStaging(folders) && folders.UserFiles().SequenceEqual(Files(Claimed, ResultFile)),
+                    "R4-F1 (" + label + " failure): a partial terminal or private archive survived, or the claim was lost.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedApplied && host.Removals == 1 && Archive(folders, Applied) == forA &&
+                    Count(folders, Applied) == 1 && NoStaging(folders) && folders.UserFiles().SequenceEqual(Files(Applied, ResultFile)),
+                    "R4-F1 (" + label + " failure): the retry did not produce exactly one complete archive with the original bytes.");
+            }
+        }
+
+        // Owner instruction 2026-11-26d section 7, case 4 (PR-4 review R5-F1): at BeforeCommit (payload staged and flushed, staging handle held)
+        // an editor tries to change the actual .pending file in place, or to replace it (rename it away and create a new file under its name).
+        // The in-place edit is excluded (Windows sharing: the staging handle admits no writer); the replacement reaches publication and is
+        // refused by the published-bytes check, the terminal name it reached is removed and the commit fails. Either way the final archive
+        // holds exactly A's bytes, with one removal.
+        private static void PendingArchiveChangeIsExcludedOrRefused()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            foreach (var attempt in new[] { "edit in place", "replace by rename" })
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                string outcome = null; string moved = null;
+                host.files.BeforeCommit = () =>
+                {
+                    host.files.BeforeCommit = null;
+                    var pending = Directory.GetFiles(folders.UserData, "*.pending").Single();
+                    try
+                    {
+                        if (attempt == "edit in place") File.WriteAllText(pending, "horse=horse-TAMPERED");
+                        else { moved = pending + ".moved"; File.Move(pending, moved); File.WriteAllText(pending, "horse=horse-TAMPERED"); }
+                        outcome = "change applied";
+                    }
+                    catch (IOException) { outcome = "change excluded"; }
+                    catch (UnauthorizedAccessException) { outcome = "change excluded"; }
+                };
+                HorseTripRepairDecision first = HorseTripRepairDecision.Pending; var firstThrew = false;
+                try { first = Run(host, session); } catch (Exception) { firstThrew = true; }
+                if (moved != null && File.Exists(moved)) File.Delete(moved);   // the editor's own leftover
+                var archivedAfterFirst = Count(folders, Applied);
+                var final = firstThrew ? Run(host, session) : first;
+                var exact = Archive(folders, Applied) == forA && Count(folders, Applied) == 1 && host.Removals == 1 && NoStaging(folders) &&
+                    !Directory.GetFiles(folders.UserData).Any(path => File.ReadAllText(path).Contains("TAMPERED"));
+                Console.WriteLine("    R5-F1 " + attempt + ": " + outcome + "; first poll " + (firstThrew ? "refused (commit failed)" : first.ToString()) +
+                    "; archives after first poll " + archivedAfterFirst + "; final " + final + "; archive exact " + exact);
+                TestRunner.True(exact && (outcome == "change excluded" ? !firstThrew && first == HorseTripRepairDecision.Apply
+                                                                       : firstThrew && archivedAfterFirst == 0 && final == HorseTripRepairDecision.FinishedApplied),
+                    "R5-F1 (" + attempt + "): a change to the staged archive reached the terminal archive, or publication did not stop safely.");
+            }
+        }
+
+        // Owner instruction 2026-11-26d section 7, cases 1 and 2 (PR-4 reviews R4-F3, R5-F2): A is applied; at BeforeRetire (A's archive
+        // committed) B replaces A's claim; C is queued. Retirement leaves B at the claim name untouched. B then takes the policy's own
+        // Interrupted path: its result names B and how to retry, and its archive holds B. With B's archive commit obstructed, B survives the
+        // failure, recovers before C (same session and fresh session), and A is removed once. C runs only after B is settled.
+        private static void ReplacementAtRetirementTakesItsOwnLifecycle()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            foreach (var kase in new[] { "B settles", "B publication fails, same session", "B publication fails, fresh session" })
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                var b = LegacyHorse("horse-B"); var c = LegacyHorse("horse-C");
+                host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(b); host.Loaded.Add(c);
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                var interruptedTarget = Path.Combine(folders.UserData, Interrupted);
+                folders.Request(forA);
+                host.files.BeforeRetire = () => { host.files.BeforeRetire = null; File.WriteAllText(claimPath, forB); folders.Request(forC); };
+                var obstruct = kase != "B settles";
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && Archive(folders, Applied) == forA && Archive(folders, Claimed) == forB &&
+                    Count(folders, Interrupted) == 0 && Archive(folders, Request) == forC && host.Removals == 1 && NoStaging(folders),
+                    "R4-F3 (" + kase + "): retirement did not leave B untouched at the claim name, or archived it inside A's cleanup.");
+                if (obstruct)
+                {
+                    Directory.CreateDirectory(interruptedTarget);
+                    TestRunner.True(Throws(() => Run(host, session)) && Archive(folders, Claimed) == forB && Count(folders, Interrupted) == 0 && Archive(folders, Request) == forC &&
+                        folders.Result().Contains("horse-B") && host.Removals == 1 && NoStaging(folders),
+                        "R4-F3 (" + kase + "): B did not survive its failed archive publication, or C was admitted.");
+                    TestRunner.True(Throws(() => Run(host, session)) && Archive(folders, Claimed) == forB && Archive(folders, Request) == forC && host.Removals == 1,
+                        "R4-F3 (" + kase + "): a repeated poll lost B or admitted C while B's publication was failing.");
+                    Directory.Delete(interruptedTarget);
+                }
+                var recovering = kase.EndsWith("fresh session", StringComparison.Ordinal) ? new HorseTripRepairSession() : session;
+                var settled = Run(host, recovering);
+                var expected = kase == "B publication fails, same session" ? HorseTripRepairDecision.FinishedDecided : HorseTripRepairDecision.Interrupted;
+                var result = folders.Result();
+                Console.WriteLine("    R5-F2 " + kase + ": settled " + settled + "; result: " + result.Replace("\r\n", " ").Trim());
+                TestRunner.True(settled == expected && Archive(folders, Interrupted) == forB && Count(folders, Interrupted) == 1 && !File.Exists(claimPath) &&
+                    result.Contains("Interrupted") && result.Contains("horse-B") && result.Contains("write a new request") && Archive(folders, Request) == forC &&
+                    Candidates(b).Count == 1 && Archive(folders, Applied) == forA && host.Removals == 1 && NoStaging(folders),
+                    "R5-F2 (" + kase + "): B's owner-facing Interrupted result or its archive is missing, B's fact changed, or C ran first.");
+                TestRunner.True(Run(host, recovering) == HorseTripRepairDecision.Apply && host.Removals == 2 && host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-C" }) &&
+                    Count(folders, Interrupted) == 1, "R4-F3 (" + kase + "): C did not run after B was settled, or A was removed twice.");
+            }
+        }
+
+        // Owner instruction 2026-11-26d section 7, case 3 (PR-4 review R4-F2): a fresh session finds a readable claim (A, stranded by an earlier
+        // game session) held open against retirement by another reader (FileShare.Read; Windows sharing semantics), with C waiting. Repeated polls
+        // produce one interruption archive and one result, zero removals and no admission of C; after the handle is released the claim is
+        // retired and C then runs normally.
+        private static void LockedRecoveredClaimArchivesOnce()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession();
+                var a = LegacyHorse("horse-A"); host.Loaded.Add(a); host.Loaded.Add(LegacyHorse("horse-C"));
+                var claimPath = Path.Combine(folders.UserData, Claimed);
+                File.WriteAllText(claimPath, forA); folders.Request(forC);
+                var resultWrites = 0; host.AfterResultWrite = () => resultWrites++;
+                using (var holder = new FileStream(claimPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    var threw = 0;
+                    for (var poll = 0; poll < 4; poll++) if (Throws(() => Run(host, session))) threw++;
+                    Console.WriteLine("    R4-F2 locked recovered claim: polls failing while held " + threw + "/4; interrupted archives " + Count(folders, Interrupted) + "; result writes " + resultWrites);
+                    TestRunner.True(threw == 4 && Count(folders, Interrupted) == 1 && Archive(folders, Interrupted) == forA && File.Exists(claimPath) && resultWrites == 1 &&
+                        host.Removals == 0 && host.NativeCalls == 0 && Archive(folders, Request) == forC && NoStaging(folders),
+                        "R4-F2: a locked recovered claim republished its interruption archive or result, removed something, or admitted the waiting request.");
+                }
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.FinishedDecided && Count(folders, Interrupted) == 1 && !File.Exists(claimPath) &&
+                    host.Removals == 0 && Candidates(a).Count == 1 && resultWrites == 1, "R4-F2: after the release the recovered claim did not complete with its single archive.");
+                TestRunner.True(Run(host, session) == HorseTripRepairDecision.Apply && host.Removals == 1 && host.RemovedFrom.SequenceEqual(new[] { "horse-C" }),
+                    "R4-F2: the waiting request did not run normally after the recovered claim completed.");
             }
         }
 
