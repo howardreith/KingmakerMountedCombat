@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T22:24:08+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T23:01:26+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -173,6 +173,16 @@ SHA-256 `9a8322faeffbe68a0dc6a8c91bf76033966eb8b4eeced1fc5303accd393c90e2`
 {"authority": "owner instruction 2026-11-27e sections 3-4 (cap 9)", "budget": "spent ~377.5 of 450 min", "candidate": "the records commit regenerating PR-2-ledger-excerpt.md with this entry (source commit 8cec6a37, rider-side provisional order)", "checks": "attack-path harness 375/0, approach native contract 31/0, components 1545/0, lifecycle 99/0, presentation 239/0, Validate-Source 153/0", "executions": "product child 50 -> 51 of 57; lifetime 57 -> 58 of 64; combined 65 -> 66 of 72", "implementation": "delegated in-session developer agents; lead bounded inspection by this session of BeginProvisionalOrder, BindFirstTickCarrier, DecideFirstTickProposal, CommitProvisionalOrder (installation refusal before install, decision rechecks turn/addressability/exact command and carrier possession/newer work/target under click facts/rider entitlement/plan, live carrier path, success read from the accepted generation)", "kind": "pre_review_check", "open_counters_before": "all 0 after the no-progress resume", "pr": "PR-2", "prev_sha256": "9a8322faeffbe68a0dc6a8c91bf76033966eb8b4eeced1fc5303accd393c90e2", "round": 7, "seq": 205, "utc": "2026-11-27T22:24:08+00:00"}
 ```
 SHA-256 `4473dc60e0d92d4a0978e49427da73fc71c1e6813ec66f6b5183125b99488727`
+
+```json
+{"candidate": "ee0c104e2403660e39757398bd2bd2edb2b4e752", "controller_status": "ACTIVE 7 of 9", "decision": "changes_required", "executions": "product child 51 of 57; lifetime 58 of 64; combined 66 of 72", "kind": "review_result", "new_blocking": ["R7-F1 movement-mode change around carrier installation bypasses the decision", "R7-F2 live wrapper plan checked after the provisional commit", "R7-F3 pending attack misses newer competing commands", "R7-F4 commit omits the mount live movement eligibility", "R7-F5 provisional installation cancels pending door recovery"], "pr": "PR-2", "prev_sha256": "4473dc60e0d92d4a0978e49427da73fc71c1e6813ec66f6b5183125b99488727", "rejected": ["R5-F3", "R6-F1", "R6-F2", "R6-F7"], "result": "state rounds/r07/result-1.json sha256 163db0cfbaef799ddfb306cc7205c0549cc699dab80aa6a7ea5106e9029e28b5 (unedited)", "round": 7, "seq": 206, "utc": "2026-11-27T22:45:29+00:00", "verified": ["R1-F6", "R6-F3", "R6-F4", "R6-F5", "R6-F6"]}
+```
+SHA-256 `1a077941351e393780cffdb88e14142e51f1e67bccfce79b181910a6e60a6123`
+
+```json
+{"authority": "owner instruction 2026-11-27e (cap 9)", "budget": "spent ~380 of 450 min", "candidate": "the records commit regenerating PR-2-ledger-excerpt.md with this entry (source commit 42f363ba)", "checks": "harness 391/0, approach native contract 33/0, components 1545/0, lifecycle 99/0, presentation 239/0, Validate-Source 153/0", "executions": "product child 51 -> 52 of 57; lifetime 58 -> 59 of 64; combined 66 -> 67 of 72", "kind": "pre_review_check", "lead_inspection": "MountedAgentSteering (agent.Path, m_NextPointIndex 0x04001193, m_NextWaypoint 0x04001196 with token and type checks) and EvaluateFirstTickDecision (mode read from PairedMountGrantedMetres at the debit; restricted mode judged on the agent cursor segment with path identity; ordinary mode requires the remaining route within the current grant; other modes refuse; live wrapper plan before commit)", "pr": "PR-2", "prev_sha256": "1a077941351e393780cffdb88e14142e51f1e67bccfce79b181910a6e60a6123", "round": 8, "seq": 207, "utc": "2026-11-27T23:01:26+00:00"}
+```
+SHA-256 `5df232c6e1454c29d40a8f956a2e45bb0ed85b5e363574ab14c610eb7d045bec`
 
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
