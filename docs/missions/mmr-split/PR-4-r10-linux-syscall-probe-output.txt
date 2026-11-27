@@ -1,0 +1,43 @@
+Linux 6.18.58.1-microsoft-standard-WSL2 x86_64
+13.6
+== /tmp/k
+PASS fstat offsets dev/ino/mode/size match stat (154068, mode 100644, size 3)
+PASS S_ISREG on the descriptor
+PASS O_NOFOLLOW on a symbolic link fails ELOOP (errno 40)
+PASS a directory opens O_RDONLY and its descriptor is S_IFDIR
+PASS a FIFO opens with O_NONBLOCK without blocking and is not S_IFREG
+PASS a hard link opens as the same regular inode
+PASS O_TMPFILE in the folder (errno 25)
+PASS no directory entry exists for the unnamed file before publication (d,fifo,hard,link,plain)
+PASS linkat publishes the unnamed file's complete bytes under the terminal name
+PASS the terminal name refers to the descriptor's inode (lstat ino == fstat ino)
+PASS linkat never replaces an existing entry (EEXIST, foreign bytes intact)
+PASS a directory obstructing the terminal name refuses the link (EEXIST)
+PASS closing the unnamed file after a failed link leaves no staging entry (d,fifo,hard,link,plain,terminal,terminal2,terminal3)
+PASS O_CREAT|O_EXCL with mode 0 returns a writable descriptor to the creator (errno 25)
+PASS the file's permission bits are 0 while written (0)
+HOLD
+999
+PASS same-uid unprivileged reader of a mode-0 file gets EACCES (uid 999, errno 13)
+PASS same-uid unprivileged writer of a mode-0 file gets EACCES (errno 13)
+== /t/k
+PASS fstat offsets dev/ino/mode/size match stat (3, mode 100644, size 3)
+PASS S_ISREG on the descriptor
+PASS O_NOFOLLOW on a symbolic link fails ELOOP (errno 40)
+PASS a directory opens O_RDONLY and its descriptor is S_IFDIR
+PASS a FIFO opens with O_NONBLOCK without blocking and is not S_IFREG
+PASS a hard link opens as the same regular inode
+PASS O_TMPFILE in the folder (errno 25)
+PASS no directory entry exists for the unnamed file before publication (d,fifo,hard,link,plain)
+PASS linkat publishes the unnamed file's complete bytes under the terminal name
+PASS the terminal name refers to the descriptor's inode (lstat ino == fstat ino)
+PASS linkat never replaces an existing entry (EEXIST, foreign bytes intact)
+PASS a directory obstructing the terminal name refuses the link (EEXIST)
+PASS closing the unnamed file after a failed link leaves no staging entry (d,fifo,hard,link,plain,terminal,terminal2,terminal3)
+PASS O_CREAT|O_EXCL with mode 0 returns a writable descriptor to the creator (errno 25)
+PASS the file's permission bits are 0 while written (0)
+HOLD
+999
+PASS same-uid unprivileged reader of a mode-0 file gets EACCES (uid 999, errno 13)
+PASS same-uid unprivileged writer of a mode-0 file gets EACCES (errno 13)
+METERED PR-4 Linux syscall-semantics probe rerun 2 (postgres:16 Debian container, Perl) 1.0 s | udget mounted-alpha2-melee-pose-20261124: spent 221.9 of 300 min; remaining 78.1 min; entries 328 (running 0, interrupted 0, unreconciled 0) 

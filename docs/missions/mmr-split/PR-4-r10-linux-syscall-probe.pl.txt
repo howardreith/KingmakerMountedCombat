@@ -1,0 +1,70 @@
+#!/usr/bin/perl
+# Linux syscall-semantics probe for PR-4 round 10 (owner instruction 2026-11-27a section 7). Runs as root and as an unprivileged uid
+# in a Debian bookworm container (docker-desktop WSL2 kernel). Exercises the exact flag values and struct offsets the C# P/Invoke
+# code uses; it does not execute the C# code.
+use strict; use warnings; use Errno; use POSIX ();
+my ($O_RDONLY,$O_WRONLY,$O_RDWR,$O_CREAT,$O_EXCL,$O_NONBLOCK,$O_DIRECTORY,$O_NOFOLLOW,$O_CLOEXEC,$O_TMPFILE) =
+   (0,1,2,0x40,0x80,0x800,0x10000,0x20000,0x80000,0x410000);
+my ($SYS_fstat,$SYS_lstat,$SYS_fchmod,$SYS_linkat,$SYS_unlink) = (5,6,91,265,87);
+my $AT_FDCWD = -100; my $AT_SYMLINK_FOLLOW = 0x400;
+my $dir = shift // '/tmp/kmc-probe'; my $role = shift // 'root';
+sub st { my $b = "\0" x 144; return $b; }
+sub fst { my ($fd) = @_; my $b = st(); my $r = syscall($SYS_fstat, $fd, $b); return $r == 0 ? $b : undef; }
+sub lst { my ($p) = @_; my $b = st(); my $r = syscall($SYS_lstat, $p, $b); return $r == 0 ? $b : undef; }
+sub fields { my ($b) = @_; my ($dev,$ino,$nlink) = unpack('Q<Q<Q<', substr($b,0,24)); my $mode = unpack('L<', substr($b,24,4)); my $size = unpack('q<', substr($b,48,8)); return ($dev,$ino,$mode,$size); }
+sub check { my ($ok,$msg) = @_; print(($ok ? "PASS " : "FAIL ") . $msg . "\n"); }
+if ($role eq 'other') {
+    # an unprivileged process of the SAME uid as the file's owner
+    my $p = "$dir/terminal-mode0";
+    my $r = sysopen(my $h, $p, $O_RDONLY); my $e = $!+0;
+    check(!$r && $e == Errno::EACCES, "same-uid unprivileged reader of a mode-0 file gets EACCES (uid $<, errno $e)");
+    $r = sysopen($h, $p, $O_WRONLY); $e = $!+0;
+    check(!$r && $e == Errno::EACCES, "same-uid unprivileged writer of a mode-0 file gets EACCES (errno $e)");
+    exit 0;
+}
+mkdir $dir; chmod 0777, $dir;
+# 1. struct stat layout (x86_64): st_dev 0, st_ino 8, st_mode 24 (u32), st_size 48 against Perl's own stat
+open(my $fh, '>', "$dir/plain") or die; print $fh "abc"; close $fh;
+sysopen(my $ph, "$dir/plain", $O_RDONLY) or die; my $b = fst(fileno($ph));
+my ($dev,$ino,$mode,$size) = fields($b); my @s = stat("$dir/plain");
+check($dev == $s[0] && $ino == $s[1] && $mode == $s[2] && $size == $s[7], "fstat offsets dev/ino/mode/size match stat ($ino, mode " . sprintf('%o',$mode) . ", size $size)");
+check(POSIX::S_ISREG($mode), "S_ISREG on the descriptor");
+# 2. O_NOFOLLOW: a symbolic link at the name fails ELOOP; a directory opens O_RDONLY and fstat says S_IFDIR
+symlink("$dir/plain", "$dir/link") or die;
+my $r = sysopen(my $lh, "$dir/link", $O_RDONLY|$O_NOFOLLOW|$O_NONBLOCK|$O_CLOEXEC); my $e = $!+0;
+check(!$r && $e == Errno::ELOOP, "O_NOFOLLOW on a symbolic link fails ELOOP (errno $e)");
+mkdir "$dir/d"; sysopen(my $dh, "$dir/d", $O_RDONLY|$O_NOFOLLOW|$O_NONBLOCK) or die "dir open $!";
+my ($d1,$d2,$dmode) = fields(fst(fileno($dh))); check(POSIX::S_ISDIR($dmode) && !POSIX::S_ISREG($dmode), "a directory opens O_RDONLY and its descriptor is S_IFDIR");
+POSIX::mkfifo("$dir/fifo", 0600); $r = sysopen(my $qh, "$dir/fifo", $O_RDONLY|$O_NOFOLLOW|$O_NONBLOCK);
+my ($q1,$q2,$qmode) = fields(fst(fileno($qh))); check($r && POSIX::S_ISFIFO($qmode), "a FIFO opens with O_NONBLOCK without blocking and is not S_IFREG");
+# a hard link is a regular file (S_ISREG) with nlink 2
+link("$dir/plain", "$dir/hard") or die; sysopen(my $hh, "$dir/hard", $O_RDONLY|$O_NOFOLLOW) or die;
+my ($h1,$hino,$hmode) = fields(fst(fileno($hh))); check(POSIX::S_ISREG($hmode) && $hino == $ino, "a hard link opens as the same regular inode");
+# 3. O_TMPFILE + linkat(/proc/self/fd/N, AT_SYMLINK_FOLLOW): unnamed while written; publication is complete or absent; never overwrites
+$r = sysopen(my $th, $dir, $O_TMPFILE|$O_WRONLY|$O_CLOEXEC, 0600); $e = $!+0;
+check($r, "O_TMPFILE in the folder (errno $e)");
+syswrite($th, "PAYLOAD-A\n"); require IO::Handle; $th->sync;
+opendir(my $dd, $dir); my @names = grep { !/^\.\.?$/ } readdir($dd); closedir $dd;
+check(!grep({ /payload|tmp/i } @names), "no directory entry exists for the unnamed file before publication (" . join(',', sort @names) . ")");
+my $fdpath = "/proc/self/fd/" . fileno($th);
+$r = syscall($SYS_linkat, $AT_FDCWD, $fdpath, $AT_FDCWD, "$dir/terminal", $AT_SYMLINK_FOLLOW);
+open(my $rh, '<', "$dir/terminal"); my $got = do { local $/; <$rh> }; close $rh;
+check($r == 0 && $got eq "PAYLOAD-A\n", "linkat publishes the unnamed file's complete bytes under the terminal name");
+my ($t1,$tino) = fields(lst("$dir/terminal")); my ($f1,$fino) = fields(fst(fileno($th)));
+check($tino == $fino, "the terminal name refers to the descriptor's inode (lstat ino == fstat ino)");
+open(my $oh, '>', "$dir/terminal2") or die; print $oh "FOREIGN"; close $oh;
+$r = syscall($SYS_linkat, $AT_FDCWD, $fdpath, $AT_FDCWD, "$dir/terminal2", $AT_SYMLINK_FOLLOW); $e = $!+0;
+open($rh, '<', "$dir/terminal2"); $got = do { local $/; <$rh> }; close $rh;
+check($r == -1 && $e == Errno::EEXIST && $got eq 'FOREIGN', "linkat never replaces an existing entry (EEXIST, foreign bytes intact)");
+mkdir "$dir/terminal3"; $r = syscall($SYS_linkat, $AT_FDCWD, $fdpath, $AT_FDCWD, "$dir/terminal3", $AT_SYMLINK_FOLLOW); $e = $!+0;
+check($r == -1 && $e == Errno::EEXIST, "a directory obstructing the terminal name refuses the link (EEXIST)");
+close $th;
+opendir($dd, $dir); my @after = grep { !/^\.\.?$/ } readdir($dd); closedir $dd;
+check(scalar(grep { /^terminal/ } @after) == 3, "closing the unnamed file after a failed link leaves no staging entry (" . join(',', sort @after) . ")");
+# 4. exclusive create with mode 0: the creator's descriptor is writable; the name exists but is unreadable until fchmod
+$r = sysopen(my $zh, "$dir/terminal-mode0", $O_WRONLY|$O_CREAT|$O_EXCL|$O_NOFOLLOW|$O_CLOEXEC, 0); $e = $!+0;
+check($r, "O_CREAT|O_EXCL with mode 0 returns a writable descriptor to the creator (errno $e)");
+syswrite($zh, "PARTIAL");
+my (undef,undef,$zmode) = fields(fst(fileno($zh))); check(($zmode & 07777) == 0, "the file's permission bits are 0 while written (" . sprintf('%o', $zmode & 07777) . ")");
+chown 999, 999, $dir; chown 999, 999, "$dir/terminal-mode0";
+print "HOLD\n";
