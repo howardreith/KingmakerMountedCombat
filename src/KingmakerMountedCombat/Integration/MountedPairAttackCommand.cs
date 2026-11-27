@@ -458,6 +458,10 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 R1-F6 (round 7): a carrier made from a route revalidated in the first-tick state (Approach.FirstTick) is reported once it holds
         // the mount's Move slot; its first movement tick is then decided by the controller (MountedMovementStateAdapter.FirstTickGate).
         internal Action<UnitMoveTo> FirstTickCarrierIssued;
+        // PR #70 R8-F3 (round 9): asked before a route-bound carrier is created; false (its first-tick request was refused) ends the order
+        // without issuing one. R8-F4: told when this command released its own carrier because its strike became admissible where it stands.
+        internal Func<bool> FirstTickCarrierPermitted;
+        internal Action CarrierReleasedForStrike;
         // PR #70 R1-F6 (round 7): a provisional order (the click is not yet an accepted order) carries no manual-target write, and its strike starts
         // only after the controller committed it (a strike reached without a decided tick commits only in place).
         internal bool ProvisionalOrder { get; private set; }
@@ -1707,6 +1711,8 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
+                // PR #70 R8-F4 (round 9): the verified transition to a stationary strike settles this carrier's first-tick request.
+                if (!chargeMode) CarrierReleasedForStrike?.Invoke();
 
                 return;
             }
@@ -1898,6 +1904,15 @@ namespace KingmakerMountedCombat.Integration
                     delegatedMove = null;
                     if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan no longer matches its click (" + plansDisagree + ").");
                     RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
+                    Interrupt();
+                    return false;
+                }
+                if (FirstTickCarrierPermitted != null && !FirstTickCarrierPermitted())
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The first-tick decision for this order was refused; no further carrier is issued.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "first-tick request refused");
                     Interrupt();
                     return false;
                 }

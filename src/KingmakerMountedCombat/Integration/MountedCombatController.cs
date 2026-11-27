@@ -897,6 +897,8 @@ namespace KingmakerMountedCombat.Integration
                     var plan = proof.Plan;
                     command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
                     command.FirstTickCarrierIssued = carrier => BindFirstTickCarrier(command, carrier);
+                    command.FirstTickCarrierPermitted = () => FirstTickCarrierPermitted(command);
+                    command.CarrierReleasedForStrike = () => CarrierReleasedForStrike(command);
                     command.ProvisionalStrikeGate = () => AdmitProvisionalStrike(command);
                     if (provisional.TargetUnconsciousAtClick) command.AdmitTargetUnconsciousWhenOrdered();
                 }
@@ -1453,6 +1455,8 @@ namespace KingmakerMountedCombat.Integration
             command.RouteRevalidator = dispatchPlan => RevalidateAdmittedClickRoute(target, established, plan, dispatchPlan);
             // PR #70 R1-F6 (round 7, R6-F4): a carrier revalidated in the first-tick state is decided at its first tick.
             command.FirstTickCarrierIssued = carrier => BindFirstTickCarrier(command, carrier);
+            command.FirstTickCarrierPermitted = () => FirstTickCarrierPermitted(command);
+            command.CarrierReleasedForStrike = () => CarrierReleasedForStrike(command);
             LastClickProofDisposition = "attached:#" + proof.Sequence;
         }
 
@@ -1498,12 +1502,18 @@ namespace KingmakerMountedCombat.Integration
             // competing work that superseded this request.
             public bool NewerTargetObserved;
             public string Superseded;
-            public MountedFirstTickVerdict Decide(float allowedMetres, float deltaTime, out float grantedMetres, out string detail) =>
-                Owner.DecideFirstTickProposal(this, allowedMetres, deltaTime, false, out grantedMetres, out detail);
+            // R6-F7 (round 9): the accepted order's deferred engine writes still to apply, and those that failed (retried by the sweep).
+            public bool EffectRiderTarget, EffectMountTargetClear, EffectRiderHold, EffectMountHold;
+            public readonly List<string> OutstandingEffects = new List<string>();
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, out float grantedMetres, out string detail) =>
+                Owner.DecideFirstTickProposal(this, movementContext, allowedMetres, deltaTime, false, out grantedMetres, out detail);
         }
 
         private FirstTickProposal firstTickProposal;
-        private bool committingFirstTickProposal;
+        // R6-F7 (round 9): a committed request whose deferred effects are still outstanding; the sweep retries them while its order is current.
+        private FirstTickProposal settlingProposal;
+        internal FirstTickProposal SettlingProposalForDiagnostics => settlingProposal;
+        internal int FirstTickCleanupFailureCount { get; private set; }
         private MountedPairAttackCommand evaluatingFirstTickCommand;
         internal FirstTickProposal FirstTickProposalForDiagnostics => firstTickProposal;
         internal FirstTickProposal LastFirstTickProposal { get; private set; }
@@ -1625,13 +1635,13 @@ namespace KingmakerMountedCombat.Integration
             finally { evaluatingFirstTickCommand = null; }
         }
 
-        // The decision. inPlaceOnly: the provisional command reached its strike without a decided tick (StartChildAttack); only a strike
-        // admissible where the pair stands commits there. Round 8: every failure inside the decision settles the request as refused (R6-F7);
-        // the live wrapper's three-plan agreement is required before any commit (R7-F2); a strike admissible where the pair stands commits in
-        // place on the rider's own entitlement, while any movement needs the mount's CURRENT movement authority, read by the production grant
-        // reader at the decision (R7-F4, R7-F1): the restricted single move's one tick is judged on the movement agent's live path and cursor
-        // (R6-F2) and its time is granted only up to the predicted stop; an ordinary grant must cover the carrier's remaining route.
-        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, float allowedMetres, float deltaTime, bool inPlaceOnly,
+        // The decision. inPlaceOnly: the provisional command reached its strike without a decided tick (its own carrier release, or
+        // StartChildAttack); only a strike admissible where the pair stands commits there. movementContext: the input context the executing
+        // movement adapter debits with (round 9, R8-F5). Every failure inside the decision settles the request as refused (R6-F7); the live
+        // wrapper's three plans must agree before any commit (R7-F2); a stationary strike commits in place on the rider's own entitlement, any
+        // movement needs the mount's current authority read on that same context (R7-F4, R8-F5), the agent's own live route (R6-F2, R8-F1),
+        // and, for the restricted single tick, the installed shift contract (R8-F6).
+        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, object movementContext, float allowedMetres, float deltaTime, bool inPlaceOnly,
             out float grantedMetres, out string detail)
         {
             grantedMetres = 0f;
@@ -1647,7 +1657,7 @@ namespace KingmakerMountedCombat.Integration
             string refusal;
             bool inPlace = false;
             float granted = 0f;
-            try { refusal = EvaluateFirstTickDecision(p, allowedMetres, inPlaceOnly, out inPlace, out granted); }
+            try { refusal = EvaluateFirstTickDecision(p, movementContext, allowedMetres, inPlaceOnly, out inPlace, out granted); }
             catch (Exception error)
             {
                 TryLogException("Turn-based first-tick decision failed; the request is refused", error);
@@ -1665,9 +1675,11 @@ namespace KingmakerMountedCombat.Integration
                     p.Retired = true;
                     unifiedTurn.BindMountFirstTickGate(p, false);
                     if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
+                    if (p.OutstandingEffects.Count > 0) settlingProposal = p;
                     FirstTickCommitCount++;
                     grantedMetres = inPlace ? 0f : granted;
-                    detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + ";grantedMetres=" + grantedMetres.ToString("R") + tick;
+                    detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + ";grantedMetres=" + grantedMetres.ToString("R") +
+                        ";effects=" + (p.OutstandingEffects.Count == 0 ? "complete" : "outstanding(" + string.Join(",", p.OutstandingEffects.ToArray()) + ")") + tick;
                     TryLog(() => "Turn-based first-tick decision committed: " + LastFirstTickDecision + ".");
                     return inPlace ? MountedFirstTickVerdict.CommitInPlace : MountedFirstTickVerdict.Commit;
                 }
@@ -1691,8 +1703,37 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        // R8-F6: the move direction may differ from the waypoint direction by at most this before the installed mover would turn (and could slow).
+        internal const float FirstTickAlignedDegrees = 1f;
+
+        // R8-F2: live work on the mount other than the carrier that the existing accepted-work rule classifies as competing (compatible Free/Swift
+        // work, reactions and the order's own work coexist).
+        private string CompetingMountWork(UnitCommand except)
+        {
+            var commands = relationship.Mount?.Commands;
+            if (commands == null) return "mount-commands-unavailable";
+            var live = new List<UnitCommand>();
+            foreach (var command in commands.Raw) if (command != null && !command.IsFinished && !ReferenceEquals(command, except)) live.Add(command);
+            foreach (var command in commands.Queue) if (command != null && !command.IsFinished && !ReferenceEquals(command, except)) live.Add(command);
+            foreach (var command in live)
+            {
+                var facts = new MountedAcceptedWorkFacts
+                {
+                    PairCommand = command is MountedPairSingleAttack,
+                    Reaction = command is UnitAttackOfOpportunity,
+                    AiOrigin = command.AiAction != null,
+                    PlayerOrder = IsPairPlayerOrder(command),
+                    FreeOrSwift = command.Type == UnitCommand.CommandType.Free || command.Type == UnitCommand.CommandType.Swift,
+                    NeedsApproach = CommandNeedsApproach(command)
+                };
+                var kind = MountedRetainedOrderLedger.Classify(retainedOrder.IsRetainedOwn(command), facts);
+                if (kind == MountedAcceptedWorkClass.Competing || kind == MountedAcceptedWorkClass.PairCommand) return DescribeCommand(command);
+            }
+            return null;
+        }
+
         // The decision's predicates and its geometry, in order; null admits (p.Detail then describes the commit).
-        private string EvaluateFirstTickDecision(FirstTickProposal p, float allowedMetres, bool inPlaceOnly, out bool inPlace, out float granted)
+        private string EvaluateFirstTickDecision(FirstTickProposal p, object movementContext, float allowedMetres, bool inPlaceOnly, out bool inPlace, out float granted)
         {
             inPlace = false; granted = 0f;
             var rider = relationship.Rider;
@@ -1704,10 +1745,12 @@ namespace KingmakerMountedCombat.Integration
             if (p.Command == null || p.Command.IsFinished || !ReferenceEquals(activeCommand, p.Command) || !ReferenceEquals(rider.Commands.Standard, p.Command))
                 return "order-not-active";
             if (p.Superseded != null) return "superseded-by-newer-work(" + p.Superseded + ")";
+            if (!p.Replacement && retainedOrder.Superseded(p.CommittedGeneration)) return "superseded-by-newer-work(order generation " + p.CommittedGeneration + ")";
             var carrier = p.CarrierMove;
             if (!inPlaceOnly && (carrier == null || carrier.IsFinished || !ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), carrier)))
                 return "carrier-not-held";
-            if (MountHoldsOtherWork(inPlaceOnly ? null : carrier)) return "newer-mount-work";
+            var competing = CompetingMountWork(inPlaceOnly ? null : carrier);
+            if (competing != null) return "newer-mount-work(" + competing + ")";
             if (!FirstTickTargetValid(p)) return "target-invalid-under-click-facts";
             var livePlan = p.Command.LivePlanDisagreement();
             if (livePlan != null) return "plan-changed(" + livePlan + ")";
@@ -1716,42 +1759,52 @@ namespace KingmakerMountedCombat.Integration
             if (p.Command.ClickPlan.Valid && !here.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
             if (here.AdmissibleNow) { inPlace = true; p.Detail = "in-range"; return null; }
             if (inPlaceOnly) return "no-strike-in-place";
+            var input = movementContext as TurnController;
+            if (input == null) return "movement-context-unavailable";
             bool step, single;
             string mode;
-            var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out mode);
-            var carrierPath = carrier.ForcedPath?.vectorPath;
+            var grant = unifiedTurn.PairedMountGrantedMetres(turn, out step, out single, out mode, input);
+            if (mode != "single-move-first-tick" && mode != "granted") return "mount-cannot-move(" + mode + ")";
+            var agent = mount.View?.AgentASP;
+            List<Vector3> agentPath; int cursor; Vector2 waypoint;
+            if (!MountedAgentSteering.TryRead(agent, out agentPath, out cursor, out waypoint)) return "agent-not-steering";
+            if (!SamePath(agentPath, carrier.ForcedPath?.vectorPath)) return "agent-path-not-carrier";
+            if (cursor < 0 || cursor >= agentPath.Count ||
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(new Vector3(waypoint.x, agentPath[cursor].y, waypoint.y), agentPath[cursor]) > PairedAttackClickProbe.WaypointPassedMetres)
+                return "agent-cursor-inconsistent(" + cursor + ")";
+            var speed = MountedAgentSteering.PhysicalSpeed(agent);
+            if (!(speed > 0f) || !(allowedMetres >= 0f)) return "agent-speed-unreadable";
             if (mode == "single-move-first-tick")
             {
-                List<Vector3> agentPath; int cursor; Vector2 waypoint;
-                if (!MountedAgentSteering.TryRead(mount.View?.AgentASP, out agentPath, out cursor, out waypoint)) return "agent-not-steering";
-                if (!SamePath(agentPath, carrierPath)) return "agent-path-not-carrier";
-                if (cursor < 0 || cursor >= agentPath.Count ||
-                    Kingmaker.Utility.GeometryUtils.MechanicsDistance(new Vector3(waypoint.x, agentPath[cursor].y, waypoint.y), agentPath[cursor]) > PairedAttackClickProbe.WaypointPassedMetres)
-                    return "agent-cursor-inconsistent(" + cursor + ")";
+                var next = cursor;
+                while (next < agentPath.Count && Kingmaker.Utility.GeometryUtils.MechanicsDistance(agentPath[next], mount.Position) <= PairedAttackClickProbe.WaypointPassedMetres) next++;
+                if (next >= agentPath.Count) return "agent-path-exhausted";
+                var desired = new Vector2(agentPath[next].x - mount.Position.x, agentPath[next].z - mount.Position.z);
+                var heading = MountedAgentSteering.MoveDirection(agent);
+                var lengths = Math.Sqrt(desired.x * desired.x + desired.y * desired.y) * Math.Sqrt(heading.x * heading.x + heading.y * heading.y);
+                var angle = lengths > 1e-6 ? Math.Acos(Math.Max(-1d, Math.Min(1d, (desired.x * heading.x + desired.y * heading.y) / lengths))) * 180d / Math.PI : 180d;
+                if (angle > FirstTickAlignedDegrees) return "agent-turning(angle=" + angle.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) + ")";
                 var probe = PairedAttackClickProbe.EvaluateFirstTick(rider, mount, p.Target, agentPath, cursor, carrier.ApproachRadius, allowedMetres);
                 if (p.Command.ClickPlan.Valid && !probe.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
                 if (!probe.RouteProven) return "no-affordable-strike-position(" + probe.Detail + ")";
                 granted = probe.RouteMetres;
-                p.Detail = probe.Detail;
+                p.Detail = probe.Detail + ";speed=" + speed.ToString("R");
                 return null;
             }
-            if (mode == "granted")
-            {
-                if (carrierPath == null || carrierPath.Count < 2) return "no-carrier-path";
-                var remaining = new List<Vector3> { mount.Position };
-                for (var i = 1; i < carrierPath.Count; i++) remaining.Add(carrierPath[i]);
-                var routeMetres = PairedAttackClickProbe.RouteLength(remaining);
-                if (!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, routeMetres, grant))
-                    return "route-beyond-current-grant(routeMetres=" + routeMetres.ToString("R") + ";grant=" + grant.ToString("R") + ")";
-                granted = allowedMetres;
-                p.Detail = "ordinary-movement(routeMetres=" + routeMetres.ToString("R") + ";grant=" + grant.ToString("R") + ")";
-                return null;
-            }
-            return "mount-cannot-move(" + mode + ")";
+            var nominal = mount.CurrentSpeedMps;
+            var physicalGrant = nominal > 0f ? grant * speed / nominal : 0f;
+            var route = PairedAttackClickProbe.EvaluateRemainingRoute(rider, mount, p.Target, agentPath, cursor, carrier.ApproachRadius);
+            if (p.Command.ClickPlan.Valid && !route.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
+            if (!route.RouteProven) return "route-arrival-not-admitted(" + route.Detail + ")";
+            if (!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, route.RouteMetres, physicalGrant))
+                return "route-beyond-current-grant(routeMetres=" + route.RouteMetres.ToString("R") + ";grant=" + physicalGrant.ToString("R") + ")";
+            granted = allowedMetres;
+            p.Detail = "ordinary-movement(" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
+            return null;
         }
 
         // The commit of a provisional order: success is read from the actual accepted generation and owner, never from a routing result.
-        // A failure before the previous intent was retired leaves everything as it was; a failure after it records the actual state.
+        // A failure before the new order owns its command and carrier restores the previous order exactly (CommitAcceptedProvisional).
         private bool CommitProvisionalOrder(FirstTickProposal p, out string failure)
         {
             failure = null;
@@ -1768,17 +1821,11 @@ namespace KingmakerMountedCombat.Integration
             }
             var accepted = HasStockAttackIntent && stockIntent.Generation != priorGeneration && stockIntent.Owns(p.Target, stockIntent.Generation) &&
                 ReferenceEquals(stockIntentCommand, p.Command) && ReferenceEquals(activeCommand, p.Command) && retainedOrder.IsCurrent(stockIntent.Generation) &&
-                !p.Command.IsFinished;
+                !p.Command.IsFinished && !p.Command.ProvisionalOrder;
             if (accepted) { p.CommittedGeneration = stockIntent.Generation; failure = null; return true; }
             if (failure == null) failure = "commit-not-accepted";
-            failure += ";previousIntent=" + (priorIntent ? (stockIntent.Generation == priorGeneration && HasStockAttackIntent ? "kept" : "retired") : "none") +
+            failure += ";previousIntent=" + (priorIntent ? (stockIntent.Generation == priorGeneration && HasStockAttackIntent ? "kept" : "lost") : "none") +
                 ";generation=" + priorGeneration + "->" + stockIntent.Generation;
-            // An intent the failed commit already started is not left behind without its wrapper.
-            if (stockIntent.Generation != priorGeneration && HasStockAttackIntent && ReferenceEquals(stockIntentTarget, p.Target))
-            {
-                if (ReferenceEquals(stockIntentCommand, p.Command)) stockIntentCommand = null;
-                ClearStockAttackIntent("provisional commit failed", true);
-            }
             return false;
         }
 
@@ -1791,7 +1838,31 @@ namespace KingmakerMountedCombat.Integration
             if (p.State != MountedFirstTickProposalState.Pending) return false;
             string detail;
             float granted;
-            return DecideFirstTickProposal(p, 0f, 0f, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
+            return DecideFirstTickProposal(p, null, 0f, 0f, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
+        }
+
+        // R8-F4 (round 9): the command released its own carrier because its strike became admissible where the pair stands (TickApproach). A
+        // pending provisional order is decided in place there; an accepted order's gate is settled as a stationary strike (nothing moved), so
+        // the sweep never treats that release as carrier loss.
+        private void CarrierReleasedForStrike(MountedPairAttackCommand command)
+        {
+            var p = firstTickProposal;
+            if (p == null || !ReferenceEquals(p.Command, command) || p.State != MountedFirstTickProposalState.Pending) return;
+            if (p.Replacement) { AdmitProvisionalStrike(command); return; }
+            p.State = MountedFirstTickProposalState.Committed;
+            p.Retired = true;
+            p.Detail = "stationary-strike";
+            unifiedTurn.BindMountFirstTickGate(p, false);
+            firstTickProposal = null;
+            FirstTickCommitCount++;
+            LastFirstTickDecision = "committed:order:stationary-strike(carrier released by the order at an admissible position)";
+        }
+
+        // R8-F3 (round 9): a command whose request was refused issues no further carrier (no Run, so no Hold write and no accepted work).
+        private bool FirstTickCarrierPermitted(MountedPairAttackCommand command)
+        {
+            var p = firstTickProposal;
+            return p == null || !ReferenceEquals(p.Command, command) || p.State != MountedFirstTickProposalState.Refused;
         }
 
         private void RefuseFirstTickProposal(string why)
@@ -1834,6 +1905,12 @@ namespace KingmakerMountedCombat.Integration
         // still held); a committed request needs nothing (its order owns command and carrier). Idempotent: a retired request is never revived.
         internal void SweepFirstTickProposal()
         {
+            var settling = settlingProposal;
+            if (settling != null)
+            {
+                ApplyAcceptanceEffects(settling);
+                if (settling.OutstandingEffects.Count == 0) settlingProposal = null;
+            }
             var p = firstTickProposal;
             if (p == null) return;
             if (p.State == MountedFirstTickProposalState.Pending)
@@ -1849,21 +1926,34 @@ namespace KingmakerMountedCombat.Integration
                 if (why == null) return;
                 RefuseFirstTickProposal(why);
             }
+            if (p.State == MountedFirstTickProposalState.Refused && !p.Retired)
+            {
+                // R6-F7 (round 9): the exact cleanup runs first, while this request still owns its command and carrier (its gate keeps refusing);
+                // a failure leaves it owned and is retried at the next sweep; the reference is dropped only after the cleanup completed.
+                var command = p.Command;
+                try
+                {
+                    if (command != null && !command.IsFinished && (p.Replacement ? !ReferenceEquals(stockIntentCommand, command) : ReferenceEquals(stockIntentCommand, command)))
+                    {
+                        command.MarkOrderRetired();
+                        InterruptOwnedCommand(command, MountedAttackEndCause.Cancelled, "first-tick decision refused: " + p.Detail);
+                        FirstTickRetiredCommandCount++;
+                    }
+                    var carrier = p.CarrierMove;
+                    var slot = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+                    if (carrier != null && !carrier.IsFinished && ReferenceEquals(slot, carrier)) carrier.Interrupt(false);
+                }
+                catch (Exception error)
+                {
+                    FirstTickCleanupFailureCount++;
+                    TryLogException("Refused first-tick request cleanup failed; it stays owned and is retried", error);
+                    return;
+                }
+                p.Retired = true;
+                if (command != null && command.IsFinished && ReferenceEquals(activeCommand, command)) activeCommand = null;
+            }
             unifiedTurn.BindMountFirstTickGate(p, false);
             if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
-            if (p.State != MountedFirstTickProposalState.Refused || p.Retired) return;
-            p.Retired = true;
-            var command = p.Command;
-            if (command != null && !command.IsFinished && (p.Replacement ? !ReferenceEquals(stockIntentCommand, command) : ReferenceEquals(stockIntentCommand, command)))
-            {
-                command.MarkOrderRetired();
-                InterruptOwnedCommand(command, MountedAttackEndCause.Cancelled, "first-tick decision refused: " + p.Detail);
-                FirstTickRetiredCommandCount++;
-            }
-            var carrier = p.CarrierMove;
-            var slot = relationship.Mount?.Commands?.GetCommand(UnitCommand.CommandType.Move);
-            if (carrier != null && !carrier.IsFinished && ReferenceEquals(slot, carrier)) carrier.Interrupt(false);
-            if (command != null && command.IsFinished && ReferenceEquals(activeCommand, command)) activeCommand = null;
         }
 
         // PR #70 R6-F1, R7-F3 (round 8): work native accepted (slot, queue or promotion) on either participant while a provisional order is pending.
@@ -1966,9 +2056,9 @@ namespace KingmakerMountedCombat.Integration
             }
             if (chargeOwner != null && !TryDrainChargeOwnership(reason))
                 throw new InvalidOperationException("Mounted charge cleanup remains owned: " + ChargeCleanupStatus);
-            // PR #70 R1-F6 (rounds 6-7): a pending provisional order ends refused with its exact command and carrier; the committing order's
-            // own command and carrier are the new order's and are kept.
-            if (!committingFirstTickProposal) RetireFirstTickProposal("cancelled: " + reason);
+            // PR #70 R1-F6 (rounds 6-9): a pending provisional order ends refused with its exact command and carrier (a commit never runs
+            // CancelCore since round 9).
+            RetireFirstTickProposal("cancelled: " + reason);
             RetireOrderForCancel(reason, ordinaryRetarget);
             ClearObservedStockRequest();
             ArmedAction = MountedCombatActionKind.None;
@@ -1989,7 +2079,7 @@ namespace KingmakerMountedCombat.Integration
             // PR-1 review R4-F1: CancelMountMovement interrupts the mount's IsMoveUnit commands, and native TickApproaching sets that
             // flag on a horse Standard attack that approached. On ordinary retargeting a delivered mount command stays native's (the
             // retired order's own movement was released with its wrappers); every hard boundary keeps the mount-wide interrupt.
-            if (!(ordinaryRetarget && (MountCommandLeftToNative() || committingFirstTickProposal))) relationship.Runtime.CancelMountMovement();
+            if (!(ordinaryRetarget && MountCommandLeftToNative())) relationship.Runtime.CancelMountMovement();
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
 
@@ -2206,17 +2296,24 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        // PR #70 R1-F6 (round 7, R6-F7/R6-F1/R6-F6): the provisional order's commit. Only the previous INTENT is retired (the provisional command
-        // is detached from the active slot for that one retirement); intent B starts with the click's facts (its target-life fact included);
-        // the provisional command becomes B's own wrapper with its exact carrier; the deferred manual target and Hold are applied unless the
-        // player assigned newer ones. The caller reads success from the accepted generation and owner.
+        // PR #70 R1-F6 (round 7), R6-F7 (rounds 8-9): the provisional order's commit, in three phases.
+        // 1. Staging: every fallible read and the native order effect, and the idle preconditions. A failure here changes nothing.
+        // 2. Transfer (KMC-owned state only, no engine write): the previous intent, ledger, click proof and selection ownership are retired and
+        //    intent B, its ledger, its exact command and carrier ownership are established. The previous state is captured first
+        //    (MountedStateSnapshot); a failure before the new order owns its command and carrier restores it exactly (same generation, intent,
+        //    ledger and ownership records) and the request is refused.
+        // 3. Deferred effects (engine writes): the manual targets and both Holds. Each is applied once and contained; one that fails stays
+        //    outstanding on the request (settlingProposal) and is retried by the sweep while B is still the current order, so success is never
+        //    reported as complete before those writes finish.
         private bool CommitAcceptedProvisional(UnitEntityData principal, UnitEntityData target, TurnController turn, UnitEntityData rider, UnitEntityData mount,
             FirstTickProposal p)
         {
             var command = p.Command;
             if (command == null || command.IsFinished || !ReferenceEquals(activeCommand, command)) return false;
-            // R6-F7 (round 8): every fallible read is staged before the previous generation is retired or any player state changes; the Holds are
-            // applied last, after the new ownership exists.
+            // 1. Staging.
+            if (chargeOwner != null || activeDoorInteraction != null && !activeDoorInteraction.IsFinished || pendingDoorSettlement != null ||
+                HasLiveCarriedApproach || activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished)
+                throw new InvalidOperationException("other pair work is live at the commit");
             var newerTarget = p.NewerTargetObserved || !ReferenceEquals(rider.CombatState?.ManualTarget, p.TargetBeforeClick);
             var actionContext = ResolveRiderPrimaryAction();
             var weaponContext = principal.GetFirstWeapon();
@@ -2225,34 +2322,105 @@ namespace KingmakerMountedCombat.Integration
             var feedback = "Mounted stock attack intent accepted: rider principal, " + MountDisplayName + " movement authority.";
             var clearRiderHold = rider.HoldState && rider.HoldState == p.RiderHoldAtClick;
             var clearMountHold = p.MountHoldDeferred && mount.HoldState;
+            var hadIntent = HasStockAttackIntent;
+            var retiringGeneration = stockIntent.Generation;
+            var riderTargetOwnedByRetiring = riderSelection.ClearsOnRetirement(retiringGeneration, rider.CombatState?.ManualTarget);
+            var mountTargetOwnedByRetiring = mountSelection.ClearsOnRetirement(retiringGeneration, mount.CombatState?.ManualTarget);
+            var carrier = p.CarrierMove ?? command.DelegatedMove;
             ObserveDeliberateOrder();
-            committingFirstTickProposal = true;
-            activeCommand = null;
-            try { CancelCore("first-tick provisional order accepted", true); }
-            finally { activeCommand = command; committingFirstTickProposal = false; }
-            stockIntent.Begin(target, turn, false, inCombat, rider, mount, weaponContext, mountWeaponContext, (int)actionContext,
-                targetUnconsciousWhenOrdered: p.TargetUnconsciousAtClick);
-            var generation = stockIntent.Generation;
-            retainedOrder.Begin(generation, false, actionContext != MountedCombatActionKind.RiderRanged);
-            BindClickProof(null, "first-tick-commit");
-            StockAttackIntentStartCount++;
-            retainedOrder.RecordOwnIssued(generation, command);
-            if (command.DelegatedMove != null) retainedOrder.RecordOwnIssued(generation, command.DelegatedMove);
-            if (p.CarrierMove != null && !ReferenceEquals(p.CarrierMove, command.DelegatedMove)) retainedOrder.RecordOwnIssued(generation, p.CarrierMove);
-            command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(generation, issued);
-            command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(generation);
-            command.CommitProvisionalOrder();
-            stockIntentCommand = command;
-            stockIntent.ObserveDispatch(false);
-            StockAttackRiderDispatchCount++;
-            if (newerTarget) riderSelection.Release(); else OwnManualTarget(principal, target, generation);
-            if (clearRiderHold) rider.HoldState = false;
-            if (clearMountHold) mount.HoldState = false;
+            // 2. Transfer.
+            var snapshot = MountedStateSnapshot.Capture(stockIntent, retainedOrder, automaticRuns, riderSelection, mountSelection);
+            var savedIntentCommand = stockIntentCommand; var savedProof = intentClickProof; var savedProofGeneration = intentClickProofGeneration;
+            var savedPendingProof = pendingClickProof; var savedObservation = LastStockAttackObservation; var savedDisposition = LastClickProofDisposition;
+            var savedCancelCount = StockAttackIntentCancelCount; var savedStartCount = StockAttackIntentStartCount; var savedDispatchCount = StockAttackRiderDispatchCount;
+            var savedDiscards = ClickProofDiscardCount;
+            long generation;
+            try
+            {
+                ClearObservedStockRequest();
+                riderSelection.Release();
+                mountSelection.Release();
+                if (hadIntent) StockAttackIntentCancelCount++;
+                stockIntent.Cancel();
+                retainedOrder.Clear();
+                intentClickProof = null;
+                intentClickProofGeneration = -1;
+                pendingClickProof = null;
+                stockIntentCommand = null;
+                automaticRuns.Clear();
+                stockIntent.Begin(target, turn, false, inCombat, rider, mount, weaponContext, mountWeaponContext, (int)actionContext,
+                    targetUnconsciousWhenOrdered: p.TargetUnconsciousAtClick);
+                generation = stockIntent.Generation;
+                retainedOrder.Begin(generation, false, actionContext != MountedCombatActionKind.RiderRanged);
+                BindClickProof(null, "first-tick-commit");
+                StockAttackIntentStartCount++;
+                retainedOrder.RecordOwnIssued(generation, command);
+                if (carrier != null) retainedOrder.RecordOwnIssued(generation, carrier);
+                stockIntentCommand = command;
+                stockIntent.ObserveDispatch(false);
+                StockAttackRiderDispatchCount++;
+                var ownGeneration = generation;
+                command.OwnCommandIssuing = issued => retainedOrder.RecordOwnIssued(ownGeneration, issued);
+                command.RetainedOrderSupersededCheck = () => retainedOrder.Superseded(ownGeneration);
+                command.CommitProvisionalOrder();
+            }
+            catch (Exception)
+            {
+                snapshot.Restore();
+                stockIntentCommand = savedIntentCommand; intentClickProof = savedProof; intentClickProofGeneration = savedProofGeneration;
+                pendingClickProof = savedPendingProof; LastStockAttackObservation = savedObservation; LastClickProofDisposition = savedDisposition;
+                StockAttackIntentCancelCount = savedCancelCount; StockAttackIntentStartCount = savedStartCount; StockAttackRiderDispatchCount = savedDispatchCount;
+                ClickProofDiscardCount = savedDiscards;
+                command.OwnCommandIssuing = null;
+                command.RetainedOrderSupersededCheck = null;
+                command.MarkProvisionalOrder();
+                activeCommand = command;
+                throw;
+            }
+            // 3. Deferred effects, each once; a failure stays outstanding for the sweep.
+            p.CommittedGeneration = generation;
+            p.EffectRiderTarget = !newerTarget;
+            p.EffectMountTargetClear = mountTargetOwnedByRetiring;
+            p.EffectRiderHold = clearRiderHold;
+            p.EffectMountHold = clearMountHold;
+            if (newerTarget) riderSelection.Release();
+            ApplyAcceptanceEffects(p);
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = feedback;
             LastStockAttackObservation = "intent-start;target=" + target.UniqueId + ";firstTickCommit=True;generation=" + generation +
-                ";newerTargetKept=" + newerTarget + ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered;
+                ";previousOwnedTarget=" + riderTargetOwnedByRetiring + ";newerTargetKept=" + newerTarget +
+                ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered +
+                ";effects=" + (p.OutstandingEffects.Count == 0 ? "complete" : "outstanding(" + string.Join(",", p.OutstandingEffects.ToArray()) + ")");
             return false;
+        }
+
+        // The accepted order's deferred engine writes, each applied once and contained; only while that order is still current.
+        private void ApplyAcceptanceEffects(FirstTickProposal p)
+        {
+            p.OutstandingEffects.Clear();
+            var current = HasStockAttackIntent && stockIntent.Generation == p.CommittedGeneration && stockIntent.Owns(p.Target, p.CommittedGeneration);
+            if (!current) { p.EffectRiderTarget = p.EffectMountTargetClear = p.EffectRiderHold = p.EffectMountHold = false; return; }
+            if (p.EffectRiderTarget)
+            {
+                if (p.NewerTargetObserved) p.EffectRiderTarget = false;
+                else try { OwnManualTarget(p.Principal, p.Target, p.CommittedGeneration); p.EffectRiderTarget = false; }
+                    catch (Exception error) { TryLogException("Accepted order's manual target write failed; retried", error); p.OutstandingEffects.Add("rider-target"); }
+            }
+            if (p.EffectMountTargetClear)
+            {
+                try { if (relationship.Mount?.CombatState != null) relationship.Mount.CombatState.ManualTarget = null; p.EffectMountTargetClear = false; }
+                catch (Exception error) { TryLogException("Retired order's mount target clear failed; retried", error); p.OutstandingEffects.Add("mount-target"); }
+            }
+            if (p.EffectRiderHold)
+            {
+                try { if (relationship.Rider != null && relationship.Rider.HoldState) relationship.Rider.HoldState = false; p.EffectRiderHold = false; }
+                catch (Exception error) { TryLogException("Accepted order's rider Hold write failed; retried", error); p.OutstandingEffects.Add("rider-hold"); }
+            }
+            if (p.EffectMountHold)
+            {
+                try { if (relationship.Mount != null && relationship.Mount.HoldState) relationship.Mount.HoldState = false; p.EffectMountHold = false; }
+                catch (Exception error) { TryLogException("Accepted order's mount Hold write failed; retried", error); p.OutstandingEffects.Add("mount-hold"); }
+            }
         }
 
         internal long StockAttackFreshAfterTerminalCount { get; private set; }

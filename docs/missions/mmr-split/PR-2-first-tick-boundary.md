@@ -1,6 +1,7 @@
 # PR-2 first-tick replacement boundary (R1-F6)
 
-Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7 and 8. This note records how the restricted single-action approach is decided
+Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7, 8 and 9. Sections 2-5 describe the round-7 path; sections 6 and 7 record the
+round-8 and round-9 changes, which supersede any earlier passage they contradict (marked *superseded* below). This note records how the restricted single-action approach is decided
 and how a click reaches that decision, checked against the installed assemblies. Round 7 replaces round 6's bare mount carrier with a
 **provisional order on the rider** (R1-F6, R5-F3, R6-F1..R6-F7). The round-5 TwoActions workaround stays removed; the player's single-action
 selection is never rewritten. R5-F1 and R5-F2 are unchanged. Round 8 keeps the verified round-7 path (R1-F6, R6-F3..R6-F6) and corrects
@@ -60,10 +61,11 @@ Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intak
    provisional command counts as the pair's own transaction). `PairedAttackClickProbe.EvaluateFirstTick` (PairedAttackClickProbe.cs:195)
    judges the tick from the mount's **current position** toward the carrier path's **next waypoint** (points within 1 mm are passed, as the
    mover passes them): travel = min(allowance, distance to that waypoint), so a tick never crosses a waypoint. In range: commit in place;
-   the route end reached: the proven arrival disc; otherwise the interior stop under the travelled heading. On commit the carrier's path is
-   cut at the stop, so the tick's actual displacement is the predicted one.
-8. **Commit.** `CommitProvisionalOrder` (:1755) -> `AcceptStockRequest(..., committing)` -> `CommitAcceptedProvisional` (:2213). Only the previous
-   **intent** is retired: the provisional command is detached from the active slot for that one `CancelCore` and restored after it. Intent B
+   the route end reached: the proven arrival disc; otherwise the interior stop under the travelled heading. *Superseded (rounds 8-9):* the
+   carrier's path is no longer cut; the decision reads the agent's own path and cursor and the adapter shortens the tick to the granted
+   travel (sections 6 and 7).
+8. **Commit.** `CommitProvisionalOrder` -> `AcceptStockRequest(..., committing)` -> `CommitAcceptedProvisional`. *Superseded (round 9):* no
+   `CancelCore` runs; the staged, snapshot-protected transfer of section 7 replaces it. Intent B
    starts with the click's facts (its target-life fact), the retained-order ledger records the provisional command and its exact carrier as
    B's own, the supersession check and own-move announcements are wired, the deferred manual-target write and Hold clears are applied once
    unless the player assigned a newer target (then the newer selection is kept), and `stockIntentCommand` is the provisional command.
@@ -90,7 +92,7 @@ Kingmaker 2.1.7b `Assembly-CSharp.dll` at the install path in `environment-intak
   (`BindFirstTickCarrier`, ordinary kind): an affordable tick moves and is debited normally; an unaffordable one is zeroed and the order's
   wrapper is ended by the sweep (its terminal retires the intent unexecuted). A newer click's `Continue` keeps that gate with its carrier.
 
-## 4. The retained-order fixture (R5-F3)
+## 4. The retained-order fixture (R5-F3) - *superseded by section 7*
 
 The round-6 fixture's `Status = Acting` with `IsActing = false` cannot exist (section 1, item 3); the harness's `IsActing` is now derived
 from `Status`. An undispatched intent with an idle, attack-eligible rider is not reachable in the installed scheduler: `AcceptStockRequest`
@@ -116,7 +118,7 @@ refuses dispatch (labelled as not player-reachable).
   settlement and a later ground move; a replan after a refusal staying refused. The R1-F6 regression shows round 6's bare mount carrier never
   reaching its first tick (gate never asked, ineligible every frame, the Preparing turn never Acting). R5-F1, R5-F2, five-foot-step and
   spending regressions are unchanged and pass.
-- Not shown natively (owner playtest N02/N03): the agent's motion when `ForcedPath` is replaced mid-move; the registration order of the turn
+- Not shown natively (owner playtest N02/N03): the registration order of the turn
   controller relative to `UnitActionController` (the harness ticks the turn first); whether native `CanMoveInTurnBased`'s denial branch ends a
   zeroed carrier (the replan case covers both outcomes); and the turn being Acting after a refused provisional order (no action is spent, as
   for an unmounted rider whose issued attack is interrupted).
@@ -146,7 +148,7 @@ refuses dispatch (labelled as not player-reachable).
   read (action, weapons, combat state, display name, Hold facts) before retiring the previous generation, and applies both Holds last.
 - **R7-F5.** A pending door settlement owns the pair: the provisional installation is declined (`door-settlement-pending`) instead of
   cancelling it; an accepted ordinary retarget still cancels it normally.
-- **R5-F3 (supersedes the reachability argument of section 4).** A previously accepted order with an idle, eligible rider IS reachable:
+- **R5-F3 (round 8; superseded by section 7).** A previously accepted order with an idle, eligible rider IS reachable:
   `SettleOrderTerminal`'s `RiderEndedForHorse` branch keeps a generation after a zero-delivery rider terminal on the rider's own capability
   branch, for the horse's recheck. The round-8 control reaches it through the player's native-accepted click on A and native's turn-based
   force-finish of A's unstarted wrapper (the actual terminal hooks), then clicks B in that interval. It records A's intent and ledger
@@ -154,3 +156,45 @@ refuses dispatch (labelled as not player-reachable).
   drive) and after it (A's own next drive completes it when the horse cannot follow).
 - **Residual limit.** A first restricted tick toward a nearby intermediate waypoint is capped at that waypoint (conservative: refused unless
   that stop admits the strike).
+
+## 7. Round 9 corrections (final state)
+
+- **R6-F7 (exception-safe transfer).** `CommitAcceptedProvisional` runs in three phases. (1) Staging: every fallible read, the native order
+  effect and the idle preconditions (no charge, door interaction, door settlement, carried approach or rider ground move); a failure changes
+  nothing. (2) Transfer of KMC-owned state only, with no engine write: the previous intent, retained-order ledger, automatic-run ledger,
+  click proof and manual-target ownership records are captured (`Domain/MountedStateSnapshot`) and then retired, and intent B, its ledger and
+  its exact command and carrier ownership are established; a failure anywhere in this block restores the captured state exactly (same
+  generation, intent, ledger and ownership) and the request is refused (`previousIntent=kept`). (3) Deferred engine writes (manual targets,
+  both Holds), each applied once and contained; one that fails stays outstanding on the request (`settlingProposal`) and the sweep retries it
+  while B is still the current order; the decision reports `effects=outstanding(...)` until then. The sweep performs the exact cleanup of a
+  refused request first and drops its reference only after the cleanup completed; a cleanup failure keeps the request (and its refusing gate)
+  owned and is retried at the next sweep.
+- **R5-F3 (reachability, corrected).** Driven through the normal frame order (the terminal in UnitActionController, the controller drive
+  after it, the pointer event in a later frame), the `RiderEndedForHorse` interval is never visible to a click: the intervening drive either
+  dispatches the horse's follow-through (A stays the order; B then cannot install because the pair is busy) or completes A when the horse
+  cannot follow (B is a fresh request). The round-9 control records both, with the frame order, A's generation, B's carrier, displacement and
+  spending. The ledger state from that terminal is still used as a setup for the R6-F7 and R8-F3 protection cases, not as a reachability
+  claim. A pending replacement over a retained, idle-rider order is therefore not player-reachable; the replacement logic protects the
+  player's own selection and Hold, and any retained KMC state it finds.
+- **R8-F1.** The ordinary first-debit branch validates the agent's remaining route from its live position and cursor
+  (`PairedAttackClickProbe.EvaluateRemainingRoute`) and the strike's admission at arrival (current target and sight) before any debit.
+- **R8-F2.** An ordinary gate refuses when its generation is superseded (`retainedOrder.Superseded`); live mount work is judged with the
+  existing accepted-work classification (`CompetingMountWork`), so a compatible in-range Swift coexists with the carrier.
+- **R8-F3.** A command whose request was refused issues no further carrier (`FirstTickCarrierPermitted`): no Run, so no Hold write and no
+  accepted work against the retained order.
+- **R8-F4.** When an order releases its own carrier because its strike became admissible where it stands (`TickApproach`, then
+  `CarrierReleasedForStrike`), an ordinary gate settles as a stationary strike and a provisional order is decided in place; genuine carrier
+  loss still refuses.
+- **R8-F5.** The gate receives the input context the executing movement adapter debits with (`TickDelegated`'s `MovementInputContext(turn)`)
+  and reads mode and grant on it (`PairedMountGrantedMetres(..., movementInput)`) with the live mount capability checks.
+- **R8-F6 (installed shift).** The native contract traces `UnitMovementAgent.TickMovement` after the movement hook: warm-up returns without
+  moving while `m_WarmupTime > 0`; avoidance is skipped in turn-based combat; the speed is `MaxSpeed`, raised to at least
+  `MaxSpeed x m_MinSpeed` and cut by `m_SlowDownTime` or by `SlowDown` when the direction must turn more than this tick's angular step; the
+  shift is `MoveDirection x speed x` the hook's delta. `TickDelegated` sets `m_MinSpeed 1`, `m_WarmupTime 0`, `m_SlowDownTime 0` for an
+  allowed tick. `MaxSpeed` (UnitMovementAgentBase) is `MaxSpeedOverride`, else the unit's `CurrentSpeedMps`. The restricted decision therefore measures distance with the agent's own `MaxSpeed` (allowance and granted time) and refuses
+  when the agent's `MoveDirection` differs from the waypoint direction by more than 1 degree (`agent-turning`), the remaining case where the
+  shift could differ from the prediction. This is conservative: a first restricted tick taken while the agent is still turning is refused.
+- **Residual limits (owner playtest N02/N03).** The registration order of the turn controller relative to `UnitActionController`; whether
+  native `CanMoveInTurnBased`'s denial branch ends a zeroed carrier; how often a native first tick starts with the agent already aligned (if
+  rarely, restricted first-tick approaches are mostly refused, never spent); the turn being Acting after a refused provisional order (no
+  action spent).

@@ -230,6 +230,37 @@ namespace KingmakerMountedCombat.Integration
             return result;
         }
 
+        // PR #70 R8-F1 (round 9): the route the agent will execute from its live position (its own path from its cursor) and the strike's
+        // admission at its arrival: the proven arrival disc around the path's end with the current target and sight, under the last segment's
+        // heading. Route is [current position, remaining points]; RouteMetres its length; RouteProven only when the arrival admits the strike.
+        internal static Result EvaluateRemainingRoute(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
+            float arrivalRadius)
+        {
+            var result = new Result();
+            if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null) { result.Detail = "unavailable"; return result; }
+            var probe = new MountedPairSingleAttack(target, rider, mount, true, false);
+            probe.Init(rider);
+            result.Plan = PlanIdentity.Of(probe);
+            result.PairRadius = probe.PairApproachRadius;
+            var remaining = new List<Vector3> { mount.Position };
+            for (var i = Math.Max(0, cursor); i < agentPath.Count; i++)
+                if (GeometryUtils.MechanicsDistance(agentPath[i], remaining[remaining.Count - 1]) > WaypointPassedMetres) remaining.Add(agentPath[i]);
+            if (remaining.Count < 2) { result.Detail = "no-remaining-route"; return result; }
+            Func<Vector3, Vector3, Vector3, bool> admits = (point, from, to) =>
+                probe.EvaluateNativeAdmissionAtMountPosition(point, to - from) == MountedPairNativeAdmissionState.Admitted;
+            var end = remaining[remaining.Count - 1];
+            var admitted = arrivalRadius > 0f && DiscAdmits(end, arrivalRadius, remaining[remaining.Count - 2], end, admits);
+            var length = RouteLength(remaining);
+            result.Detail = "remaining-route(cursor=" + cursor + ";routeMetres=" + length.ToString("R") + ";end=" + end + ";arrivalDisc=" + arrivalRadius.ToString("R") +
+                ";admitted=" + admitted + ")";
+            if (!admitted) return result;
+            result.Path = PathOutcome.Complete;
+            result.Route = remaining;
+            result.RouteMetres = length;
+            result.ArrivalRadius = arrivalRadius;
+            return result;
+        }
+
         // The native mover passes a path point once it is this close to it (the harness mover's rule as well).
         internal const float WaypointPassedMetres = 0.001f;
 

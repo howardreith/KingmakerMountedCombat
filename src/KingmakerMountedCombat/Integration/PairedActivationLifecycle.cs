@@ -84,7 +84,9 @@ namespace KingmakerMountedCombat.Integration
         // eligibility as CanMovePairedMount (addressable partner, able to act, able to move) and the same effective mount
         // context (PairedMovementContext: the mirrored step / single-move choice), then the remaining granted distance of the
         // mount's allocation for that mode. A prone horse that must first stand (a Move) grants no approach here.
-        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)
+        // PR #70 R8-F5 (round 9): movementInput, when given, is the input context the executing movement adapter debits with; otherwise the
+        // current PairedMovementContext is read as before.
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, TurnController movementInput = null)
         {
             step = false; singleMove = false;
             var mount = activation?.Partner;
@@ -92,7 +94,7 @@ namespace KingmakerMountedCombat.Integration
             if (PartnerCanGetUp) { reason = "mount-must-stand"; return 0f; }
             if (!mount.IsAbleToAct()) { reason = "mount-cannot-act"; return 0f; }
             if (!mount.Descriptor.State.CanMove) { reason = "mount-cannot-move"; return 0f; }
-            var input = PairedMovementContext(turn);
+            var input = movementInput ?? PairedMovementContext(turn);
             step = input.EnabledFiveFootStep;
             singleMove = input.EnabledSingleActionMove;
             if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }

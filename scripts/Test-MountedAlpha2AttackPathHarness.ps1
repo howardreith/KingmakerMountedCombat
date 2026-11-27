@@ -45,7 +45,7 @@ $members=[ordered]@{
  'CONTROLLER_FRESH_LIFE'=(Extract $controller 'private static bool FreshExplicitClickTargetLifeAdmits(UnitEntityData target)')
  'CONTROLLER_RIDER_CLICK_ADMITTED'=(ExtractExpression $controller 'internal bool RiderMeleeClickAdmitted(UnitEntityData target) =>')
  'PAIR_ADMIT_CLICK'=(Extract $controls 'internal void AdmitPairedAttackClick(TurnController context, ref bool result)')
- 'PAIR_GRANT'=(Extract $lifecycle 'internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason)')
+ 'PAIR_GRANT'=(Extract $lifecycle 'internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, TurnController movementInput = null)')
  'PAIR_CAN_ADDRESS'=(Extract $lifecycle 'internal bool CanAddressActor(UnitEntityData actor, TurnController turn)')
  'PAIR_IS_PARTNER'=(ExtractExpression $lifecycle 'internal bool IsPartnerContext(TurnController turn) =>')
  'PAIR_PRESERVE_SELECTION'=(ExtractExpression $controls 'internal bool PreservePartnerSelection(TurnController turn) =>')
@@ -158,6 +158,9 @@ $members=[ordered]@{
  'CONTROLLER_RUN_KEEPS_HOLD'=(Extract $controller 'internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)')
  'CONTROLLER_COMMIT_PROVISIONAL'=(Extract $controller 'private bool CommitAcceptedProvisional(')
  'PAIR_ELIGIBLE'=(Extract $lifecycle 'internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)')
+ 'CONTROLLER_APPLY_EFFECTS'=(Extract $controller 'private void ApplyAcceptanceEffects(FirstTickProposal p)')
+ 'PAIR_REMEMBER_INPUT'=(Extract $controls 'internal void RememberPairedMovementInput()')
+ 'PAIR_MOVEMENT_INPUT'=(ExtractExpression $controls 'private TurnController MovementInputContext(TurnController turn) =>')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

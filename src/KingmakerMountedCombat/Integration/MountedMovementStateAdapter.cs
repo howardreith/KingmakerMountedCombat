@@ -233,14 +233,17 @@ namespace KingmakerMountedCombat.Integration
                 var gateRemaining = allocation.Movement.Remaining(mount.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
                     Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                     mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
-                var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * mount.CurrentSpeedMps;
+                // Round 9 (R8-F6): the installed shift is MaxSpeed x the delta this hook returns (MountedAgentSteering), so distance is measured
+                // with the agent's own speed; unreadable speed gives NaN and the decision refuses any moving commit.
+                var physicalSpeed = MountedAgentSteering.PhysicalSpeed(mount.View?.AgentASP);
+                var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed;
                 string gateDetail;
                 float grantedMetres;
-                var verdict = gate.Decide(allowedMetres, deltaTime, out grantedMetres, out gateDetail);
+                var verdict = gate.Decide(inputTurn, allowedMetres, deltaTime, out grantedMetres, out gateDetail);
                 // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
                 // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
-                if (verdict == MountedFirstTickVerdict.Commit && grantedMetres < allowedMetres && mount.CurrentSpeedMps > 0f)
-                    deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / mount.CurrentSpeedMps);
+                if (verdict == MountedFirstTickVerdict.Commit && grantedMetres < allowedMetres && physicalSpeed > 0f)
+                    deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / physicalSpeed);
                 if (verdict != MountedFirstTickVerdict.Commit)
                 {
                     var tick = deltaTime;
