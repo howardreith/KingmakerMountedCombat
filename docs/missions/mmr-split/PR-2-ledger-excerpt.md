@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T05:28:46+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-27T06:13:21+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -49,6 +49,16 @@ SHA-256 `a85fd4998dfb7a1da2d27e355e8059a145b396ba909f4551e338d28a8848d959`
 ```
 SHA-256 `fd0e94f0ba538fce4b90c221d26c88fbc78c119f09e28b8c16707f3a8e076d6a`
 
+```json
+{"candidate": "b26bc6012ca525603b9ce136ecd7d84fa68a5f34", "controller_status": "ACTIVE (2 of 3)", "decision": "changes_required", "executions": "PR-2 2 of 3; product child 36 of 45; lifetime 43 of 52", "kind": "review_result", "new_blocking": ["R2-F1", "R2-F2", "R2-F3"], "pr": "PR-2", "prev_sha256": "0c497d52ff9e2bf775aa2bb0ac935c38a2a07dafc04219989042a29e063e2fbc", "rejected": ["R1-F2", "R1-F3", "R1-F4", "R1-F6", "R1-F7", "R1-F9", "R1-F10"], "round": 2, "seq": 128, "utc": "2026-11-27T05:56:32+00:00", "verified": ["R1-F1", "R1-F5", "R1-F8", "R1-F11", "R1-F12"]}
+```
+SHA-256 `19daec9db87f65faf4d956692d3b2e4c2bb5b8693c83911b20cc2f60144be64e`
+
+```json
+{"authority": "owner instruction 2026-11-26f sections 2 and 6 (PR-2 allowance 3 reviewer executions; this is the third and last)", "blocking_evidence": "R1-F2, R1-F3, R1-F4, R1-F6, R1-F7, R1-F9, R1-F10, R2-F1, R2-F2, R2-F3 each with production change and harness/component evidence (attack-path harness 302/0, components 1545/0, lifecycle 99/0, approach contract 13/0)", "budget": "budget mounted-alpha2-melee-pose-20261124: spent 218.54 of 270 min; remaining 51.45 min; entries 316 (running 0, interrupted 0, unreconciled 0)", "candidate": "the records commit that regenerates docs/missions/mmr-split/PR-2-ledger-excerpt.md with this entry (source commit 429aa687)", "child_usage": "PR-2: 2 of 3 executions before this round; 3 of 3 after it", "executed_reviews": "before this round: product child 36 of 45, lifetime 43 of 52; infrastructure 2 of 2 (combined 45 of 54); after it: child 37 of 45, lifetime 44 of 52, combined 46 of 54", "kind": "pre_review_check", "pr": "PR-2", "prev_sha256": "a717971a037b22f4a86b8a9b6532634cf62beb607f1bbc3903ed9d235c0de866", "recorded_results": "PR-1 15 (accepted), PR-2 2, PR-3 4 (accepted), PR-4 8, PR-5 6 (plus round 7 executed, unsettled)", "round": 3, "seq": 130, "utc": "2026-11-27T06:13:21+00:00"}
+```
+SHA-256 `5a9127faa3c3dc06354a647fc43c46c5931c1f3b3ca8bd0ecdc53747dbef4787`
+
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
 candidate, so it could not be verified there. This excerpt and docs/missions/mmr-split/PR-2-submission-checklist.md close that
@@ -60,4 +70,6 @@ gap without rewriting the chronology:
 - seq 120: the budget increase to 270 minutes;
 - seq 123: the round-1 result, appended late;
 - seq 124: the R1-F11 reconciliation;
-- the last entry: the round-2 pre-review check.
+- seq 126: the round-2 pre-review check;
+- seq 127: the round-2 result (5 verified, 9 blocking);
+- the last entry: the round-3 (final) pre-review check.
