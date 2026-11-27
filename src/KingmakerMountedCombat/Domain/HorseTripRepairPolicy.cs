@@ -496,6 +496,47 @@ namespace KingmakerMountedCombat.Domain
     //  - ReadFile / WriteFile / FlushFileBuffers on that handle, and SetFileInformationByHandle FileRenameInfo (ReplaceIfExists false) and
     //    FileDispositionInfo, which act on the file the handle refers to, not on a pathname.
     // Other platforms keep the bounded pathname contract (Supported is false there).
+    // PR-4 round 9 (R8-F1): a request or claim that is a link, reparse point or directory. It is refused before any selection, removal
+    // or archive copy and left in place; the poll logs it once and retries until an ordinary file replaces it.
+    public sealed class HorseTripIneligibleEntryException : IOException
+    {
+        public HorseTripIneligibleEntryException(string path)
+            : base("The Horse Trip repair file " + path + " is a link, reparse point or directory. KMC does not follow it and leaves it in place; " +
+                   "replace it with an ordinary text file.") { }
+    }
+
+    // PR-4 round 9 (R5-F1): the pathname branch's non-overwriting publication of a complete, already written file. Creating a hard link
+    // never replaces an existing entry (POSIX link/linkat EEXIST, Windows CreateHardLinkW ERROR_ALREADY_EXISTS) and makes the new name
+    // refer to the existing file, so the terminal name appears with the complete bytes or not at all. On Linux the link is made to the
+    // OPEN file itself (linkat of /proc/self/fd/<fd>, AT_SYMLINK_FOLLOW), so it is the attempt's own file even if its private name changed;
+    // without /proc it falls back to link(2) of the private name, as on macOS. Windows uses CreateHardLinkW (reached only through the
+    // pathname test seam there). This machine executes only the Windows variant.
+    internal static class PathnamePublication
+    {
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "linkat", SetLastError = true)]
+        private static extern int LinkAt(int olddirfd, string oldpath, int newdirfd, string newpath, int flags);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "link", SetLastError = true)]
+        private static extern int Link(string oldpath, string newpath);
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool CreateHardLinkW(string link, string existing, IntPtr security);
+        private const int AtCurrentDirectory = -100, AtSymlinkFollow = 0x400;
+
+        internal static void Publish(FileStream owned, string ownedPath, string terminal)
+        {
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                if (!CreateHardLinkW(terminal, ownedPath, IntPtr.Zero))
+                    throw new IOException("The archive could not be published under " + terminal + " (Win32 error " + System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+                return;
+            }
+            var fd = owned.SafeFileHandle.DangerousGetHandle().ToInt32();
+            if (System.IO.Directory.Exists("/proc/self/fd") &&
+                LinkAt(AtCurrentDirectory, "/proc/self/fd/" + fd.ToString(CultureInfo.InvariantCulture), AtCurrentDirectory, terminal, AtSymlinkFollow) == 0) return;
+            if (Link(ownedPath, terminal) == 0) return;
+            throw new IOException("The archive could not be published under " + terminal + " (errno " + System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+        }
+    }
+
     internal static class VerifiedFileOperations
     {
         internal static bool Supported => Environment.OSVersion.Platform == PlatformID.Win32NT;
@@ -591,6 +632,31 @@ namespace KingmakerMountedCombat.Domain
             return handle;
         }
 
+        private const uint ShareAll = 7, BackupSemanticsFlag = 0x02000000;
+        // Test seam (PR-4 round 9): reports an opened entry as a reparse point (a simulated external boundary for a file symbolic link,
+        // which this machine cannot create without privilege). Null in production.
+        internal static Func<string, bool> SimulatedReparseForTests { get; set; }
+
+        // PR-4 round 9 (R8-F1): the bytes that decide a request or claim come from a handle opened WITHOUT following links
+        // (FILE_FLAG_OPEN_REPARSE_POINT; FILE_FLAG_BACKUP_SEMANTICS so a directory or junction opens as itself and is classified), sharing
+        // read, write and delete (so an eligible ordinary file another reader holds is still read), and checked (FileAttributeTagInfo) before
+        // a single byte is read: a reparse point or directory raises HorseTripIneligibleEntryException, before any selection, removal or
+        // archive copy.
+        internal static byte[] ReadEligible(string path)
+        {
+            var file = CreateFileW(path, GenericRead, ShareAll, IntPtr.Zero, OpenExistingDisposition, OpenReparsePointFlag | BackupSemanticsFlag | NormalAttribute, IntPtr.Zero);
+            if (file.IsInvalid) { var failure = Failure("The file " + path + " could not be opened for reading"); file.Dispose(); throw failure; }
+            using (var handle = new Handle(file, false))
+            {
+                AttributeTagInfo info;
+                if (!GetFileInformationByHandleEx(file, FileAttributeTagInfoClass, out info, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AttributeTagInfo))))
+                    throw Failure("The attributes of " + path + " could not be read");
+                if ((info.FileAttributes & (ReparsePointAttribute | DirectoryAttribute)) != 0 || SimulatedReparseForTests != null && SimulatedReparseForTests(path))
+                    throw new HorseTripIneligibleEntryException(path);
+                using (var buffer = new MemoryStream()) { handle.CopyTo(buffer); return buffer.ToArray(); }
+            }
+        }
+
         // Renames the file this handle refers to; refuses (IOException) when the target exists.
         internal static void RenameTo(Handle file, string target)
         {
@@ -658,13 +724,26 @@ namespace KingmakerMountedCombat.Domain
             // Not FolderPresent: Directory.Exists also answers false on an access error; only a confirmed missing folder is absence.
             if (string.IsNullOrEmpty(Directory)) return false;
             byte[] bytes;
-            try { bytes = File.ReadAllBytes(path); }
+            try { bytes = ReadEligible(path); }
             catch (FileNotFoundException) { return false; }
             catch (DirectoryNotFoundException) { return false; }
             using (var reader = new StreamReader(new MemoryStream(bytes), System.Text.Encoding.UTF8, true)) text = reader.ReadToEnd();
             using (var sha = System.Security.Cryptography.SHA256.Create())
                 identity = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty);
             return true;
+        }
+
+        // PR-4 round 9 (R8-F1): the influential bytes of a request or claim, from an entry that is not a link, reparse point or directory.
+        // Windows: the no-follow handle (VerifiedFileOperations.ReadEligible). Pathname branch: the entry's own attributes (Mono reports a
+        // symbolic link as ReparsePoint) are checked before it is read; the check and the read are separate operations there.
+        private static byte[] ReadEligible(string path)
+        {
+            if (HandleOperations) return VerifiedFileOperations.ReadEligible(path);
+            var attributes = File.GetAttributes(path);
+            if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
+                VerifiedFileOperations.SimulatedReparseForTests != null && VerifiedFileOperations.SimulatedReparseForTests(path))
+                throw new HorseTripIneligibleEntryException(path);
+            return File.ReadAllBytes(path);
         }
 
         // Test hooks only (review R5-F1 evidence): invoked immediately before and after the claim rename, so a test can replace
@@ -721,7 +800,7 @@ namespace KingmakerMountedCombat.Domain
             var committed = session?.CommittedArchive;
             if (committed == null || !File.Exists(committed))
             {
-                var verified = File.ReadAllBytes(ClaimPath);
+                var verified = ReadEligible(ClaimPath);
                 if (!string.Equals(Digest(verified), boundIdentity, StringComparison.Ordinal)) return false;
                 BeforePublish?.Invoke();
                 committed = Commit(verified, suffix);
@@ -748,14 +827,21 @@ namespace KingmakerMountedCombat.Domain
             // kept under a settled name (a small leftover beside its archive) instead of being deleted, and verified again under that name.
             // Bytes that are not the decided bytes, at either check, are moved back to the claim name untouched for their own Interrupted
             // disposition, so a replacement is never consumed.
-            var unique = Guid.NewGuid().ToString("N");
+            // PR-4 round 9 (R4-F3): the settled name carries the decided identity (C.<id>.<first 16 hex of the identity>.settled; short enough for
+            // the Windows path limit), so a settled entry whose bytes
+            // are not that identity is distinguishable from a completed retirement; RecoverRetiring restores it (and any .retiring entry) to
+            // the claim name on every claim read, in this session and a fresh one, so a failure at the second check or at the move back
+            // never strands a replacement.
+            var unique = Guid.NewGuid().ToString("N").Substring(0, 8);
             var retiring = ClaimPath + "." + unique + RetiringSuffix;
             File.Move(ClaimPath, retiring);   // refused (claim kept at its name) while another process holds the claim open
             if (!HoldsBytes(retiring, boundIdentity)) { File.Move(retiring, ClaimPath); return false; }
             BeforeRetireDelete?.Invoke();
-            var settled = ClaimPath + "." + unique + SettledSuffix;
+            var settled = ClaimPath + "." + unique + "." + boundIdentity.Substring(0, SettledIdentityLength) + SettledSuffix;
             File.Move(retiring, settled);
+            AfterSettleMove?.Invoke();
             if (HoldsBytes(settled, boundIdentity)) return true;
+            BeforeSettledReturn?.Invoke();
             File.Move(settled, ClaimPath);    // a replacement that took the private name returns to the claim name for its own disposition
             return false;
         }
@@ -769,18 +855,38 @@ namespace KingmakerMountedCombat.Domain
         internal static bool ForcePathnameOperations { get; set; }
         private static bool HandleOperations => VerifiedFileOperations.Supported && !ForcePathnameOperations;
 
+        // Test hooks (PR-4 round 9, R4-F3): after the settling move and before its verification; before the move back from the settled name.
+        public Action AfterSettleMove { get; set; }
+        internal const int SettledIdentityLength = 16;
+        public Action BeforeSettledReturn { get; set; }
+
+        private static bool HoldsIdentityPrefix(string path, string prefix)
+        {
+            using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) return Digest(ReadAll(held)).StartsWith(prefix, StringComparison.Ordinal);
+        }
+
         private static bool HoldsBytes(string path, string identity)
         {
             using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) return string.Equals(Digest(ReadAll(held)), identity, StringComparison.Ordinal);
         }
 
+        // PR-4 round 9 (R4-F3): entries awaiting verification or return are a .retiring entry, or a .settled entry whose bytes are not the
+        // identity in its name; a .settled entry holding its own identity is a completed retirement and stays. The oldest pending entry is
+        // restored to the claim name when no claim exists, so its disposition is completed by the ordinary lifecycle.
         private void RecoverRetiring()
         {
             if (File.Exists(ClaimPath)) return;
-            var stranded = System.IO.Directory.GetFiles(Directory, HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.ClaimedSuffix + ".*" + RetiringSuffix);
-            if (stranded.Length == 0) return;
-            Array.Sort(stranded, (a, b) => File.GetLastWriteTimeUtc(a).CompareTo(File.GetLastWriteTimeUtc(b)));
-            File.Move(stranded[0], ClaimPath);
+            var prefix = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.ClaimedSuffix + ".";
+            var pending = new List<string>(System.IO.Directory.GetFiles(Directory, prefix + "*" + RetiringSuffix));
+            foreach (var settled in System.IO.Directory.GetFiles(Directory, prefix + "*" + SettledSuffix))
+            {
+                var name = Path.GetFileName(settled);
+                var parts = name.Substring(prefix.Length, name.Length - prefix.Length - SettledSuffix.Length).Split('.');
+                if (parts.Length != 2 || parts[1].Length != SettledIdentityLength || !HoldsIdentityPrefix(settled, parts[1])) pending.Add(settled);
+            }
+            if (pending.Count == 0) return;
+            pending.Sort((x, y) => File.GetLastWriteTimeUtc(x).CompareTo(File.GetLastWriteTimeUtc(y)));
+            File.Move(pending[0], ClaimPath);
         }
 
         // Test hook (PR-4 review R3-F2/R4-F1): invoked after the private payload was written and flushed, before its publication.
@@ -804,7 +910,7 @@ namespace KingmakerMountedCombat.Domain
         // private file is removed; no partial terminal archive is ever left.
         private string Commit(byte[] payload, string suffix)
         {
-            var pending = ClaimPath + "." + Guid.NewGuid().ToString("N") + ".pending";
+            var pending = ClaimPath + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".pending";
             if (HandleOperations)
             {
                 // PR-4 round 7 (R5-F1): the payload is written and flushed through one exclusive handle (no other reader, writer, renamer or
@@ -833,39 +939,25 @@ namespace KingmakerMountedCombat.Domain
                 }
                 finally { staged.Dispose(); }
             }
-            // Elsewhere (Linux/macOS Mono: no handle-bound rename, advisory sharing): PR-4 round 8 (R5-F1) no staged file is moved under the
-            // terminal name, because a pathname move cannot tell which file it moves. The terminal name is instead created exclusively
-            // (CreateNew: it never replaces an existing entry) and the verified payload is written and flushed through that one handle, so
-            // the only bytes ever visible under the terminal name are this payload's (a prefix while it is being written). A failure after
-            // creation moves the incomplete file aside to a private name (nothing is deleted by pathname); the terminal name is then free
-            // for the retry, which writes one complete archive.
-            var target = ArchiveTarget(suffix);
-            var created = false;
-            try
+            // Elsewhere (Linux/macOS Mono): PR-4 round 9 (R5-F1). The payload is written and flushed through the exclusively created private
+            // file's handle, which stays open, and only then published by creating a hard link to that file under the terminal name
+            // (PathnamePublication): one non-overwriting operation after which the terminal name holds the complete bytes, never a prefix.
+            // A failure before or at the link leaves the terminal name untouched (an entry someone else made there is preserved) and the
+            // private file in place: it is the attempt's own, and no other name is touched or deleted. The next poll commits again.
+            using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read))
             {
-                using (var file = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
-                {
-                    created = true;
-                    var writer = StagingWriteSeam?.Invoke(file) ?? file;
-                    writer.Write(payload, 0, payload.Length);
-                    writer.Flush();
-                    file.Flush(true);
-                    BeforeCommit?.Invoke();
-                }
+                var writer = StagingWriteSeam?.Invoke(file) ?? file;
+                writer.Write(payload, 0, payload.Length);
+                writer.Flush();
+                file.Flush(true);
+                BeforeCommit?.Invoke();
+                var target = ArchiveTarget(suffix);
+                PathnamePublication.Publish(file, pending, target);
+                AfterPublishRename?.Invoke(target);
                 return target;
-            }
-            catch
-            {
-                if (created && File.Exists(target))
-                {
-                    try { File.Move(target, target + "." + Guid.NewGuid().ToString("N") + IncompleteSuffix); } catch (Exception) { }
-                }
-                throw;
             }
         }
 
-        // Non-Windows only (PR-4 round 8): an archive write that failed after its terminal name was created, kept aside instead of deleted.
-        public const string IncompleteSuffix = ".incomplete";
 
         // Reads a file this call may still hold open for writing (the staging handle), so the reader shares write and delete access.
         private static byte[] ReadShared(string path)

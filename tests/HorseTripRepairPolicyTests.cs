@@ -47,7 +47,9 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 R6-F2 (round 7): fresh-session recovery after an applied removal reports truthfully, with exact retry guidance, and removes nothing more", RestartReportingIsTruthful);
             runner.Run("PR-4 R7-F1 (round 8): retiring a linked claim leaves its sibling target intact; ordinary retirement still works (Windows)", LinkedClaimRetirementLeavesItsTarget);
             runner.Run("PR-4 R4-F3 (round 8): the pathname branch never deletes; a replacement at its final retirement operation returns and settles before C", PathnameRetirementNeverConsumesAReplacement);
-            runner.Run("PR-4 R5-F1 (round 8): the pathname branch writes only the verified payload under the terminal name; a write failure leaves no terminal archive", PathnamePublicationWritesOnlyThePayload);
+            runner.Run("PR-4 R5-F1 (round 9): the pathname branch publishes the complete payload by one non-overwriting link; a partial-write fault leaves no terminal archive and a foreign entry untouched (Windows fallback execution)", PathnamePublicationIsComplete);
+            runner.Run("PR-4 R4-F3 (round 9): a failure at the settling check or move back leaves the replacement recoverable in the same and a fresh session (Windows fallback execution)", PathnameRetirementRecoversAfterSettlingFailures);
+            runner.Run("PR-4 R8-F1 (round 9): linked requests and claims are refused before selection, removal or copying (actual junctions and a simulated symbolic-link boundary); ordinary and locked-regular controls", LinkedEntriesAreRefusedBeforeActing);
             runner.Run("PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds", BlockedRetirementCommitsOnce);
             runner.Run("PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once", ReplacementDuringRetirement);
         }
@@ -1187,43 +1189,192 @@ namespace KingmakerMountedCombat.Tests
         }
 
 
-        // Owner instruction 2026-11-26e section 6, PR-4 review R5-F1 on the pathname branch (used where handle-bound operations do not exist;
-        // exercised on Windows through the test seam): the terminal name is created exclusively and written through that handle. At the moment
-        // the payload has been written and flushed (BeforeCommit, handle still held), the terminal name exists and a reader there obtains only
-        // A's bytes or nothing (on Windows the writing handle excludes other readers, so nothing is readable until it closes). A write failure after creation leaves no
-        // terminal archive (the incomplete file is moved aside, not deleted), the claim stays, and the retry commits one complete archive with
-        // A's raw bytes; one removal in total.
-        private static void PathnamePublicationWritesOnlyThePayload()
+        // A write that stops after half of the payload: the fault point observes the terminal name with a reader that shares write and
+        // delete access, may create an entry of someone else's there (present at cleanup), then fails the write.
+        private sealed class HalfWriteFault : Stream
+        {
+            private readonly Stream inner; private readonly Action atFault;
+            public HalfWriteFault(Stream inner, Action atFault) { this.inner = inner; this.atFault = atFault; }
+            public override bool CanRead => false; public override bool CanSeek => false; public override bool CanWrite => true;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() => inner.Flush();
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count) { inner.Write(buffer, offset, count / 2); inner.Flush(); atFault(); throw new IOException("simulated write failure"); }
+        }
+
+        private static string ObserveShared(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return "absent";
+                using (var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var text = new StreamReader(reader)) return text.ReadToEnd();
+            }
+            catch (IOException) { return "not readable"; }
+        }
+
+        // Owner instruction 2026-11-26f section 7, PR-4 review R5-F1 on the pathname branch (Windows fallback execution through the test seam;
+        // the production Linux linkat/libc link variants are not executed on this machine): the payload is written and flushed through the
+        // private file's handle and published by creating a hard link to it. During the partial-write fault the terminal name is observed
+        // with a reader sharing write access (absent), and an entry of someone else's is created there; the attempt fails, the claim stays,
+        // the foreign entry is preserved. The retry's first readability (the moment its link exists) shows A's complete bytes; one archive of
+        // A, one removal.
+        private static void PathnamePublicationIsComplete()
         {
             var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            const string foreign = "someone else's file";
             HorseTripRepairFiles.ForcePathnameOperations = true;
             try
             {
                 using (var folders = new Folders())
                 {
                     var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
-                    var applied = Path.Combine(folders.UserData, Applied);
+                    var plain = Path.Combine(folders.UserData, Applied);
                     folders.Request(forA);
-                    host.files.StagingWriteSeam = stream => { host.files.StagingWriteSeam = null; return new FaultingStream(stream, true); };
+                    string duringFault = null;
+                    host.files.StagingWriteSeam = stream => { host.files.StagingWriteSeam = null; return new HalfWriteFault(stream, () => { duringFault = ObserveShared(plain); File.WriteAllText(plain, foreign); }); };
                     var failed = Throws(() => Run(host, session));
-                    var noTerminal = !File.Exists(applied) && File.Exists(Path.Combine(folders.UserData, Claimed));
-                    var incomplete = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.IncompleteSuffix).Length;
-                    string visible = null;
-                    host.files.BeforeCommit = () =>
-                    {
-                        host.files.BeforeCommit = null;
-                        try { visible = File.Exists(applied) ? (File.ReadAllText(applied) == forA ? "A's bytes" : "OTHER bytes") : "absent"; }
-                        catch (IOException) { visible = "not readable while written"; }
-                    };
+                    var claimKept = File.Exists(Path.Combine(folders.UserData, Claimed));
+                    var foreignKept = File.ReadAllText(plain) == foreign;
+                    string firstReadable = null, published = null;
+                    host.files.AfterPublishRename = terminal => { published = terminal; firstReadable = ObserveShared(terminal); };
                     var retried = Run(host, session);
-                    Console.WriteLine("    R5-F1 pathname branch: write failure threw=" + failed + " noTerminal=" + noTerminal + " incompleteKeptAside=" + incomplete +
-                        "; retry " + retried + "; terminal at its completed write: " + visible + "; archive exact=" + (Archive(folders, Applied) == forA) + " removals=" + host.Removals);
-                    TestRunner.True(failed && noTerminal && incomplete == 1 && retried == HorseTripRepairDecision.FinishedApplied && (visible == "A's bytes" || visible == "not readable while written") &&
-                        Archive(folders, Applied) == forA && Count(folders, Applied) == 1 && host.Removals == 1 && !File.Exists(Path.Combine(folders.UserData, Claimed)),
-                        "R5-F1 (pathname branch): the terminal name showed bytes other than A's, a partial archive was left under it, or the retry did not publish exactly A once.");
+                    var archives = Directory.GetFiles(folders.UserData, HorseTripRepairPolicy.RequestFileName + "*" + HorseTripRepairPolicy.AppliedSuffix)
+                        .Where(f => File.ReadAllText(f) == forA).ToList();
+                    Console.WriteLine("    R5-F1 pathname branch (Windows fallback execution): during the partial-write fault the terminal name was " + duringFault +
+                        "; failure threw=" + failed + ", claim kept=" + claimKept + ", foreign entry preserved=" + foreignKept + "; retry " + retried +
+                        " published " + Path.GetFileName(published ?? "<none>") + ", first readable " + (firstReadable == forA ? "with A's complete bytes" : "as '" + firstReadable + "'") +
+                        "; A's archives=" + archives.Count + " removals=" + host.Removals);
+                    TestRunner.True(failed && duringFault == "absent" && claimKept && foreignKept && File.ReadAllText(plain) == foreign && retried == HorseTripRepairDecision.FinishedApplied &&
+                        firstReadable == forA && archives.Count == 1 && host.Removals == 1 && !File.Exists(Path.Combine(folders.UserData, Claimed)),
+                        "R5-F1 (pathname branch): the terminal name showed a partial archive, the foreign entry was touched, the claim was lost or the retry did not publish exactly A once.");
                 }
             }
             finally { HorseTripRepairFiles.ForcePathnameOperations = false; }
+        }
+
+        // Owner instruction 2026-11-26f section 7, PR-4 review R4-F3 on the pathname branch (Windows fallback execution): a replacement B took the
+        // private retiring name after A's bytes were verified there; the settling move takes B; then the second check (variant 1) or the move
+        // back (variant 2) fails. B's settled entry names A's identity, so recovery in the same session (and in a fresh session) restores it to
+        // the claim name: B receives its byte-exact Interrupted archive and named result before the queued request C, B's fact stays, A is
+        // removed once.
+        private static void PathnameRetirementRecoversAfterSettlingFailures()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            var forB = HorseTripRepairPolicy.FormatRequestLine("horse-B");
+            var forC = HorseTripRepairPolicy.FormatRequestLine("horse-C");
+            foreach (var failure in new[] { "second check", "move back" })
+                foreach (var fresh in new[] { false, true })
+                {
+                    HorseTripRepairFiles.ForcePathnameOperations = true;
+                    try
+                    {
+                        using (var folders = new Folders())
+                        {
+                            var host = new Host(folders); var session = new HorseTripRepairSession();
+                            var b = LegacyHorse("horse-B"); host.Loaded.Add(LegacyHorse("horse-A")); host.Loaded.Add(b); host.Loaded.Add(LegacyHorse("horse-C"));
+                            folders.Request(forA);
+                            host.files.BeforeRetireDelete = () =>
+                            {
+                                host.files.BeforeRetireDelete = null;
+                                var retiring = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.RetiringSuffix).Single();
+                                File.Delete(retiring); File.WriteAllText(retiring, forB); folders.Request(forC);
+                            };
+                            if (failure == "second check") host.files.AfterSettleMove = () => { host.files.AfterSettleMove = null; throw new IOException("simulated read failure"); };
+                            else host.files.BeforeSettledReturn = () => { host.files.BeforeSettledReturn = null; throw new IOException("simulated move-back failure"); };
+                            var first = Throws(() => Run(host, session));
+                            var stranded = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.SettledSuffix).Length;
+                            var claimAbsent = !File.Exists(Path.Combine(folders.UserData, Claimed));
+                            var next = fresh ? new HorseTripRepairSession() : session;
+                            var second = Run(host, next);
+                            var result = folders.Result();
+                            var third = Run(host, next);
+                            var pendingLeft = Directory.GetFiles(folders.UserData, "*" + HorseTripRepairFiles.RetiringSuffix).Length;
+                            var label = failure + " failure, " + (fresh ? "fresh session" : "same session");
+                            Console.WriteLine("    R4-F3 pathname branch (" + label + "): first threw=" + first + " with B under .settled=" + stranded + " (claim absent=" + claimAbsent + "); then " +
+                                second + " (" + result.Replace("\r\n", " ").Trim().Substring(0, 70) + "...), then " + third + "; removals=" + string.Join(",", host.RemovedFrom));
+                            TestRunner.True(first && stranded == 1 && claimAbsent && Archive(folders, Applied) == forA && second == HorseTripRepairDecision.Interrupted &&
+                                Archive(folders, Interrupted) == forB && result.Contains("horse-B") && Candidates(b).Count == 1 && third == HorseTripRepairDecision.Apply &&
+                                host.RemovedFrom.SequenceEqual(new[] { "horse-A", "horse-C" }) && pendingLeft == 0,
+                                "R4-F3 (pathname, " + label + "): the replacement was stranded, settled out of order or a removal was repeated.");
+                        }
+                    }
+                    finally { HorseTripRepairFiles.ForcePathnameOperations = false; }
+                }
+        }
+
+        // Owner instruction 2026-11-26f section 7, PR-4 review R8-F1 (Windows, production handle branch): the bytes that decide a request or a
+        // claim come from a no-follow handle checked before reading. Actual reparse points: a directory junction (creatable without privilege)
+        // at the request name and at the claim name. Simulated external boundary (VerifiedFileOperations.SimulatedReparseForTests reports the
+        // opened entry as a reparse point, standing in for a file symbolic link this machine cannot create): a fresh linked request naming a
+        // loaded horse and a recovered linked claim. Each is refused before selection, removal, claim or archive copy, and left in place.
+        // Controls: an ordinary request applies; a regular claim that another reader holds open is still read and, once released, settled.
+        private static void LinkedEntriesAreRefusedBeforeActing()
+        {
+            var forA = HorseTripRepairPolicy.FormatRequestLine("horse-A");
+            foreach (var kind in new[] { "junction request (actual reparse point)", "junction claim (actual reparse point)", "linked request naming horse-A (simulated)", "recovered linked claim (simulated)" })
+            {
+                using (var folders = new Folders())
+                {
+                    var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                    var request = Path.Combine(folders.UserData, HorseTripRepairPolicy.RequestFileName);
+                    var claim = Path.Combine(folders.UserData, Claimed);
+                    var sibling = Path.Combine(folders.Root, "sibling"); Directory.CreateDirectory(sibling);
+                    File.WriteAllText(Path.Combine(sibling, "target.txt"), forA);
+                    var linkPath = kind.Contains("claim") ? claim : request;
+                    bool created;
+                    if (kind.Contains("junction"))
+                    {
+                        var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/c mklink /J \"" + linkPath + "\" \"" + sibling + "\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+                        p.WaitForExit();
+                        created = Directory.Exists(linkPath) && (File.GetAttributes(linkPath) & FileAttributes.ReparsePoint) != 0;
+                    }
+                    else
+                    {
+                        File.WriteAllText(linkPath, forA);
+                        VerifiedFileOperations.SimulatedReparseForTests = path => string.Equals(Path.GetFullPath(path), Path.GetFullPath(linkPath), StringComparison.OrdinalIgnoreCase);
+                        created = true;
+                    }
+                    try
+                    {
+                        Exception refusal = null;
+                        try { Run(host, session); } catch (Exception e) { refusal = e; }
+                        var archived = Directory.GetFiles(folders.UserData).Count(f => f.EndsWith(HorseTripRepairPolicy.AppliedSuffix) || f.EndsWith(HorseTripRepairPolicy.InterruptedSuffix) || f.EndsWith(".pending"));
+                        var leftInPlace = kind.Contains("junction") ? Directory.Exists(linkPath) : File.Exists(linkPath);
+                        Console.WriteLine("    R8-F1 " + kind + ": created=" + created + " refusal=" + (refusal?.GetType().Name ?? "<none>") + " removals=" + host.Removals +
+                            " archives=" + archived + " result=" + File.Exists(Path.Combine(folders.UserData, HorseTripRepairPolicy.ResultFileName)) + " leftInPlace=" + leftInPlace + " claimed=" + (kind.Contains("request") && File.Exists(claim)));
+                        TestRunner.True(created && refusal is HorseTripIneligibleEntryException && host.Removals == 0 && archived == 0 && !File.Exists(Path.Combine(folders.UserData, HorseTripRepairPolicy.ResultFileName)) && leftInPlace &&
+                            !(kind.Contains("request") && (File.Exists(claim) || Directory.Exists(claim))) && File.ReadAllText(Path.Combine(sibling, "target.txt")) == forA,
+                            "R8-F1 " + kind + ": a linked entry was followed, selected, removed, claimed or copied.");
+                    }
+                    finally { VerifiedFileOperations.SimulatedReparseForTests = null; if (kind.Contains("junction") && Directory.Exists(linkPath)) Directory.Delete(linkPath); }
+                }
+            }
+            // Controls: an ordinary request applies; a regular recovered claim held open by another reader is read and, once released, settled.
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                folders.Request(forA);
+                var ordinary = Run(host, session);
+                TestRunner.True(ordinary == HorseTripRepairDecision.Apply && host.Removals == 1, "R8-F1 control: an ordinary request no longer applies.");
+            }
+            using (var folders = new Folders())
+            {
+                var host = new Host(folders); var session = new HorseTripRepairSession(); host.Loaded.Add(LegacyHorse("horse-A"));
+                var claim = Path.Combine(folders.UserData, Claimed);
+                File.WriteAllText(claim, forA);
+                bool firstThrew;
+                using (new FileStream(claim, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Write))
+                    firstThrew = Throws(() => Run(host, session));
+                var settled = Run(host, session);
+                Console.WriteLine("    R8-F1 locked regular claim control: while held open by a reader the retirement waited (threw=" + firstThrew + "); released: " + settled +
+                    ", interrupted archive exact=" + (Archive(folders, Interrupted) == forA));
+                TestRunner.True(firstThrew && (settled == HorseTripRepairDecision.Interrupted || settled == HorseTripRepairDecision.FinishedDecided) && Archive(folders, Interrupted) == forA &&
+                    host.Removals == 0 && !File.Exists(claim), "R8-F1 control: a regular claim held by another reader was not recovered.");
+            }
         }
 
         // PR-4 review R3-F1: the removal's diagnostic report throws after an exact removal (message construction, display-name read or
