@@ -505,35 +505,246 @@ namespace KingmakerMountedCombat.Domain
                    "replace it with an ordinary text file.") { }
     }
 
-    // PR-4 round 9 (R5-F1): the pathname branch's non-overwriting publication of a complete, already written file. Creating a hard link
-    // never replaces an existing entry (POSIX link/linkat EEXIST, Windows CreateHardLinkW ERROR_ALREADY_EXISTS) and makes the new name
-    // refer to the existing file, so the terminal name appears with the complete bytes or not at all. On Linux the link is made to the
-    // OPEN file itself (linkat of /proc/self/fd/<fd>, AT_SYMLINK_FOLLOW), so it is the attempt's own file even if its private name changed;
-    // without /proc it falls back to link(2) of the private name, as on macOS. Windows uses CreateHardLinkW (reached only through the
-    // pathname test seam there). This machine executes only the Windows variant.
-    internal static class PathnamePublication
+    // PR-4 round 10 (owner instruction 2026-11-27a section 7; reviews R5-F1, R9-F2, R9-F3): the Linux/macOS Mono branch's file operations act
+    // on DESCRIPTORS, never on a pathname chosen earlier:
+    //  - Reading the bytes that decide a request, claim or recovery entry: open(O_RDONLY|O_NOFOLLOW|O_NONBLOCK), regular-file eligibility from
+    //    fstat of THAT descriptor, then read through it. A symbolic link at the name fails the open (ELOOP); a directory, FIFO or device is
+    //    refused by its descriptor's type; either way HorseTripIneligibleEntryException before any selection, removal or copy.
+    //  - Publishing an archive (no staging name exists in either mechanism, so nothing can replace or edit a staged file by name):
+    //     1. Linux: the payload is written and flushed into an UNNAMED file of the folder (open(dir, O_TMPFILE)), which no other process can
+    //        reach by any name, and published by linkat of /proc/self/fd/<fd> (AT_SYMLINK_FOLLOW): one non-overwriting link of that open file,
+    //        so the terminal name appears with the complete bytes or not at all (EEXIST leaves an existing entry untouched). Closing the
+    //        descriptor after any failure leaves nothing behind.
+    //     2. Where an unnamed file or the descriptor link is unavailable (macOS; a filesystem without O_TMPFILE; no /proc; a failed link): the
+    //        terminal name itself is created exclusively (O_CREAT|O_EXCL|O_NOFOLLOW) with permission bits 0, so no other non-root process can
+    //        open it for reading or writing while the verified payload (held in memory, never re-read from a file) is written and flushed
+    //        through this descriptor; fchmod(0644) on the descriptor is the publication point, so the first readable bytes are the complete
+    //        payload. The terminal name must then still refer to the descriptor's file (lstat/fstat device and inode), otherwise the
+    //        publication is refused and the replacement left alone. A failure before publication removes the attempt's own unreadable file
+    //        only while the name still refers to it, so repeated failed polls leave nothing (a crash can leave at most that one unreadable file).
+    // The primitives are behind IPosixFiles (production: LibcPosixFiles); the tests substitute a simulated boundary on Windows.
+    internal struct PosixIdentity
     {
-        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "linkat", SetLastError = true)]
-        private static extern int LinkAt(int olddirfd, string oldpath, int newdirfd, string newpath, int flags);
-        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "link", SetLastError = true)]
-        private static extern int Link(string oldpath, string newpath);
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-        private static extern bool CreateHardLinkW(string link, string existing, IntPtr security);
-        private const int AtCurrentDirectory = -100, AtSymlinkFollow = 0x400;
+        public ulong Device; public ulong Inode; public uint Mode;
+        public bool IsRegular => (Mode & 0xF000u) == 0x8000u;
+        public bool SameFile(PosixIdentity other) => Device == other.Device && Inode == other.Inode;
+    }
 
-        internal static void Publish(FileStream owned, string ownedPath, string terminal)
+    internal sealed class PosixFlags
+    {
+        public int ReadOnly = 0, WriteOnly = 1, Create, Exclusive, NoFollow, NonBlock, CloseOnExec;
+        public int ENOENT = 2, EINTR = 4, EACCES = 13, EEXIST = 17, ENOTDIR = 20, ELOOP, ENOTSUP;
+        internal static readonly PosixFlags Linux = new PosixFlags { Create = 0x40, Exclusive = 0x80, NoFollow = 0x20000, NonBlock = 0x800, CloseOnExec = 0x80000, ELOOP = 40, ENOTSUP = 95 };
+        internal static readonly PosixFlags Mac = new PosixFlags { Create = 0x200, Exclusive = 0x800, NoFollow = 0x100, NonBlock = 0x4, CloseOnExec = 0x1000000, ELOOP = 62, ENOTSUP = 45 };
+    }
+
+    internal interface IPosixFiles
+    {
+        PosixFlags Flags { get; }
+        int Errno { get; }
+        int Open(string path, int flags, int mode);
+        int OpenUnnamed(string directory);
+        int Read(int fd, byte[] buffer, int count);
+        int Write(int fd, byte[] buffer, int count);
+        int Fsync(int fd);
+        int Fchmod(int fd, int mode);
+        int Fstat(int fd, out PosixIdentity identity);
+        int Lstat(string path, out PosixIdentity identity);
+        int LinkDescriptor(int fd, string newPath);
+        int Unlink(string path);
+        int Close(int fd);
+    }
+
+    // Production primitives (x86_64 Linux and macOS, the platforms Kingmaker ships for). struct stat: Linux x86_64 st_dev u64 @0, st_ino u64 @8,
+    // st_mode u32 @24 (fstat/lstat through syscall(2) numbers 5 and 6, independent of the glibc version); macOS struct stat64 (the $INODE64
+    // entry points): st_dev i32 @0, st_mode u16 @4, st_ino u64 @8. Verified on Linux by the round-10 syscall probe (decomposition/pr4/r10).
+    internal sealed class LibcPosixFiles : IPosixFiles
+    {
+        private static readonly bool Mac = File.Exists("/usr/lib/libSystem.dylib") || System.IO.Directory.Exists("/System/Library/CoreServices");
+        private const int StatBufferSize = 256, AtCurrentDirectory = -100, AtSymlinkFollow = 0x400, LinuxUnnamed = 0x410000, OwnerReadWrite = 0x180;
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "open", SetLastError = true)] private static extern int open(string path, int flags, int mode);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "read", SetLastError = true)] private static extern IntPtr read(int fd, byte[] buffer, IntPtr count);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "write", SetLastError = true)] private static extern IntPtr write(int fd, byte[] buffer, IntPtr count);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "fsync", SetLastError = true)] private static extern int fsync(int fd);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "fchmod", SetLastError = true)] private static extern int fchmod(int fd, int mode);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "close", SetLastError = true)] private static extern int close(int fd);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "unlink", SetLastError = true)] private static extern int unlink(string path);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "linkat", SetLastError = true)] private static extern int linkat(int olddirfd, string oldpath, int newdirfd, string newpath, int flags);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "syscall", SetLastError = true)] private static extern long LinuxFstat(long number, int fd, byte[] buffer);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "syscall", SetLastError = true)] private static extern long LinuxLstat(long number, string path, byte[] buffer);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "fstat$INODE64", SetLastError = true)] private static extern int MacFstat(int fd, byte[] buffer);
+        [System.Runtime.InteropServices.DllImport("libc", EntryPoint = "lstat$INODE64", SetLastError = true)] private static extern int MacLstat(string path, byte[] buffer);
+
+        public PosixFlags Flags => Mac ? PosixFlags.Mac : PosixFlags.Linux;
+        public int Errno { get; private set; }
+        private int Done(long result) { Errno = result < 0 ? System.Runtime.InteropServices.Marshal.GetLastWin32Error() : 0; return result < 0 ? -1 : (int)result; }
+        private int Unsupported() { Errno = Flags.ENOTSUP; return -1; }
+
+        public int Open(string path, int flags, int mode) => Done(open(path, flags, mode));
+        public int OpenUnnamed(string directory) => Mac || IntPtr.Size != 8 ? Unsupported() : Done(open(directory, LinuxUnnamed | Flags.WriteOnly | Flags.CloseOnExec, OwnerReadWrite));
+        public int Read(int fd, byte[] buffer, int count) => Done(read(fd, buffer, new IntPtr(count)).ToInt64());
+        public int Write(int fd, byte[] buffer, int count) => Done(write(fd, buffer, new IntPtr(count)).ToInt64());
+        public int Fsync(int fd) => Done(fsync(fd));
+        public int Fchmod(int fd, int mode) => Done(fchmod(fd, mode));
+        public int Close(int fd) => Done(close(fd));
+        public int Unlink(string path) => Done(unlink(path));
+        public int LinkDescriptor(int fd, string newPath)
         {
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            if (Mac || !System.IO.Directory.Exists("/proc/self/fd")) return Unsupported();
+            return Done(linkat(AtCurrentDirectory, "/proc/self/fd/" + fd.ToString(CultureInfo.InvariantCulture), AtCurrentDirectory, newPath, AtSymlinkFollow));
+        }
+        public int Fstat(int fd, out PosixIdentity identity)
+        {
+            var buffer = new byte[StatBufferSize]; identity = default(PosixIdentity);
+            if (IntPtr.Size != 8) return Unsupported();
+            var result = Done(Mac ? MacFstat(fd, buffer) : LinuxFstat(5, fd, buffer));
+            if (result == 0) identity = Parse(buffer);
+            return result;
+        }
+        public int Lstat(string path, out PosixIdentity identity)
+        {
+            var buffer = new byte[StatBufferSize]; identity = default(PosixIdentity);
+            if (IntPtr.Size != 8) return Unsupported();
+            var result = Done(Mac ? MacLstat(path, buffer) : LinuxLstat(6, path, buffer));
+            if (result == 0) identity = Parse(buffer);
+            return result;
+        }
+        private static PosixIdentity Parse(byte[] b) => Mac
+            ? new PosixIdentity { Device = (uint)BitConverter.ToInt32(b, 0), Mode = BitConverter.ToUInt16(b, 4), Inode = BitConverter.ToUInt64(b, 8) }
+            : new PosixIdentity { Device = BitConverter.ToUInt64(b, 0), Inode = BitConverter.ToUInt64(b, 8), Mode = BitConverter.ToUInt32(b, 24) };
+    }
+
+    internal static class UnixFiles
+    {
+        internal static readonly IPosixFiles Production = new LibcPosixFiles();
+        // Test seam: a simulated POSIX boundary replaces the production primitives (null restores them).
+        internal static IPosixFiles Calls { get => calls ?? Production; set => calls = value; }
+        private static IPosixFiles calls;
+        private const int PublishedMode = 0x1A4;   // 0644
+
+        private static int Retry(Func<int> call, IPosixFiles c)
+        {
+            int result;
+            do result = call(); while (result < 0 && c.Errno == c.Flags.EINTR);
+            return result;
+        }
+
+        // R9-F2: the deciding bytes, from the descriptor whose regular-file type was established.
+        internal static byte[] ReadEligible(string path)
+        {
+            var c = Calls; var f = c.Flags;
+            var fd = Retry(() => c.Open(path, f.ReadOnly | f.NoFollow | f.NonBlock | f.CloseOnExec, 0), c);
+            if (fd < 0)
             {
-                if (!CreateHardLinkW(terminal, ownedPath, IntPtr.Zero))
-                    throw new IOException("The archive could not be published under " + terminal + " (Win32 error " + System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
-                return;
+                var error = c.Errno;
+                if (error == f.ELOOP) throw new HorseTripIneligibleEntryException(path);
+                if (error == f.ENOENT || error == f.ENOTDIR) throw new FileNotFoundException("The file " + path + " does not exist (errno " + error + ").", path);
+                throw new IOException("The file " + path + " could not be opened for reading (errno " + error + ").");
             }
-            var fd = owned.SafeFileHandle.DangerousGetHandle().ToInt32();
-            if (System.IO.Directory.Exists("/proc/self/fd") &&
-                LinkAt(AtCurrentDirectory, "/proc/self/fd/" + fd.ToString(CultureInfo.InvariantCulture), AtCurrentDirectory, terminal, AtSymlinkFollow) == 0) return;
-            if (Link(ownedPath, terminal) == 0) return;
-            throw new IOException("The archive could not be published under " + terminal + " (errno " + System.Runtime.InteropServices.Marshal.GetLastWin32Error() + ").");
+            try
+            {
+                PosixIdentity identity;
+                if (c.Fstat(fd, out identity) != 0) throw new IOException("The file " + path + " could not be examined (errno " + c.Errno + ").");
+                if (!identity.IsRegular) throw new HorseTripIneligibleEntryException(path);
+                using (var buffer = new MemoryStream())
+                {
+                    var chunk = new byte[8192];
+                    while (true)
+                    {
+                        var read = Retry(() => c.Read(fd, chunk, chunk.Length), c);
+                        if (read < 0) throw new IOException("The file " + path + " could not be read (errno " + c.Errno + ").");
+                        if (read == 0) return buffer.ToArray();
+                        buffer.Write(chunk, 0, read);
+                    }
+                }
+            }
+            finally { c.Close(fd); }
+        }
+
+        // The descriptor as a write-only stream, so the narrow write/flush fault seam wraps the actual payload write.
+        private sealed class DescriptorStream : Stream
+        {
+            private readonly IPosixFiles c; private readonly int fd;
+            internal DescriptorStream(IPosixFiles calls, int descriptor) { c = calls; fd = descriptor; }
+            public override bool CanRead => false; public override bool CanSeek => false; public override bool CanWrite => true;
+            public override long Length => throw new NotSupportedException();
+            public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public override void Flush() { }
+            public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+            public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+            public override void SetLength(long value) => throw new NotSupportedException();
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                var done = 0;
+                while (done < count)
+                {
+                    var part = new byte[count - done];
+                    Buffer.BlockCopy(buffer, offset + done, part, 0, part.Length);
+                    var written = Retry(() => c.Write(fd, part, part.Length), c);
+                    if (written <= 0) throw new IOException("The archive could not be written (errno " + c.Errno + ").");
+                    done += written;
+                }
+            }
+        }
+
+        private static void WriteAndFlush(IPosixFiles c, int fd, byte[] payload, Func<Stream, Stream> seam)
+        {
+            var stream = new DescriptorStream(c, fd);
+            var writer = seam?.Invoke(stream) ?? stream;
+            writer.Write(payload, 0, payload.Length);
+            writer.Flush();
+            if (Retry(() => c.Fsync(fd), c) != 0) throw new IOException("The archive could not be flushed (errno " + c.Errno + ").");
+        }
+
+        // R5-F1/R9-F3: publishes the verified payload under terminal (never replacing an entry), or throws having left no file of its own.
+        // Returns the mechanism used ("unnamed-link" or "protected-create").
+        internal static string Publish(byte[] payload, string terminal, Func<Stream, Stream> seam, Action beforePublication)
+        {
+            var c = Calls; var f = c.Flags;
+            var fd = Retry(() => c.OpenUnnamed(Path.GetDirectoryName(terminal)), c);
+            if (fd >= 0)
+            {
+                try
+                {
+                    WriteAndFlush(c, fd, payload, seam);
+                    beforePublication?.Invoke();
+                    if (c.LinkDescriptor(fd, terminal) == 0) return "unnamed-link";
+                    if (c.Errno == f.EEXIST) throw new IOException("The archive name " + terminal + " is occupied; nothing was published (no staging file remains).");
+                }
+                finally { c.Close(fd); }   // the unnamed file ends with its descriptor
+            }
+            return ProtectedCreate(c, payload, terminal, seam, beforePublication);
+        }
+
+        private static string ProtectedCreate(IPosixFiles c, byte[] payload, string terminal, Func<Stream, Stream> seam, Action beforePublication)
+        {
+            var f = c.Flags;
+            var fd = Retry(() => c.Open(terminal, f.WriteOnly | f.Create | f.Exclusive | f.NoFollow | f.CloseOnExec, 0), c);
+            if (fd < 0) throw new IOException("The archive " + terminal + " could not be created exclusively (errno " + c.Errno + "); nothing was published.");
+            PosixIdentity mine = default(PosixIdentity);
+            var known = false;
+            try
+            {
+                if (c.Fstat(fd, out mine) != 0) throw new IOException("The new archive " + terminal + " could not be examined (errno " + c.Errno + ").");
+                known = true;
+                WriteAndFlush(c, fd, payload, seam);
+                beforePublication?.Invoke();
+                if (c.Fchmod(fd, PublishedMode) != 0) throw new IOException("The archive " + terminal + " could not be made readable (errno " + c.Errno + ").");
+                PosixIdentity named;
+                if (c.Lstat(terminal, out named) != 0 || !named.SameFile(mine))
+                {
+                    known = false;   // the name no longer refers to this file: whatever is there now is someone else's and stays
+                    throw new IOException("The archive name " + terminal + " was replaced during publication; the replacement is left in place.");
+                }
+                return "protected-create";
+            }
+            catch
+            {
+                PosixIdentity now;
+                if (known && c.Lstat(terminal, out now) == 0 && now.SameFile(mine)) c.Unlink(terminal);
+                throw;
+            }
+            finally { c.Close(fd); }
         }
     }
 
@@ -632,19 +843,22 @@ namespace KingmakerMountedCombat.Domain
             return handle;
         }
 
-        private const uint ShareAll = 7, BackupSemanticsFlag = 0x02000000;
+        // PR-4 round 10 (R9-F1): read and delete sharing only. A handle another process holds with write access refuses this open (sharing
+        // violation, an IOException the poll logs and retries), so a request still being written is never decided; read-only holders stay
+        // compatible.
+        private const uint ShareReadDelete = 5, BackupSemanticsFlag = 0x02000000;
         // Test seam (PR-4 round 9): reports an opened entry as a reparse point (a simulated external boundary for a file symbolic link,
         // which this machine cannot create without privilege). Null in production.
         internal static Func<string, bool> SimulatedReparseForTests { get; set; }
 
         // PR-4 round 9 (R8-F1): the bytes that decide a request or claim come from a handle opened WITHOUT following links
         // (FILE_FLAG_OPEN_REPARSE_POINT; FILE_FLAG_BACKUP_SEMANTICS so a directory or junction opens as itself and is classified), sharing
-        // read, write and delete (so an eligible ordinary file another reader holds is still read), and checked (FileAttributeTagInfo) before
+        // read and delete (round 10, R9-F1: an eligible file another READER holds is still read; a writer excludes it), and checked (FileAttributeTagInfo) before
         // a single byte is read: a reparse point or directory raises HorseTripIneligibleEntryException, before any selection, removal or
         // archive copy.
         internal static byte[] ReadEligible(string path)
         {
-            var file = CreateFileW(path, GenericRead, ShareAll, IntPtr.Zero, OpenExistingDisposition, OpenReparsePointFlag | BackupSemanticsFlag | NormalAttribute, IntPtr.Zero);
+            var file = CreateFileW(path, GenericRead, ShareReadDelete, IntPtr.Zero, OpenExistingDisposition, OpenReparsePointFlag | BackupSemanticsFlag | NormalAttribute, IntPtr.Zero);
             if (file.IsInvalid) { var failure = Failure("The file " + path + " could not be opened for reading"); file.Dispose(); throw failure; }
             using (var handle = new Handle(file, false))
             {
@@ -733,18 +947,10 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
-        // PR-4 round 9 (R8-F1): the influential bytes of a request or claim, from an entry that is not a link, reparse point or directory.
-        // Windows: the no-follow handle (VerifiedFileOperations.ReadEligible). Pathname branch: the entry's own attributes (Mono reports a
-        // symbolic link as ReparsePoint) are checked before it is read; the check and the read are separate operations there.
-        private static byte[] ReadEligible(string path)
-        {
-            if (HandleOperations) return VerifiedFileOperations.ReadEligible(path);
-            var attributes = File.GetAttributes(path);
-            if ((attributes & (FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0 ||
-                VerifiedFileOperations.SimulatedReparseForTests != null && VerifiedFileOperations.SimulatedReparseForTests(path))
-                throw new HorseTripIneligibleEntryException(path);
-            return File.ReadAllBytes(path);
-        }
+        // PR-4 round 9 (R8-F1) / round 10 (R9-F2): the influential bytes of a request, claim or recovery entry, from an entry that is not a
+        // link, reparse point or directory. Windows: the no-follow handle (VerifiedFileOperations.ReadEligible). Linux/macOS: a no-follow
+        // descriptor whose regular-file type is established by fstat and through which the bytes are read (UnixFiles.ReadEligible): one open.
+        private static byte[] ReadEligible(string path) => HandleOperations ? VerifiedFileOperations.ReadEligible(path) : UnixFiles.ReadEligible(path);
 
         // Test hooks only (review R5-F1 evidence): invoked immediately before and after the claim rename, so a test can replace
         // the request at the exact moment between observation and claim, or write a newer request after it. Unset in production.
@@ -860,29 +1066,41 @@ namespace KingmakerMountedCombat.Domain
         internal const int SettledIdentityLength = 16;
         public Action BeforeSettledReturn { get; set; }
 
-        private static bool HoldsIdentityPrefix(string path, string prefix)
-        {
-            using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) return Digest(ReadAll(held)).StartsWith(prefix, StringComparison.Ordinal);
-        }
+        // Round 10 (R9-F2): recovery and retirement checks read through the same eligible (no-follow, regular-file) open as decisions.
+        private static bool HoldsIdentityPrefix(string path, string prefix) => Digest(ReadEligible(path)).StartsWith(prefix, StringComparison.Ordinal);
 
-        private static bool HoldsBytes(string path, string identity)
-        {
-            using (var held = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) return string.Equals(Digest(ReadAll(held)), identity, StringComparison.Ordinal);
-        }
+        private static bool HoldsBytes(string path, string identity) => string.Equals(Digest(ReadEligible(path)), identity, StringComparison.Ordinal);
 
-        // PR-4 round 9 (R4-F3): entries awaiting verification or return are a .retiring entry, or a .settled entry whose bytes are not the
-        // identity in its name; a .settled entry holding its own identity is a completed retirement and stays. The oldest pending entry is
-        // restored to the claim name when no claim exists, so its disposition is completed by the ordinary lifecycle.
+        // PR-4 round 9 (R4-F3) / round 10 (R9-F4): only POSITIVELY identifiable unfinished work is recovered. The retirement writes exactly
+        // two private name shapes, C.<8 lower-case hex>.retiring and C.<8 lower-case hex>.<16 upper-case hex identity>.settled. Pending work
+        // is a .retiring entry of that shape, or a .settled entry of that shape whose bytes are not the identity in its name (a replacement
+        // stranded by a failed check or move back); a settled entry holding its own identity is a completed retirement. Every other name (the
+        // round-8 completed record C.<32 hex>.settled, a backup, anything unrecognized) is not this service's pending work and is left exactly
+        // as it is, as is an entry that is a link, directory or other non-regular file (refused by the eligible read). The oldest pending entry
+        // is restored to the claim name when no claim exists, so its disposition is completed by the ordinary lifecycle.
+        private static readonly System.Text.RegularExpressions.Regex RetiringName = new System.Text.RegularExpressions.Regex("^[0-9a-f]{8}" +
+            System.Text.RegularExpressions.Regex.Escape(RetiringSuffix) + "$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        private static readonly System.Text.RegularExpressions.Regex SettledName = new System.Text.RegularExpressions.Regex("^[0-9a-f]{8}\\.([0-9A-F]{16})" +
+            System.Text.RegularExpressions.Regex.Escape(SettledSuffix) + "$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
         private void RecoverRetiring()
         {
             if (File.Exists(ClaimPath)) return;
             var prefix = HorseTripRepairPolicy.RequestFileName + HorseTripRepairPolicy.ClaimedSuffix + ".";
-            var pending = new List<string>(System.IO.Directory.GetFiles(Directory, prefix + "*" + RetiringSuffix));
-            foreach (var settled in System.IO.Directory.GetFiles(Directory, prefix + "*" + SettledSuffix))
+            var pending = new List<string>();
+            foreach (var entry in System.IO.Directory.GetFiles(Directory, prefix + "*"))
             {
-                var name = Path.GetFileName(settled);
-                var parts = name.Substring(prefix.Length, name.Length - prefix.Length - SettledSuffix.Length).Split('.');
-                if (parts.Length != 2 || parts[1].Length != SettledIdentityLength || !HoldsIdentityPrefix(settled, parts[1])) pending.Add(settled);
+                var name = Path.GetFileName(entry);
+                if (!name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                var rest = name.Substring(prefix.Length);
+                try
+                {
+                    if (RetiringName.IsMatch(rest)) { ReadEligible(entry); pending.Add(entry); continue; }
+                    var settled = SettledName.Match(rest);
+                    if (settled.Success && !HoldsIdentityPrefix(entry, settled.Groups[1].Value)) pending.Add(entry);
+                }
+                catch (HorseTripIneligibleEntryException) { }   // a link or non-regular entry is not recovered; it stays where it is
+                catch (FileNotFoundException) { }
             }
             if (pending.Count == 0) return;
             pending.Sort((x, y) => File.GetLastWriteTimeUtc(x).CompareTo(File.GetLastWriteTimeUtc(y)));
@@ -910,9 +1128,9 @@ namespace KingmakerMountedCombat.Domain
         // private file is removed; no partial terminal archive is ever left.
         private string Commit(byte[] payload, string suffix)
         {
-            var pending = ClaimPath + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".pending";
             if (HandleOperations)
             {
+                var pending = ClaimPath + "." + Guid.NewGuid().ToString("N").Substring(0, 8) + ".pending";
                 // PR-4 round 7 (R5-F1): the payload is written and flushed through one exclusive handle (no other reader, writer, renamer or
                 // deleter), and that same handle is renamed to the non-overwriting terminal name (FileRenameInfo, ReplaceIfExists false):
                 // the file that appears under the terminal name is the file this handle wrote, so its first visible bytes are the payload.
@@ -939,24 +1157,18 @@ namespace KingmakerMountedCombat.Domain
                 }
                 finally { staged.Dispose(); }
             }
-            // Elsewhere (Linux/macOS Mono): PR-4 round 9 (R5-F1). The payload is written and flushed through the exclusively created private
-            // file's handle, which stays open, and only then published by creating a hard link to that file under the terminal name
-            // (PathnamePublication): one non-overwriting operation after which the terminal name holds the complete bytes, never a prefix.
-            // A failure before or at the link leaves the terminal name untouched (an entry someone else made there is preserved) and the
-            // private file in place: it is the attempt's own, and no other name is touched or deleted. The next poll commits again.
-            using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read))
-            {
-                var writer = StagingWriteSeam?.Invoke(file) ?? file;
-                writer.Write(payload, 0, payload.Length);
-                writer.Flush();
-                file.Flush(true);
-                BeforeCommit?.Invoke();
-                var target = ArchiveTarget(suffix);
-                PathnamePublication.Publish(file, pending, target);
-                AfterPublishRename?.Invoke(target);
-                return target;
-            }
+            // Elsewhere (Linux/macOS Mono): PR-4 round 10 (R5-F1, R9-F3). The verified payload is published by UnixFiles.Publish: an unnamed
+            // file linked from its descriptor (Linux), or the terminal name created exclusively with permission bits 0 and made readable through
+            // its descriptor once complete. Neither mechanism has a staging name, so nothing can be substituted or edited by name, no alias of
+            // the archive survives, and a failed attempt leaves nothing of its own behind; the claim stays and the next poll commits again.
+            var target = ArchiveTarget(suffix);
+            LastPublicationMechanism = UnixFiles.Publish(payload, target, StagingWriteSeam, BeforeCommit);
+            AfterPublishRename?.Invoke(target);
+            return target;
         }
+
+        // Diagnostics and tests: the pathname branch's last publication mechanism ("unnamed-link" or "protected-create").
+        internal string LastPublicationMechanism { get; private set; }
 
 
         // Reads a file this call may still hold open for writing (the staging handle), so the reader shares write and delete access.
