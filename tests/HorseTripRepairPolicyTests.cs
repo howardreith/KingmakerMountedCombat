@@ -25,7 +25,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 round 13: repeated clicks and updates consume one confirmation once (one removal)", RepeatedClicksAndUpdates);
             runner.Run("PR-4 round 15 (R14-F1): a selected horse survives ordinary updates until a later confirmation; one exact removal, no replay; cancel, replacement, session and stop still drop it", SelectionSurvivesUpdates);
             runner.Run("PR-4 round 13: a reload (same stable id, new unit object, new session) or a new visit to the same area invalidates the consent and token", ReloadInvalidatesConsent);
-            runner.Run("PR-4 round 15 (R12-F1): the production disable and failure-cleanup sequences, then re-enable, drop the authorization; refused disables keep it; a fresh confirmation repairs once", DisableAndFailureStop);
+            runner.Run("PR-4 rounds 15-16 (R12-F1, R15-F2, R15-F3): the production disable and failure-cleanup sequences, then re-enable, drop the authorization; refused disables keep it under a shared persistence state; the stopped interval and a consent taken before the stop remove nothing", DisableAndFailureStop);
             runner.Run("PR-4 round 14 (R12-F4): a failing session lookup is a terminal record for the confirmed horse; nothing executes on recovery", SessionLookupFailure);
             runner.Run("PR-4 round 14 (R12-F4): a failing presentation refresh after a valid removal still reports the stored outcome exactly once", PresentationFailureStillReports);
             runner.Run("PR-4 round 14 (R12-F2): a session change retires old offers and tokens while the panel is closed; reopening offers a fresh token", ClosedPanelSessionChange);
@@ -239,7 +239,7 @@ namespace KingmakerMountedCombat.Tests
         {
             private readonly Host host;
             public readonly List<string> Calls = new List<string>();
-            public bool Busy, Loading, CleanupResidue, ShieldStops = true, SelectionChanges = true, ShieldOn = true;
+            public bool CleanupResidue, ShieldStops = true, SelectionChanges = true, ShieldOn = true;
             public bool Pending;
             public Lifecycle(Host host) { this.host = host; IsEnabled = true; }
             public bool IsEnabled { get; set; }
@@ -247,8 +247,10 @@ namespace KingmakerMountedCombat.Tests
             public bool EnableSelection() { Calls.Add("selection:on"); return true; }
             public void StartRepair() { Calls.Add("repair:start"); host.Console.Start(); }
             public void EnableServices() { Calls.Add("services:on"); ShieldOn = true; }
-            public bool SaveOrTeardownBusy { get { return Busy; } }
-            public bool LoadInFlight { get { return Loading; } }
+            // PR-4 round 16 (R15-F2): the lifecycle reads the SAME simulated persistence state as the repair host's world-write gate: a save in
+            // flight closes the write gate, a load in flight is the host's loading flag.
+            public bool SaveOrTeardownBusy { get { return !host.WriteGateOpen; } }
+            public bool LoadInFlight { get { return host.Loading; } }
             public bool HandleModDisable() { Calls.Add("cleanup"); return !CleanupResidue; }
             public bool ShieldEnabled { get { return ShieldOn; } }
             public bool DisableShield(string reason) { Calls.Add("shield:off(" + reason + ")"); if (ShieldStops) ShieldOn = false; return ShieldStops; }
@@ -290,24 +292,75 @@ namespace KingmakerMountedCombat.Tests
                     order.IndexOf("repair:stop", StringComparison.Ordinal) < order.IndexOf("repair:start", StringComparison.Ordinal),
                     "PR-4 round 15 (" + kase + "): the authorization survived the production stop and re-enable, or a fresh confirmation did not repair once (" + order + ").");
             }
-            // Refusal and rollback semantics: a refused disable (save or teardown in flight, a load in flight, cleanup residue, a Mounted Shield
-            // contribution, an externally changed selection) changes nothing for the repair action: the confirmation stays armed and executes.
-            foreach (var refusal in new[] { "save in flight", "load in flight", "cleanup residue", "shield contribution", "selection changed" })
+            // Refusal and rollback semantics (PR-4 round 16, R15-F2): a refused disable changes nothing for the repair action: the confirmation
+            // is still armed immediately afterwards. Save and load refusals read the shared persistence state, so while it stays open the next
+            // repair update is itself refused (zero native calls) and nothing replays after settlement; settled first, the retained consent
+            // removes exactly once. The other refusals (cleanup residue, a Mounted Shield contribution, a changed selection) do not involve
+            // persistence: the retained consent removes once (and the selection case re-enables Mounted Shield).
+            foreach (var refusal in new[] { "save in flight, held", "save in flight, settled first", "load in flight, held", "load in flight, settled first",
+                "cleanup residue", "shield contribution", "selection changed" })
             {
                 var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
                 var life = new Lifecycle(host);
-                if (refusal == "save in flight") life.Busy = true;
-                if (refusal == "load in flight") life.Loading = true;
+                host.Update();
+                host.ConfirmOffer(a);
+                var save = refusal.StartsWith("save", StringComparison.Ordinal); var load = refusal.StartsWith("load", StringComparison.Ordinal);
+                if (save) host.WriteGateOpen = false;
+                if (load) host.Loading = true;
                 if (refusal == "cleanup residue") life.CleanupResidue = true;
                 if (refusal == "shield contribution") life.ShieldStops = false;
                 if (refusal == "selection changed") life.SelectionChanges = false;
+                var result = ServiceLifecycleSequence.Disable(life);
+                var retained = host.Console.Armed && life.IsEnabled && !life.Calls.Contains("repair:stop") && !host.Console.Stopped;
+                var settledFirst = refusal.EndsWith("settled first", StringComparison.Ordinal);
+                if (settledFirst) { host.WriteGateOpen = true; host.Loading = false; }
+                var record = host.Update();
+                bool ok;
+                if ((save || load) && !settledFirst)
+                {
+                    var callsWhileOpen = host.NativeCalls;
+                    host.WriteGateOpen = true; host.Loading = false;   // settlement
+                    var after1 = host.Update(); var after2 = host.Update();
+                    ok = record != null && record.Disposition.StartsWith("not removed: the world was not settled", StringComparison.Ordinal) && callsWhileOpen == 0 &&
+                        after1 == null && after2 == null && host.NativeCalls == 0 && Candidates(a).Count == 1;
+                }
+                else ok = record != null && record.Disposition == "removed" && host.NativeCalls == 1 &&
+                        (refusal != "selection changed" || (life.ShieldOn && life.Calls.Contains("shield:on")));
+                TestRunner.True(!result && retained && ok,
+                    "PR-4 round 16 (refused disable: " + refusal + "): the refusal did not retain the consent, a removal ran during an open save or load, replayed after settlement, or Mounted Shield was not rolled back.");
+            }
+            {
+                // PR-4 round 16 (R15-F3): the stopped interval. After the production disable, with an eligible horse loaded, an update with the
+                // panel requesting presentation exposes no offer, accepts no intent and removes nothing; re-enable then offers a fresh token.
+                var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var life = new Lifecycle(host);
+                host.Update();
+                var oldToken = host.Offer(a).Token;
+                host.ConfirmOffer(a);
+                var stopped = ServiceLifecycleSequence.Disable(life);
+                host.Console.RequestPresentation();
+                var whileStopped = host.Update();
+                var offersWhileStopped = host.Console.Offers.Count;
+                var intent = host.Console.Select(oldToken) || host.Console.Confirm(oldToken);
+                var callsWhileStopped = host.NativeCalls;
+                ServiceLifecycleSequence.Enable(life);
+                host.Update();
+                var fresh = host.Offer(a);
+                TestRunner.True(stopped && whileStopped == null && offersWhileStopped == 0 && !intent && callsWhileStopped == 0 && fresh.Eligible && fresh.Token != oldToken,
+                    "PR-4 round 16 (stopped interval): a stopped update exposed an offer, accepted intent or removed a fact.");
+            }
+            {
+                // PR-4 round 16 (R15-F3): a consent already taken for dispatch when the production disable stops the services is a terminal
+                // stopped refusal with zero removals.
+                var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                var life = new Lifecycle(host);
                 host.Update();
                 host.ConfirmOffer(a);
-                var result = ServiceLifecycleSequence.Disable(life);
-                var record = host.Update();
-                TestRunner.True(!result && life.IsEnabled && !life.Calls.Contains("repair:stop") && record != null && record.Disposition == "removed" &&
-                    (refusal != "selection changed" || (life.ShieldOn && life.Calls.Contains("shield:on"))),
-                    "PR-4 round 15 (refused disable: " + refusal + "): the refusal stopped the repair action or did not roll back Mounted Shield.");
+                var taken = host.Console.TakeConsent();
+                var stopped = ServiceLifecycleSequence.Disable(life);
+                var record = host.Console.ExecuteTaken(taken, host.Marker, null, host);
+                TestRunner.True(taken != null && stopped && record != null && record.Disposition.StartsWith("not removed: Mounted Combat was stopped", StringComparison.Ordinal) &&
+                    host.NativeCalls == 0 && Candidates(a).Count == 1, "PR-4 round 16 (consent taken before the stop): the dispatch after the production stop removed the fact.");
             }
             {
                 // A failure cleanup that must wait (Mounted Shield not stopped) leaves the services enabled and the stop pending; the repair

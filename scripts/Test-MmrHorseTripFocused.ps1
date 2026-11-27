@@ -8,7 +8,7 @@ param([ValidateSet('Debug','Release')][string]$Configuration = 'Release')
 #      invalidation and the absence of the withdrawn file-request protocol (OWNER AMENDMENT revision 1), on genuine Kingmaker objects.
 #   2. Test-Finalize5CompanionReaders.ps1 (PR-4 rounds 14-15, R12-F6/R13-F1/R14-F2): the companion-name evidence reader fed by the compiled
 #      product's observer (Chunk7PersistenceScenario.UmmPanelObservation over a delegate bound to the compiled Main.OnMaintenanceGui, single
-#      and mixed with an unrelated handler). Both product-bound children receive the -Configuration that Test-Tiers.ps1 forwards here.
+#      and mixed with an unrelated handler). Every child that declares -Configuration (the product-bound ones) receives the configuration Test-Tiers.ps1 forwards here.
 #   The confirmed action itself (snapshots, intent, consent, guarded dispatch, classified outcome, stale/gate/reload/reporting cases, inert
 #   legacy files) is exercised by the component runner (tests/HorseTripRepairPolicyTests.cs) through the shared HorseTripRepairUpdater.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
@@ -27,7 +27,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MmrHorseTripNativeContract.ps1','-Configuration',$Configuration),@('Test-Finalize5CompanionReaders.ps1','-Configuration',$Configuration),
+    @('Test-MmrHorseTripNativeContract.ps1'),@('Test-Finalize5CompanionReaders.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),
@@ -36,8 +36,13 @@ $children=@(
     @('Test-UmmLoaderContracts.ps1','-Profile','umm-0.33.0','-IgnoreLocalProfile'))
 foreach($child in $children){
     $label=($child -join ' ')
+    $childPath=Join-Path $PSScriptRoot $child[0]
+    $arguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$childPath)+@($child | Select-Object -Skip 1)
+    # PR-4 round 16 (R15-F1): every child that declares -Configuration (each one that reads the built product) receives the selected
+    # configuration, as Test-Tiers.ps1 forwards it here; existing arguments, including both UMM loader profiles, are kept.
+    if((Get-Command $childPath).Parameters.ContainsKey('Configuration')){$arguments+=@('-Configuration',$Configuration)}
+    $label=(@($child[0])+@($arguments | Select-Object -Skip 6)) -join ' '
     Write-Host ('MMR-HORSE-TRIP CHILD '+$label)
-    $arguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot $child[0]))+@($child | Select-Object -Skip 1)
     & powershell.exe @arguments
     if($LASTEXITCODE -ne 0){$failed.Add($label)}
 }
