@@ -7,12 +7,13 @@ using KingmakerMountedCombat.Domain;
 
 namespace KingmakerMountedCombat.Tests
 {
-    // MMR-06 existing horses, PR-4 rounds 12-13 (OWNER AMENDMENT revision 1, owner instruction 2026-11-27b section 4): nothing is removed
+    // MMR-06 existing horses, PR-4 rounds 12-14 (OWNER AMENDMENT revision 1, owner instruction 2026-11-27b section 4): nothing is removed
     // automatically; one fact is removed from one horse only through the owner's confirmed in-game maintenance action. Every case runs the
     // PRODUCTION orchestration HorseTripRepairUpdater.Run (the method HorseCompanionBlueprintService.ProcessTripRepairConsole calls) with the
     // production HorseTripRepairConsole and HorseTripRemoval; only the game-facing host calls (party, session marker, world-write gate inputs,
     // feature collection, native removal, logger) are substituted (a simulated engine boundary). The composition root's lifecycle wiring
-    // (disable and failure stop -> InvalidateTripRepair) needs the game and is checked in Test-MmrHorseTripNativeContract.ps1. UI appearance and
+    // (disable and failure stop -> OnServicesStopped -> HorseTripRepairConsole.Stop; enable -> Start) needs the game to construct and is checked
+    // on the compiled product in Test-MmrHorseTripNativeContract.ps1; the tests drive the same Stop/Start transitions. UI appearance and
     // gameplay save/load are pending the owner's integrated-alpha playtest. Retired file-protocol tests: PR-4-amendment-test-mapping.md.
     internal static class HorseTripRepairPolicyTests
     {
@@ -23,7 +24,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("PR-4 round 13: two horses: selecting, switching and cancelling change nothing; the confirmed horse alone is repaired once", TwoHorsesAndCancellation);
             runner.Run("PR-4 round 13: repeated clicks and updates consume one confirmation once (one removal)", RepeatedClicksAndUpdates);
             runner.Run("PR-4 round 13: a reload (same stable id, new unit object, new session) or a new visit to the same area invalidates the consent and token", ReloadInvalidatesConsent);
-            runner.Run("PR-4 round 13 (R12-F1): disable/re-enable and a failure stop drop the consent; a fresh confirmation repairs once", DisableAndFailureStop);
+            runner.Run("PR-4 round 14 (R12-F1): disable/re-enable and a failure stop (the console Stop/Start transitions the composition root calls) drop the consent; a fresh confirmation repairs once", DisableAndFailureStop);
+            runner.Run("PR-4 round 14 (R12-F4): a failing session lookup is a terminal record for the confirmed horse; nothing executes on recovery", SessionLookupFailure);
+            runner.Run("PR-4 round 14 (R12-F4): a failing presentation refresh after a valid removal still reports the stored outcome exactly once", PresentationFailureStillReports);
+            runner.Run("PR-4 round 14 (R12-F2): a session change retires old offers and tokens while the panel is closed; reopening offers a fresh token", ClosedPanelSessionChange);
+            runner.Run("PR-4 round 14 (R12-F7): replacing only the unit object (same session, same id) refuses; both objects keep their facts", ObjectOnlyReplacement);
+            runner.Run("PR-4 round 14 (R13-F3): an ineligible row explains itself from its stable id and candidate count", IneligibleRowText);
+            runner.Run("PR-4 round 14 (R13-F1): the UMM panel classifier accepts only the single authorized handler", UmmPanelClassification);
             runner.Run("PR-4 round 13 (R12-F2): an unavailable party drops offers and consent; re-entry offers a fresh token", PartyUnavailable);
             runner.Run("PR-4 round 13 (R12-F3): the stable id is required and rechecked; a rename records the confirmed name", StableIdAndRename);
             runner.Run("PR-4 round 13 (R12-F4): a changed fact, a second candidate or a failing check after confirmation is a terminal record for that horse", RefreshCannotEraseConsent);
@@ -75,13 +82,18 @@ namespace KingmakerMountedCombat.Tests
             public readonly Dictionary<Horse, string> IdOverride = new Dictionary<Horse, string>();
             public Action<Horse, Fact> NativeRemove = (h, f) => h.Facts.Remove(f);
             public Func<Horse, IEnumerable<Fact>> ReadAfter;   // the post-removal read (null: the live list)
-            public Exception CheckFailure, DiscoveryFailure;
+            public Exception CheckFailure, DiscoveryFailure, SessionFailureOnce;
             public int NativeCalls, Reads;
             public bool LogThrows;
             public readonly List<string> Log = new List<string>();
 
             public bool PartyAvailable => Party;
-            public object SessionMarker() => Marker;
+            public object SessionMarker()
+            {
+                var failure = SessionFailureOnce; SessionFailureOnce = null;
+                if (failure != null) throw failure;
+                return Marker;
+            }
             public IEnumerable<HorseTripRepairConsole<Horse, Fact>.Live> LoadedHorses()
             {
                 if (DiscoveryFailure != null) throw DiscoveryFailure;
@@ -184,20 +196,129 @@ namespace KingmakerMountedCombat.Tests
 
         private static void DisableAndFailureStop()
         {
-            foreach (var kase in new[] { "disable and re-enable (CompositionRoot.SetEnabled)", "failure stop (PerformFailureCleanup)" })
+            foreach (var kase in new[] { "disable and re-enable (CompositionRoot.SetEnabled -> OnServicesStopped / OnServicesStarted)", "failure stop (PerformFailureCleanup -> OnServicesStopped), then re-enable" })
             {
                 var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
                 host.Update();
                 var oldToken = host.Offer(a).Token;
                 host.ConfirmOffer(a);
-                host.Console.Invalidate();   // what CompositionRoot calls through HorseCompanionBlueprintService.InvalidateTripRepair on both paths
-                var noUpdateRecord = host.Update();
+                host.Console.Stop();   // the stop transition HorseCompanionBlueprintService.OnServicesStopped performs
+                var whileStopped = host.Update();
+                var offersWhileStopped = host.Console.Offers.Count;
+                var intentWhileStopped = host.Console.Select(oldToken) || host.Console.Confirm(oldToken);
+                host.Console.Start();  // the enable transition (OnServicesStarted), BEFORE any further repair update
+                var afterRestart = host.Update();
                 var oldTokenWorks = host.Console.Select(oldToken);
+                var fresh = host.Offer(a);
                 host.ConfirmOffer(a);
                 var applied = host.Update();
-                TestRunner.True(noUpdateRecord == null && !oldTokenWorks && applied != null && applied.Disposition == "removed" && host.NativeCalls == 1,
-                    "PR-4 round 13 (" + kase + "): a consent survived the stop, or a fresh confirmation did not repair once.");
+                TestRunner.True(whileStopped == null && offersWhileStopped == 0 && !intentWhileStopped && afterRestart == null && !oldTokenWorks && fresh.Token != oldToken &&
+                    applied != null && applied.Disposition == "removed" && host.NativeCalls == 1,
+                    "PR-4 round 14 (" + kase + "): a consent or token survived the stop, intent was accepted while stopped, or a fresh confirmation did not repair once.");
             }
+            {
+                // A confirmation armed and executed in the same update in which the service had stopped is a terminal refusal, not a removal.
+                var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+                host.Update();
+                var token = host.Offer(a).Token; host.Console.Select(token); host.Console.Confirm(token);
+                var taken = host.Console.TakeConsent();
+                host.Console.Stop();
+                var record = host.Console.ExecuteTaken(taken, host.Marker, null, host);
+                TestRunner.True(record != null && record.Disposition.StartsWith("not removed: Mounted Combat was stopped", StringComparison.Ordinal) && host.NativeCalls == 0,
+                    "A confirmation dispatched after the stop removed the fact.");
+            }
+        }
+
+        private static void SessionLookupFailure()
+        {
+            var host = new Host(); var a = LegacyHorse("horse-A"); var b = LegacyHorse("horse-B"); host.Loaded.Add(a); host.Loaded.Add(b);
+            host.Update();
+            host.ConfirmOffer(b); host.Update();   // an earlier result for B
+            host.ConfirmOffer(a);
+            host.SessionFailureOnce = new InvalidOperationException("session lookup failed");
+            var record = host.Update();
+            var recovery = host.Update(); var again = host.Update();
+            TestRunner.True(record != null && record.HorseId == "horse-A" && record.Disposition.StartsWith("not removed: the game session could not be checked", StringComparison.Ordinal) &&
+                host.Console.LastRecord == record && recovery == null && again == null && !host.Console.Armed && host.NativeCalls == 1 && Candidates(a).Count == 1 &&
+                host.Log.Count(l => l.Contains("horse=horse-A")) == 1,
+                "A failed session lookup left the confirmation armed, removed later, or misattributed the result.");
+        }
+
+        private static void PresentationFailureStillReports()
+        {
+            var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+            host.Update();
+            host.ConfirmOffer(a);
+            host.DiscoveryFailure = new InvalidOperationException("party enumeration failed");
+            var threw = false;
+            try { host.Update(); } catch (InvalidOperationException) { threw = true; }
+            host.DiscoveryFailure = null;
+            var next = host.Update();
+            TestRunner.True(threw && host.Log.Count(l => l.Contains("horse=horse-A") && l.Contains("disposition=removed")) == 1 && host.Log.Count == 1 && next == null &&
+                host.NativeCalls == 1 && Candidates(a).Count == 0,
+                "A presentation failure after a valid removal suppressed or repeated the report, or repeated the removal.");
+        }
+
+        private static void ClosedPanelSessionChange()
+        {
+            var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
+            host.Update();
+            var oldToken = host.Offer(a).Token;
+            host.Console.Select(oldToken);
+            host.Marker = new object();   // a new world with the party still available
+            host.Update(false); host.Update(false);   // panel closed: no presentation request, no feature scan
+            var scans = host.Console.ObserveCount;
+            var offersBeforeReopen = host.Console.Offers.Count;
+            var oldTokenWorks = host.Console.Select(oldToken) || host.Console.Confirm(oldToken);
+            host.Update();
+            var fresh = host.Offer(a);
+            host.ConfirmOffer(a);
+            var applied = host.Update();
+            TestRunner.True(scans == 1 && offersBeforeReopen == 0 && host.Console.SelectedToken != oldToken && !oldTokenWorks && fresh.Token != oldToken && applied != null &&
+                applied.Disposition == "removed" && host.NativeCalls == 1,
+                "A session change kept old offers or tokens while the panel was closed, scanned features, or the fresh offer did not work.");
+        }
+
+        private static void ObjectOnlyReplacement()
+        {
+            var host = new Host(); var before = LegacyHorse("horse-A"); host.Loaded.Add(before);
+            host.Update();
+            host.ConfirmOffer(before);
+            var after = LegacyHorse("horse-A");   // same session marker, same stable id, a new unit object only
+            host.Loaded.Clear(); host.Loaded.Add(after);
+            var record = host.Update();
+            var fresh = host.Offer(after);
+            TestRunner.True(record != null && record.HorseId == "horse-A" && record.Disposition.StartsWith("not removed: the confirmed horse is no longer loaded", StringComparison.Ordinal) &&
+                host.NativeCalls == 0 && Candidates(before).Count == 1 && Candidates(after).Count == 1 && fresh.Eligible,
+                "A consent for one unit object was applied to its replacement, or a fact was lost.");
+        }
+
+        private static void IneligibleRowText()
+        {
+            var host = new Host();
+            var noId = LegacyHorse("horse-noid"); host.IdOverride[noId] = null;
+            var two = LegacyHorse("horse-two"); two.Facts.Add(StockGrant("TrippingBite (second)"));
+            host.Loaded.Add(noId); host.Loaded.Add(two);
+            host.Update();
+            var noIdOffer = host.Console.Offers.Single(o => o.HorseId == null);
+            var twoOffer = host.Offer(two);
+            TestRunner.True(noIdOffer.CandidateCount == 1 && !noIdOffer.Eligible && noIdOffer.RefusalText.Contains("no stable identity") && !noIdOffer.RefusalText.Contains("More than one") &&
+                twoOffer.CandidateCount == 2 && !twoOffer.Eligible && twoOffer.RefusalText.StartsWith("More than one copy", StringComparison.Ordinal) &&
+                !host.Console.Select(noIdOffer.Token) && !host.Console.Select(twoOffer.Token) && host.Offer(two).Eligible == false,
+                "An ineligible row was described wrongly or was selectable.");
+        }
+
+        public static void AuthorizedGui(object entry) { }
+        public static void OtherGui(object entry) { }
+
+        private static void UmmPanelClassification()
+        {
+            var authorized = typeof(HorseTripRepairPolicyTests).GetMethod("AuthorizedGui");
+            Action<object> maintenance = AuthorizedGui, other = OtherGui;
+            Func<Delegate, string> observe = d => { bool options, panel; UmmPanelPolicy.Classify(d, authorized, out options, out panel); return options + "/" + panel; };
+            TestRunner.True(observe(maintenance) == "False/True" && observe(other) == "True/False" && observe(Delegate.Combine(other, maintenance)) == "True/False" &&
+                observe(Delegate.Combine(maintenance, other)) == "True/False" && observe(Delegate.Combine(maintenance, maintenance)) == "True/False" && observe(null) == "False/False",
+                "The UMM panel classifier accepted a mixed or unrelated callback as the maintenance panel.");
         }
 
         private static void PartyUnavailable()
@@ -263,7 +384,7 @@ namespace KingmakerMountedCombat.Tests
                 // still-valid removal of A is recorded first and the failure then surfaces); every validation failure is a terminal record for A.
                 var discovery = kase == "discovery throws";
                 TestRunner.True(stored != null && stored.HorseId == "horse-A" && later == null && !host.Console.Armed &&
-                    (discovery ? threw && stored.Disposition == "removed" && host.NativeCalls == 2
+                    (discovery ? threw && stored.Disposition == "removed" && host.NativeCalls == 2 && host.Log.Count(l => l.Contains("horse=horse-A")) == 1
                                : record == stored && stored.Disposition.StartsWith("not removed:", StringComparison.Ordinal) && host.NativeCalls == 1),
                     "PR-4 round 13 (" + kase + "): the confirmed action was erased, misattributed or executed later (" + (stored?.ToString() ?? "<none>") + ").");
             }
@@ -302,27 +423,56 @@ namespace KingmakerMountedCombat.Tests
 
         private static void RemovalOutcomes()
         {
-            foreach (var kase in new[] { "exact", "throws after the exact removal", "throws before mutating", "target and a neighbour removed", "post-removal read fails", "native message getter throws" })
+            var cases = new[]
+            {
+                new { Name = "exact", Outcome = HorseTripRemovalOutcome.Removed },
+                new { Name = "throws after the exact removal", Outcome = HorseTripRemovalOutcome.Removed },
+                new { Name = "native message getter throws after the exact removal", Outcome = HorseTripRemovalOutcome.Removed },
+                new { Name = "normal no-effect return", Outcome = HorseTripRemovalOutcome.Unchanged },
+                new { Name = "throws before mutating", Outcome = HorseTripRemovalOutcome.Unchanged },
+                new { Name = "changes a feature field in place, then throws", Outcome = HorseTripRemovalOutcome.Unchanged },
+                new { Name = "target and a neighbour removed", Outcome = HorseTripRemovalOutcome.Inconsistent },
+                new { Name = "target and a neighbour removed, then throws", Outcome = HorseTripRemovalOutcome.Inconsistent },
+                new { Name = "post-removal read fails", Outcome = HorseTripRemovalOutcome.Unreadable },
+            };
+            foreach (var kase in cases)
             {
                 var host = new Host(); var a = LegacyHorse("horse-A"); host.Loaded.Add(a);
                 var neighbour = a.Facts[1];
-                if (kase == "throws after the exact removal") host.NativeRemove = (h, f) => { h.Facts.Remove(f); throw new InvalidOperationException("after mutation"); };
-                if (kase == "throws before mutating") host.NativeRemove = (h, f) => { throw new InvalidOperationException("before mutation"); };
-                if (kase == "target and a neighbour removed") host.NativeRemove = (h, f) => { h.Facts.Remove(f); h.Facts.Remove(neighbour); };
-                if (kase == "post-removal read fails") host.ReadAfter = h => { throw new InvalidOperationException("collection unavailable after removal"); };
-                if (kase == "native message getter throws") host.NativeRemove = (h, f) => { h.Facts.Remove(f); throw new UnreadableMessageException(); };
+                switch (kase.Name)
+                {
+                    case "throws after the exact removal": host.NativeRemove = (h, f) => { h.Facts.Remove(f); throw new InvalidOperationException("after mutation"); };
+                        break;
+                    case "native message getter throws after the exact removal": host.NativeRemove = (h, f) => { h.Facts.Remove(f); throw new UnreadableMessageException(); };
+                        break;
+                    case "normal no-effect return": host.NativeRemove = (h, f) => { };
+                        break;
+                    case "throws before mutating": host.NativeRemove = (h, f) => { throw new InvalidOperationException("before mutation"); };
+                        break;
+                    case "changes a feature field in place, then throws": host.NativeRemove = (h, f) => { f.Name = "TrippingBite (rank changed)"; neighbour.Name = "NaturalArmor8"; throw new InvalidOperationException("in place"); };
+                        break;
+                    case "target and a neighbour removed": host.NativeRemove = (h, f) => { h.Facts.Remove(f); h.Facts.Remove(neighbour); };
+                        break;
+                    case "target and a neighbour removed, then throws": host.NativeRemove = (h, f) => { h.Facts.Remove(f); h.Facts.Remove(neighbour); throw new InvalidOperationException("after over-removal"); };
+                        break;
+                    case "post-removal read fails": host.ReadAfter = h => { throw new InvalidOperationException("collection unavailable after removal"); };
+                        break;
+                }
                 host.Update();
                 host.ConfirmOffer(a);
                 var record = host.Update();
-                var again = host.Update();
-                string expect;
-                if (kase == "exact" || kase == "throws after the exact removal" || kase == "native message getter throws") expect = "removed";
-                else if (kase == "throws before mutating") expect = "not removed: the horse was verified unchanged";
-                else expect = "uncertain:";
-                TestRunner.True(record != null && record.Disposition.StartsWith(expect, StringComparison.Ordinal) && again == null && host.NativeCalls == 1 &&
-                    host.Console.RemovalCount == (expect == "removed" ? 1 : 0),
-                    "PR-4 round 13 (" + kase + "): recorded '" + record?.Disposition + "', expected '" + expect + "', or repeated.");
+                var again = host.Update(); var third = host.Update();
+                var expected = HorseTripRepairRecord.DispositionOf(kase.Outcome);
+                TestRunner.True(record != null && record.Removal.HasValue && record.Removal.Value.Outcome == kase.Outcome && record.Disposition == expected &&
+                    again == null && third == null && host.NativeCalls == 1 && host.Console.RemovalCount == (kase.Outcome == HorseTripRemovalOutcome.Removed ? 1 : 0) &&
+                    host.Log.Count == 1,
+                    "PR-4 round 14 (" + kase.Name + "): recorded " + (record?.Removal?.Outcome.ToString() ?? "<none>") + " '" + record?.Disposition + "', expected " + kase.Outcome + ", or repeated.");
             }
+            TestRunner.True(HorseTripRepairRecord.DispositionOf(HorseTripRemovalOutcome.Unchanged).Contains("same feature entries") &&
+                !HorseTripRepairRecord.DispositionOf(HorseTripRemovalOutcome.Unchanged).Contains("verified unchanged") &&
+                HorseTripRepairRecord.DispositionOf(HorseTripRemovalOutcome.Inconsistent).StartsWith("uncertain:", StringComparison.Ordinal) &&
+                HorseTripRepairRecord.DispositionOf(HorseTripRemovalOutcome.Unreadable).StartsWith("uncertain:", StringComparison.Ordinal),
+                "The player-facing outcome text claims more than the membership comparison observed.");
         }
 
         private static void ReportingFailureDoesNotRepeat()

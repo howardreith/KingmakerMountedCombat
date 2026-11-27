@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace KingmakerMountedCombat.Domain
 {
@@ -126,6 +127,10 @@ namespace KingmakerMountedCombat.Domain
         public int CandidateCount { get; }
         // Exactly one candidate on a horse with a stable id: more than one cannot be singled out (the inherited copy is not identifiable).
         public bool Eligible { get; }
+        // PR-4 round 14 (R13-F3): why an ineligible row is not offered, from its own stable id and candidate count.
+        public string RefusalText => Eligible ? null : string.IsNullOrEmpty(HorseId)
+            ? "This horse has no stable identity in the save, so no repair is offered."
+            : "More than one copy: the inherited copy cannot be singled out, so no repair is offered.";
     }
 
     // The classified result of one confirmation, recorded before any logging or display. Disposition is the player-facing text.
@@ -148,7 +153,7 @@ namespace KingmakerMountedCombat.Domain
             switch (outcome)
             {
                 case HorseTripRemovalOutcome.Removed: return "removed";
-                case HorseTripRemovalOutcome.Unchanged: return "not removed: the horse was verified unchanged";
+                case HorseTripRemovalOutcome.Unchanged: return "not removed: the horse still has the same feature entries, including the Tripping Bite fact";
                 case HorseTripRemovalOutcome.NotAttempted: return "not removed: the horse's features could not be read, so nothing was attempted";
                 case HorseTripRemovalOutcome.Inconsistent: return "uncertain: the horse's features changed unexpectedly (more or other than the one fact); check the horse before saving";
                 case HorseTripRemovalOutcome.Unreadable: return "uncertain: the removal ran but its result could not be verified; check the horse before saving";
@@ -175,17 +180,38 @@ namespace KingmakerMountedCombat.Domain
     // PR-4 round 13: one ordinary update of the repair action. An unavailable party (a world discard or unload) drops every offer and
     // consent. An armed confirmation is executed FIRST (taken before any fallible refresh), then the presentation snapshots are rebuilt only
     // when the UI asked for them, and the stored record is reported last (a reporting failure leaves the record and repeats nothing).
+    // PR-4 round 14 (R12-F4, R12-F2): the pending confirmation is taken BEFORE any read; a failed session read is a terminal record naming the
+    // confirmed horse; a session change retires every old binding on every update (also while the panel is closed, with no feature scan);
+    // the stored record is reported before, and independently of, the presentation refresh, which runs only when the panel asked for it.
     public static class HorseTripRepairUpdater
     {
         public static HorseTripRepairRecord Run<TUnit, TFact>(HorseTripRepairConsole<TUnit, TFact> console, IHorseTripRepairHost<TUnit, TFact> host)
             where TUnit : class where TFact : class
         {
             if (!host.PartyAvailable) { console.Invalidate(); return null; }
-            var marker = host.SessionMarker();
-            var record = console.Execute(marker, host);
-            if (console.TakePresentationRequest()) console.Observe(marker, host.LoadedHorses());
+            var consent = console.TakeConsent();
+            object marker = null;
+            Exception markerFailure = null;
+            try { marker = host.SessionMarker(); }
+            catch (Exception exception) { markerFailure = exception; }
+            var record = consent == null ? null : console.ExecuteTaken(consent, marker, markerFailure, host);
+            if (markerFailure == null) console.SyncSession(marker);
             if (record != null) host.Report(record);
+            if (markerFailure != null) return record;
+            if (console.TakePresentationRequest()) console.Observe(marker, host.LoadedHorses());
             return record;
+        }
+    }
+
+    // PR-4 round 14 (R13-F1): the Unity Mod Manager OnGUI observation. The panel is the authorized repair-only maintenance section only when
+    // the COMPLETE callback is exactly that one static handler; any other or additional handler is an options panel.
+    public static class UmmPanelPolicy
+    {
+        public static void Classify(Delegate onGui, MethodInfo authorized, out bool optionsPanel, out bool maintenancePanel)
+        {
+            var handlers = onGui == null ? new Delegate[0] : onGui.GetInvocationList();
+            maintenancePanel = handlers.Length == 1 && authorized != null && handlers[0].Target == null && handlers[0].Method == authorized;
+            optionsPanel = handlers.Length > 0 && !maintenancePanel;
         }
     }
 
@@ -217,7 +243,7 @@ namespace KingmakerMountedCombat.Domain
         private long epoch, nextToken;
         private Binding selected;
         private Consent confirmed;
-        private bool presentationRequested;
+        private bool presentationRequested, stopped;
 
         public IList<HorseTripRepairOffer> Offers { get; private set; } = new HorseTripRepairOffer[0];
         public long SelectedToken => selected?.Token ?? -1;
@@ -228,7 +254,7 @@ namespace KingmakerMountedCombat.Domain
         public int ObserveCount { get; private set; }
 
         // Intent (UI): the panel is being drawn, so the next update rebuilds its snapshots (no feature scans while it is closed).
-        public void RequestPresentation() => presentationRequested = true;
+        public void RequestPresentation() { if (!stopped) presentationRequested = true; }
         public bool TakePresentationRequest() { var requested = presentationRequested; presentationRequested = false; return requested; }
 
         // Update path: the loaded party horses. A new session marker starts a new epoch (all bindings and consent dropped). A binding is
@@ -236,7 +262,8 @@ namespace KingmakerMountedCombat.Domain
         public void Observe(object sessionMarker, IEnumerable<Live> live)
         {
             ObserveCount++;
-            if (!ReferenceEquals(sessionMarker, session)) { session = sessionMarker; epoch++; bindings.Clear(); selected = null; confirmed = null; }
+            SyncSession(sessionMarker);
+            if (stopped) { Offers = new HorseTripRepairOffer[0]; return; }
             var next = new List<Binding>();
             var offers = new List<HorseTripRepairOffer>();
             foreach (var horse in live ?? Enumerable.Empty<Live>())
@@ -259,6 +286,7 @@ namespace KingmakerMountedCombat.Domain
         // Intent (UI): choose one eligible offer to confirm. Nothing changes in the game.
         public bool Select(long token)
         {
+            if (stopped) return false;
             var binding = bindings.FirstOrDefault(b => b.Token == token && b.Fact != null);
             if (binding == null) return false;
             selected = binding; confirmed = null;
@@ -268,7 +296,7 @@ namespace KingmakerMountedCombat.Domain
         // Intent (UI): the explicit confirmation of the selected offer; the name shown at confirmation is the name recorded.
         public bool Confirm(long token)
         {
-            if (selected == null || selected.Token != token) return false;
+            if (stopped || selected == null || selected.Token != token) return false;
             confirmed = new Consent { Binding = selected, ConfirmedName = selected.Name };
             return true;
         }
@@ -278,17 +306,40 @@ namespace KingmakerMountedCombat.Domain
         // Disabling, a failure stop, unloading or an unavailable party: every binding and consent is dropped and no reference kept.
         public void Invalidate()
         {
-            bindings.Clear(); selected = null; confirmed = null; session = null; epoch++;
+            bindings.Clear(); selected = null; confirmed = null; session = null; epoch++; presentationRequested = false;
             Offers = new HorseTripRepairOffer[0];
+        }
+
+        // PR-4 round 14 (R12-F1): the service stopped (successful disable or failure stop): everything is dropped and no intent is accepted
+        // until Start (re-enable); a stopped console offers nothing.
+        public bool Stopped => stopped;
+        public void Stop() { Invalidate(); stopped = true; }
+        public void Start() { stopped = false; }
+
+        // PR-4 round 14 (R12-F2): a new session marker retires every binding, selection and offer, without scanning features.
+        public void SyncSession(object sessionMarker)
+        {
+            if (ReferenceEquals(sessionMarker, session)) return;
+            session = sessionMarker; epoch++; bindings.Clear(); selected = null; confirmed = null;
+            Offers = new HorseTripRepairOffer[0];
+        }
+
+        // PR-4 round 14 (R12-F4): the pending confirmation, taken (and so consumed) before any read of the game.
+        public object TakeConsent()
+        {
+            var consent = confirmed;
+            confirmed = null; selected = null;
+            return consent;
         }
 
         // Update path: executes the armed consent once. The consent is taken before anything fallible; the session, the world-write gate,
         // the live object, its stable id and its exact single candidate are rechecked; every refusal is a terminal record for that horse.
-        public HorseTripRepairRecord Execute(object sessionMarker, IHorseTripRepairHost<TUnit, TFact> host)
+        public HorseTripRepairRecord Execute(object sessionMarker, IHorseTripRepairHost<TUnit, TFact> host) => ExecuteTaken(TakeConsent(), sessionMarker, null, host);
+
+        public HorseTripRepairRecord ExecuteTaken(object taken, object sessionMarker, Exception sessionFailure, IHorseTripRepairHost<TUnit, TFact> host)
         {
-            var consent = confirmed;
+            var consent = taken as Consent;
             if (consent == null) return null;
-            confirmed = null; selected = null;
             ExecutedCount++;
             var b = consent.Binding;
             var name = consent.ConfirmedName;
@@ -297,7 +348,11 @@ namespace KingmakerMountedCombat.Domain
             try
             {
                 IList<TFact> current;
-                if (!ReferenceEquals(sessionMarker, session) || b.Epoch != epoch)
+                if (sessionFailure != null)
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: the game session could not be checked (" + sessionFailure.GetType().Name + "); confirm again", null);
+                else if (stopped)
+                    record = new HorseTripRepairRecord(b.Id, name, "not removed: Mounted Combat was stopped after confirmation; confirm again", null);
+                else if (!ReferenceEquals(sessionMarker, session) || b.Epoch != epoch)
                     record = new HorseTripRepairRecord(b.Id, name, "not removed: the game was loaded or the session changed after confirmation; confirm again", null);
                 else if (!host.GateAdmits())
                     record = new HorseTripRepairRecord(b.Id, name, "not removed: the world was not settled (saving, loading, an area transition or a restoration); confirm again", null);

@@ -197,7 +197,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 UnityEngine.GUILayout.Label(offer.HorseName + " (" + offer.HorseId + ")" + (string.IsNullOrEmpty(offer.OwnerName) ? string.Empty : ", companion of " + offer.OwnerName) +
                     ": " + offer.CandidateCount + " sourceless Tripping Bite fact" + (offer.CandidateCount == 1 ? "." : "s."));
-                if (!offer.Eligible) { UnityEngine.GUILayout.Label("More than one copy: the inherited copy cannot be singled out, so no repair is offered."); continue; }
+                if (!offer.Eligible) { UnityEngine.GUILayout.Label(offer.RefusalText); continue; }
                 if (tripRepair.SelectedToken != offer.Token)
                 {
                     if (UnityEngine.GUILayout.Button("Repair this horse...")) tripRepair.Select(offer.Token);
@@ -215,12 +215,21 @@ namespace KingmakerMountedCombat.Integration
             if (last != null) UnityEngine.GUILayout.Label("Last repair: " + last.HorseName + " - " + last.Disposition + ".");
         }
 
-        // Disabling (CompositionRoot.SetEnabled(false)), a failure stop (PerformFailureCleanup) or unloading (Dispose) drops every consent and
-        // releases the session references (PR-4 round 13, R12-F1).
+        // Unloading (Dispose) drops every consent and releases the session references (PR-4 round 13, R12-F1).
         internal void InvalidateTripRepair()
         {
             tripRepair.Invalidate();
             tripRepairSessionMarker = null; tripRepairSessionPlayer = null; tripRepairSessionArea = null;
         }
+
+        // PR-4 round 14 (R12-F1): the composition root's stop transitions (a successful SetEnabled(false) and PerformFailureCleanup) stop the
+        // console (nothing offered, no intent accepted, every consent dropped) and the enable transition starts it again.
+        internal void OnServicesStopped()
+        {
+            tripRepair.Stop();
+            tripRepairSessionMarker = null; tripRepairSessionPlayer = null; tripRepairSessionArea = null;
+        }
+
+        internal void OnServicesStarted() => tripRepair.Start();
     }
 }

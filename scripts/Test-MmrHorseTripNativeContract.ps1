@@ -9,8 +9,9 @@ param([string]$Configuration = 'Release')
 #     ManeuverOnAttack(Category=Bite, Maneuver=Trip); the stock Dog and Wolf companions carry the same TrippingBite.
 #  2. The compiled product on genuine Kingmaker objects created without Unity: the Horse's inherited facts drop exactly the
 #     intrinsic attack-maneuver trigger and keep the rest in order; on a saved horse nothing is removed automatically: a
-#     sourceless exact stock grant on the KMC Horse is only a repair candidate (removed on the owner's written request),
-# the native horse animation bundle identity.
+#     sourceless exact stock grant on the KMC Horse is only a repair candidate, removed only through the owner's confirmed in-game
+#     repair action (OWNER AMENDMENT revision 1): its single native removal boundary, intent-only UI, shared updater, lifecycle stop
+#     and start wiring, and the absence of the withdrawn file-request protocol are checked offline on the compiled product.
 # Not covered (native game evidence): the live registration, the stock Dog/Wolf/Riding Dog in play, a bite hit's rulebook
 # chain, and a saved horse's actual facts on load.
 $ErrorActionPreference = 'Stop'
@@ -241,8 +242,10 @@ Check (@($processCalls | Where-Object { $_ -ceq 'HorseTripRepairUpdater.Run' }).
 # (PerformFailureCleanup) call InvalidateTripRepair, the service's Dispose calls it, and a missing party runs the updater as unavailable.
 $rootType = KmcType 'KingmakerMountedCombat.CompositionRoot'
 $setEnabledCalls = CalleeNames ($rootType.GetMethod('SetEnabled', $any)); $cleanupCalls = CalleeNames ($rootType.GetMethod('PerformFailureCleanup', $any)); $disposeCalls = CalleeNames ($service.GetMethod('Dispose', $any))
-Check (@($setEnabledCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and @($cleanupCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and
-    @($disposeCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1) 'PR-4 round 13 (R12-F1): the disable path, the failure stop and the service Dispose all invalidate the repair consent'
+$stopCalls = CalleeNames ($service.GetMethod('OnServicesStopped', $any)); $startCalls = CalleeNames ($service.GetMethod('OnServicesStarted', $any))
+Check (@($setEnabledCalls | Where-Object { $_ -like '*.OnServicesStopped' }).Count -ge 1 -and @($setEnabledCalls | Where-Object { $_ -like '*.OnServicesStarted' }).Count -ge 1 -and
+    @($cleanupCalls | Where-Object { $_ -like '*.OnServicesStopped' }).Count -ge 1 -and @($disposeCalls | Where-Object { $_ -like '*.InvalidateTripRepair' }).Count -ge 1 -and
+    @($stopCalls | Where-Object { $_ -like '*.Stop' }).Count -eq 1 -and @($startCalls | Where-Object { $_ -like '*.Start' }).Count -eq 1) 'PR-4 rounds 13-14 (R12-F1): SetEnabled stops and restarts the repair console (HorseTripRepairConsole.Stop/Start, the transitions the component tests drive), the failure stop stops it and Dispose invalidates it'
 $guiCalls = CalleeNames ($service.GetMethod('DrawTripRepairGui', $any))
 Check (@($guiCalls | Where-Object { $_ -like '*.RemoveFact' -or $_ -like '*.Execute' -or $_ -like '*.Observe' -or $_ -like '*RemoveTripFact' -or $_ -like '*get_Progression' -or $_ -like '*get_Descriptor' }).Count -eq 0 -and
     @($guiCalls | Where-Object { $_ -like '*.Select' -or $_ -like '*.Confirm' -or $_ -like '*.Cancel' }).Count -ge 3) ('the maintenance surface (DrawTripRepairGui) records intent only (Select/Confirm/Cancel) and never reads or changes a unit or fact (' + ($guiCalls -join ',') + ')')

@@ -1,4 +1,4 @@
-# PR-4 amendment test mapping (round 12)
+# PR-4 amendment test mapping (rounds 12-14)
 
 OWNER AMENDMENT revision 1 (owner instruction 2026-11-27b section 4; report citation: prepared under owner amendments revision 1 sha256
 `f9410bf809e35a83f8293bb5b54cfd344594aa0c2e5b90e633468c216e761b28`) withdraws the requirement to start the existing-horse repair through a
@@ -11,14 +11,14 @@ Each test of the earlier component suite (`tests/HorseTripRepairPolicyTests.cs` 
   correct or that its failing review scenarios passed; the findings stay in the review history.
 - **Kept:** unchanged.
 - **Successor:** the underlying requirement (exact removal, classification, idempotence, gates, protected neighbours) is now established
-  by the named round-13 test on the confirmed-action path (HorseTripRepairUpdater.Run).
+  by the named round-14 test on the confirmed-action path (HorseTripRepairUpdater.Run).
 
-| Earlier test | Disposition | Round-13 successor |
+| Earlier test | Disposition | Round-14 successor |
 |---|---|---|
 | `CandidatePredicate`: MMR-06: a candidate needs the exact Horse, the stock identity and shape, and no provenance | Kept | `CandidatePredicate` |
-| `RequestParsing`: R4-F4: the whole request is validated; two horses or extra content select nothing | Retired (file protocol); requirement kept | `SourcedModifiedAmbiguous (more than one candidate is never offered)` |
+| `RequestParsing`: R4-F4: the whole request is validated; two horses or extra content select nothing | Retired (file protocol); requirement kept | `SourcedModifiedAmbiguous / IneligibleRowText (more than one candidate is never offered)` |
 | `ExactRequestApplies`: MMR-06/R4-F6: the exact request removes one fact, is claimed and closed in user data, Mods tree untouched | Retired (file protocol); requirement kept | `TwoHorsesAndCancellation / NeighboursStay` |
-| `NegativeCases`: MMR-06: legacy-ordered and independently granted facts stay without a request; refusals change nothing | Retired (file protocol); requirement kept | `SourcedModifiedAmbiguous / NeighboursStay` |
+| `NegativeCases`: MMR-06: legacy-ordered and independently granted facts stay without a request; refusals change nothing | Retired (file protocol); requirement kept | `SourcedModifiedAmbiguous / NeighboursStay / ObjectOnlyReplacement` |
 | `PendingAndRetry`: MMR-06: a closed gate, an unloaded horse and a failed removal keep the request for a retry | Retired (file protocol); requirement kept | `GatesRefuse` |
 | `ReportingFailures`: R4-F5: failures after removal, at the claim, the result write and the final rename never record a refusal | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `StrandedClaims`: R4-F5: a stranded claim finishes as applied without a second removal, also after a reload; a restart closes it unchanged | Retired (file protocol) | (none: withdrawn by the amendment) |
@@ -27,16 +27,16 @@ Each test of the earlier component suite (`tests/HorseTripRepairPolicyTests.cs` 
 | `TransientFailureAfterClaim`: R6-F4: a one-time read or lookup failure after the claim keeps this process's exact claim; the next poll applies it once | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `TerminalDecisionsStayTerminal`: R7-F5: a refusal, supersession or application frozen before reporting stays terminal through result-write and archive failures and candidate changes | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `RepairFolderSelection`: PR-4 R1-F1: a guarded run without an isolated root leaves the player's repair files byte-identical; isolated and ordinary runs use only their own folder | Retired (file protocol) | (none: withdrawn by the amendment) |
-| `UncertainRemovalIsTerminal`: PR-4 R1-F2: an unverifiable or inexact removal is terminal (one removal in total, truthful result); an exact removal that then threw is applied | Retired (file protocol); requirement kept | `RemovalOutcomes (target and a neighbour removed; post-removal read fails)` |
+| `UncertainRemovalIsTerminal`: PR-4 R1-F2: an unverifiable or inexact removal is terminal (one removal in total, truthful result); an exact removal that then threw is applied | Retired (file protocol); requirement kept | `RemovalOutcomes (target and a neighbour removed: Inconsistent; post-removal read fails: Unreadable; both terminal, one native call)` |
 | `ClaimIdentityIsBytes`: PR-4 R1-F4: the claim is bound to its raw bytes; a transient observation failure keeps the frozen outcome | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `ReturnRenameRace`: PR-4 R1-F5: a newer request winning the return rename supersedes the waiting claim; the waiting horse is untouched | Retired (file protocol) | (none: withdrawn by the amendment) |
-| `NativeBoundaryRemoval`: PR-4 R1-F2: a native removal that takes a neighbour and throws before any check is terminal (no Applied, no second removal after reload); an exact removal that throws is applied | Retired (file protocol); requirement kept | `RemovalOutcomes (throws after the exact removal; target and a neighbour removed)` |
-| `UnchangedRemovalRetries`: PR-4 R2-F1: a native removal that returns with nothing changed keeps the request; the retry removes once; a newer request supersedes it unchanged | Retired (file protocol); requirement kept | `RemovalOutcomes (throws before mutating: verified unchanged, no repeat)` |
+| `NativeBoundaryRemoval`: PR-4 R1-F2: a native removal that takes a neighbour and throws before any check is terminal (no Applied, no second removal after reload); an exact removal that throws is applied | Retired (file protocol); requirement kept | `RemovalOutcomes (throws after the exact removal: Removed; target and a neighbour removed, then throws: Inconsistent)` |
+| `UnchangedRemovalRetries`: PR-4 R2-F1: a native removal that returns with nothing changed keeps the request; the retry removes once; a newer request supersedes it unchanged | Retired (file protocol); requirement kept | `RemovalOutcomes (normal no-effect return and throws before mutating: Unchanged; terminal, no replay)` |
 | `ReplacedDuringPublication`: PR-4 R1-F4: a claim replaced during publication never receives the decided suffix; each result names its own horse; one removal | Retired (file protocol) | (none: withdrawn by the amendment) |
-| `DiagnosticFailureAfterRemoval`: PR-4 R3-F1: a failing removal diagnostic after an exact removal keeps the applied decision and archive; a reloaded fact is preserved | Retired (file protocol); requirement kept | `ReportingFailureDoesNotRepeat` |
+| `DiagnosticFailureAfterRemoval`: PR-4 R3-F1: a failing removal diagnostic after an exact removal keeps the applied decision and archive; a reloaded fact is preserved | Retired (file protocol); requirement kept | `ReportingFailureDoesNotRepeat / PresentationFailureStillReports` |
 | `FinalPublicationFailureResumes`: PR-4 R3-F2: a failed final archive write is resumed before a newer request; a fresh session settles it as interrupted | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `ChangedAfterVerification`: PR-4 R1-F4: bytes changed after verification never enter the decision's archive and keep their own disposition | Retired (file protocol) | (none: withdrawn by the amendment) |
-| `UnreadableNativeMessage`: PR-4 R3-F1: an exact removal whose native exception message is unreadable is applied once; a reloaded fact is preserved | Retired (file protocol); requirement kept | `RemovalOutcomes (native message getter throws)` |
+| `UnreadableNativeMessage`: PR-4 R3-F1: an exact removal whose native exception message is unreadable is applied once; a reloaded fact is preserved | Retired (file protocol); requirement kept | `RemovalOutcomes (native message getter throws after the exact removal: Removed)` |
 | `FailedCommitLeavesNoPartialArchive`: PR-4 R4-F1: an obstructed final archive rename (after a complete write and flush) leaves no partial terminal file; the retry commits one complete archive | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `WriteOrFlushFailureLeavesNoPartialArchive`: PR-4 R4-F1 (round 6): a failure during the actual payload write or flush leaves no partial terminal archive; the retry commits one complete archive, one removal | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `PendingArchiveChangeIsExcludedOrRefused`: PR-4 R5-F1 (round 6): a change to the staged archive at publication is excluded or refused; the final archive holds exactly A, one removal | Retired (file protocol) | (none: withdrawn by the amendment) |
@@ -62,7 +62,8 @@ Each test of the earlier component suite (`tests/HorseTripRepairPolicyTests.cs` 
 | `BlockedRetirementCommitsOnce`: PR-4 R4-F2: a blocked claim retirement commits the archive once; the waiting request then proceeds | Retired (file protocol) | (none: withdrawn by the amendment) |
 | `ReplacementDuringRetirement`: PR-4 R3-F2/R4-F3: replacement bytes during retirement keep their own disposition before newer work; A removed once | Retired (file protocol) | (none: withdrawn by the amendment) |
 
-Round-13 tests (all through HorseTripRepairUpdater.Run): `DiscoveryIsReadOnly`, `TwoHorsesAndCancellation`, `RepeatedClicksAndUpdates`, `ReloadInvalidatesConsent`,
-`DisableAndFailureStop`, `PartyUnavailable`, `StableIdAndRename`, `RefreshCannotEraseConsent`, `GatesRefuse`, `SourcedModifiedAmbiguous`, `RemovalOutcomes`,
+Round-14 tests (all through HorseTripRepairUpdater.Run): `DiscoveryIsReadOnly`, `TwoHorsesAndCancellation`, `RepeatedClicksAndUpdates`, `ReloadInvalidatesConsent`,
+`DisableAndFailureStop`, `SessionLookupFailure`, `PresentationFailureStillReports`, `ClosedPanelSessionChange`, `ObjectOnlyReplacement`, `IneligibleRowText`,
+`UmmPanelClassification`, `PartyUnavailable`, `StableIdAndRename`, `RefreshCannotEraseConsent`, `GatesRefuse`, `SourcedModifiedAmbiguous`, `RemovalOutcomes`,
 `ReportingFailureDoesNotRepeat`, `OldRequestFilesAreInert` and `NeighboursStay`. The verified
 new-horse filter, the candidate predicate and the stock data contract stay in `Test-MmrHorseTripNativeContract.ps1`.
