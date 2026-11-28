@@ -249,6 +249,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)
         {
+            // PR #70 R17-F1 (round 18): on entry, before any decision or native's denial, a delivered Path for the exact Move-slot command.
+            if (mount?.View?.AgentASP?.Path != null) KingmakerMountedCombat.Domain.MountedCarrierMovementLedger.RecordDelivered(mount.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move));
             var allocation = Get(mount);
             // PR #70 R1-F6 (round 6): the carrier of a provisional replacement request reaches its first tick here, with this frame's actual
             // delta (UnitMoveController.Tick passes TimeController.DeltaTime). Its allowance is what Advance would grant for it under the

@@ -330,6 +330,10 @@ namespace KingmakerMountedCombat.Integration
         // slot's command, or (with that slot empty or owned) an approaching command in another slot (an unstarted command not yet close enough,
         // the reading the exact-carrier cleanup uses: MountedCarrierCleanup.ApproachSteers), e.g. a newer Standard command native promoted
         // after the exact carrier was removed.
+        // PR #70 R16-F1 (round 18): ownership, not proximity. Any live command on the mount the pair does not own that holds the mount's motion:
+        // the Move-slot command, a command still carrying IsMoveUnit (native TickApproaching's mark, which is also what installed InterruptMove
+        // selects), or one still approaching (ApproachSteers). A command whose target has just entered reach keeps its IsMoveUnit mark until
+        // native starts it, so it stays the successor.
         internal Kingmaker.UnitLogic.Commands.Base.UnitCommand MountSuccessor(CleanupTrigger trigger)
         {
             if (trigger != CleanupTrigger.ModDisabled || MountCommandOwned == null) return null;
@@ -340,9 +344,30 @@ namespace KingmakerMountedCombat.Integration
             foreach (var command in commands.Raw)
             {
                 if (command == null || command.IsFinished || command is Kingmaker.UnitLogic.Commands.UnitMoveTo || MountCommandOwned(command)) continue;
-                if (MountedCarrierCleanup.ApproachSteers(command)) return command;
+                if (command.IsMoveUnit || MountedCarrierCleanup.ApproachSteers(command)) return command;
             }
             return null;
+        }
+
+        // PR #70 R16-F1 (round 18): under ModDisabled, with any live command on the mount the pair does not own, native InterruptMove (which
+        // interrupts every IsMoveUnit command) is not called: only the pair's own live movement commands are interrupted, one by one.
+        internal bool MountHoldsUnownedCommand(CleanupTrigger trigger)
+        {
+            if (trigger != CleanupTrigger.ModDisabled || MountCommandOwned == null) return false;
+            var commands = mount?.Commands;
+            if (commands == null) return false;
+            foreach (var command in commands.Raw)
+                if (command != null && !command.IsFinished && !MountCommandOwned(command)) return true;
+            return false;
+        }
+
+        private void InterruptOwnedMountCommands()
+        {
+            var commands = mount?.Commands;
+            if (commands == null) return;
+            foreach (var command in commands.Raw.ToArray())
+                if (command != null && !command.IsFinished && MountCommandOwned(command) &&
+                    (command.IsMoveUnit || command.Type == Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move)) command.Interrupt();
         }
 
         public string ValidateMountedInvariants()
@@ -776,8 +801,12 @@ namespace KingmakerMountedCombat.Integration
                 // PR #70 R12-F4 (round 16): a mount successor the pair does not own keeps its command and motion (PreservesMountSuccessor). The
                 // rider's own movement is still stopped: it is placed beside the mount below, and its agent, avoidance, rotation and override
                 // leases are the ones released here. The mount's AI lease below writes only its captured AI flag (no command or path).
+                // Round 18 (R16-F1): both decisions are made before anything is interrupted; with an unowned live command only the pair's own
+                // commands are interrupted, and the view is not stopped while an unowned command holds the mount's motion.
                 var preserveMountSuccessor = PreservesMountSuccessor(trigger);
-                if (!preserveMountSuccessor) mount?.Commands?.InterruptMove();
+                var unownedLive = MountHoldsUnownedCommand(trigger);
+                if (unownedLive) InterruptOwnedMountCommands();
+                else mount?.Commands?.InterruptMove();
                 rider?.Commands?.InterruptMove();
                 if (mountView != null && !preserveMountSuccessor) { mountView.StopMoving(); }
                 if (riderView != null) { riderView.StopMoving(); }
@@ -969,11 +998,12 @@ namespace KingmakerMountedCombat.Integration
         public void CancelMountMovement(CleanupTrigger trigger)
         {
             var successor = MountSuccessor(trigger);
-            if (successor == null) { CancelMountMovement(); return; }
-            var commands = mount.Commands;
-            foreach (var command in commands.Raw.ToArray())
-                if (command != null && !command.IsFinished && command.IsMoveUnit && !ReferenceEquals(command, successor)) command.Interrupt();
-            PreservedMountSuccessorCount++;
+            if (!MountHoldsUnownedCommand(trigger)) { CancelMountMovement(); return; }
+            // Round 18 (R16-F1): an unowned live command is on the mount: only the pair's own movement commands are interrupted; the view is
+            // stopped only when no unowned command holds the mount's motion.
+            InterruptOwnedMountCommands();
+            if (successor == null) mountView?.StopMoving();
+            else PreservedMountSuccessorCount++;
         }
 
         public void ClearPreparedPairWhenUnmounted()

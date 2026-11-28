@@ -9,6 +9,23 @@ namespace KingmakerMountedCombat.Domain
     public static class MountedCarrierMovementLedger
     {
         private static readonly ConditionalWeakTable<object, object> moved = new ConditionalWeakTable<object, object>();
+        // PR #70 R17-F1 (round 18): the delivery fact. The delegated movement entry found the agent holding a delivered Path while this command
+        // held the mount's Move slot, before native could deny the tick (CompleteMovement clears Path and RequestedPath after the hook returns
+        // zero), whatever the returned duration. An outstanding request alone (no Path) records nothing.
+        private static readonly ConditionalWeakTable<object, object> delivered = new ConditionalWeakTable<object, object>();
+
+        public static void RecordDelivered(object moveSlotCommand)
+        {
+            if (moveSlotCommand == null) return;
+            object existing;
+            if (!delivered.TryGetValue(moveSlotCommand, out existing)) delivered.Add(moveSlotCommand, Marker);
+        }
+
+        public static bool HasDelivery(object carrier)
+        {
+            object existing;
+            return carrier != null && delivered.TryGetValue(carrier, out existing);
+        }
         private static readonly object Marker = new object();
 
         public static void RecordPositiveTick(object moveSlotCommand)

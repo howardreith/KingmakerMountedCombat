@@ -467,7 +467,8 @@ namespace KingmakerMountedCombat.Integration
         // survives that interval and is the issuance fact both entries rely on; a carrier with no positive tick and only an outstanding first
         // request (no delivered Path observed) is still awaiting its first path.
         internal bool CarrierAcquiredPath => delegatedMove != null &&
-            (MountedCarrierMovementLedger.HasPositiveTick(delegatedMove) || ReferenceEquals(pathAcquiredCarrier, delegatedMove) ||
+            (MountedCarrierMovementLedger.HasPositiveTick(delegatedMove) || MountedCarrierMovementLedger.HasDelivery(delegatedMove) ||
+             ReferenceEquals(pathAcquiredCarrier, delegatedMove) ||
              RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
 
         // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed
@@ -2777,6 +2778,9 @@ namespace KingmakerMountedCombat.Integration
                 if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, except) ||
                     command is UnitMoveTo) continue;
                 if (ApproachSteers(command)) return true;
+                // PR #70 R16-F1 (round 18): a fresh proximity result cannot show that native released a newer command's approach: an unstarted
+                // command that is not the pair's and still carries IsMoveUnit (native TickApproaching's mark) keeps its motion.
+                if (!command.IsStarted && command.IsMoveUnit && !(command is MountedPairAttackCommand) && !(command is MountedPairSingleAttack)) return true;
             }
             return false;
         }
