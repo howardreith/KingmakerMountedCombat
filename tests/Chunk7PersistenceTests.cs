@@ -51,6 +51,8 @@ public static class Chunk7PersistenceTests
         SavedStepTravel.MigrateSingleValue(data.Combat?.Allocations);
         data.StepTravel = SavedStepTravel.Detach(data.Combat?.Allocations);
     }
+    // PR #70 R11-F1 (round 14): the connected attack-path harness builds its archive envelope with this builder.
+    internal static MountedArchiveData ArchiveForHarness(int pairs) => Archive(pairs);
     private static MountedArchiveData Archive(int pairs)
     {
         var seed = Historical();

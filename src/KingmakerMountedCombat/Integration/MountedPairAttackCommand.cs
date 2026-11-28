@@ -419,6 +419,16 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
+        // R13-F4 (round 14): the installed WantsToMove of the mount's agent (Path != null || RequestedPath != null), read only for a live carrier
+        // that has already moved the mount (its one approach was issued and followed).
+        internal int NativeApproachEndedCount { get; private set; }
+        private bool MountAgentStoppedAfterCarrierMoved()
+        {
+            var agent = mount?.View?.AgentASP;
+            return delegatedMove != null && !delegatedMove.IsFinished && agent != null && !agent.WantsToMove &&
+                GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f;
+        }
+
 
         // PR #70 R8-F1 (round 11): the revalidated approach the exact route-bound carrier was made from (its untruncated native route and
         // destination arc length), for that carrier's first-debit revalidation.
@@ -1791,10 +1801,33 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            if (delegatedMove.IsFinished)
+            // PR #70 R13-F3/R13-F4 (round 14): an accepted route-bound ordinary turn-based order follows the installed disposition once its one
+            // issued approach can no longer bring the strike into reach. Installed UnitCommand.TickApproaching issues ONE turn-based path
+            // (NextApproachTime = MaxValue: no re-path); when movement is exhausted or denied, UnitMovementAgent.CanMoveInTurnBased (060018A9)
+            // completes the movement (CompleteMovement -> Stop/InterruptMovement: Path and RequestedPath cleared), so WantsToMove (060018BE:
+            // Path != null || RequestedPath != null) and UnitEntityView.IsMoving become false, and UnitActionController.TickCommandTurnBased
+            // (0600911D) force-finishes the approaching command that is not close enough (ForceFinishForTurnBased, then TickCommand returns
+            // before UpdateCooldowns: no strike, no Standard; the movement debited stays spent). The mounted order therefore ends here, without a
+            // further carrier, when its carrier finished out of reach or the mount's agent no longer wants to move after the carrier moved it.
+            // Explicit newer orders, the charge and real-time paths keep their own handling (Repath below).
+            // Only an ACCEPTED order: a provisional or refused first-tick request keeps its own refusal path (no further carrier) below.
+            var nativeTurnBasedDisposition = RouteBound && !chargeMode && ValidatedRouteFollowed && !ProvisionalOrder &&
+                (FirstTickCarrierPermitted == null || FirstTickCarrierPermitted()) && TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+            var approachEnded = delegatedMove.IsFinished || nativeTurnBasedDisposition && MountAgentStoppedAfterCarrierMoved();
+            if (approachEnded)
             {
                 var finishedMoveAdmission = childAttack.EvaluateCurrentNativeAdmission();
                 ObserveNativeAdmission(finishedMoveAdmission);
+                if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted && nativeTurnBasedDisposition)
+                {
+                    NativeApproachEndedCount++;
+                    var detail = "native turn-based approach ended out of reach (carrier " + (delegatedMove.IsFinished ? "finished" : "live, agent no longer wants to move") +
+                        ";admission=" + finishedMoveAdmission + "): TickCommandTurnBased force-finish disposition, no re-path";
+                    if (!transaction.IsTerminal) transaction.Cancel("The accepted turn-based approach ended out of reach; native issues no second path.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, detail);
+                    Interrupt();
+                    return;
+                }
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
                     // PR-1 review R1-F7: a sight goal reached without admission is not chosen again.

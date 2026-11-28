@@ -235,6 +235,10 @@ namespace KingmakerMountedCombat
             // disable instead of mutating the write in flight; the save always
             // settles, and its drain keeps running because persistence.Update
             // is deliberately not gated on IsEnabled.
+            // PR #70 R12-F4 (round 14): outstanding owned pair cleanup (a deferred target clear, a retained carrier stop) is drained ONCE
+            // before the readiness check, outside the save/load fences (never while an owned archive worker serializes the live graphs or
+            // an owned load replaces the world); work it could not settle keeps teardown not ready and this request refused and retryable.
+            if (!persistence.SaveSuspended && !persistence.LoadInFlight && !persistence.ActiveSaveWorkerRunning) world.SettleOutstandingPairCleanup();
             if (persistence.SaveSuspended || world.AnyChargeFenced || !relationship.AllTeardownOwnersReady)
             {
                 logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
@@ -398,6 +402,11 @@ namespace KingmakerMountedCombat
             // Known issues sprint 3 (review of 25cbdbe2): retained stick-movement cleanup is retried here too, so its
             // recovery does not depend on the ordinary pair update below, which stops when the services are disabled.
             if (!persistence.ActiveSaveWorkerRunning) world.Visit(pair => pair.Relationship.RecoverContinuousDriveCleanup());
+            // PR #70 R12-F4 (round 14): the lifecycle-owned retry of outstanding owned pair cleanup once ordinary pair updates have stopped
+            // (an update failure's PerformFailureCleanup or a refused disable leaves IsEnabled false, and the pair update below no longer runs
+            // the controllers' per-frame drive). One bounded attempt per frame, never inside the save/load/area/restoration fences.
+            if (!IsEnabled && !persistence.ActiveSaveWorkerRunning && !persistence.SaveSuspended && !persistence.LoadInFlight &&
+                !persistence.AreaTransitionPending && !persistence.CombatRestorationPending) world.SettleOutstandingPairCleanup();
             // Mounted Shield: stale mount contributions are removed here, ahead of the ordinary gates, so a changed shield,
             // feat or pair never keeps its bonus while a save, area transition or restoration suspends ordinary updates. New
             // contributions are written only by the ordinary pass below. Not while an archive worker serializes the live

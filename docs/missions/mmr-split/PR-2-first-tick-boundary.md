@@ -484,7 +484,7 @@ more and strike nothing, and the KMC carrier keeps the waiting outcome (offline 
 - `PlannedSegmentIdentityMetres` is a numerical identity tolerance (20 micrometres); a deviation below it uses the established samples.
 - The diagnostic runtime scenarios that read a newly written archive now expect schema 4; they were not run (no game launch).
 
-## 12. Round 14 (partial; owner amendment revision 1, 2026-11-27g)
+## 12. Round 14 (owner amendment revision 1, 2026-11-27g)
 
 Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825. Round 13 verified R12-F5 and
 R6-F7 and accepted the R10-F2/R12-F6 rebuttals; those are kept. This round corrects the items below; the rest stay open (11.3 and the list at the
@@ -509,6 +509,98 @@ end).
   control: 0.0439 m left at 18 m/s returns 0.0024389 s).
 - **R11-F8 (part).** Observation follows the retained request even after `ApplyAcceptanceEffects` emptied its list before a read that threw.
 
-Still open: R11-F1 (the full chain through the selected codec into the connected harness), R11-F3 (no tolerance that can skip a live chord),
-R11-F8 (discovery through the production postfix and custody path), R12-F4 (lifecycle drain after updates stop; SetEnabled drain order; real
-entry points), R13-F3 (route loss without re-path), R13-F4 (WantsToMove after a zero-delta tick).
+Status after this part: none of the six is open as a production defect; see 12.1 (R12-F4 entry points verified by IL order, not executed).
+
+### 12.1 Round 14, second part (the remaining six findings)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825. Line numbers are at this commit. The
+first part above (R12-F1, R12-F2, R12-F3, R13-F1, R13-F2, R13-F5, the R11-F8 observation correction) and everything the round-13 review verified
+(R6-F7, R12-F5 and all earlier verified items; the accepted R10-F2/R12-F6 amendment rebuttals) are kept.
+
+**Installed trace after a zero-delta tick (R13-F4; read-only IL of Assembly-CSharp 2.1.7b, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7; no game
+run).** It supersedes the "Not traced" sentence of 11.1 and the "native waiting" expectation of the R10-F2 exhaustion control.
+
+1. `UnitMovementAgent.TickMovement` (060018AA) first calls `CanMoveInTurnBased(ref delta)` and returns at once when it refuses (no shift, no stuck
+   clock).
+2. `CanMoveInTurnBased` (060018A9): for the acting current unit it calls `TurnController.TickMovement(ref delta, forceMode)`; a delta left at
+   or below zero refuses the tick (`ldc.r4 0; bgt.un.s; ldc.i4.0; stloc.0`). Outside force mode and cutscene control a refused tick then calls
+   `CompleteMovement()` unless the unit's Move slot command is `DontInterruptInTurnBasedMode` (then `m_NoMoreTurnBasedMovementForUinterruptableCommand`
+   is set and the path is kept). An ordinary `UnitAttack` occupies the Standard slot, so its Move slot is empty: `CompleteMovement`.
+3. `CompleteMovement` (060018B0) calls `Stop()` inside the approach radius, otherwise `InterruptMovement()` (060018AF, which also ends in `Stop()`);
+   `Stop()` (060018C2) sets `Path = null` and `RequestedPath = null`.
+4. `UnitMovementAgent.get_WantsToMove` (060018BE, the override of the abstract `UnitMovementAgentBase.get_WantsToMove`) is
+   `Path != null || RequestedPath != null`: false now. `UnitEntityView.IsMoving` (0600184C) returns the agent's `WantsToMove`.
+5. `UnitActionController.TickCommandTurnBased` (0600911D): the command is not close enough (`IsUnitEnoughClose` false), so the cooldown branch
+   (close commands without the action or cooldown) is skipped; `ShouldUnitApproach` holds, `NextApproachTime.Ticks > 0` (the one issued path set
+   it to MaxValue) and `executor.View.IsMoving()` is false, so `ForceFinishForTurnBased(3)` runs, the executor's queue is cleared and false is
+   returned. `UnitActionController.TickCommand` (0600911E) returns immediately on that false, before `Tick` and `UpdateCooldowns`:
+   `ForceFinish` (060027AA) sets IsActed and ends the command without `OnAction`, so there is no strike and no Standard; the debited movement
+   stays spent.
+
+Conclusion: at exhaustion before reach or sight native does not wait; it force-finishes the approach on the next turn-based command tick after
+the refused movement tick. (Waiting happens only while the agent still wants to move, e.g. a Move command with DontInterruptInTurnBasedMode.)
+The contract script asserts each step (`PR-2 R13-F4 (round 14)` checks) and the round-13 TickMovement label now says that TickMovement itself
+does not finish the command.
+
+**Per finding.**
+
+- **R13-F4 (evidence; changed expectation of the R10-F2 control under the amendment).** Trace above. The harness mover models the installed
+  denial branch (`World.NativeDenialCompletesMovement`: a tick that grants no movement releases the agent's path, so its `WantsToMove`, now
+  `Path != null` as installed, becomes false); the R10-F2 1/120 s + 1/40 s control now ends the order with the native disposition (below)
+  instead of "waiting".
+- **R13-F3 (correction).** `MountedPairAttackCommand.TickApproach` (MountedPairAttackCommand.cs:1814-1830): an ACCEPTED route-bound ordinary
+  turn-based order (not provisional, first-tick carrier permitted, not charge, turn-based) whose carrier finished out of reach, or whose live
+  carrier already moved the mount while the mount's agent no longer wants to move (`MountAgentStoppedAfterCarrierMoved`, :425), ends with the
+  installed force-finish disposition: no Repath, no further carrier or route revalidation, no strike, no Standard (`NativeApproachEndedCount`,
+  cause Cancelled with the disposition detail). Explicit newer orders, a refused provisional request (its own "first-tick request refused"
+  path), the charge and real-time paths keep their handling. Deviation noted: native also clears the executor's queue on the force-finish; the
+  mounted order does not clear the rider's queue (a queued player order is not discarded).
+- **R11-F3 (correction).** `PlannedSegmentIdentityMetres` is removed. `EvaluateRemainingRoute` keeps the established samples only when the mount
+  stands EXACTLY (bit for bit, horizontally) on the planned segment's start (PairedAttackClickProbe.cs:475; the click and the revalidation then
+  sample identical points, so tightly placed destinations at an opening's measured start are not refused). Any other position validates the
+  live leg with `LiveLegAdmits` (:507): its in-disc chord in double precision, sampled at the planned segment's own parameters (the live point
+  projecting onto each established sample) and, additionally, every part of the live chord inside the disc but outside the planned chord at the
+  1 mm spacing with both ends, all with the live heading; a leg the planned segment cannot parameterize is sampled uniformly. Harness: the
+  reviewer's counterexample (rotated 11.25 degrees so the chord's normal lies between ring samples): planned leg 50.004 mm, live leg 49.996 mm,
+  live chord 1.2615 mm, blind patch 9.7 mm from every ring sample: refused before any debit with the prior order kept
+  (`refusedOutsidePlannedChordAt`); visible control committed and struck. The 0.8 mm grazing, reverse-approach and 49.9 mm short/long-grant
+  controls still pass.
+- **R11-F1 (evidence correction).** The harness now compiles the whole persistence files (SavedCombatData.cs, MountedSaveData.cs,
+  MountedArchiveData.cs, MountedArchiveCodec.cs, NativeMountedSaveFormat.cs, MountedLoadAdmissionPolicy.cs, RetainedNativeReentryPolicy.cs: the
+  set Test-PersistenceData.ps1 compiles) with the installed Newtonsoft.Json, and splices the adapter's production `CapturePersistence`,
+  `RestorePersistence` and `CopyGrantedMovementToContext` (with the installed turn members it writes). Chain per case: production capture ->
+  the writer's travel rows (`StepTravel = SavedStepTravel.Detach(Combat.Allocations)`, the assignment of MountedPersistenceService.World.cs) in
+  an envelope from the persistence tests' builder -> `MountedArchiveCodec.Encode/Decode` -> `RestorePersistence` -> `CopyGrantedMovementToContext`
+  into the restored partner turn, whose `MetersMovedByFiveFootStep` is read before the real click. Straight: partner step field 0.6 m (0.9
+  before the copy), physical 1.2 m, grant 0.324 m, 0.3 m route admitted; turning: 0.45 / 0.42426 m, 1.09974 m before and after, 1.085 m
+  admitted (the former single value gives 1.074 m); actor, pair, partner-turn actor, round and grant identities equal. Historical schema-3
+  rewrite (single 1.25 m): source schema 3 -> 4, both limits and the partner field 1.25 m, grant 0.274 m. Malformed (current archive without its
+  travel rows): codec Invalid, nothing restored. The envelope's non-allocation content comes from the persistence tests' builder (the full
+  archive writer needs the game's world services).
+- **R11-F8 (evidence correction).** The harness splices the production `InternalRunPostfix` and routes native Run through it. Its custody
+  lookup (`PatchBridge.CombatFor(commands)`: the pair whose relationship currently holds the actor) returns none for the horse after the
+  dismount; the registry (`PatchBridge.Pairs`) keeps the pair only through its ownership-retention term, the production
+  `HasRetainedPairCommands` (now spliced) that MountedWorldService binds to the relationship's ownership readiness. An intervening failed retry
+  keeps the clear owned; the same-target command on the original horse is routed by the postfix and survives the successful retry; the control
+  clears A's target; afterwards the settled pair leaves the registry. (Charge ownership is not modelled by this harness: `HasChargeOwnership`
+  is false there.)
+- **R12-F4 (correction; evidence partly offline-limited).** `CompositionRoot.SetEnabled(false)` drains outstanding owned pair cleanup once,
+  outside the save/load fences, before its `AllTeardownOwnersReady` check (CompositionRoot.cs:241). `UpdateCore` runs a lifecycle-owned drain
+  while `IsEnabled` is false (after `PerformFailureCleanup` or a refused disable stopped the ordinary pair update), one attempt per frame,
+  never inside the save/load/area/restoration fences (:405-409). `HandleModDisable` consumes both drain verdicts, before the readiness check and
+  after the cancellation performed by its own cleanup (MountedLifecycleSubscriber.cs:303-304, :319-320); a refusal precedes any unpatch in
+  both disable and unload (Dispose calls HandleModDisable before `patches.Dispose`). Evidence: the lifecycle contract checks this order on the
+  compiled product (`PR-2 R12-F4 (round 14)` checks: drain offset before the readiness read and after the fence reads; UpdateCore's drain
+  after the IsEnabled read and before UpdatePairs; no discarded drain result). The harness cases exercise the controller drain across a failed
+  operation and its recovery (deferred target clear across a dismount, unfinished carrier, steering successor) and are now labelled as the
+  controller drain: executing the real `SetEnabled(false)`, `UpdateCore` or `Dispose` needs the composition root's game services and was not
+  possible offline.
+
+**Validation of this part (metered).** Build-Local 32.3 s (DLL sha256 3b02ecea..., MVID c10f50de-a207-4194-a83a-73e890958627); attack-path
+harness 498/0; native contract 66/0; lifecycle contract 103/0; components 1,545/0; persistence data 56 + Chunk7 106/0; Validate-Source 153/0;
+seven read-only IL reads of about 1 s each. Not run: the focused gate, presentation contracts, Test-Tiers, any game.
+
+**Residual.** Offline evidence only (nativeProof=false); N02/N03 remain the owner's playtest. R12-F4's entry points are verified by IL order,
+not executed. The R13-F3 control was not run against the round-13 code (by inspection its Repath would have issued a second carrier).
+`LiveLegAdmits` treats only a bit-identical start as the planned segment; a moved mount on a tightly placed destination is validated on its
+live chord (correct, and it can refuse a destination whose disc begins exactly at the opening's measured start).

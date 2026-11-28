@@ -407,4 +407,20 @@ Check ((Calls $retainedGetter $outstandingGetter) -eq 1 -and (Calls $settlePairs
     (Calls $handleDisable $settlePairs) -eq 2 -and (Calls $handleDisable $teardownReadyGetter) -ge 2 -and
     (FirstOffset $handleDisable $settlePairs) -lt (FirstOffset $handleDisable $teardownReadyGetter) -and
     @(Refs $handleDisable | Where-Object { $_.Member -eq $teardownReadyGetter } | Select-Object -Last 1)[0].Offset -gt (FirstOffset $handleDisable $cleanupMethod)) 'PR-2 R12-F4 (round 13): outstanding acceptance effects, retained carrier cleanup and an unfinished refused-request cleanup keep the pair owner registered (HasRetainedPairCommands) and the pair teardown not ready; HandleModDisable (run by disable and by unload before patches.Dispose) drains them once, refuses while they remain, drains again after its own cleanup (work the cancellation created) and reports ready only when none remains'
+# ---- PR-2 R12-F4 (round 14): drain before readiness, a lifecycle-owned retry after ordinary updates stop, the drain's verdict consumed ----
+$root = KmcType 'KingmakerMountedCombat.CompositionRoot'
+$setEnabled = @(Method $root 'SetEnabled')[0]
+$updateCore = @(Method $root 'UpdateCore')[0]
+$updatePairs = @(Method $worldService 'UpdatePairs')[0]
+$enabledGetter = $root.GetProperty('IsEnabled', $any).GetGetMethod($true)
+$persistenceType = KmcType 'KingmakerMountedCombat.Integration.MountedPersistenceService'
+$saveSuspended = $persistenceType.GetProperty('SaveSuspended', $any).GetGetMethod($true)
+$loadInFlight = $persistenceType.GetProperty('LoadInFlight', $any).GetGetMethod($true)
+$handleIl = $handleDisable.GetMethodBody().GetILAsByteArray()
+$settleSites = @(Refs $handleDisable | Where-Object { $_.Member -eq $settlePairs })
+Check ((Calls $setEnabled $settlePairs) -eq 1 -and (FirstOffset $setEnabled $settlePairs) -lt (FirstOffset $setEnabled $teardownReadyGetter) -and
+    (FirstOffset $setEnabled $saveSuspended) -lt (FirstOffset $setEnabled $settlePairs) -and (FirstOffset $setEnabled $loadInFlight) -lt (FirstOffset $setEnabled $settlePairs)) 'PR-2 R12-F4 (round 14): CompositionRoot.SetEnabled(false) drains outstanding owned pair cleanup once, outside the save/load fences, BEFORE its AllTeardownOwnersReady check (a refusal leaves everything patched and retryable)'
+Check ((Calls $updateCore $settlePairs) -eq 1 -and (FirstOffset $updateCore $settlePairs) -lt (FirstOffset $updateCore $updatePairs) -and
+    (FirstOffset $updateCore $enabledGetter) -lt (FirstOffset $updateCore $settlePairs)) 'PR-2 R12-F4 (round 14): UpdateCore retries outstanding owned pair cleanup through a lifecycle-owned drain that runs while IsEnabled is false (after PerformFailureCleanup or a refused disable stopped the ordinary pair update), ahead of the ordinary gates and outside the save/load/area/restoration fences'
+Check ($settleSites.Count -eq 2 -and @($settleSites | Where-Object { $handleIl[$_.Offset + 5] -eq 0x26 }).Count -eq 0) 'PR-2 R12-F4 (round 14): HandleModDisable consumes both drain verdicts (before the readiness check and after the cancellation its own cleanup performs); neither result is discarded'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

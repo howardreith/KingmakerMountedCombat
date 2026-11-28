@@ -299,8 +299,9 @@ namespace KingmakerMountedCombat.Integration
         {
             // PR #70 R12-F4 (round 13): one drain of outstanding owned cleanup first; anything still outstanding keeps teardown not ready, so the
             // disable or unload is refused here, before any patch or observer is removed (the per-frame drive keeps retrying it).
-            service.World?.SettleOutstandingPairCleanup();
-            if (!service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced || service.World?.AdmissionFenced() == true) return false;
+            // Round 14: the drain's own verdict is consumed (not only the readiness that includes it).
+            var settledBefore = service.World?.SettleOutstandingPairCleanup() ?? true;
+            if (!settledBefore || !service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced || service.World?.AdmissionFenced() == true) return false;
             var drained = true;
             var errors = service.World != null ? service.World.Visit(pair =>
             {
@@ -315,8 +316,8 @@ namespace KingmakerMountedCombat.Integration
             var cleaned = Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
             // R12-F4: work created by the cleanup's own cancellation (a carrier stop or target clear that failed) is drained once and otherwise
             // keeps the request refused and retryable: the caller reports not ready and nothing is unpatched.
-            service.World?.SettleOutstandingPairCleanup();
-            return cleaned && service.AllTeardownOwnersReady;
+            var settledAfter = service.World?.SettleOutstandingPairCleanup() ?? true;
+            return cleaned && settledAfter && service.AllTeardownOwnersReady;
         }
 
         internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotNativeDeliveries()

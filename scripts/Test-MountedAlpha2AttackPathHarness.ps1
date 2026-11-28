@@ -33,6 +33,12 @@ $adapterPath=Join-Path $integration 'MountedMovementStateAdapter.cs';$adapter=[I
 $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=[IO.File]::ReadAllText($controllerPath)
 $terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
 $directInputPath=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/NativeOrdinaryAttackInput.cs';$directInput=[IO.File]::ReadAllText($directInputPath)
+$persistenceText=[IO.File]::ReadAllText((Join-Path $integration 'MountedMovementPersistence.cs'))
+# PR #70 R11-F1 (round 14): the saved-row DTOs, the archive envelope and the SELECTED archive codec, compiled whole with the installed Newtonsoft.Json
+# (the file set scripts/Test-PersistenceData.ps1 compiles), and the persistence tests' archive builder.
+$persistenceFiles=@('MountedSaveData.cs','SavedCombatData.cs','MountedLoadAdmissionPolicy.cs','MountedArchiveData.cs','MountedArchiveCodec.cs','NativeMountedSaveFormat.cs','RetainedNativeReentryPolicy.cs'|ForEach-Object{Join-Path $integration $_})+@((Join-Path $RepositoryRoot 'tests/Chunk7PersistenceTests.cs'))
+$labRoot=[IO.Path]::GetFullPath((Join-Path $RepositoryRoot '../..'));$layout=(Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.json')|ConvertFrom-Json).requestedLayout
+$newtonsoft=Join-Path $layout.kingmakerInstallDir 'Kingmaker_Data/Managed/Newtonsoft.Json.dll';if(-not(Test-Path -LiteralPath $newtonsoft)){throw 'Installed Newtonsoft.Json.dll not found.'}
 $domain=@(Get-ChildItem -LiteralPath (Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Domain') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName })
 $members=[ordered]@{
  'ADMISSION_ENUM'=(Extract $child 'internal enum MountedPairNativeAdmissionState')
@@ -161,12 +167,16 @@ $members=[ordered]@{
  'PAIR_ELIGIBLE'=(Extract $lifecycle 'internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)')
  'ADAPTER_PHYSICAL_SPEED'=(Extract $adapter 'internal static float PhysicalSpeedOf(UnitEntityData actor)')
  'ADAPTER_NOMINAL_SPEED'=(Extract $adapter 'internal static float NominalSpeedOf(UnitEntityData actor)')
- 'SAVE_STATE_VALIDATION'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal static class SaveStateValidation')
- 'SAVED_MOVEMENT_VALUES'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal sealed class SavedMovementValues')
  'PERSISTENCE_ROWS'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'MountedMovementPersistence.cs'))) 'internal static class MountedMovementPersistenceRows')
- 'SAVED_MOVEMENT_ALLOCATION'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal sealed class SavedMovementAllocation')
- 'SAVED_STEP_TRAVEL'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal sealed class SavedStepTravel')
+ 'ADAPTER_CAPTURE_PERSISTENCE'=(ExtractRegion $persistenceText '        internal SavedMovementAllocation[] CapturePersistence()' '        internal void RestorePersistence(')
+ 'ADAPTER_RESTORE_PERSISTENCE'=(Extract $persistenceText 'internal void RestorePersistence(SavedMovementAllocation[] saved, IDictionary<string, UnitEntityData> actors)')
+ 'ADAPTER_TURN_MEMBERS'=(ExtractRegion $adapter '        private static readonly BindingFlags Flags' '        private static readonly FieldInfo ForceModeField')
+ 'ADAPTER_TURN_PROPERTY'=(ExtractExpression $adapter 'private static PropertyInfo Property(string name) =>')
+ 'ADAPTER_TURN_FIELD'=(ExtractExpression $adapter 'private static FieldInfo Field(string name) =>')
+ 'ADAPTER_COPY_TO_CONTEXT'=(Extract $adapter 'internal void CopyGrantedMovementToContext(TurnController turn)')
  'ACCEPTED_WORK_ROUTING'=(Extract $patch 'internal static class MountedAcceptedWorkRouting')
+ 'CONTROLLER_RETAINED_PAIR_COMMANDS'=(ExtractExpression $controller 'internal bool HasRetainedPairCommands =>')
+ 'INTERNAL_RUN_POSTFIX'=(Extract $patch 'internal static void InternalRunPostfix(UnitCommands __instance, UnitCommand cmd, bool fromQueue)')
  'CONTROLLER_OBSERVE_OUTSTANDING'=(Extract $controller 'internal void ObserveOutstandingAssignment(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)')
  'CONTROLLER_OBSERVES_ACTOR'=(Extract $controller 'internal bool ObservesOutstandingActor(UnitCommands container)')
  'PAIR_STEP_FINAL'=(ExtractExpression $lifecycle 'internal bool PairedMountStepCounterFinal(float tick) =>')
@@ -182,11 +192,13 @@ $exe=Join-Path $OutputDirectory 'actual.exe'
 $compiler='C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/Roslyn/csc.exe'
 if(-not(Test-Path -LiteralPath $compiler)){$vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe';if(Test-Path -LiteralPath $vswhere){$compiler=[string](@(& $vswhere -latest -products * -find 'MSBuild\**\Bin\Roslyn\csc.exe')|Select-Object -First 1)}}
 if(-not$compiler -or -not(Test-Path -LiteralPath $compiler)){throw 'csc.exe not found.'}
-$compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$actual)+$domain
+$compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),('/reference:'+$newtonsoft),$actual)+$domain+$persistenceFiles
+# The installed Newtonsoft.Json's converters reference the installed UnityEngine assemblies (metadata only; the harness's own facade types are unrelated).
+foreach($dependency in @('Newtonsoft.Json.dll','UnityEngine.dll','UnityEngine.CoreModule.dll')){$source=Join-Path ([IO.Path]::GetDirectoryName($newtonsoft)) $dependency;if(Test-Path -LiteralPath $source){Copy-Item -LiteralPath $source -Destination (Join-Path $OutputDirectory $dependency) -Force}}
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'SavedCombatData.cs'),(Join-Path $integration 'MountedMovementPersistence.cs'),$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'MountedMovementPersistence.cs'),$TemplatePath)+$domain+$persistenceFiles|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')
