@@ -5939,7 +5939,7 @@ namespace Harness
         {
             public object Carrier { get; set; }
             public int Decisions;
-            public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, out float grantedMetres, out string detail) { Decisions++; grantedMetres = allowedMetres; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, out float grantedMetres, out string detail) { Decisions++; grantedMetres = allowedMetres; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
         }
 
         // PR #70 R12-F4 / R14-F5 (round 15): the PRODUCTION teardown sequence (MountedServiceTeardownSequence, spliced whole: what
@@ -8424,12 +8424,12 @@ namespace Harness
                     var finalPos = w.Horse.Position;
                     ok = firstDebit.StartsWith("committed:order:") && Field(line, "finalStepPossible") == "False" && physicalAfter <= 1.524f + 1e-4f && nativeAfter <= 1.524f + 1e-4f && (control
                         ? Math.Abs(travel - 0.065f) < 1e-3f && toEndAfter < 1e-4f && strikes == 1
-                        : travel <= left + 1e-4f && toEndAfter >= PairedAttackClickProbe.NativeLastSegmentArrivalMetres && tickLine.Contains("stepEndpoint(") && strikes == 0 && order.IsFinished &&
+                        : travel <= left + 1e-4f && toEndAfter >= PairedAttackClickProbe.NativeLastSegmentArrivalMetres && tickLine.Contains("stepExecutable(") && strikes == 0 && order.IsFinished &&
                           order.NativeApproachEndedCount == 1 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, finalPos) < 1e-6f);
                     detail = "first debit " + firstDebit.Substring(0, Math.Min(45, firstDebit.Length)) + "...; pose " + pose + " (" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, end) * 1000f).ToString("0.###") +
                         " mm before the end " + end + ", NearTheEnd); physical step travel " + physicalBefore.ToString("0.######") + " -> " + physicalAfter.ToString("0.######") + " m (left " + left.ToString("0.####") +
                         " m), native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAfter.ToString("0.######") + " m; returned duration " + Field(tickLine, "physicalDelta") + " s" +
-                        (tickLine.Contains("stepEndpoint(") ? " (" + tickLine.Substring(tickLine.IndexOf("stepEndpoint(", StringComparison.Ordinal)) + ")" : "") + "; after native completion: position " + after +
+                        (tickLine.Contains("stepExecutable(") ? " (" + tickLine.Substring(tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal)) + ")" : "") + "; after native completion: position " + after +
                         " (travel " + (travel * 1000f).ToString("0.###") + " mm, " + (toEndAfter * 1000f).ToString("0.###") + " mm from the end); mount Move " + moveBefore.ToString("0.#####") + " -> " +
                         w.Horse.CombatState.Cooldown.MoveAction.ToString("0.#####") + " s; later ticks: stalls " + stalls + " -> " + w.MountStalls + ", final position " + finalPos + "; disposition " +
                         (strikes == 1 ? "strike" : order.IsFinished ? "ended " + order.EndCause + " (native force-finish " + order.NativeApproachEndedCount + "), no strike" : "live");
@@ -8611,6 +8611,216 @@ namespace Harness
                     moveAtEnd.ToString("0.####") + " -> " + moveAfter.ToString("0.####") + " s after the end; rider Standard " + standardBefore + " -> " + w.Rider.CombatState.Cooldown.StandardAction +
                     "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + "; the player's newer ground order owns the Move slot " + ReferenceEquals(slot, successor));
             }
+
+            // ===== round 16 (owner authorization 2026-11-28a section 3: R13-F5, R15-F1, R15-F2, R15-F3) =====
+            Func<string, string> selectedOf = text => { var at = (text ?? "").IndexOf("waypoint#", StringComparison.Ordinal); if (at < 0) return "?"; var end = text.IndexOfAny(new[] { '=', ',', ';' }, at); return text.Substring(at, (end < 0 ? text.Length : end) - at); };
+            Func<string, string> returnedOf = line => { var delta = Field(line ?? "", "physicalDelta"); var arrow = delta.IndexOf("->", StringComparison.Ordinal); return arrow < 0 ? delta : delta.Substring(arrow + 2); };
+
+            // R13-F5 / R15-F2 (round 16): a LATER delegated step tick of the accepted faster turning step (physical 18 m/s, native 9 m/s: the
+            // physical reservation binds) through the real TickDelegated and the connected mover. After the first debit the agent's path is set to
+            // the reviewer's polyline from the mount's settled position (cursor on the first waypoint; the engine stand-in for a native path).
+            // (a) Multi-skip: path (0,0) -> (0.100,-0.065) -> (0.192,-0.144) -> (0.300,0), heading (0.6,0.8), 720 deg/s, m_Speed 18 m/s, 1.279 m of
+            // physical step travel used (0.245 m left): the full permitted tick would skip both intermediate waypoints, cross the final plane and
+            // snap 0.300 m (1.579 m). The executable tick stays below the second waypoint's skip distance: native selects waypoint #2 (interior),
+            // no completion, settled travel within the 1.524 m step. (b) Interior corner: path (0,0) -> (0.30,0) -> (0.12,0.05), facing the first
+            // waypoint, 0.10 m left: native cannot skip the 0.30 m waypoint, so the final plane does not apply; the full 0.10 m is executed.
+            foreach (var kase in new[] { "multi-skip, 0.245 m of physical step travel left", "interior corner, 0.10 m left" })
+            {
+                var corner = kase.StartsWith("interior");
+                var c = FirstTickPair(0.095f, 1f / 60f, false, false, true);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                w.Horse.View.AgentASP.SpeedFactor = 2f;
+                c.Pair.movementState.SetStepLedger(w.Horse, 0.687f, 1.374f);
+                var click = ClickTick(c, w.Target);
+                var order = click.Order;
+                Frame(c);
+                w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                for (var i = 0; i < 4 && !c.Combat.LastFirstTickDecision.StartsWith("refused") && !c.Combat.LastFirstTickDecision.StartsWith("committed"); i++) Frame(c);
+                var firstDebit = c.Combat.LastFirstTickDecision;
+                var agent = w.Horse.View.AgentASP;
+                bool ok; string detail;
+                if (agent.Path == null || order == null || order.IsFinished || order.StruckTargets.Count > 0)
+                {
+                    ok = false;
+                    detail = "setup: first debit " + firstDebit + "; path " + (agent.Path != null) + "; order " + (order == null ? "none" : order.IsFinished ? "finished" : "struck");
+                }
+                else
+                {
+                    c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);   // the first tick's travel is settled before the path is set
+                    var o = w.Horse.Position;
+                    var offsets = corner ? new[] { 0f, 0f, 0.30f, 0f, 0.12f, 0.05f } : new[] { 0f, 0f, 0.100f, -0.065f, 0.192f, -0.144f, 0.300f, 0f };
+                    var points = agent.Path.vectorPath;
+                    points.Clear();
+                    for (var i = 0; i < offsets.Length; i += 2) points.Add(new Vector3(o.x + offsets[i], o.y, o.z + offsets[i + 1]));
+                    var end = points[points.Count - 1];
+                    agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(points[1].x, points[1].z); agent.NearTheEnd = false;
+                    agent.MoveDirection = corner ? new UnityEngine.Vector2(1f, 0f) : new UnityEngine.Vector2(0.6f, 0.8f);
+                    agent.CombatAngularSpeed = 720f; agent.FollowPrecomputedPath = true; agent.CurrentSpeedField = agent.MaxSpeed;
+                    var left = corner ? 0.10f : 0.245f;
+                    var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse);
+                    c.Pair.movementState.SetStepLedger(w.Horse, nativeBefore, 1.524f - left);
+                    var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    LineOfSightGeometry.Instance.Blocked = (f, t) => true;   // no strike interferes with the measured tick
+                    var moveBefore = w.Horse.CombatState.Cooldown.MoveAction;
+                    Frame(c);
+                    var tickLine = w.LastMountTick ?? "";
+                    var after = w.Horse.Position;
+                    var travel = Kingmaker.Utility.GeometryUtils.MechanicsDistance(o, after);
+                    var toEndAfter = Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, end);
+                    var cursorAfter = agent.NextPointIndex;
+                    var physicalAfter = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    var nativeAfter = c.Pair.movementState.AllocationMetresStepped(w.Horse);
+                    float returned; float.TryParse(returnedOf(tickLine), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out returned);
+                    for (var i = 0; i < 6 && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    var selected = selectedOf(tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))));
+                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && physicalAfter <= 1.524f + 1e-5f && nativeAfter <= 1.524f + 1e-5f &&
+                        travel <= left + 1e-5f && returned > 0f && (corner
+                        ? selected == "waypoint#1(interior)" && cursorAfter == 1 && travel > 0.0999f && Math.Abs(returned - left / 18f) < 1e-6f
+                        : selected == "waypoint#2(interior)" && cursorAfter == 2 && toEndAfter > PairedAttackClickProbe.NativeLastSegmentArrivalMetres && travel > 0.15f && returned < left / 18f);
+                    detail = "first debit " + firstDebit.Substring(0, Math.Min(45, firstDebit.Length)) + "...; later tick from " + o + ": returned duration " + returned.ToString("R") + " s (permitted " +
+                        (left / 18f).ToString("R") + " s), native selects " + selected + " (cursor after the tick " + cursorAfter + "), settled stop " + after + " (travel " + travel.ToString("0.######") +
+                        " m, " + toEndAfter.ToString("0.######") + " m from the end); physical step travel " + physicalBefore.ToString("0.######") + " -> " + physicalAfter.ToString("0.######") +
+                        " m (left " + left.ToString("0.###") + " m), native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAfter.ToString("0.######") + " m; mount Move " +
+                        moveBefore.ToString("0.#####") + " -> " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.#####") + " s; disposition " +
+                        (order.StruckTargets.Count > 0 ? "strike" : order.IsFinished ? "ended " + order.EndCause + " (native force-finish " + order.NativeApproachEndedCount + "), no strike" : "live") +
+                        " [" + tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))) + "]";
+                }
+                Check(ok, "R13-F5/R15-F2 (round 16) later delegated step tick, " + kase + ": " + detail);
+            }
+
+            // R15-F1 (round 16): an affordable provisional final-step click (equal speeds 9 m/s, 43.9 mm left on both counters: the native counter
+            // binds, finalStepPossible), its carrier bound, then the horse displaced before the first debit so the aligned endpoint is 65 mm away;
+            // sight only within 20 mm of the endpoint. The executable tick (before the decision) stops outside the completion distance (a 43.9 mm
+            // shift would snap 65 mm), so the decision receives that executable 14.8 mm tick, which no longer makes the native counter final: the
+            // step keeps its route checks, the displaced 65 mm route exceeds the 43.9 mm grant and the request refuses before any effect: returned
+            // duration 0, generation, manual target, both Holds, the rider's and mount's commands and both step counters unchanged (before round
+            // 16 the decision predicted the endpoint snap with the 43.9 mm allowance and committed, then the adapter shortened the approved tick to
+            // a blind stop 50.1 mm away). Control: displaced to 40 mm,
+            // the snap is affordable: the decision commits the replacement on the completed endpoint, the tick snaps there and the order strikes once.
+            foreach (var kase in new[] { "endpoint displaced to 65 mm, 43.9 mm left on both counters", "control: endpoint displaced to 40 mm (affordable snap)" })
+            {
+                var control = kase.StartsWith("control");
+                var c = FirstTickPair(0.03f, 1f / 64f, false, false, true);
+                var a = PriorSelectionAndHold(c);
+                var w = c.World;
+                c.Pair.movementState.SetStepLedger(w.Horse, 1.524f - 0.0439f, 1.524f - 0.0439f);
+                var gBefore = c.Combat.Generation; var riderHoldBefore = w.Rider.HoldState; var horseHoldBefore = w.Horse.HoldState;
+                var click = ClickTick(c, w.Target);
+                var line = LastLine(c);
+                var order = click.Order;
+                Frame(c);
+                var p = c.Combat.FirstTickProposalForDiagnostics;
+                var bound = p != null && p.Replacement && p.CarrierMove != null && ReferenceEquals(c.Pair.movementState.FirstTickGate, p);
+                var agent = w.Horse.View.AgentASP;
+                var points = agent.Path == null ? null : agent.Path.vectorPath;
+                bool ok; string detail;
+                if (points == null || order == null || !bound || !c.Combat.LastFirstTickDecision.StartsWith("pending"))
+                {
+                    ok = false;
+                    detail = "setup: click " + click.Decision + "; decision " + c.Combat.LastFirstTickDecision + "; bound " + bound + "; path " + (points != null);
+                }
+                else
+                {
+                    var end = points[points.Count - 1];
+                    var from = w.Horse.Position;
+                    double dx = end.x - from.x, dz = end.z - from.z, dl = Math.Sqrt(dx * dx + dz * dz);
+                    var dir = dl > 1e-6 ? new UnityEngine.Vector2((float)(dx / dl), (float)(dz / dl)) : new UnityEngine.Vector2(1f, 0f);
+                    var gap = control ? 0.040f : 0.065f;
+                    var pose = new Vector3(end.x - dir.x * gap, end.y, end.z - dir.y * gap);
+                    w.Horse.Position = pose; w.Rider.Position = pose;
+                    agent.MoveDirection = dir; agent.NextPointIndex = points.Count - 1; agent.NextWaypoint = new UnityEngine.Vector2(end.x, end.z);
+                    LineOfSightGeometry.Instance.Blocked = (f, t) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(f, end) > 0.02f;
+                    var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse); var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    var moveBefore = w.Horse.CombatState.Cooldown.MoveAction;
+                    var genAtClick = c.Combat.Generation; var targetAtClick = w.Rider.CombatState.ManualTarget;
+                    var carrier = p.CarrierMove;
+                    string decision = null, tickLine = null; var stop = pose; var nativeAtDecision = 0f; var physicalAtDecision = 0f;
+                    c.BeforeDrive = () =>
+                    {
+                        if (decision != null || c.Combat.LastFirstTickDecision.StartsWith("pending")) return;
+                        decision = c.Combat.LastFirstTickDecision; tickLine = w.LastMountTick ?? ""; stop = w.Horse.Position;
+                        nativeAtDecision = c.Pair.movementState.AllocationMetresStepped(w.Horse); physicalAtDecision = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    };
+                    for (var i = 0; i < 3 && decision == null; i++) Frame(c);
+                    c.BeforeDrive = null;
+                    decision = decision ?? "<none>"; tickLine = tickLine ?? "";
+                    var mountMoveAfter = LiveMountCarrier(c);
+                    for (var i = 0; i < 12 && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    // After the request is settled: the rider holds no live command other than (before the sweep) the refused provisional order.
+                    var riderCommandAfter = w.Rider.Commands.Standard != null && !w.Rider.Commands.Standard.IsFinished ? w.Rider.Commands.Standard : null;
+                    var strikes = order.StruckTargets.Count;
+                    var displacement = Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, stop);
+                    var returned = decision.StartsWith("refused") ? 0f : (float)((nativeAtDecision - nativeBefore) / 9.0);
+                    ok = click.Admitted && Field(line, "finalStepPossible") == "True" && genAtClick == gBefore && ReferenceEquals(targetAtClick, a);
+                    if (control)
+                        ok &= decision.StartsWith("committed:replacement:final-step-counter:") && strikes == 1 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(stop, end) < 1e-4f &&
+                            physicalAtDecision <= 1.524f + 1e-5f && nativeAtDecision <= 1.524f + 1e-5f && Math.Abs(displacement - gap) < 1e-3f && c.Combat.Generation != gBefore &&
+                            ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target);
+                    else
+                        ok &= decision.StartsWith("refused:route-beyond-current-grant(") && tickLine.StartsWith("mountMove=first-tick-refused") && tickLine.Contains("stepExecutable(") &&
+                            displacement < 1e-6f &&
+                            nativeAtDecision == nativeBefore && physicalAtDecision == physicalBefore && w.Horse.CombatState.Cooldown.MoveAction == moveBefore && strikes == 0 && order.IsFinished &&
+                            LiveMountCarrier(c) == null && riderCommandAfter == null && mountMoveAfter == null && carrier.IsFinished && c.Combat.Generation == gBefore &&
+                            ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Rider.HoldState == riderHoldBefore && w.Horse.HoldState == horseHoldBefore;
+                    detail = "click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, route " + Field(line, "routeMetres") + " m, finalStepPossible " + Field(line, "finalStepPossible") +
+                        "); displaced before the first debit to " + pose + ", " + (gap * 1000f).ToString("0.#") + " mm before the endpoint " + end + "; first debit " + decision.Substring(0, Math.Min(control ? 120 : 400, decision.Length)) +
+                        "; tick {" + tickLine.Substring(0, Math.Min(control ? 120 : 260, tickLine.Length)) + "}; returned duration " + returned.ToString("R") + " s; selected " + selectedOf(decision) +
+                        "; settled stop " + stop + " (displacement " + displacement.ToString("0.######") + " m, " + Kingmaker.Utility.GeometryUtils.MechanicsDistance(stop, end).ToString("0.######") +
+                        " m from the end); native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAtDecision.ToString("0.######") + " m, physical travel " + physicalBefore.ToString("0.######") +
+                        " -> " + physicalAtDecision.ToString("0.######") + " m; mount Move " + moveBefore + " -> " + w.Horse.CombatState.Cooldown.MoveAction + " s; generation " + gBefore + " -> " + c.Combat.Generation +
+                        "; target " + Name(w.Rider.CombatState.ManualTarget) + " (prior " + Name(a) + "); rider Hold " + riderHoldBefore + " -> " + w.Rider.HoldState + ", horse Hold " + horseHoldBefore + " -> " +
+                        w.Horse.HoldState + "; rider live command after settlement " + Id(riderCommandAfter) + ", mount carrier after the decision " + Id(mountMoveAfter) + " (provisional carrier finished " +
+                        carrier.IsFinished + "); disposition " +
+                        (strikes == 1 ? "one strike" : "no strike, order ended " + order.IsFinished + " (" + order.EndCause + ")");
+                }
+                Check(ok, "R15-F1 (round 16) provisional final-step click, " + kase + ": " + detail);
+            }
+
+            // R15-F3 (round 16): the same post-binding blind arrival stripe under ordinary grants on opposite sides of the final-tick branch. The
+            // accepted ordinary order (9 m/s, 1/60 s frame: 0.15 m per tick), aligned, its endpoint 0.13 m away (sight from x = 0.08, arrival radius
+            // 0.05 m); after binding sight closes on a 2 mm stripe 35 mm before the endpoint (inside the arrival radius), the endpoint visible. The
+            // 0.14 m grant (final ordinary tick) and the 0.16 m grant (ordinary branch) both refuse the blind arrival path before any movement.
+            // Visible-route control: the same orders without the stripe commit and strike once. Lawful-shortened-stop control (sight from
+            // x = 0.035, z <= 0.052, perpendicular heading: the full tick stops blind, a visible interior stop exists, the route is visible): both
+            // grants commit on the shortened stop (returned duration below the grant) and strike once.
+            foreach (var grant in new[] { 0.14f, 0.16f })
+                foreach (var kase in new[] { "blind stripe 35 mm before the endpoint", "visible-route control", "lawful-shortened-stop control" })
+                {
+                    var shortenedCase = kase.StartsWith("lawful");
+                    var stripe = kase.StartsWith("blind");
+                    var c = FirstTickPair(shortenedCase ? 0.035f : 0.08f, 1f / 60f, false, false, false, true);
+                    var w = c.World;
+                    if (shortenedCase) LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 0.035f || from.z > 0.052f;
+                    w.Horse.CombatState.Cooldown.MoveAction = 3f - grant / 9f;
+                    var a = PriorSelectionAndHold(c);
+                    var endpoint = Vector3.zero; var toEndpoint = float.NaN;
+                    var r = ShortOrdinaryRun(c, a, () =>
+                    {
+                        var path = w.Horse.View.AgentASP.Path == null ? null : w.Horse.View.AgentASP.Path.vectorPath;
+                        if (path != null) { endpoint = path[path.Count - 1]; toEndpoint = Kingmaker.Utility.GeometryUtils.MechanicsDistance(w.Horse.Position, endpoint); }
+                        if (stripe) { var e = endpoint; LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 0.08f || Math.Abs(from.x - (e.x - 0.035f)) <= 0.001f; }
+                        if (shortenedCase) w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                    });
+                    var returned = r.MoveAfterDecision - r.MoveBefore;
+                    var moved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(r.Start, r.Stop);
+                    var finalBranch = grant <= 9f / 60f;
+                    var ok = r.Pending && r.Bound;
+                    if (stripe)
+                        ok &= r.Decision.StartsWith(finalBranch ? "refused:final-ordinary-tick-route-arrival-not-admitted(" : "refused:route-arrival-not-admitted(") && moved < 1e-6f && returned == 0f &&
+                            r.Strikes == 0 && Math.Abs(toEndpoint - 0.13f) < 1e-3f;
+                    else if (!shortenedCase)
+                        ok &= r.Decision.StartsWith(finalBranch ? "committed:order:final-ordinary-tick:" : "committed:order:ordinary-movement") && r.Decision.Contains("remaining-route(") && r.Strikes == 1 &&
+                            Math.Abs(toEndpoint - 0.13f) < 1e-3f;
+                    else
+                        ok &= r.Decision.StartsWith(finalBranch ? "committed:order:final-ordinary-tick:first-tick-interior(" : "committed:order:ordinary-movement-shortened-strike(first-tick-interior(") &&
+                            r.Strikes == 1 && returned < grant / 9f - 1e-4f && r.Stop.x >= 0.035f && r.Stop.z <= 0.052f && r.Decision.Contains("remaining-route(");
+                    Check(ok, "R15-F3 (round 16) ordinary grant " + grant.ToString("0.00") + " m (" + (finalBranch ? "final ordinary tick" : "ordinary branch") + "), " + kase + ": endpoint " + endpoint +
+                        " (" + toEndpoint.ToString("0.#####") + " m from the bound mount); first debit " + r.Decision.Substring(0, Math.Min(stripe ? 200 : 110, r.Decision.Length)) + "...; returned and debited " +
+                        returned.ToString("0.######") + " s (grant " + (grant / 9f).ToString("0.######") + " s, frame 1/60 s); selected " + selectedOf(r.Decision) + "; executed stop (" + r.Stop.x.ToString("0.#####") + "," +
+                        r.Stop.z.ToString("0.#####") + "), moved " + moved.ToString("0.######") + " m; mount Move " + r.MoveBefore.ToString("0.#####") + " -> " + r.MoveAfterDecision.ToString("0.#####") + " -> " +
+                        r.MoveFinal.ToString("0.#####") + " s; strikes " + r.Strikes + "; order " + (r.Order == null ? "-" : r.Order.IsFinished ? "ended (" + r.Order.EndCause + ")" : "live"));
+                }
 
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
             // (0.0439 m of physical travel left at 18 m/s: a 1/60 s request is cut to 0.0439/18 s, not the 0.30 m frame); the ordinary control keeps

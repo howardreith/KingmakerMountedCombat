@@ -306,14 +306,128 @@ namespace KingmakerMountedCombat.Integration
             return MoveTowards(current, target, maxMagnitude);
         }
 
+        // PR #70 round 16 (R13-F5, R15-F1, R15-F2): ONE installed TickMovement tick of the agent's own path at a given duration, the single
+        // production simulation shared by the first-tick decision's candidates, its interior-stop search and the step-executable duration. From
+        // the agent's cursor native skips a (follow-precomputed, not last) waypoint while its distance from the mount is below m_Speed
+        // (agentSpeed) x THIS duration, then shifts by the installed combat steering at MaxSpeed (speed) x the duration (NativeCombatShift: the
+        // agent speed decides skipping, MaxSpeed the shift). Only when the selected waypoint is the path's last does the endpoint completion
+        // apply (its plane passed against the previous point, or within NativeLastSegmentArrivalMetres), which moves the mount ONTO the path's
+        // end. Stop is where the tick leaves the mount.
+        internal struct NativeTick
+        {
+            public bool Moving;
+            public int Selected;
+            public bool OnLast;
+            public float Distance;
+            public Vector2 Unit, Shift, Direction;
+            public float EffectiveAngular;
+            public bool Passed, Snapped;
+            public Vector3 Stop;
+            // The shift passes the selected waypoint (a candidate of the waypoint resolution, not an interior stop).
+            public bool PassesWaypoint => Length(Shift) > Distance;
+            public override string ToString() => "waypoint#" + Selected + (OnLast ? "(end)" : "(interior)") + ",moving=" + Moving + ",shift=" + Length(Shift).ToString("R") +
+                ",snapped=" + Snapped + ",stop=(" + Stop.x.ToString("R") + "," + Stop.z.ToString("R") + ")";
+        }
+
+        internal static NativeTick SimulateTick(IList<Vector3> path, int cursor, Vector3 origin, Vector2 moveDirection, float speed, float agentSpeed,
+            float combatAngular, float delta, bool followPrecomputedPath)
+        {
+            var tick = new NativeTick { Selected = cursor, Stop = origin };
+            if (path == null || cursor < 0 || cursor >= path.Count || !(delta > 0f)) return tick;
+            var index = cursor;
+            var distance = PlanarDistance(path[index], origin);
+            while (followPrecomputedPath && index < path.Count - 1 && distance < agentSpeed * delta) { index++; distance = PlanarDistance(path[index], origin); }
+            var waypoint = path[index];
+            tick.Selected = index;
+            tick.OnLast = index >= path.Count - 1;
+            tick.Distance = distance;
+            if (!(distance > 1e-6f)) return tick;
+            tick.Unit = new Vector2((waypoint.x - origin.x) / distance, (waypoint.z - origin.z) / distance);
+            tick.Shift = NativeCombatShift(moveDirection, tick.Unit, distance, tick.OnLast, speed, combatAngular, delta, out tick.Direction, out tick.EffectiveAngular);
+            tick.Moving = true;
+            var stop = new Vector3(origin.x + tick.Shift.x, origin.y, origin.z + tick.Shift.y);
+            var previous = index > 0 ? path[index - 1] : origin;
+            tick.Passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
+            tick.Snapped = tick.OnLast && (tick.Passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
+            tick.Stop = tick.Snapped ? new Vector3(waypoint.x, origin.y, waypoint.z) : stop;
+            return tick;
+        }
+
+        private static float PlanarDistance(Vector3 point, Vector3 origin) => Length(new Vector2(point.x - origin.x, point.z - origin.z));
+
+        // Round 16: a step tick's settled physical travel is the straight displacement SettleStepTravel measures from the tick's start to where
+        // installed TickMovement leaves the mount (endpoint completion included); it must stay within the physical step remainder. A completion
+        // (snap) is executable only when the path's end lies within the remainder; an unsnapped stop on the selected last segment keeps
+        // StepMarginMetres from both completion triggers (the 0.05 m disc and the final plane), so a rounding difference cannot turn it into an
+        // unaffordable completion. An unsnapped shift is bounded by the allocation's physical reservation (speed x duration). physicalLeft
+        // +Infinity (not a step): always executable.
+        internal const float StepMarginMetres = 0.0001f;
+        internal static bool StepSettlementAdmits(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft)
+        {
+            if (float.IsPositiveInfinity(physicalLeft) || !tick.Moving) return true;
+            if (tick.Snapped) return GeometryUtils.MechanicsDistance(origin, tick.Stop) <= physicalLeft;
+            if (!tick.OnLast || GeometryUtils.MechanicsDistance(origin, path[path.Count - 1]) <= physicalLeft) return true;
+            var waypoint = path[tick.Selected];
+            var previous = tick.Selected > 0 ? path[tick.Selected - 1] : origin;
+            double sx = waypoint.x - previous.x, sz = waypoint.z - previous.z, length = Math.Sqrt(sx * sx + sz * sz);
+            var plane = length > 1e-6d ? ((waypoint.x - tick.Stop.x) * sx + (waypoint.z - tick.Stop.z) * sz) / length : double.MaxValue;
+            return GeometryUtils.MechanicsDistance(tick.Stop, waypoint) >= NativeLastSegmentArrivalMetres + StepMarginMetres && plane >= StepMarginMetres;
+        }
+
+        // Round 16 (R13-F5, R15-F1, R15-F2): the longest duration within the permitted one whose installed tick (SimulateTick: the waypoint
+        // native selects at THAT duration, its steering and its completion) settles within the physical step remainder. The permitted duration
+        // itself when it settles within it; otherwise a downward scan at the established resolution (InDiscSampleMetres of shift, at least
+        // InteriorStopCandidatesPerTick candidates), the boundary refined by bisection and backed off by StepMarginMetres of shift (re-checked);
+        // 0 when no positive duration settles within the remainder. Selected is the tick at the returned duration.
+        internal static float StepExecutableDuration(IList<Vector3> path, int cursor, Vector3 origin, Vector2 moveDirection, float speed, float agentSpeed,
+            float combatAngular, bool followPrecomputedPath, float physicalLeft, float permitted, out NativeTick selected, out int evaluated)
+        {
+            evaluated = 1;
+            selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, permitted, followPrecomputedPath);
+            if (!(permitted > 0f) || !(speed > 0f)) return Math.Max(0f, permitted);
+            if (StepSettlementAdmits(selected, path, origin, physicalLeft)) return permitted;
+            var step = Math.Max(InDiscSampleMetres / speed, permitted / InteriorStopCandidatesPerTick);
+            var bad = permitted;
+            var t = permitted;
+            while (true)
+            {
+                t -= step;
+                if (!(t > 0f)) break;
+                evaluated++;
+                if (!StepSettlementAdmits(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath), path, origin, physicalLeft))
+                { bad = t; continue; }
+                float low = t, high = bad;
+                for (var i = 0; i < 40; i++)
+                {
+                    var mid = (low + high) * 0.5f;
+                    evaluated++;
+                    if (StepSettlementAdmits(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft))
+                        low = mid;
+                    else high = mid;
+                }
+                var backed = low - StepMarginMetres / speed;
+                if (!(backed > 0f)) break;
+                evaluated++;
+                var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, backed, followPrecomputedPath);
+                if (StepSettlementAdmits(candidate, path, origin, physicalLeft)) { selected = candidate; return backed; }
+                bad = backed;
+                t = backed;
+            }
+            selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, 0f, followPrecomputedPath);
+            return 0f;
+        }
+
         // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
         // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
         // (allowedMetres / speed); a shift that would pass the waypoint the agent steers to is shortened (the delta returned is smaller), and
         // a waypoint native would skip at that delta is not predicted (refused, conservative). The stop is where this tick leaves the mount
         // (it moves no further under the single-action limit), judged with the production admission under the new direction. On success
         // Route is [origin, stop], RouteMetres the granted time x speed (the adapter returns that delta to native movement).
+        // Round 16 (R13-F5, R15-F1, R15-F2): every candidate's stop is the installed tick at that candidate's own duration (SimulateTick: native
+        // selection with skipping, steering, completion only on a selected last segment), and physicalStepLeft (a step's physical remainder,
+        // +Infinity otherwise) admits only a candidate whose settled travel stays within it (StepSettlementAdmits).
         internal static Result EvaluateFirstTickNative(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
-            float allowedMetres, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath)
+            float allowedMetres, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath, float physicalStepLeft)
         {
             var result = new Result();
             if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null) { result.Detail = "unavailable"; return result; }
@@ -328,18 +442,19 @@ namespace KingmakerMountedCombat.Integration
             // Round 11 (R10-F1): the waypoint native steers to and the delta returned to native are resolved together. For a candidate waypoint
             // the delta is the full allowance, shortened when the shift would pass that waypoint; native skips a (follow-precomputed, not last)
             // waypoint while its distance from the mount is below m_Speed x THAT delta, and then steers to the next one, whose own delta is
-            // resolved the same way. The result is accepted only when it is consistent: every skipped waypoint is skipped at the final delta and
-            // the selected one is not. Round 12 (R11-F4): when that stop does not admit the strike (or is inconsistent), the longer executable
-            // alternative is evaluated before refusing: the resolution starts at the next waypoint, so every waypoint before it must be skipped by
-            // native at the delta that alternative returns (checked), until the route's last point was tried.
+            // resolved the same way. The result is accepted only when it is consistent: native's own selection at the final delta (SimulateTick)
+            // is the resolved waypoint (every skipped waypoint skipped at that delta, the selected one not). Round 12 (R11-F4): when that stop does
+            // not admit the strike (or is inconsistent), the longer executable alternative is evaluated before refusing: the resolution starts at
+            // the next waypoint, so every waypoint before it must be skipped by native at the delta that alternative returns (checked), until the
+            // route's last point was tried.
             string firstDetail = null;
             var alternatives = 0;
             for (var start = cursor; start < agentPath.Count; alternatives++)
             {
                 var index = start;
                 Vector3 waypoint = agentPath[index];
-                Vector2 unit = default(Vector2), shift = default(Vector2), newDirection = default(Vector2);
-                float distance = 0f, delta = fullDelta, effectiveAngular = combatAngular;
+                Vector2 unit = default(Vector2), shift = default(Vector2), ignored;
+                float distance = 0f, delta = fullDelta;
                 bool onLast = false, stopsAtWaypoint = false, moving = true;
                 for (;;)
                 {
@@ -356,7 +471,7 @@ namespace KingmakerMountedCombat.Integration
                     unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
                     delta = fullDelta;
                     stopsAtWaypoint = false;
-                    shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
+                    shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out ignored);
                     if (Length(shift) > distance)
                     {
                         stopsAtWaypoint = true;
@@ -364,52 +479,46 @@ namespace KingmakerMountedCombat.Integration
                         for (var i = 0; i < 40; i++)
                         {
                             var mid = (low + high) * 0.5f;
-                            Vector2 ignored;
                             if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
                         }
                         delta = low;
-                        shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
                     }
                     if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * delta) { index++; continue; }
                     break;
                 }
                 string detail = null;
+                var tick = default(NativeTick);
                 if (!moving) detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ";start=" + start + ")";
-                for (var skipped = cursor; detail == null && skipped < index; skipped++)
+                else
                 {
-                    var gap = GeometryUtils.MechanicsDistance(new Vector3(agentPath[skipped].x, origin.y, agentPath[skipped].z), origin);
-                    if (!(followPrecomputedPath && gap < currentAgentSpeed * delta))
-                        detail = "native-waypoint-unresolved(cursor=" + cursor + ";selected=" + index + ";skipped#" + skipped + "=" + gap.ToString("R") +
+                    tick = SimulateTick(agentPath, cursor, origin, moveDirection, speed, currentAgentSpeed, combatAngular, delta, followPrecomputedPath);
+                    if (tick.Selected != index || !tick.Moving)
+                        detail = "native-waypoint-unresolved(cursor=" + cursor + ";selected=" + index + ";nativeSelects=" + tick.Selected +
                             ";agentSpeed=" + currentAgentSpeed.ToString("R") + ";delta=" + delta.ToString("R") + ")";
                 }
                 var admitted = false;
-                var stop = origin;
                 if (detail == null)
                 {
-                    stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
-                    // Installed TickMovement after the move: on the last segment, a waypoint passed (plane test against the previous point) or within
-                    // 0.05 m completes the movement in turn-based combat by moving the agent onto the path's end (Move(path.Last - position)).
-                    var previous = index > 0 ? agentPath[index - 1] : origin;
-                    var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
-                    var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
-                    if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
-                    var heading = new Vector3(newDirection.x, 0f, newDirection.y);
-                    admitted = Length(newDirection) > 1e-6f &&
-                        probe.EvaluateNativeAdmissionAtMountPosition(stop, heading) == MountedPairNativeAdmissionState.Admitted;
+                    var stop = tick.Stop;
+                    var newDirection = tick.Direction;
+                    var settles = StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft);
+                    admitted = settles && Length(newDirection) > 1e-6f &&
+                        probe.EvaluateNativeAdmissionAtMountPosition(stop, new Vector3(newDirection.x, 0f, newDirection.y)) == MountedPairNativeAdmissionState.Admitted;
                     var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
                     detail = "first-tick(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
-                        distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
-                        ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
-                        ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (effectiveAngular * delta).ToString("R") +
+                        distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(tick.Shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
+                        ";snapped=" + tick.Snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
+                        ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (tick.EffectiveAngular * delta).ToString("R") +
                         ";baseTurnCapacity=" + (combatAngular * delta).ToString("R") +
                         ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");" + (stopsAtWaypoint ? (onLast ? "reaches-route-end" : "stops-at-waypoint") : "interior") +
+                        (float.IsPositiveInfinity(physicalStepLeft) ? "" : ";stepTravelLeft=" + physicalStepLeft.ToString("R") + ";settlesWithinStep=" + settles) +
                         ";admitted=" + admitted + (alternatives > 0 ? ";alternative=" + alternatives + ";shorterRefused={" + firstDetail + "}" : "") + ")";
                 }
                 if (admitted)
                 {
                     result.Detail = detail;
                     result.Path = PathOutcome.Complete;
-                    result.Route = new List<Vector3> { origin, stop };
+                    result.Route = new List<Vector3> { origin, tick.Stop };
                     result.RouteMetres = delta * speed;
                     result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
                     return result;
@@ -419,9 +528,9 @@ namespace KingmakerMountedCombat.Integration
                 start = index + 1;
             }
             // PR #70 R12-F2 (round 15): the viable INTERIOR stops of the current steered tick at the established resolution (InDiscSampleMetres of
-            // shift, i.e. durations k x InDiscSampleMetres / speed below the full allowance), each with the installed waypoint selection at that
-            // duration (a waypoint whose distance is below m_Speed x duration is skipped), its steering and its last-segment completion (snap)
-            // at that duration; a duration whose shift would pass its waypoint belongs to the waypoint candidates above and is skipped. The first
+            // shift, i.e. durations k x InDiscSampleMetres / speed below the full allowance), each the installed tick at that duration (round 16:
+            // SimulateTick, the waypoint selection with skipping, its steering and its last-segment completion) that settles within a step's
+            // physical remainder; a duration whose shift would pass its waypoint belongs to the waypoint candidates above and is skipped. The first
             // (shortest) stop admitting the strike is returned with exactly that duration: a visible part of the tick that ends before the
             // full-duration or waypoint-distance candidate is not hidden by a larger grant.
             var interiorStep = Math.Max(InDiscSampleMetres / speed, fullDelta / InteriorStopCandidatesPerTick);
@@ -429,36 +538,16 @@ namespace KingmakerMountedCombat.Integration
             for (var k = 1; k * interiorStep < fullDelta; k++)
             {
                 var dt = k * interiorStep;
-                var index = cursor;
-                Vector3 waypoint = agentPath[index];
-                float distance = 0f;
-                var onLast = false;
-                var moving = false;
-                for (;;)
-                {
-                    waypoint = agentPath[index];
-                    onLast = index >= agentPath.Count - 1;
-                    distance = Length(new Vector2(waypoint.x - origin.x, waypoint.z - origin.z));
-                    if (followPrecomputedPath && !onLast && currentAgentSpeed > 0f && distance < currentAgentSpeed * dt) { index++; continue; }
-                    moving = distance > 1e-6f;
-                    break;
-                }
-                if (!moving) continue;
-                var unit = new Vector2((waypoint.x - origin.x) / distance, (waypoint.z - origin.z) / distance);
-                Vector2 newDirection; float effectiveAngular;
-                var shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, dt, out newDirection, out effectiveAngular);
-                if (Length(shift) > distance) continue;
+                var tick = SimulateTick(agentPath, cursor, origin, moveDirection, speed, currentAgentSpeed, combatAngular, dt, followPrecomputedPath);
+                if (!tick.Moving || tick.PassesWaypoint || !StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft)) continue;
                 interiorTried++;
-                var stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
-                var previous = index > 0 ? agentPath[index - 1] : origin;
-                var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
-                var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
-                if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
+                var stop = tick.Stop;
+                var newDirection = tick.Direction;
                 if (!(Length(newDirection) > 1e-6f) ||
                     probe.EvaluateNativeAdmissionAtMountPosition(stop, new Vector3(newDirection.x, 0f, newDirection.y)) != MountedPairNativeAdmissionState.Admitted) continue;
-                result.Detail = "first-tick-interior(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") +
-                    ";delta=" + dt.ToString("R") + ";fullDelta=" + fullDelta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" +
-                    GeometryUtils.MechanicsDistance(origin, stop).ToString("R") + ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") + ";stopZ=" +
+                result.Detail = "first-tick-interior(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + tick.Selected + "=" + agentPath[tick.Selected] + (tick.OnLast ? "(end)" : "(interior)") +
+                    ";delta=" + dt.ToString("R") + ";fullDelta=" + fullDelta.ToString("R") + ";shift=" + Length(tick.Shift).ToString("R") + ";travel=" +
+                    GeometryUtils.MechanicsDistance(origin, stop).ToString("R") + ";snapped=" + tick.Snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") + ";stopZ=" +
                     stop.z.ToString("R") + ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");interiorCandidate=" + k +
                     ";admitted=True;fullAndWaypointRefused={" + firstDetail + "})";
                 result.Path = PathOutcome.Complete;

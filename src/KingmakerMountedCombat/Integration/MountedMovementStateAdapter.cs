@@ -270,6 +270,31 @@ namespace KingmakerMountedCombat.Integration
             try
             {
             var gatedTick = false;
+            var approvedTick = float.NaN;
+            var frameDelta = deltaTime;
+            // PR #70 round 16 (R13-F5, R15-F1, R15-F2): the executable current tick is resolved BEFORE any decision or debit. A step tick's
+            // permitted duration (the frame's delta within the allocation's Remaining, the limit Advance applies) is shortened to the longest
+            // duration whose installed tick (the waypoint native selects at that duration, skipping included; its steering; endpoint completion
+            // only on a selected last segment) settles within the physical step remainder (StepExecutableTick). A gated carrier's decision then
+            // evaluates exactly that executable tick (its allowance and its tick: a step's native-counter finality is judged for the duration
+            // actually executed), with the same physical remainder for every candidate; after a commit the approved duration is returned and
+            // debited unchanged. Ordinary movement (and its NearTheEnd borrowed time) is unchanged.
+            var stepTravelLeft = float.PositiveInfinity;
+            var endpointDetail = "";
+            if (stepMode && speedsReadable && deltaTime > 0f)
+            {
+                var stepAgent = mount.View?.AgentASP;
+                if (stepAgent != null && !(bool)ForceModeField.GetValue(stepAgent))
+                {
+                    stepTravelLeft = Math.Max(0f, TurnController.MetersOfFiveFootStep - allocation.Movement.MetresStepTravelled);
+                    var permitted = Math.Max(0f, Math.Min(deltaTime, allocation.Movement.Remaining(physicalSpeed, nominalUsed, TurnController.MetersOfFiveFootStep,
+                        Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
+                        mount.IsMoveActionRestricted(), true, inputTurn.EnabledSingleActionMove)));
+                    float executable;
+                    if (StepExecutableTick(stepAgent, mount.Position, stepTravelLeft, physicalSpeed, permitted, out executable, out endpointDetail) && executable < deltaTime)
+                        deltaTime = executable;
+                }
+            }
             var gate = FirstTickGate;
             if (gate != null && gate.Carrier != null && ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), gate.Carrier))
             {
@@ -281,7 +306,7 @@ namespace KingmakerMountedCombat.Integration
                 var allowedMetres = speedsReadable ? Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed : float.NaN;
                 string gateDetail;
                 float grantedMetres;
-                var verdict = gate.Decide(inputTurn, allowedMetres, deltaTime, out grantedMetres, out gateDetail);
+                var verdict = gate.Decide(inputTurn, allowedMetres, deltaTime, stepTravelLeft, out grantedMetres, out gateDetail);
                 // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
                 // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
                 // R11-F5 (round 12): the duration the decision approved is the duration returned and debited, also inside native's NearTheEnd
@@ -290,13 +315,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / physicalSpeed);
                     gatedTick = true;
+                    approvedTick = deltaTime;
                 }
                 if (verdict != MountedFirstTickVerdict.Commit)
                 {
-                    var tick = deltaTime;
+                    var tick = frameDelta;
                     deltaTime = 0f;
                     return "mountMove=first-tick-" + (verdict == MountedFirstTickVerdict.Refuse ? "refused" : "committed-in-place") + ";tick=" + tick.ToString("R") +
-                        ";allowedMetres=" + allowedMetres.ToString("R") + ";" + gateDetail;
+                        ";allowedMetres=" + allowedMetres.ToString("R") + endpointDetail + ";" + gateDetail;
                 }
             }
             if (!speedsReadable)
@@ -312,24 +338,9 @@ namespace KingmakerMountedCombat.Integration
             var standardUsed = allocation.StandardUsed || mount.UsedStandardAction();
             var used = Math.Max(before, allocation.MoveUsed);
             float debit;
-            var requested = deltaTime;
             var agent = mount.View.AgentASP;
             var forced = (bool)ForceModeField.GetValue(agent);
             var steppedBefore = allocation.Movement.MetresStepTravelled;
-            // PR #70 R13-F5 (round 15): installed TickMovement completes the movement after its shift on the last segment (a passed endpoint
-            // plane or within 0.05 m of the path's end moves the agent ONTO the end). A step tick is therefore bounded by that endpoint move as
-            // well: when the endpoint lies farther than the physical step remainder, the tick is shortened so the shift can neither come within
-            // the snap distance nor cross the endpoint plane (a zero tick when no such shift remains: the step ends there, native's denial
-            // branch then completes the movement). An endpoint within the remainder keeps the lawful completion. Ordinary movement (and its
-            // NearTheEnd borrowed time) is unchanged.
-            var endpointDetail = "";
-            if (inputTurn.EnabledFiveFootStep && !forced && deltaTime > 0f && physicalSpeed > 0f)
-            {
-                float endpointCap;
-                if (StepEndpointCap(agent, mount.Position, Math.Max(0f, TurnController.MetersOfFiveFootStep - allocation.Movement.MetresStepTravelled), physicalSpeed,
-                    out endpointCap, out endpointDetail) && endpointCap < deltaTime)
-                    deltaTime = endpointCap;
-            }
             deltaTime = allocation.Movement.Advance(deltaTime, physicalSpeed, nominalUsed,
                 TurnController.MetersOfFiveFootStep, used, standardUsed, mount.IsMoveActionRestricted(),
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
@@ -337,6 +348,9 @@ namespace KingmakerMountedCombat.Integration
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue, out debit);
             // A forced line reaches here only as a charge, whose native shell paid for its caster and not for this mover.
             if (forced) debit = deltaTime;
+            // Round 16: the approved duration is returned and debited unchanged (it lies within the frame and Remaining; NearTheEnd's borrowed
+            // time is excluded for it). A difference is reported, never silently absorbed.
+            if (gatedTick && deltaTime != approvedTick) endpointDetail += ";approvedTickAltered=" + approvedTick.ToString("R") + "->" + deltaTime.ToString("R");
             if (allocation.Movement.MetresStepTravelled > steppedBefore)
             {
                 allocation.StepTickPending = true;
@@ -363,38 +377,40 @@ namespace KingmakerMountedCombat.Integration
                 ";mountStepMetres=" + allocation.Movement.MetresStepped.ToString("R") +
                 ";mountStepTravelled=" + allocation.Movement.MetresStepTravelled.ToString("R") +
                 ";nativePrepared=" + allocation.Prepared + ";round=" + allocation.Round +
-                ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R") + (gatedTick ? ";approvedTick=True" : "") + endpointDetail;
+                ";physicalDelta=" + frameDelta.ToString("R") + "->" + deltaTime.ToString("R") + (gatedTick ? ";approvedTick=True" : "") + endpointDetail;
             }
             finally { speedScopeActor = null; }
         }
 
-        // R13-F5 (round 15): the longest step tick whose shift (speed x tick) cannot trigger installed TickMovement's endpoint completion beyond
-        // the physical step remainder. The shift's length bounds the stop's distance change, so a shift no longer than (distance to the end -
-        // snap distance - margin) cannot end within the snap distance, and one shorter than the distance to the last segment's endpoint plane
-        // cannot pass it. False (no bound) when the agent has no readable path or its end lies within the remainder (a lawful completion).
-        internal const float StepEndpointMarginMetres = 0.0001f;
-        internal static bool StepEndpointCap(Kingmaker.View.UnitMovementAgent agent, Vector3 position, float physicalLeft, float speed, out float cap, out string detail)
+        // PR #70 round 16 (R13-F5, R15-F1, R15-F2): the step-executable duration of the current tick, read from the agent's own path, cursor and
+        // installed steering facts (MoveDirection, m_CombatAngularSpeed, m_Speed for skipping, m_FollowPrecomputedPath) and the shift's speed
+        // (MaxSpeed): PairedAttackClickProbe.StepExecutableDuration (the installed tick at each candidate duration, SimulateTick). False (no
+        // bound) when the agent has no readable path or its end lies within the physical remainder (any completion is affordable). Steering that
+        // cannot be read, or is not the turn-based combat steering, gives no executable movement (0): the shift cannot be predicted.
+        internal static bool StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, Vector3 position, float physicalLeft, float speed, float permitted,
+            out float executable, out string detail)
         {
-            cap = float.MaxValue; detail = "";
+            executable = permitted; detail = "";
             List<Vector3> path; int cursor; Vector2 waypoint;
             if (agent == null || !(speed > 0f) || !MountedAgentSteering.TryRead(agent, out path, out cursor, out waypoint) || path == null || path.Count == 0) return false;
             var end = path[path.Count - 1];
             var toEnd = Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, end);
             if (toEnd <= physicalLeft) return false;
-            var room = toEnd - PairedAttackClickProbe.NativeLastSegmentArrivalMetres - StepEndpointMarginMetres;
-            var plane = float.MaxValue;
-            if (cursor >= path.Count - 2 && path.Count >= 2)
+            Vector2 heading; float combatAngular, agentSpeed; bool follow, forceMode, inCombat;
+            if (!MountedAgentSteering.TryReadSteering(agent, out heading, out combatAngular, out agentSpeed, out follow, out forceMode, out inCombat) ||
+                forceMode || !inCombat || !(combatAngular > 0f))
             {
-                var previous = path[path.Count - 2];
-                double sx = end.x - previous.x, sz = end.z - previous.z, length = Math.Sqrt(sx * sx + sz * sz);
-                if (length > 1e-6d)
-                {
-                    plane = (float)(((end.x - position.x) * sx + (end.z - position.z) * sz) / length);
-                    room = Math.Min(room, plane - StepEndpointMarginMetres);
-                }
+                executable = 0f;
+                detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";steering-unsupported;tick=0)";
+                return true;
             }
-            cap = Math.Max(0f, room) / speed;
-            detail = ";stepEndpoint(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";plane=" + plane.ToString("R") + ";cap=" + cap.ToString("R") + ")";
+            PairedAttackClickProbe.NativeTick selected;
+            int evaluated;
+            executable = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, heading, speed, agentSpeed, combatAngular, follow, physicalLeft, permitted,
+                out selected, out evaluated);
+            detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";cursor=" + cursor + ";permitted=" + permitted.ToString("R") +
+                ";tick=" + executable.ToString("R") + ";selected=" + selected + ";settledTravel=" +
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + ")";
             return true;
         }
 
