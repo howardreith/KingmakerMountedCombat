@@ -249,8 +249,6 @@ namespace KingmakerMountedCombat.Integration
 
         internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)
         {
-            // PR #70 R17-F1 (round 18): on entry, before any decision or native's denial, a delivered Path for the exact Move-slot command.
-            if (mount?.View?.AgentASP?.Path != null) KingmakerMountedCombat.Domain.MountedCarrierMovementLedger.RecordDelivered(mount.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move));
             var allocation = Get(mount);
             // PR #70 R1-F6 (round 6): the carrier of a provisional replacement request reaches its first tick here, with this frame's actual
             // delta (UnitMoveController.Tick passes TimeController.DeltaTime). Its allowance is what Advance would grant for it under the
@@ -366,8 +364,10 @@ namespace KingmakerMountedCombat.Integration
                 allocation.StepTickReserved = allocation.Movement.MetresStepTravelled - steppedBefore;
             }
             cooldown.MoveAction = used + debit;
-            // PR #70 R13-F3 (round 17): the exact Move-slot command moved on this returned tick (MountedCarrierMovementLedger).
-            if (deltaTime > 0f) KingmakerMountedCombat.Domain.MountedCarrierMovementLedger.RecordPositiveTick(mount.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move));
+            // PR #70 R13-F3 (round 17), R18-F2 (round 19): the positive tick moved the mount along the agent's current path; it is credited only to
+            // the carrier whose own delivered request that path is (MountedCarrierApproachLedger), never to the Move-slot occupant, so a
+            // predecessor's path moving the mount credits no new carrier. Issuance and delivery are recorded where native issues and delivers.
+            if (deltaTime > 0f) MountedCarrierApproachLedger.RecordMovement(agent, agent.Path);
             allocation.MoveUsed = allocation.Prepared ? cooldown.MoveAction : allocation.MoveUsed + debit;
             // Before Prepare only the new debit belongs to this allocation; an
             // old native Standard is not converted into a guessed fresh action.

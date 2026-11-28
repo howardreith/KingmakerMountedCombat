@@ -304,6 +304,15 @@ namespace KingmakerMountedCombat.Integration
                     null, nameof(PatchMethods.FamiliarTeleportPostfix));
                 PatchUnitClick();
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
+                // PR #70 R17-F1/R18-F2 (round 19): the exact carrier's issuance (PathTo 060018A3, the request m_RequestedPath 0400118E) and delivery
+                // (OnPathComplete 060018B9), observed for the issuance/delivery record (MountedCarrierPathObserver); observation only.
+                if (!MountedCarrierPathObserver.RequestedPathContractHolds(0x0400118E))
+                    throw new MissingFieldException(typeof(UnitMovementAgent).FullName, "m_RequestedPath exact token 0400118E (Pathfinding.Path)");
+                PatchExact(typeof(UnitMovementAgent), "PathTo", 0x060018A3,
+                    new[] { typeof(UnitCommand), typeof(UnityEngine.Vector3), typeof(float), typeof(float), typeof(UnitMovementAgentBase) },
+                    nameof(PatchMethods.CarrierPathRequestPrefix), nameof(PatchMethods.CarrierPathRequestPostfix));
+                PatchExact(typeof(UnitMovementAgent), "OnPathComplete", 0x060018B9, new[] { typeof(Pathfinding.Path) },
+                    nameof(PatchMethods.CarrierPathCompletePrefix), nameof(PatchMethods.CarrierPathCompletePostfix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
                 PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));
@@ -2088,6 +2097,28 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return true;
+            }
+
+            // PR #70 R17-F1/R18-F2 (round 19): an exact carrier's request and its delivery, recorded where native issues and delivers them
+            // (MountedCarrierPathObserver, MountedCarrierApproachLedger). Each prefix hands its own observation to its own postfix (__state).
+            internal static void CarrierPathRequestPrefix(UnitMovementAgent __instance, out Pathfinding.Path __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeRequest(__instance);
+            }
+
+            internal static void CarrierPathRequestPostfix(UnitMovementAgent __instance, UnitCommand command, Pathfinding.Path __state)
+            {
+                MountedCarrierPathObserver.AfterRequest(__instance, command, __state);
+            }
+
+            internal static void CarrierPathCompletePrefix(UnitMovementAgent __instance, Pathfinding.Path p, out int __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeCompletion(__instance, p);
+            }
+
+            internal static void CarrierPathCompletePostfix(UnitMovementAgent __instance, Pathfinding.Path p, int __state)
+            {
+                MountedCarrierPathObserver.AfterCompletion(__instance, p, __state);
             }
 
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
