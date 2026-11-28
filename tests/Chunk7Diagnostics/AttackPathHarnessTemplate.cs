@@ -10307,7 +10307,8 @@ namespace Harness
                 var horse = new UnitEntityData("horse-r19f5");
                 var scopeAgent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
                 horse.View.AgentASP = scopeAgent;
-                var outer = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f); var inner = new UnitMoveTo(new Vector3(3f, 0f, 0f), 0.1f);
+                var outer = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }) };
+                var inner = new UnitMoveTo(new Vector3(3f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(3f, 0f, 0f) }) };
                 MountedCarrierApproachLedger.Admit(outer, scopeAgent); MountedCarrierApproachLedger.Admit(inner, scopeAgent);
                 PatchMethods.MountedAttackApproachPrefix(outer);
                 PatchMethods.MountedAttackApproachPrefix(inner);
@@ -10347,6 +10348,40 @@ namespace Harness
                     "; failed command released (collected) " + failedReleased + ", scopes after the next balanced approach " + retainedAfterBalanced + "; 40 nested scopes keep each outer issuer " + deepOk +
                     "; a same-frame stale scope " + retainedSameFrame + " is discarded by the next frame's scope (retained " + retainedNextFrame + ", issuer exact " + ReferenceEquals(nextIssuer, next) +
                     "); production ModDisable ready " + teardownReady + ", scopes " + retainedBeforeTeardown + " -> " + retainedAfterTeardown);
+            }
+
+            // Round 21 (R19-F5): inner command B (admitted on the same tracked agent as outer A) throws inside A's TickApproaching: its postfix is
+            // skipped, its scope entry stays live in this frame, and A resumes and issues its forced path (the modeled FollowPrecomputedPath through
+            // the ACTUAL prefix and the ACTUAL completion hooks) BEFORE A's postfix. The issuer is bound to the call site's argument (A's own route):
+            // A gets 1 request and the delivery, B none. Control: two live scoped carriers of the agent with IDENTICAL routes resolve to nobody.
+            foreach (var kase in new[] { "different routes", "identical routes (ambiguous)" })
+            {
+                var identical = kase.StartsWith("identical");
+                UnityEngine.Time.frameCount++;
+                var horse = new UnitEntityData("horse-r21");
+                var agent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
+                horse.View.AgentASP = agent;
+                var outerA = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }) };
+                var innerB = new UnitMoveTo(new Vector3(0f, 0f, 3f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(identical ? new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) } : new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, 3f) }) };
+                MountedCarrierApproachLedger.Admit(outerA, agent); MountedCarrierApproachLedger.Admit(innerB, agent);
+                PatchMethods.MountedAttackApproachPrefix(outerA);
+                PatchMethods.MountedAttackApproachPrefix(innerB);
+                var innerThrew = false;
+                try { throw new InvalidOperationException("simulated inner TickApproaching failure"); }   // B's native body throws: no postfix
+                catch (InvalidOperationException) { innerThrew = true; }
+                var issuerAfterThrow = MountedCarrierPathObserver.CurrentIssuer;   // the innermost live scope is still B
+                TakePath(horse, outerA);   // A resumes: native FollowPrecomputedPath(copy of A's ForcedPath) -> OnPathComplete, before A's postfix
+                var aRequests = MountedCarrierApproachLedger.RequestCount(outerA); var bRequests = MountedCarrierApproachLedger.RequestCount(innerB);
+                var aDelivered = MountedCarrierApproachLedger.HasDelivery(outerA); var bDelivered = MountedCarrierApproachLedger.HasDelivery(innerB);
+                var aPhase = MountedCarrierPathObserver.PhaseOf(outerA, agent); var bPhase = MountedCarrierPathObserver.PhaseOf(innerB, agent);
+                PatchMethods.MountedAttackApproachPostfix(outerA);
+                var retainedAfterOuter = MountedCarrierPathObserver.RetainedScopeCount;
+                var ok = innerThrew && ReferenceEquals(issuerAfterThrow, innerB) && retainedAfterOuter == 0 && bRequests == 0 && !bDelivered &&
+                    (identical ? aRequests == 0 && !aDelivered : aRequests == 1 && aDelivered && aPhase == MountedCarrierApproachPhase.Delivered);
+                Check(ok, "Round 21 (R19-F5) inner command threw inside the outer approach, " + kase + ": innermost live scope after the throw is the inner command " + ReferenceEquals(issuerAfterThrow, innerB) +
+                    "; the outer command's forced path issued before its postfix: outer requests " + aRequests + ", delivered " + aDelivered + ", phase " + aPhase + "; inner requests " + bRequests +
+                    ", delivered " + bDelivered + ", phase " + bPhase + "; scopes after the outer postfix " + retainedAfterOuter);
+                GC.KeepAlive(outerA); GC.KeepAlive(innerB);
             }
 
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits

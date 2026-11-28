@@ -92,12 +92,43 @@ namespace KingmakerMountedCombat.Integration
         // Teardown (MountedServiceTeardownSequence.ModDisable on success): no scope survives disable or unload.
         internal static void ReleaseScopes() => approaching.Clear();
 
-        // FollowPrecomputedPath prefix: the forced request the innermost ticking command issues (before set_RequestedPath and OnPathComplete).
+        // FollowPrecomputedPath prefix: the forced request a ticking command issues (before set_RequestedPath and OnPathComplete).
         internal static void BeforeForcedRequest(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
         {
             if (p == null || !Tracks(agent)) return;
-            var issuer = CurrentIssuer;
+            var issuer = ForcedPathIssuer(agent, p);
             if (issuer != null) KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent, issuer, p);
+        }
+
+        // PR #70 R19-F5 (round 21): the issuer is bound to the pinned call site's own argument, not to scope order. Installed
+        // UnitCommand.TickApproaching passes FollowPrecomputedPath `new ForcedPath(new List<Vector3>(ForcedPath.vectorPath))`, an element-wise
+        // copy of the ticking command's own ForcedPath. The issuer is the ONE live command of this frame's TickApproaching scopes that was
+        // admitted on this agent and whose own ForcedPath is element-wise equal to p. An inner command whose body threw keeps its scope entry
+        // until its frame ends, but it cannot capture an outer command's forced path unless its own route is identical; when two distinct
+        // scoped carriers of this agent carry identical routes the call site cannot tell them apart, so nothing is attributed (conservative:
+        // the carrier then counts as not yet delivered). A forced path matching no scoped admitted carrier (a visualized path, another
+        // command's route) is attributed to nobody.
+        internal static Kingmaker.UnitLogic.Commands.Base.UnitCommand ForcedPathIssuer(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
+        {
+            if (agent == null || p?.vectorPath == null) return null;
+            var frame = UnityEngine.Time.frameCount;
+            Kingmaker.UnitLogic.Commands.Base.UnitCommand match = null;
+            for (var i = approaching.Count - 1; i >= 0; i--)
+            {
+                var command = approaching[i].Command.Target as Kingmaker.UnitLogic.Commands.Base.UnitCommand;
+                if (command == null || approaching[i].Frame != frame || ReferenceEquals(command, match)) continue;
+                if (!KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.IsAdmittedOn(command, agent) || !SameRoute(command.ForcedPath?.vectorPath, p.vectorPath)) continue;
+                if (match != null) return null;
+                match = command;
+            }
+            return match;
+        }
+
+        private static bool SameRoute(System.Collections.Generic.List<UnityEngine.Vector3> a, System.Collections.Generic.List<UnityEngine.Vector3> b)
+        {
+            if (a == null || b == null || a.Count != b.Count) return false;
+            for (var i = 0; i < a.Count; i++) if (a[i].x != b[i].x || a[i].y != b[i].y || a[i].z != b[i].z) return false;
+            return true;
         }
 
         // PathTo prefix: the outstanding request before native decides.
