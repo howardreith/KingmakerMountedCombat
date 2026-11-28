@@ -505,7 +505,9 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  }
  $a=$o.archive
  if($ownerSeed){Assert-KmcBootstrapInventoryString $a.kind 'Missing';foreach($key in @('loadedArchivePresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}}
- else{[void](Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual-derived');foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
+ # Round 19 (R18-F5): the producer requires both the decoded graph and its own Manual write to equal MountedArchiveData.Schema, so in one
+ # process the normalized graph version is the selected writer's. The decoded input's own version is independent and is not recorded here.
+ else{$graph=Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual-derived';if($graph-ne(Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer')){throw 'Manual-derived normalized graph version differs from the same process''s Manual writer.'};foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
   foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
  foreach($key in @('profileAdmissionChanged','nativeFixtureCreated','poseQualified','ordinaryAcquisitionProven')){Assert-KmcChunk7Boolean $inventory.$key $false}

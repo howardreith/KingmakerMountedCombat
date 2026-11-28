@@ -23,6 +23,9 @@ $departure=Write-AssistedColdTestFile 'departure.cs' ([IO.File]::ReadAllText((So
 $probe=[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7BootstrapInventoryProbe.cs'))
 $template='using Time=UnityEngine.Time;'+[Environment]::NewLine+[IO.File]::ReadAllText((Source 'tests/Chunk7Diagnostics/AssistedColdScenarioTemplate.cs'))
 $template=$template.Replace('/*ACTUAL_PROBE_OBSERVE*/',(Member $probe 'private void Observe(Player player, bool before)')).Replace('/*ACTUAL_PROBE_CAPTURE*/',(Member $probe 'internal JObject Capture() =>'))
+# Round 19: the producer admits a decoded archive only at the candidate's MountedArchiveData.Schema; the facade takes that constant from src/.
+$archiveSchemaText=[IO.File]::ReadAllText((Source 'src/KingmakerMountedCombat/Integration/MountedArchiveData.cs'));$archiveSchemaMatch=[regex]::Matches($archiveSchemaText,'internal const int Schema = ([0-9]+);')
+if($archiveSchemaMatch.Count-ne1){throw 'Missing/ambiguous actual MountedArchiveData.Schema.'};$template=$template.Replace('/*ACTUAL_ARCHIVE_SCHEMA*/',$archiveSchemaMatch[0].Groups[1].Value)
 $templatePath=Write-AssistedColdTestFile 'template.cs' $template
 $sources=@($actual,$third,$departure,$templatePath,(Source 'src/KingmakerMountedCombat/Diagnostics/Chunk7AssistedColdInventorySelection.cs'),(Source 'src/KingmakerMountedCombat/Diagnostics/RetainedObjectIdentity.cs'))
 $semanticFixture=Source 'tests/Chunk7Diagnostics/AssistedColdProducerSemantics.json'
