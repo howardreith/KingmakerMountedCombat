@@ -119,6 +119,13 @@ namespace KingmakerMountedCombat.Domain
             if (holder != null && ReferenceEquals(holder.DeliveredPath, agentPath)) holder.MovedAlongDelivery = true;
         }
 
+        // PR #70 R19-F5 (round 21): this carrier was admitted for exactly this agent.
+        public static bool IsAdmittedOn(object carrier, object agent)
+        {
+            Record record;
+            return carrier != null && agent != null && carriers.TryGetValue(carrier, out record) && ReferenceEquals(record.Agent, agent);
+        }
+
         public static bool HasDelivery(object carrier)
         {
             Record record;
