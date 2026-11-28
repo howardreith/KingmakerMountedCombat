@@ -1233,3 +1233,91 @@ cold 232/0.
 ### 17.6 Validation
 
 See the developer report and the ledger excerpt for the candidate's focused gate (21 children). After the last merge (`cd1bd115`) the lead re-ran the owned two-pair reader suite, which reads the edited owner-seed binding (264.6 s): 1,429 pass / 52 fail, the same failure set as round 18 (all 52 the unchanged `Chunk7RealtimeEvidence.ps1:108` default-off Charge check). Not run: Test-Tiers Full, the Medium/Cumulative suites, any game.
+
+## 18. Round 20 (owner authorization 2026-11-28b; owner amendment revision 1 unchanged)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 and owner authorization
+2026-11-28b. Round 19 (candidate `078d28ee`) verified R17-F1, R18-F1, R18-F3, R18-F4 and R18-F5. This round corrects R13-F2, R18-F2 and
+R19-F1..F5 with the same four in-session developers; the lead inspected and merged their branches. All evidence is offline (nativeProof=false).
+Kinds: R18-F2, R19-F1, R19-F2 and R19-F5 are production defects; R13-F2 is an evidence gap in the readers' test data; R19-F3 and R19-F4 are
+evidence-reader defects. None is an observed gameplay failure or concerns corruption of written save bytes.
+
+### 18.1 First-tick decision and approach end by the carrier's own delivery (R18-F2), provisional settlement (R19-F2), issuer scope (R19-F5)
+
+- **R18-F2.** `EvaluateFirstTickDecision` keeps the independently legal in-place check first. After it, a moving decision is made only when the
+  gate carrier's ledger phase is Delivered (the agent steers the carrier's own delivered path). In any other phase (a predecessor's path, with
+  matching or differing waypoints; the first request not yet issued or delivered) the decision returns `MountedFirstTickVerdict.Defer`: the
+  proposal stays Pending, nothing is decided, debited or refused, and the adapter zeroes the tick (`mountMove=first-tick-deferred`), so native's
+  denial clears the other path. `CarrierAcquiredPath` is now `HasDelivery(carrier)` only: the displacement criterion is dropped (forced paths
+  are attributed to their issuer since round 19), so a predecessor's steering or stopped path can neither acquire nor end the approach.
+  Cases (horse-first, provisional replacement over a prior selection and Hold, predecessor waypoints matching and differing): carrier issued in
+  AwaitingFirstRequest with 0 requests; at the hook 1 deferral, proposal Pending, Move 0 s, 0 m; native denial clears the path; generation 0,
+  prior target and Hold kept; then the carrier's own forced path is delivered (1 request), the decision commits, it moves along its own delivery,
+  1 strike, 1 carrier. Discrimination: round-19 behavior commits on the predecessor's path (matching: generation 0 -> 2, target and Hold
+  changed, 0.0167 s debited, 0.17 m) or refuses permanently (differing: `agent-path-not-carrier`, 0 strikes). The displacement removal has no
+  case of its own (gated route-bound carriers cannot be displaced by a predecessor now); the lifecycle contract checks it.
+- **R19-F2.** Before the accepted-order disposition and the drift re-path, `EndIfProvisionalApproachEnded` refuses a provisional order through
+  the existing `RefuseFirstTickProposal` path when its carrier's own delivery is EndedByNative, the agent has no path or request, and no strike
+  is admissible now. The pre-delivery wait is unchanged. Case (rider-first, own forced path delivered, guard on the first delivered tick, target
+  drifts 0.8 m): proposal refused (`native-ended-first-approach`), 1 carrier, order ended, prior generation, target and Hold kept, Move 0 s,
+  Standard 0, 0 strikes, successor ground order moves 0.15 m. Discrimination: round-19 behavior issues 2 carriers.
+- **R19-F5.** Harmony12 has no finalizer. Scope entries hold the command by `WeakReference` with the frame they opened in; opening a scope
+  discards entries from an earlier frame (`TickApproaching` never spans frames, so such an entry is a scope whose body threw) and collected
+  ones; an active outer scope is from the current frame and is never cleared (the count-32 clear is removed); a postfix ends its own scope and
+  any thrown scope nested in it. `MountedServiceTeardownSequence.ModDisable` releases all scopes (unload goes through it). Case: a throwing
+  top-level approach, then balanced unrelated and nested approaches keep their exact issuers; the failed command is collected; 40 nested scopes
+  keep every outer issuer; disable leaves 0 scopes. Discrimination: round-19 semantics retain the failed command across teardown.
+
+### 18.2 Representable stop on every positive later-step return (R19-F1)
+
+`ClassifyStep` also treats a settled (single-precision) displacement above the physical remainder as too long; every positive return of the
+later-step search (permitted full duration, scan back-off, verified scan sample, bisection result) must be Executable at its representable
+stop (floor, physical remainder, completion margin); a failed scan drops into the existing classified bisection; zero when nothing is verified.
+Cases at X = 256 m, endpoint 125 mm ahead, 9 m/s, native counter 0.762 m: 0.005007 mm and 0.020027 mm left -> 0, no movement, both balances
+unchanged, ended by native denial; positive control 0.040054 mm left -> 4.45048e-6 s, stop 256.000031 (0.030518 mm, one position spacing),
+physical 1.52396 -> 1.52399051 m, native 0.762 -> 0.7620401 m, ended without a strike. The 50.6, 50.15, 50.112 and 45 mm values are unchanged.
+Discrimination: round-19 code returns 5.5631e-7 s with no movement (native counter advanced) and 2.22524e-6 s moving 0.030518 mm past the
+1.524 m limit.
+
+### 18.3 Production byte semantics and complete UPG-01 slot rows (R19-F3, R19-F4)
+
+- **R19-F3.** `Read-KmcChunk7MountedArchiveMember` now reads the bounded member bytes, requires their count to equal the declared size, and
+  decodes them with strict `UTF8Encoding(false, true).GetString`, as `NativeMountedSaveStorage.Read` does, before the product codec. A UTF-16LE
+  member with a BOM is refused ("not valid UTF-8"); a UTF-8 BOM is kept as U+FEFF and refused by the product codec, as in the product (probed).
+  Through UPG-01 and Finalize2 (producer and consumer), with matching descriptors: UTF-8 positives accepted, UTF-16LE-BOM and UTF-8-BOM refused.
+- **R19-F4.** UPG-01 no longer restricts slot rows to the restored rider and mount: `MountedPersistenceService.World` captures every authoring
+  unit's rows and `MountedArchiveData.ValidateSlots` admits any valid actor, so the member's complete rows must equal the reported rows. A
+  one-pair resave with another player character's placement row is accepted (schemas 4 and 3); dropping, relabelling or changing that row in
+  the observation is refused. Finalize2 keeps its own kept/removed expectations.
+- Counts: UPG-01 member child 30/0 (23 refusals), Finalize2 readers 92/0, current-writer readers 139/0.
+
+### 18.4 Hook rows from the built candidate and the installed game in every copy (R13-F2)
+
+`chunk7\Test-Chunk7ProducerObservations.ps1` now requires the built `bin\Release\KingmakerMountedCombat.dll` (no synthetic fallback) and reflects
+the product hooks the probes patch (`NativeCombatActorPersistence.RestoreActor` 060006A3 and `RestoreDebt` 0600069F, and the Manual save probe's
+`MountedPersistenceService.RecordCompletedSave` 06000395, at the gate build's MVID 56df16b1); the native rows (`TurnController.Prepare`
+06000C3C, `UnitCombatState.OnNewRound` 0600939D, `SaveManager.SaveRoutine` 06008029, `SaveManager.PrepareSave` 06008025) come from the installed
+module 07fa1e4d. The same rows replace every hook array in the outer record, the source record and each copied observation, and every positive is
+scanned for any impossible or fixture identity. The Manual-seed and Manual-derived readers now validate the source copies' hook rows themselves
+(one shared `Assert-KmcChunk7RestorationHookRows`), not only copy equality. The nested copies in `ManualDerivedPaidFixture.json` and
+`ManualDerivedExistingFixture.json` are corrected to the real identity (no hash pin depends on them). Child 57/0 (12 positives, 45 refusals):
+bootstrap, Manual seed, both non-missing Manual-derived cases, assisted cold (emitted capture) and the owner seed accepted; five agreeing-copy
+controls carrying the impossible round hook refused by the identity check. Suites: Manual seed 70/0, Manual-derived 118/0; lead re-run of the
+consumers of the corrected fixtures and reader: Cumulative evidence 87/0, Cumulative DTO 28/0, Medium acquisition 31 compiled / 24 reader / 0,
+Medium continuation 14/0, Manual-derived source 30/0.
+
+### 18.5 Per-finding evidence record
+
+| Finding | Entry exercised | Input | Asserted result | Offline substitution | Candidate-bound evidence |
+|---|---|---|---|---|---|
+| R18-F2 | `TickDelegated` -> `EvaluateFirstTickDecision`, `CarrierAcquiredPath`, observer hooks | predecessor path (matching / differing), carrier with 0 requests | Defer, nothing spent, prior input kept; then own path, 1 strike, 1 carrier | native denial and path boundaries modeled from IL | attack-path harness child |
+| R19-F2 | `EndIfProvisionalApproachEnded` -> `RefuseFirstTickProposal` | provisional carrier delivered, guard, 0.8 m drift | refused, 1 carrier, prior input kept, zero cost | same | same |
+| R19-F5 | `TickApproaching` prefix/postfix, `FollowPrecomputedPath` prefix, `ModDisable` | throwing, unrelated and nested approaches | exact issuers, failed command released, 0 scopes after disable | Harmony exception flow modeled by the harness | same; lifecycle contract |
+| R19-F1 | `StepExecutableDuration`/`ClassifyStep` via `TickDelegated` | X = 256 m, 0.005 / 0.020 / 0.040 mm left | 0 for no representable move; control moves one spacing within balance | product `SimulateTick` | same |
+| R19-F3 | `Read-KmcChunk7MountedArchiveMember` via UPG-01 and Finalize2 | same graph as UTF-8, UTF-16LE-BOM, UTF-8-BOM | UTF-8 accepted; both BOM forms refused | generated ZIPs | UPG-01 member and Finalize2 children |
+| R19-F4 | `Assert-KmcUpgradeResaveEvidence` | one-pair resave with another character's row | accepted when matched; dropped/relabelled/changed refused | generated ZIPs | UPG-01 member child |
+| R13-F2 | bootstrap, Manual-seed, Manual-derived, assisted cold, owner-seed readers | observations with built-candidate and installed hook rows in every copy | accepted; agreeing impossible copies refused | none for identities (built DLL, installed module) | producer observations child |
+
+### 18.6 Validation
+
+See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
