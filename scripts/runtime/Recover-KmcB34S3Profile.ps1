@@ -118,9 +118,6 @@ function Assert-ExactAreasDelta($Snapshot,[string]$Quarantine){
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){throw 'Recovery requires the actual Howie profile and HKCU identity.'}
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
-# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read; its lock
-# takes it over and releases it on a verified close. -WhatIf never acquires it.
-$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $stateRoot -Purpose 'recovery-kmcb34s3profile' -Mode Stale -WhatIfRequested:([bool]$WhatIfPreference)
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/snapshot.json')) $backupRoot 'exact run profile snapshot'
 $quarantine=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/Areas-after')) $backupRoot 'exact Areas quarantine'

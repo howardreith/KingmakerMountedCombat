@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
-# the machine-wide one (docs/NATIVE-RESERVATION.md).
-$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
 if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/chunk7cumulativecopy-'+[Guid]::NewGuid().ToString('N'))}
@@ -67,3 +68,4 @@ foreach($assisted in @($false,$true)){
 }
 @{schemaVersion=1;pass=$script:pass;fail=0;filesystem='actual private files and actual lock ownership';substitutions='Get-KmcLabRoot only maps generated fixture paths';archivesCreated=0;archivesRead=0;nativeExecution=$false}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Host ('TOTAL PASS='+$script:pass+' FAIL=0')
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious

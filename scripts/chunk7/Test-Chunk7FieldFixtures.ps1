@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
-# the machine-wide one (docs/NATIVE-RESERVATION.md).
-$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$PSBoundParameters.ContainsKey('ReaderDirectory')){$ReaderDirectory=Join-Path $PSScriptRoot '../runtime'}
 if(-not$PSBoundParameters.ContainsKey('OutputDirectory')){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/field-fixtures-'+[Guid]::NewGuid().ToString('N'))}
@@ -91,3 +92,4 @@ Good 'owned copy preserves exact source artifact under real private lock' {
 }
 Good 'explicit field source pins read only' {$f=New-FSource;$path=Join-Path $script:fieldLab 'selection.json';Write-F $path $f.selection;$hash=Get-KmcSha256 $path;$r=Read-KmcChunk7FieldSelectionFile $path 'new-field';if($r.sha256-cne$hash){throw 'Selection mutated.'}}
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; synthetic archives/source receipts/private filesystem only; '+$script:fieldLab)
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious

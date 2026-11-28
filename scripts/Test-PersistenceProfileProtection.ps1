@@ -6,7 +6,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/PersistenceProfileProtection.ps1')
 $root=Assert-KmcChildPath (Join-Path (Get-KmcRepositoryRoot) ('obj/profile-protection-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path (Get-KmcRepositoryRoot) 'obj') 'profile test'
 # Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
-[void](Use-KmcTestReservationConvention $root)
+$reservationPrevious=Use-KmcTestReservationConvention $root
+trap{Restore-KmcTestReservationConvention $reservationPrevious;break}
 $profile=Join-Path $root 'profile'
 $game=Join-Path $root 'game'
 $state=Join-Path $root 'state'
@@ -454,9 +455,10 @@ try{
     }finally{Close-KmcRuntimeLock $fixtureLock}
     # Line-ending agnostic: the checkout may use CRLF.
     $recoverText=$recoverText.Replace("`r`n","`n")
-    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery' -Reservation `$nativeReservation}")-or
-        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery' -Reservation `$nativeReservation}")-or
+    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery'}")-or
+        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery'}")-or
         -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
         -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
+Restore-KmcTestReservationConvention $reservationPrevious

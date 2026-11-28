@@ -7,7 +7,8 @@ Set-StrictMode -Version Latest
 $testRoot=Assert-KmcChildPath (Join-Path (Get-KmcRepositoryRoot) ('obj/base-game-isolation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path (Get-KmcRepositoryRoot) 'obj') 'base-game isolation tests'
 [void][IO.Directory]::CreateDirectory($testRoot)
 # Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
-[void](Use-KmcTestReservationConvention $testRoot)
+$reservationPrevious=Use-KmcTestReservationConvention $testRoot
+trap{Restore-KmcTestReservationConvention $reservationPrevious;break}
 $passed=0;$failed=0
 function Check([string]$Name,[scriptblock]$TestBody){try{&$TestBody;$script:passed++;Write-Host ('PASS '+$Name)}catch{$script:failed++;Write-Host ('FAIL '+$Name+': '+$_.Exception.Message)}}
 function Reject([string]$Name,[scriptblock]$RejectedBody){Check $Name { $rejected=$false;try{&$RejectedBody}catch{$rejected=$true};if(!$rejected){throw 'unsafe input was accepted'} }}
@@ -456,4 +457,5 @@ Check 'changed runtime scripts parse without executing a launcher' {
 }
 Check 'all offline fixture original bytes remain exact' {Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $f.mods) 'final original fixture';Assert-KmcDirectoryManifestsEqual $beforeDependencies (Get-KmcDirectoryManifest (Split-Path $f.loader)) 'final loader fixture'}
 Write-Host ('Base-game isolation: '+$passed+' PASS / '+$failed+' FAIL; evidence '+$testRoot)
+Restore-KmcTestReservationConvention $reservationPrevious
 if($failed-ne0){exit 1}

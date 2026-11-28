@@ -615,6 +615,8 @@ $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
+    # A declined confirmation ends the run before any lock: its fresh reservation is released here (WhatIf took none).
+    Exit-KmcUnlockedNativeReservation $nativeReservation
     # Historical archives are compared only by this purity check. Live runs
     # still snapshot every current Mods byte and retain all save/restore guards.
     $scopedArchiveBefore=$null

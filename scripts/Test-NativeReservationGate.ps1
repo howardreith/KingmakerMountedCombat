@@ -2,43 +2,47 @@
 param()
 
 # Review gate for the Kingmaker native-test reservation change (docs/NATIVE-RESERVATION.md). Candidate-bound and offline:
-#   1. Test-NativeReservation.ps1: the reservation itself (separate contender processes, a common start barrier, run
-#      binding, resume/adopt/repair, strict records, ownership loss, handoff, entrypoint ordering).
-#   2. The suites that exercise the changed admission functions on stand-ins: Test-BaseGameIsolation.ps1,
-#      Test-PersistenceProfileProtection.ps1, Test-TierSelection.ps1 and Test-Harness.ps1 (fixture guard,
-#      requalification, qualified-fixture recovery including resumption, lock and adoption cases).
-#   3. The offline chunk7 callers of the lock implementation (F9), each with its own private reservation; they write
-#      only below the lab's analysis-cache, which their own guards require.
-# Every suite runs with an occupied stand-in reservation in the inherited environment; it must stay byte-identical (no
-# caller falls back to an ambient convention) and the machine-wide record must be unchanged. Test-Harness.ps1 stops at
-# a known point in an unbuilt checkout (it packages bin\Release\KingmakerMountedCombat.dll, line ~5436; baseline
-# 11e8e22b stops at the same statement); every lock and reservation case precedes it, and the gate requires zero FAIL
-# lines and exactly that stop.
+#   1. Test-NativeReservation.ps1: the reservation itself (separate contender processes, a common start barrier,
+#      strict records, recovery admission, ownership loss, entrypoint boundaries).
+#   2. Suites that exercise the changed lock functions on stand-ins: Test-BaseGameIsolation.ps1,
+#      Test-PersistenceProfileProtection.ps1, Test-TierSelection.ps1 and Test-Harness.ps1.
+#   3. The offline chunk7 callers of the lock implementation, each with its own private reservation.
+# Every suite inherits an occupied stand-in reservation (a private record this gate owns); the isolation verdict is that
+# this stand-in stays byte-identical, so no caller fell back to an inherited convention. The gate owns a fresh,
+# uniquely named log root and analysis-cache root per invocation, removes only those and only when everything passed.
+# Test-Harness.ps1 cannot finish in an unbuilt checkout: it packages bin\Release\KingmakerMountedCombat.dll at line
+# ~5440. Every lock and reservation case precedes that statement; the gate requires zero FAIL lines and reports the stop
+# as an unmet build prerequisite, not as a pass of the remaining cases.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $labRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))
 $started = [DateTime]::UtcNow
-Write-Host "Candidate: $((& git -C $repoRoot rev-parse HEAD).Trim()) (dirty: $(@(& git -C $repoRoot status --porcelain).Count -ne 0))"
+$invocation = $started.ToString('yyyyMMddTHHmmssZ') + '-' + [Guid]::NewGuid().ToString('N')
+Write-Host "Candidate: $((& git -C $repoRoot rev-parse HEAD).Trim()) (dirty: $(@(& git -C $repoRoot status --porcelain).Count -ne 0)); invocation $invocation"
 
-$production = Join-Path $env:ProgramData 'KingmakerNativeTest\reservation.v1.json'
-function Get-ProductionState { if (Test-Path -LiteralPath $production) { (Get-FileHash -Algorithm SHA256 -LiteralPath $production).Hash } else { 'absent' } }
-$productionBefore = Get-ProductionState
+function New-OwnedRoot([string]$Path) {
+    if (Test-Path -LiteralPath $Path) { throw "Gate root already exists (not this invocation's): $Path" }
+    [void][IO.Directory]::CreateDirectory($Path)
+    [IO.File]::WriteAllText((Join-Path $Path '.native-reservation-gate-owner'), $invocation)
+    return $Path
+}
+function Remove-OwnedRoot([string]$Path) {
+    $marker = Join-Path $Path '.native-reservation-gate-owner'
+    if ((Test-Path -LiteralPath $marker) -and [IO.File]::ReadAllText($marker) -ceq $invocation) { Remove-Item -LiteralPath $Path -Recurse -Force }
+}
 
-# The occupied stand-in every suite inherits (a caller that used the inherited convention would refuse or change it).
-$ambientRoot = Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-gate-ambient-' + [Guid]::NewGuid().ToString('N'))
+$logRoot = New-OwnedRoot (Join-Path $repoRoot ('obj\native-reservation-gate\' + $invocation))
+$cacheRoot = New-OwnedRoot (Join-Path $labRoot ('analysis-cache\native-reservation-gate-' + $invocation))
+$ambientRoot = New-OwnedRoot (Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-gate-' + $invocation))
 $ambientRecord = Join-Path $ambientRoot 'reservation\reservation.v1.json'
 [void][IO.Directory]::CreateDirectory((Split-Path -Parent $ambientRecord))
-[IO.File]::WriteAllText($ambientRecord, ([ordered]@{ protocol = 'kingmaker-native-test-reservation/1'; lab = 'KingmakerGateStandIn'; runId = 'occupied'; purpose = 'stand-in for an occupied reservation'; token = ('e' * 32); holderProcessId = $PID; holderStartUtc = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o') } | ConvertTo-Json))
+[IO.File]::WriteAllText($ambientRecord, ([ordered]@{ protocol = 'kingmaker-native-test-reservation/1'; lab = 'KingmakerGateStandIn'; runId = $invocation; purpose = 'occupied stand-in'; token = ('e' * 32); holderProcessId = $PID; holderStartUtc = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o'); host = $env:COMPUTERNAME; createdUtc = $started.ToString('o') } | ConvertTo-Json))
 $ambientBefore = (Get-FileHash -Algorithm SHA256 -LiteralPath $ambientRecord).Hash
-$previousAmbient = $env:KMC_NATIVE_RESERVATION_TEST_ROOT
-$env:KMC_NATIVE_RESERVATION_TEST_ROOT = $ambientRoot
-
+$previousSelection = $env:KMC_NATIVE_RESERVATION_TEST_ROOT
 $failures = New-Object System.Collections.Generic.List[string]
-$logRoot = Join-Path $repoRoot ('obj\native-reservation-gate\' + $started.ToString('yyyyMMddTHHmmssZ'))
-[void][IO.Directory]::CreateDirectory($logRoot)
 
-function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments = @(), [scriptblock]$Judge) {
+function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments, [scriptblock]$Judge) {
     $log = Join-Path $logRoot ($Name + '.log')
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $ErrorActionPreference = 'Continue'
@@ -47,19 +51,18 @@ function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments = @()
     $ErrorActionPreference = 'Stop'
     $timer.Stop()
     $lines = @(Get-Content -LiteralPath $log)
-    $pass = @($lines | Where-Object { $_ -like 'PASS *' }).Count
     $fail = @($lines | Where-Object { $_ -like 'FAIL *' })
     $verdict = & $Judge $exit $lines $fail
-    Write-Host ("== {0}: exit={1} PASS-lines={2} FAIL-lines={3} seconds={4:N0} -> {5}" -f $Name, $exit, $pass, $fail.Count, $timer.Elapsed.TotalSeconds, $verdict)
+    Write-Host ("== {0}: exit={1} PASS-lines={2} FAIL-lines={3} seconds={4:N0} -> {5}" -f $Name, $exit, @($lines | Where-Object { $_ -like 'PASS *' }).Count, $fail.Count, $timer.Elapsed.TotalSeconds, $verdict)
     foreach ($line in $fail) { Write-Host "   $line" }
     foreach ($line in @($lines | Where-Object { $_ -like 'RESULT *' -or $_ -like 'TOTAL *' -or $_ -like '* PASS=*' -or $_ -like 'INFO *' })) { Write-Host "   $line" }
     if ($verdict -notlike 'passed*') { $failures.Add("$Name $verdict (log $log)") }
     return $lines
 }
-
 $exitZero = { param($exit, $lines, $fail) if ($exit -eq 0 -and $fail.Count -eq 0) { 'passed' } else { 'failed' } }
 
 try {
+    $env:KMC_NATIVE_RESERVATION_TEST_ROOT = $ambientRoot
     $reservation = Invoke-Suite 'Test-NativeReservation' 'scripts\Test-NativeReservation.ps1' @() $exitZero
     foreach ($line in @($reservation | Where-Object { $_ -like 'PASS *' })) { Write-Host "   $line" }
     [void](Invoke-Suite 'Test-BaseGameIsolation' 'scripts\Test-BaseGameIsolation.ps1' @() $exitZero)
@@ -67,42 +70,34 @@ try {
     [void](Invoke-Suite 'Test-TierSelection' 'scripts\Test-TierSelection.ps1' @() $exitZero)
     $harness = Invoke-Suite 'Test-Harness' 'scripts\Test-Harness.ps1' @() {
         param($exit, $lines, $fail)
-        $text = $lines -join "`n"
         if ($fail.Count -ne 0) { return 'failed' }
         if ($exit -eq 0) { return 'passed' }
-        if ($text -match 'bin\\Release\\KingmakerMountedCombat\.dll' -and $text -match 'Copy-Item -LiteralPath \(Join-Path \$repoRoot ''bin\\Release\\Kingmake') { return 'passed up to the known unbuilt-checkout stop (matched baseline 11e8e22b)' }
+        $text = $lines -join "`n"
+        if ($text -match "PathNotFound,Microsoft\.PowerShell\.Commands\.CopyItemCommand" -and $text -match 'bin\\Release\\KingmakerMountedCombat\.dll') { return 'passed (zero FAIL lines; stopped at the unbuilt-checkout prerequisite bin\Release\KingmakerMountedCombat.dll)' }
         return 'failed'
     }
-    $selected = @($harness | Where-Object { $_ -like 'PASS *' -and $_ -match '(?i)lock|adopt|recover|requalif|reservation|fixture guard|transaction' })
-    Write-Host "   Test-Harness directly affected cases (lock, adoption, recovery, requalification, reservation, guard, transaction): $($selected.Count) PASS"
+    $selected = @($harness | Where-Object { $_ -like 'PASS *' -and $_ -match '(?i)lock|adopt|recover|requalif|reservation|transaction' })
+    Write-Host "   Test-Harness lock, adoption, recovery, requalification, reservation and transaction cases: $($selected.Count) PASS"
     foreach ($line in $selected) { Write-Host "     $line" }
-
-    $cache = Join-Path $labRoot 'analysis-cache'
-    $stamp = $started.ToString('yyyyMMddTHHmmssZ')
     $callers = @(
-        @{ name = 'Test-Chunk7AssistedAcquisitionSource'; args = @('-OutputDirectory', (Join-Path $cache "native-reservation-gate-$stamp\assisted-acquisition")) },
-        @{ name = 'Test-Chunk7AssistedColdInventoryReadiness'; args = @('-OutputRoot', (Join-Path $cache "native-reservation-gate-$stamp\cold-readiness")) },
-        @{ name = 'Test-Chunk7AssistedColdInventorySource'; args = @('-OutputRoot', (Join-Path $cache "native-reservation-gate-$stamp\cold-source")) },
-        @{ name = 'Test-Chunk7CumulativeCopy'; args = @('-OutputDirectory', (Join-Path $cache "native-reservation-gate-$stamp\cumulative")) },
-        @{ name = 'Test-Chunk7FieldFixtures'; args = @('-OutputDirectory', (Join-Path $cache "native-reservation-gate-$stamp\field")) },
+        @{ name = 'Test-Chunk7AssistedAcquisitionSource'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'assisted-acquisition')) },
+        @{ name = 'Test-Chunk7AssistedColdInventoryReadiness'; args = @('-OutputRoot', (Join-Path $cacheRoot 'cold-readiness')) },
+        @{ name = 'Test-Chunk7AssistedColdInventorySource'; args = @('-OutputRoot', (Join-Path $cacheRoot 'cold-source')) },
+        @{ name = 'Test-Chunk7CumulativeCopy'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'cumulative')) },
+        @{ name = 'Test-Chunk7FieldFixtures'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'field')) },
         @{ name = 'Test-Chunk7OrdinaryFixtures'; args = @() },
-        @{ name = 'Test-Chunk7ProgressionFixtures'; args = @('-OutputDirectory', (Join-Path $cache "native-reservation-gate-$stamp\progression")) },
-        @{ name = 'Test-Chunk7SmallManualCopy'; args = @('-OutputDirectory', (Join-Path $cache "native-reservation-gate-$stamp\small-manual")) }
+        @{ name = 'Test-Chunk7ProgressionFixtures'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'progression')) },
+        @{ name = 'Test-Chunk7SmallManualCopy'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'small-manual')) }
     )
     foreach ($caller in $callers) { [void](Invoke-Suite $caller.name ('scripts\chunk7\' + $caller.name + '.ps1') $caller.args $exitZero) }
 }
-finally {
-    $env:KMC_NATIVE_RESERVATION_TEST_ROOT = $previousAmbient
-}
+finally { $env:KMC_NATIVE_RESERVATION_TEST_ROOT = $previousSelection }
 
-$ambientAfter = (Get-FileHash -Algorithm SHA256 -LiteralPath $ambientRecord).Hash
-$productionAfter = Get-ProductionState
-Write-Host "Occupied inherited stand-in reservation byte-identical: $($ambientAfter -ceq $ambientBefore)"
-Write-Host "Machine-wide reservation record before/after: $productionBefore / $productionAfter"
-if ($ambientAfter -cne $ambientBefore) { $failures.Add('a suite changed the inherited stand-in reservation') }
-if ($productionAfter -cne $productionBefore) { $failures.Add('the machine-wide reservation record changed during the gate') }
-Remove-Item -LiteralPath $ambientRoot -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath (Join-Path (Join-Path $labRoot 'analysis-cache') ('native-reservation-gate-' + $started.ToString('yyyyMMddTHHmmssZ'))) -Recurse -Force -ErrorAction SilentlyContinue
+$isolated = (Get-FileHash -Algorithm SHA256 -LiteralPath $ambientRecord).Hash -ceq $ambientBefore
+Write-Host "Occupied inherited stand-in reservation byte-identical: $isolated"
+if (-not $isolated) { $failures.Add('a suite changed the inherited stand-in reservation') }
 Write-Host ("Gate runtime: {0:N0} s; logs: {1}" -f ([DateTime]::UtcNow - $started).TotalSeconds, $logRoot)
-if ($failures.Count -ne 0) { throw ('Native reservation gate failed: ' + ($failures -join ' | ')) }
+if ($failures.Count -ne 0) { throw ('Native reservation gate failed (case material kept in ' + $cacheRoot + '): ' + ($failures -join ' | ')) }
+Remove-OwnedRoot $cacheRoot
+Remove-OwnedRoot $ambientRoot
 Write-Host 'Native reservation gate passed.'

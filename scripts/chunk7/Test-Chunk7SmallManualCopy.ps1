@@ -1,9 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
-# the machine-wide one (docs/NATIVE-RESERVATION.md).
-$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))};if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
 if(-not$OutputDirectory){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/small-manual-copy-'+[Guid]::NewGuid().ToString('N'))}
 $script:copyLab=[IO.Path]::GetFullPath($OutputDirectory);if(-not$script:copyLab.StartsWith('C:\Dev\KingmakerMountedCombatLab\analysis-cache\',[StringComparison]::OrdinalIgnoreCase)){throw 'Generated JSON/lock fixtures must stay in analysis-cache.'};[void][IO.Directory]::CreateDirectory($script:copyLab)
@@ -38,3 +39,4 @@ foreach($mutation in @('foreign-family','wrong-run','wrong-token','wrong-source'
 Check 'unchanged legacy Field copy helper refuses Small family' {Case 'legacy-refusal'}
 @{pass=$script:pass;fail=$script:fail;sourceSha256=(Get-FileHash -LiteralPath (Join-Path $ReaderDirectory 'Chunk7SmallCalibrationFixtures.ps1')).Hash.ToLowerInvariant();legacyFieldHelperUnchanged=$true;legacyCalibrationCopyRefusal=$script:legacyReason;archiveReads=0;archivesCreated=0;nativeInvoked=$false;boundary='Actual lock/owner/hash/path/copy functions with plain generated JSON only'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $script:copyLab 'receipt.json') -Encoding UTF8
 Write-Host ('TOTAL PASS='+$script:pass+' FAIL='+$script:fail);if($script:fail){throw 'Small Manual copy checks failed.'}
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious
