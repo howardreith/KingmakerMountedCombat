@@ -426,7 +426,10 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   Assert-KmcOrdinaryInteger $sourceValues.selectorProbe.goCount 0 0
   $sourceWorld=$sourceValues.loadedWorld;$sourceWrite=$Request.persistenceLoad
   $sourceValues=Get-KmcChunk7OwnerSeedAcquisitionProjection $source.observations
- }elseif($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld}
+ }elseif($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld
+  # Round 20 (R13-F2): the same-candidate Manual seed source and its cold inventory copy must carry the reflected hook identity themselves;
+  # the outer record's copies are compared with them, so agreeing copies cannot carry an identity the installed module cannot emit.
+  if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid}}
  if($null-ne$AssistedProjection){
   if(-not$Cumulative-or-not(Test-KmcAssistedCumulativeMode $s)){throw 'An assisted projection belongs only to the closed cumulative source mode.'}
   $sourceValues=$AssistedProjection;$sourceWrite=$source.observations.finalManual;$sourceWorld=$source.observations.settledWorld
