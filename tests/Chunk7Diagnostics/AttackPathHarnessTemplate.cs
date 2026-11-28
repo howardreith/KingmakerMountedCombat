@@ -9534,7 +9534,7 @@ namespace Harness
                         Frame(c);
                         later.Add(returnedOf(w.LastMountTick ?? "") + " s/" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(beforeLater, w.Horse.Position) * 1000f).ToString("0.######") + " mm");
                     }
-                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "; native force-finish disposition " + order.NativeApproachEndedCount + ")";
+                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "(" + order.EndCauseDetail + "); native force-finish disposition " + order.NativeApproachEndedCount + "; route revalidations " + order.RouteRevalidationCount + ", arrival contradictions " + order.RouteArrivalContradictionCount + "; rider Standard " + w.Rider.CombatState.Cooldown.StandardAction.ToString("0.###") + " s; mount Move " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.###") + " s)";
                     var nativeEnded = order.IsFinished && order.StruckTargets.Count == 0 && order.NativeApproachEndedCount == 1;
                     ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && physicalAfter <= 1.524f + 1e-5f && nativeAfter <= 1.524f + 1e-5f && (inside
                         ? returned == 0f && travel < 1e-7f && physicalAfter == physicalBefore && nativeAfter == nativeBefore
@@ -9612,10 +9612,15 @@ namespace Harness
                         Frame(c);
                         later.Add(returnedOf(w.LastMountTick ?? "") + " s/" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(beforeLater, w.Horse.Position) * 1000f).ToString("0.######") + " mm");
                     }
-                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "; native force-finish disposition " + order.NativeApproachEndedCount + ")";
+                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "(" + order.EndCauseDetail + "); native force-finish disposition " + order.NativeApproachEndedCount + "; route revalidations " + order.RouteRevalidationCount + ", arrival contradictions " + order.RouteArrivalContradictionCount + "; rider Standard " + w.Rider.CombatState.Cooldown.StandardAction.ToString("0.###") + " s; mount Move " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.###") + " s)";
                     var nativeEnded = order.IsFinished && order.StruckTargets.Count == 0 && order.NativeApproachEndedCount == 1;
-                    // the control's order ends within the moving frame without a strike (its disposition is recorded); the no-move cases end on native's denial
-                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && (control ? order.IsFinished && order.StruckTargets.Count == 0 : nativeEnded) &&
+                    // the no-move cases end on native's denial. The control's order ends within the moving frame through the product's target-drift repath:
+                    // the fixture translated the target with the pose (256 m), which the order observes as target displacement beyond TargetRepathDistance
+                    // (0.75 m) on its next approach tick; Repath -> BeginDelegatedMove revalidates the route from the current origin and grant, finds no
+                    // legal route within the mount's remaining movement and ends the order (Cancelled, "validated approach expired"): the movement used
+                    // stays spent, no strike, the rider's Standard unspent (owner amendment 1 terminal disposition), before any native force-finish.
+                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && (control ? order.IsFinished && order.StruckTargets.Count == 0 && order.EndCause == MountedAttackEndCause.Cancelled && order.EndCauseDetail == "validated approach expired" &&
+                        order.NativeApproachEndedCount == 0 && order.RouteArrivalContradictionCount == 0 && w.Rider.CombatState.Cooldown.StandardAction == 0f : nativeEnded) &&
                         physicalAfter <= 1.524f + 1e-5f && nativeAfter <= 1.524f + 1e-5f &&
                         Math.Abs((physicalAfter - physicalBefore) - travel) < 1e-6f && Math.Abs((nativeAfter - nativeBefore) - returned * 9f) < 1e-6f && (control
                         ? returned > 0f && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x
@@ -9697,10 +9702,15 @@ namespace Harness
                         Frame(c);
                         later.Add(returnedOf(w.LastMountTick ?? "") + " s/" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(beforeLater, w.Horse.Position) * 1000f).ToString("0.######") + " mm");
                     }
-                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "; native force-finish disposition " + order.NativeApproachEndedCount + ")";
+                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "(" + order.EndCauseDetail + "); native force-finish disposition " + order.NativeApproachEndedCount + "; route revalidations " + order.RouteRevalidationCount + ", arrival contradictions " + order.RouteArrivalContradictionCount + "; rider Standard " + w.Rider.CombatState.Cooldown.StandardAction.ToString("0.###") + " s; mount Move " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.###") + " s)";
                     ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && tickLine.Contains(";affordableEnd)") && physicalAfter <= 1.524f && nativeAfter <= 1.524f &&
                         Math.Abs((physicalAfter - physicalBefore) - travel) < 1e-6f && Math.Abs((nativeAfter - nativeBefore) - returned * 9f) < 1e-6f && order.StruckTargets.Count == 0;
-                    if (kase.StartsWith("A")) ok &= returned > 0f && selectedWaypoint == "waypoint#1(interior)" && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x;
+                    // (A) ends within the moving frame through the product's target-drift repath (the fixture's 256 m translation of the target exceeds
+                    // TargetRepathDistance): BeginDelegatedMove finds no legal route within the remaining movement: Cancelled, "validated approach expired",
+                    // movement used spent, no strike, the rider's Standard unspent (owner amendment 1), no native force-finish.
+                    if (kase.StartsWith("A")) ok &= returned > 0f && selectedWaypoint == "waypoint#1(interior)" && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x &&
+                        order.IsFinished && order.StruckTargets.Count == 0 && order.EndCause == MountedAttackEndCause.Cancelled && order.EndCauseDetail == "validated approach expired" &&
+                        order.NativeApproachEndedCount == 0 && order.RouteArrivalContradictionCount == 0 && w.Rider.CombatState.Cooldown.StandardAction == 0f;
                     else if (kase.StartsWith("B")) ok &= returned == 0f && travel == 0f && physicalAfter == physicalBefore && nativeAfter == nativeBefore && order.IsFinished && order.NativeApproachEndedCount == 1;
                     else ok &= returned > 0f && toEndAfter < 1e-6f && travel <= physicalLeft && Math.Abs(travel - toEndBefore) < 1e-6f;
                     detail = "pose (" + pose.x.ToString("R") + "," + pose.z.ToString("R") + "), end (" + end.x.ToString("R") + "," + end.z.ToString("R") + ") " + (toEndBefore * 1000f).ToString("0.######") + " mm away, 9 m/s, physical step travel " +
