@@ -293,10 +293,37 @@ namespace KingmakerMountedCombat.Integration
                     var permitted = Math.Max(0f, Math.Min(deltaTime, allocation.Movement.Remaining(physicalSpeed, nominalUsed, TurnController.MetersOfFiveFootStep,
                         Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                         mount.IsMoveActionRestricted(), true, inputTurn.EnabledSingleActionMove)));
-                    float executable;
-                    if (StepExecutableTick(stepAgent, steering, mount.Position, stepTravelLeft, physicalSpeed, permitted, out executable, out endpointDetail) && executable < deltaTime)
-                        deltaTime = executable;
+                    // Round 22 (R20-F1): each result of the step bound is handled explicitly. Bounded: the verified executable duration (at most
+                    // the permitted one) is the tick. Unestablished: the executable displacement could not be established (steering unreadable
+                    // or not modelled, no readable path, a search finding no representable legal move, or a fault while establishing it): no
+                    // movement and no debit this tick; the hook's zero return takes native's denial branch, which ends the step promptly.
+                    // NoBoundApplies: the ordinary limits (Advance) only. No result lets the frame's own delta through unverified.
+                    var executable = 0f;
+                    string stepDetail;
+                    StepBound bound;
+                    try { bound = StepExecutableTick(stepAgent, steering, mount.Position, stepTravelLeft, physicalSpeed, permitted, out executable, out stepDetail); }
+                    catch (Exception error)
+                    {
+                        bound = StepBound.Unestablished;
+                        executable = 0f;
+                        stepDetail = ";stepExecutable(fault=" + error.GetType().Name + ";tick=0;result=Unestablished)";
+                    }
+                    endpointDetail = stepDetail;
+                    switch (bound)
+                    {
+                        case StepBound.Bounded: deltaTime = Math.Min(deltaTime, executable); break;
+                        case StepBound.Unestablished: deltaTime = 0f; break;
+                        case StepBound.NoBoundApplies: break;
+                        default: deltaTime = 0f; break;
+                    }
                 }
+                else if (stepAgent == null)
+                {
+                    // Round 22 (R20-F1): a step tick whose agent cannot be read has no established displacement: no movement, no debit.
+                    deltaTime = 0f;
+                    endpointDetail = ";stepExecutable(agent-unavailable;tick=0;result=Unestablished)";
+                }
+                // A forced line (a charge's) is not an applicable delegated step: NoBoundApplies, its own semantics unchanged.
             }
             var gate = FirstTickGate;
             if (gate != null && gate.Carrier != null && ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), gate.Carrier))
@@ -394,43 +421,66 @@ namespace KingmakerMountedCombat.Integration
 
         // PR #70 round 16 (R13-F5, R15-F1, R15-F2): the step-executable duration of the current tick, read from the agent's own path, cursor and
         // installed steering facts (MoveDirection, m_CombatAngularSpeed, m_Speed for skipping, m_FollowPrecomputedPath) and the shift's speed
-        // (MaxSpeed): PairedAttackClickProbe.StepExecutableDuration (the installed tick at each candidate duration, SimulateTick). False (no
-        // bound) when the agent has no readable path (round 21: an end within the physical remainder is searched as well, below). Steering that
-        // cannot be read, or is not the turn-based combat steering, gives no executable movement (0): the shift cannot be predicted. Round 17
+        // (MaxSpeed): PairedAttackClickProbe.StepExecutableDuration (the installed tick at each candidate duration, SimulateTick). Round 17
         // follow-up: the steering facts are the tick's single read (ReadSteeringFacts in TickDelegated), never read again here.
-        // Round 21 (R20-F1): an end within the physical remainder no longer exempts the tick. The tick still steers to the waypoint native selects
-        // (an interior waypoint can carry the mount farther than the end is from it), and a duration limited by the nearly exhausted native
-        // counter can round its stop back onto the origin; so the same search runs (its settled-displacement check: the float-representable
-        // stop of the selected waypoint at the returned duration displaces at least the 0.01 mm floor and no more than the physical remainder,
-        // the completion margin kept; the permitted duration already holds the native counter's own limit). An affordable completion is
-        // executable (its snapped travel is within the remainder) and the permitted duration is then returned as it is; with no representable
-        // legal move the duration is zero (native's denial ends the step). Unsupported steering keeps its former disposition for an affordable
-        // end (no bound: the shift cannot be predicted) and zero otherwise.
-        internal static bool StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, MountedSteeringFacts steering, Vector3 position, float physicalLeft, float speed, float permitted,
+        // Round 21 (R20-F1): an end within the physical remainder does not exempt the tick (an interior waypoint can carry the mount farther than
+        // the end is from it; a duration limited by the nearly exhausted native counter can round its stop back onto the origin).
+        // Round 22 (R20-F1): the result is explicit (StepBound) and no exemption remains:
+        // - NoBoundApplies: not an applicable delegated step (a forced line, or no physical step remainder: physicalLeft +Infinity).
+        // - Bounded: a verified positive executable duration (possibly the permitted one): the float-representable settled stop of the waypoint
+        //   native selects at it displaces at least the 0.01 mm floor and no more than the physical remainder, the completion margin kept;
+        //   the permitted duration already holds the native counter's own limit.
+        // - Unestablished (executable 0): the displacement could not be established: no readable path, steering unreadable, non-combat or with
+        //   a negative/non-finite combat angular speed, or a search finding no representable legal move. Whether the end is affordable plays
+        //   no part.
+        // A readable ZERO combat angular speed is distinct from an unreadable one. Installed TickMovement (pinned in IL by the native contract)
+        // steers to Lerp(MoveDirection, toWaypoint, 0.5) by RotateTowards(m_CombatAngularSpeed x delta), and on the last segment raises the
+        // angular speed by 2 x turnTime / arrivalTime with turnTime = angle / angular speed; its SlowDown returns at once in turn-based combat.
+        // With 0 and any non-zero required turn that raise is 0 x Infinity (NaN) on the last segment and a zero-angle rotation that rescales
+        // the shift elsewhere: not established here. Only an exactly zero required turn is established: the selected tick's unit direction to
+        // its waypoint equals MoveDirection component for component, so the steering target equals MoveDirection, the angle is exactly 0, the
+        // raise is skipped (0 / 0 is unordered) and the shift is MoveDirection x speed x delta, which SimulateTick computes. No angular speed
+        // is invented.
+        internal static StepBound StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, MountedSteeringFacts steering, Vector3 position, float physicalLeft, float speed, float permitted,
             out float executable, out string detail)
         {
-            executable = permitted; detail = "";
+            executable = 0f; detail = "";
+            if (float.IsPositiveInfinity(physicalLeft)) { executable = permitted; return StepBound.NoBoundApplies; }
+            if (steering.Readable && steering.ForceMode) { executable = permitted; detail = ";stepExecutable(forced;result=NoBoundApplies)"; return StepBound.NoBoundApplies; }
             List<Vector3> path; int cursor; Vector2 waypoint;
-            if (agent == null || !(speed > 0f) || !MountedAgentSteering.TryRead(agent, out path, out cursor, out waypoint) || path == null || path.Count == 0) return false;
+            if (agent == null || !(speed > 0f) || !(permitted > 0f) || !MountedAgentSteering.TryRead(agent, out path, out cursor, out waypoint) || path == null || path.Count == 0)
+            {
+                detail = ";stepExecutable(physicalLeft=" + physicalLeft.ToString("R") + ";permitted=" + permitted.ToString("R") + ";path-or-speed-unavailable;tick=0;result=Unestablished)";
+                return StepBound.Unestablished;
+            }
             var end = path[path.Count - 1];
             var toEnd = Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, end);
             var affordableEnd = toEnd <= physicalLeft;
-            if (!steering.Readable || steering.ForceMode || !steering.InCombat || !(steering.CombatAngularSpeed > 0f))
+            var angular = steering.CombatAngularSpeed;
+            if (!steering.Readable || !steering.InCombat || float.IsNaN(angular) || float.IsInfinity(angular) || angular < 0f)
             {
-                if (affordableEnd) return false;
-                executable = 0f;
-                detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";steering-unsupported;tick=0)";
-                return true;
+                detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";steering-unsupported(readable=" + steering.Readable +
+                    ";inCombat=" + steering.InCombat + ";combatAngular=" + angular.ToString("R") + ");tick=0" + (affordableEnd ? ";affordableEnd" : "") + ";result=Unestablished)";
+                return StepBound.Unestablished;
             }
             PairedAttackClickProbe.NativeTick selected;
             int evaluated;
-            executable = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, new Vector2(steering.HeadingX, steering.HeadingZ), speed, steering.AgentSpeed,
-                steering.CombatAngularSpeed, steering.FollowPrecomputedPath, physicalLeft, permitted, out selected, out evaluated);
+            var heading = new Vector2(steering.HeadingX, steering.HeadingZ);
+            var found = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, heading, speed, steering.AgentSpeed,
+                angular, steering.FollowPrecomputedPath, physicalLeft, permitted, out selected, out evaluated);
+            var zeroTurn = !(angular > 0f);
+            var aligned = selected.Moving && selected.Unit.x == heading.x && selected.Unit.y == heading.y;
+            var established = found > 0f && (!zeroTurn || aligned);
+            executable = established ? found : 0f;
             detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";cursor=" + cursor + ";permitted=" + permitted.ToString("R") +
                 ";tick=" + executable.ToString("R") + ";selected=" + selected + ";settledTravel=" +
-                Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + (affordableEnd ? ";affordableEnd" : "") + ")";
-            return true;
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + (affordableEnd ? ";affordableEnd" : "") +
+                (zeroTurn ? ";zeroCombatAngular(searched=" + found.ToString("R") + ";exactlyAligned=" + aligned + ")" : "") + ";result=" + (established ? "Bounded" : "Unestablished") + ")";
+            return established ? StepBound.Bounded : StepBound.Unestablished;
         }
+
+        // Round 22 (R20-F1): the explicit result of the step bound (StepExecutableTick).
+        internal enum StepBound { NoBoundApplies, Bounded, Unestablished }
 
         // Round 17 follow-up: the installed steering facts of one tick, read once (MountedAgentSteering.TryReadSteering, contained); Readable
         // false when any is unreadable (no assumed value).
