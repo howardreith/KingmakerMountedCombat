@@ -418,29 +418,44 @@ namespace KingmakerMountedCombat.Integration
                 selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath);
                 return t;
             }
-            // Round 17 (R16-F3): the interval between zero and the last bad sample (below one scan step) is resolved before returning zero: the
-            // boundary is bisected on (0, bad], backed off by StepMarginMetres of shift and re-checked against the selected segment, the endpoint
-            // completion and the physical remainder.
-            float lowest = 0f, highest = bad;
+            // Round 17 (R16-F3): the interval between zero and the last bad sample (below one scan step) is resolved before returning zero.
+            // Round 19 (R18-F1): each bisection sample is classified by the existing evaluator (ClassifyStep) instead of one executable/not
+            // result: a sample that does not settle within the remainder (overspends, or ends within StepMarginMetres of a completion trigger)
+            // is too LONG and lowers the upper bound; a sample that settles but displaces the mount less than StepMinimumDisplacementMetres (or
+            // does not move) is too SHORT and raises the lower bound; an executable sample is recorded as verified and raises the lower bound
+            // toward the settlement limit. The installed tick is path dependent (waypoint selection, steering, completion), so the predicate is
+            // not assumed monotonic: a too-short sample ABOVE a verified executable one contradicts the bracket and is treated conservatively as
+            // an upper bound (the search never extends beyond it). Same 40 samples, same 0.01 mm floor and 0.1 mm margin, no new tolerance.
+            float lowest = 0f, highest = bad, firstVerified = 0f, lastVerified = 0f;
             for (var i = 0; i < 40; i++)
             {
                 var mid = (lowest + highest) * 0.5f;
                 evaluated++;
-                if (mid > 0f && Executable(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft))
-                    lowest = mid;
+                var sample = mid > 0f
+                    ? ClassifyStep(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft)
+                    : StepSample.TooLong;
+                if (sample == StepSample.Executable)
+                {
+                    lowest = mid; lastVerified = mid;
+                    if (!(firstVerified > 0f)) firstVerified = mid;
+                }
+                else if (sample == StepSample.TooShort && !(lastVerified > 0f)) lowest = mid;
                 else highest = mid;
             }
-            // Round 18 (R16-F3): the back-off stays inside the verified interval (0, lowest]: its midpoint when the margin would consume it,
-            // re-checked; the verified lowest itself when that re-check fails. Zero only when no positive, displacing duration was verified.
-            if (lowest > 0f)
+            // Round 18 (R16-F3), round 19 (R18-F1): the back-off stays inside the verified interval [firstVerified, lastVerified] (both
+            // endpoints executable samples; with no assumed monotonicity, zero is no longer a verified lower end): its midpoint when the margin
+            // would leave it. The selected duration is re-checked through the current-tick simulation and settlement validation (Executable)
+            // before it is returned: the back-off, else the verified lastVerified itself. Zero only when no positive, displacing duration was
+            // verified: native's denial branch then ends the step promptly.
+            if (lastVerified > 0f)
             {
-                var lowBacked = InsideVerified(lowest - StepMarginMetres / speed, 0f, lowest);
+                var lowBacked = InsideVerified(lastVerified - StepMarginMetres / speed, firstVerified, lastVerified);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowBacked, followPrecomputedPath);
                 if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return lowBacked; }
                 evaluated++;
-                selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowest, followPrecomputedPath);
-                return lowest;
+                candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lastVerified, followPrecomputedPath);
+                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return lastVerified; }
             }
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, 0f, followPrecomputedPath);
             return 0f;
@@ -454,9 +469,18 @@ namespace KingmakerMountedCombat.Integration
         // least StepMinimumDisplacementMetres (0.01 mm: a hundredth of the established 1 mm sampling resolution, below every lawful interval the
         // search must keep, e.g. the 0.025 mm of a 50.15 mm start). A shorter move is no movement: the search returns zero and native's denial
         // branch ends the step promptly instead of a series of ever-smaller moves toward the completion margin.
+        // Round 19 (R18-F1): the same two guards, reported separately (ClassifyStep) so the search moves the bound the failing guard implies:
+        // TooLong when the tick does not settle within the remainder (StepSettlementAdmits, which keeps the 0.1 mm completion margin), TooShort
+        // when it settles but does not move or moves less than the floor. Executable is exactly ClassifyStep == Executable.
         internal const float StepMinimumDisplacementMetres = 0.00001f;
+        internal enum StepSample { Executable, TooShort, TooLong }
+        internal static StepSample ClassifyStep(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft)
+        {
+            if (!StepSettlementAdmits(tick, path, origin, physicalLeft)) return StepSample.TooLong;
+            return tick.Moving && GeometryUtils.MechanicsDistance(origin, tick.Stop) >= StepMinimumDisplacementMetres ? StepSample.Executable : StepSample.TooShort;
+        }
         private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft) =>
-            StepSettlementAdmits(tick, path, origin, physicalLeft) && tick.Moving && GeometryUtils.MechanicsDistance(origin, tick.Stop) >= StepMinimumDisplacementMetres;
+            ClassifyStep(tick, path, origin, physicalLeft) == StepSample.Executable;
 
         // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
         // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
