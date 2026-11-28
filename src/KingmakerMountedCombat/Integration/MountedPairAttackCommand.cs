@@ -422,53 +422,40 @@ namespace KingmakerMountedCombat.Integration
         // R13-F4 (round 14): the installed WantsToMove of the mount's agent (Path != null || RequestedPath != null), read only for a live carrier
         // that has already moved the mount (its one approach was issued and followed).
         internal int NativeApproachEndedCount { get; private set; }
-        // PR #70 R13-F3 (round 16): an ISSUED approach is distinguished from a carrier still awaiting its first path. A carrier has acquired
-        // its path once, while it is live and owns the mount's Move slot, the mount's agent is observed (each approach tick of this command)
-        // holding a path object other than the one it held when this carrier was issued: installed TickApproaching delivers the carrier's own
-        // path, and a request still in flight is RequestedPath, not Path, so a carrier whose request is pending has not acquired one. The
-        // route-bound override carrier also keeps its earlier criterion (it moved the mount from its origin along its validated ForcedPath).
-        // The native-accepted entry does not use displacement: a displaced mount has not necessarily received a path. Otherwise the carrier is
-        // still awaiting its first path and keeps its existing handling.
-        private UnitMoveTo pathBaselineCarrier, pathAcquiredCarrier, pathRequestPendingCarrier;
-        private Pathfinding.Path pathAtCarrierIssue;
+        // PR #70 R13-F3 (round 16), R17-F1/R18-F2 (round 19): an ISSUED approach is distinguished from a carrier still awaiting its first path
+        // by the exact carrier's own native issuance/delivery record (MountedCarrierApproachLedger), written at the installed boundaries
+        // themselves (MountedCarrierPathObserver): UnitMovementAgent.PathTo (060018A3) records the request this carrier's own TickApproaching
+        // issued, and OnPathComplete (060018B9) records that request's delivery (native made it the agent's Path, a pooled Path object
+        // included; a failed or not-found completion is not a delivery). The record is written when native issues and delivers, before any
+        // later movement tick, so neither native denial route (the paired movement prefix returning to native before the delegated adapter,
+        // or the adapter's zero tick: CanMoveInTurnBased -> CompleteMovement clears Path and RequestedPath) can erase it, and a carrier that
+        // merely holds the Move slot while a predecessor's path remains acquires nothing. The rider's samples are not an issuance fact (a path
+        // can be delivered, used and lost between them). A forced approach (the route-bound carrier's ForcedPath, which native follows through
+        // FollowPrecomputedPath without PathTo) is attributed to the exact command whose TickApproaching issued it (round 19 follow-up). The
+        // route-bound override carrier also keeps its earlier displacement criterion unchanged (it moved the mount from its origin along its
+        // validated ForcedPath).
         internal int CarrierPathObservations { get; private set; }
+        private UnitMoveTo observedDeliveredCarrier;
 
-        private void NoteCarrierIssued()
-        {
-            pathBaselineCarrier = delegatedMove;
-            pathAtCarrierIssue = mount?.View?.AgentASP?.Path;
-        }
+        // The carrier this command issues to the mount's Move slot is admitted to the record before native Run sees it.
+        private void NoteCarrierIssued() => MountedCarrierApproachLedger.Admit(delegatedMove, mount?.View?.AgentASP);
 
+        internal MountedCarrierApproachPhase CarrierApproachPhase => MountedCarrierPathObserver.PhaseOf(delegatedMove, mount?.View?.AgentASP);
+
+        // Diagnostic only: the rider's tick observed the live carrier holding its own delivered path (counted once per carrier).
         private void ObserveCarrierPath()
         {
             var carrier = delegatedMove;
-            var agent = mount?.View?.AgentASP;
-            if (carrier == null || carrier.IsFinished || agent == null || ReferenceEquals(pathAcquiredCarrier, carrier) ||
-                !ReferenceEquals(pathBaselineCarrier, carrier)) return;
-            if (!ReferenceEquals(mount.Commands?.GetCommand(CommandType.Move), carrier)) return;
-            var path = agent.Path;
-            // Round 16 (path pooling): A* recycles Path objects, so identity alone can miss a delivery. A request observed in flight for this
-            // exact carrier (installed WantsToMove is Path != null || RequestedPath != null, and RequestedPath is not public: WantsToMove with no
-            // Path is the pending request) and later resolved into a delivered Path is an acquisition whatever the Path object is.
-            if (path == null)
-            {
-                if (agent.WantsToMove) pathRequestPendingCarrier = carrier;
-                return;
-            }
-            if (!ReferenceEquals(path, pathAtCarrierIssue) || ReferenceEquals(pathRequestPendingCarrier, carrier))
-            {
-                pathAcquiredCarrier = carrier;
-                CarrierPathObservations++;
-            }
+            if (carrier == null || carrier.IsFinished || ReferenceEquals(observedDeliveredCarrier, carrier) ||
+                CarrierApproachPhase != MountedCarrierApproachPhase.Delivered) return;
+            observedDeliveredCarrier = carrier;
+            CarrierPathObservations++;
         }
 
-        // Round 17 (R13-F3): the rider's samples can miss a path delivered, used and lost between its ticks. The movement fact of the exact
-        // carrier (MountedCarrierMovementLedger: the delegated movement entry returned a positive tick while this carrier held the Move slot)
-        // survives that interval and is the issuance fact both entries rely on; a carrier with no positive tick and only an outstanding first
-        // request (no delivered Path observed) is still awaiting its first path.
+        // The carrier acquired its path: native delivered its own request (whatever happened to that path since), or the route-bound carrier
+        // moved the mount from its origin. A carrier with only an outstanding or undelivered request, or none, is still awaiting its first path.
         internal bool CarrierAcquiredPath => delegatedMove != null &&
-            (MountedCarrierMovementLedger.HasPositiveTick(delegatedMove) || MountedCarrierMovementLedger.HasDelivery(delegatedMove) ||
-             ReferenceEquals(pathAcquiredCarrier, delegatedMove) ||
+            (MountedCarrierApproachLedger.HasDelivery(delegatedMove) ||
              RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
 
         // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed

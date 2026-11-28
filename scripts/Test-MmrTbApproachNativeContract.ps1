@@ -337,4 +337,51 @@ $firstEnd = $tickApproachText.IndexOf('EndIfNativeTurnBasedApproachEnded'); $fir
 Check ($firstEnd -ge 0 -and $firstRepath -gt $firstEnd -and $null -ne $commandType.GetProperty('NativeTurnBasedDispositionApplies', $any)) 'PR-2 R13-F3 (round 15): TickApproach resolves the end of the issued ordinary turn-based approach before the target-drift re-path, for the override and the native-accepted entries'
 $beginProvisionalText = IlText ($controllerType.GetMethod('BeginProvisionalOrder', $any))
 Check ($beginProvisionalText.Contains('CompetingMountWork') -and $beginProvisionalText.Contains('MountHoldsOtherWork')) 'PR-2 R14-F3 (round 15): a step request is classified with the accepted-work rule (CompetingMountWork; compatible older work waits), the restricted single tick keeps its idle-mount precondition'
+# ---- PR-2 round 19 (R17-F1, R18-F2): the exact carrier's issuance and delivery boundaries (installed IL, read-only) and the product's hooks ----
+$pathTo = MemberAt 0x060018A3; $pathComplete = MemberAt 0x060018B9; $requestedField = MemberAt 0x0400118E
+Check ($pathTo.Name -ceq 'PathTo' -and $pathTo.DeclaringType.FullName -ceq 'Kingmaker.View.UnitMovementAgent' -and @($pathTo.GetParameters()).Count -eq 5 -and
+    $pathTo.GetParameters()[0].Name -ceq 'command' -and $pathTo.GetParameters()[0].ParameterType.FullName -ceq 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' -and
+    $pathComplete.Name -ceq 'OnPathComplete' -and $pathComplete.DeclaringType.FullName -ceq 'Kingmaker.View.UnitMovementAgent' -and @($pathComplete.GetParameters()).Count -eq 1 -and
+    $pathComplete.GetParameters()[0].Name -ceq 'p' -and $pathComplete.GetParameters()[0].ParameterType.FullName -ceq 'Pathfinding.Path' -and
+    $requestedField.Name -ceq 'm_RequestedPath' -and $requestedField.FieldType.FullName -ceq 'Pathfinding.Path' -and $requestedField.DeclaringType.FullName -ceq 'Kingmaker.View.UnitMovementAgent') 'PR-2 round 19 (R17-F1, R18-F2): 060018A3 is UnitMovementAgent.PathTo(UnitCommand command, ...), 060018B9 is UnitMovementAgent.OnPathComplete(Path p), 0400118E is UnitMovementAgent.m_RequestedPath (Pathfinding.Path)'
+$pathToText = IlText $pathTo; $pathCompleteText = IlText $pathComplete
+$setPathText = IlText (MemberAt 0x06001894); $setRequestedText = IlText (MemberAt 0x06001896)
+Check ($pathToText.Contains(';ldarg.0;call get_RequestedPath;brfalse.s;ldarg.0;ldfld m_RequestedNewPath;brtrue.s;ret;') -and $pathToText.Contains(';ldftn OnPathComplete;') -and
+    $pathToText.Contains(';call set_RequestedPath;') -and $pathCompleteText.StartsWith(';ldarg.1;ldarg.0;call get_RequestedPath;beq.s;ret;') -and
+    $pathCompleteText.Contains(';ldarg.0;ldnull;call set_RequestedPath;') -and $pathCompleteText.Contains(';call OnPathNotFound;ret;') -and
+    $pathCompleteText.Contains(';ldarg.0;ldarg.1;callvirt set_Path;ldarg.0;ldc.i4.1;call SetWaypoint;') -and
+    $setPathText.Contains(';ldfld m_Path;call ReleasePath;ldarg.0;ldarg.1;stfld m_Path;ldarg.0;ldarg.0;ldfld m_Path;call ClaimPath;ret;') -and
+    $setRequestedText.Contains(';ldfld m_RequestedPath;call ReleasePath;ldarg.0;ldarg.1;stfld m_RequestedPath;ldarg.0;ldarg.0;ldfld m_RequestedPath;call ClaimPath;ret;')) 'PR-2 round 19 (R17-F1, R18-F2): installed PathTo keeps an outstanding request it is not replacing (no new request) and otherwise stores the new request in m_RequestedPath with OnPathComplete as its callback; OnPathComplete acts only on the outstanding request, clears it, and either makes it the agent''s Path (set_Path, SetWaypoint(1): the delivery) or reports OnPathNotFound without delivering; set_Path and set_RequestedPath claim their path (a held Path is never recycled by A*)'
+$tickApproachingText = IlText (MemberAt 0x060027A6); $viewMoveText = IlText (MemberAt 0x0600184D); $isReallyText = IlText (MemberAt 0x060018C0); $moveControllerText = IlText (MemberAt 0x06009183)
+Check ($tickApproachingText.Contains(';callvirt FollowPrecomputedPath;') -and $tickApproachingText.Contains(';callvirt MoveTo;') -and $viewMoveText.Contains(';callvirt PathTo;') -and
+    $isReallyText.Contains(';callvirt get_Path;') -and $isReallyText.Contains(';ldfld m_NextPointIndex;ldc.i4.0;cgt;ret;') -and
+    $moveControllerText.IndexOf(';callvirt get_IsReallyMoving;') -ge 0 -and $moveControllerText.IndexOf(';callvirt get_IsReallyMoving;') -lt $moveControllerText.IndexOf(';callvirt TickMovement;')) 'PR-2 round 19 (R17-F1, R18-F2): installed UnitCommand.TickApproaching issues an unforced approach through UnitEntityView.MoveTo -> PathTo(this command) and a forced one through FollowPrecomputedPath (no PathTo); UnitMoveController.Tick ticks an agent (CanMoveInTurnBased, the paired hook) only while IsReallyMoving (a delivered Path, cursor past its first waypoint), whatever command''s request that path answered'
+$patchControllerType = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController'
+$installers = @(@($patchControllerType.GetConstructors($any)) + @($patchControllerType.GetMethods(($any -bor [Reflection.BindingFlags]::DeclaredOnly))) | Where-Object { $_.GetMethodBody() -ne $null -and (IlText $_).Contains(';ldc.i4 100669603;') })
+$installText = if ($installers.Count -eq 1) { IlText $installers[0] } else { '' }
+Check ($installers.Count -eq 1 -and $installText.Contains(';ldc.i4 100669625;') -and $installText.Contains(';ldc.i4 67113358;call RequestedPathContractHolds;') -and
+    $installText.IndexOf(';ldc.i4 100669603;') -lt $installText.IndexOf(';ldc.i4 100669625;') -and @([regex]::Matches($installText, ';call PatchExact;')).Count -ge 2) 'PR-2 round 19 (R17-F1, R18-F2): the product installs its carrier issuance/delivery hooks once, with PatchExact on PathTo (060018A3) and OnPathComplete (060018B9) after verifying m_RequestedPath (0400118E), in the same installer as every production patch (removed together by UnpatchAll of the product''s Harmony id)'
+$patchMethodsType = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
+$observerType = KmcType 'KingmakerMountedCombat.Integration.MountedCarrierPathObserver'
+$ledgerType19 = KmcType 'KingmakerMountedCombat.Domain.MountedCarrierApproachLedger'
+$hookNames = @('CarrierPathRequestPrefix','CarrierPathRequestPostfix','CarrierPathCompletePrefix','CarrierPathCompletePostfix')
+$hooks = @($hookNames | ForEach-Object { $patchMethodsType.GetMethod($_, $any) })
+$hookParams = @($hooks | ForEach-Object { if ($null -eq $_) { '' } else { (@($_.GetParameters() | ForEach-Object { $_.ParameterType.Name + ' ' + $_.Name }) -join ',') } })
+Check ($hookParams[0] -ceq 'UnitMovementAgent __instance,Path& __state' -and $hookParams[1] -ceq 'UnitMovementAgent __instance,UnitCommand command,Path __state' -and
+    $hookParams[2] -ceq 'UnitMovementAgent __instance,Path p,Int32& __state' -and $hookParams[3] -ceq 'UnitMovementAgent __instance,Path p,Int32 __state' -and
+    (IlText $hooks[0]).Contains(';call BeforeRequest;') -and (IlText $hooks[1]).Contains(';call AfterRequest;') -and (IlText $hooks[2]).Contains(';call BeforeCompletion;') -and (IlText $hooks[3]).Contains(';call AfterCompletion;') -and
+    (IlText ($observerType.GetMethod('AfterRequest', $any))).Contains(';call RecordRequest;') -and (IlText ($observerType.GetMethod('AfterCompletion', $any))).Contains(';call RecordCompletion;') -and
+    -not (IlText ($observerType.GetMethod('AfterCompletion', $any))).Contains('set_')) 'PR-2 round 19 (R17-F1, R18-F2): the hooks bind PathTo''s exact command and OnPathComplete''s p by their installed parameter names and delegate to MountedCarrierPathObserver, which records the request and its delivery in MountedCarrierApproachLedger and changes no native state'
+# ---- PR-2 round 19 follow-up: the forced request (FollowPrecomputedPath) attributed to the exact command whose TickApproaching issues it ----
+$follow = MemberAt 0x060018B6; $followText = IlText $follow
+Check ($follow.Name -ceq 'FollowPrecomputedPath' -and $follow.DeclaringType.FullName -ceq 'Kingmaker.View.UnitMovementAgent' -and @($follow.GetParameters()).Count -eq 2 -and
+    $follow.GetParameters()[0].Name -ceq 'p' -and $follow.GetParameters()[0].ParameterType.FullName -ceq 'Pathfinding.Path' -and
+    $followText.StartsWith(';ldarg.0;ldarg.1;call set_RequestedPath;') -and $followText.Contains(';ldarg.0;ldarg.1;call OnPathComplete;') -and
+    $tickApproachingText.Contains(';ldfld vectorPath;newobj .ctor;newobj .ctor;ldarg.0;call get_ApproachRadius;callvirt FollowPrecomputedPath;')) 'PR-2 round 19 follow-up: 060018B6 is UnitMovementAgent.FollowPrecomputedPath(Path p, float): it sets m_RequestedPath to p and completes it synchronously (OnPathComplete), with no PathTo; TickApproaching passes it a FRESH ForcedPath copy of the ticking command''s path (no command argument), so the issuer is the command whose TickApproaching is running, not a ForcedPath reference'
+$forcedHook = $patchMethodsType.GetMethod('CarrierForcedPathRequestPrefix', $any); $approachPostfix = $patchMethodsType.GetMethod('MountedAttackApproachPostfix', $any)
+$approachPrefixText = IlText ($patchMethodsType.GetMethod('MountedAttackApproachPrefix', $any))
+Check ($null -ne $forcedHook -and (@($forcedHook.GetParameters() | ForEach-Object { $_.ParameterType.Name + ' ' + $_.Name }) -join ',') -ceq 'UnitMovementAgent __instance,Path p' -and
+    (IlText $forcedHook).Contains(';call BeforeForcedRequest;') -and $null -ne $approachPostfix -and (IlText $approachPostfix).Contains(';call ExitApproach;') -and
+    $approachPrefixText.StartsWith(';ldarg.0;call EnterApproach;') -and (IlText ($observerType.GetMethod('BeforeForcedRequest', $any))).Contains(';call RecordRequest;') -and
+    $installText.Contains(';ldc.i4 100669622;') -and $installText.IndexOf(';ldc.i4 100669625;') -lt $installText.IndexOf(';ldc.i4 100669622;')) 'PR-2 round 19 follow-up: the product scopes the ticking command in its TickApproaching prefix (EnterApproach first) and postfix (ExitApproach), and its FollowPrecomputedPath prefix (PatchExact 060018B6, binding p by name) records the forced request for that command (MountedCarrierApproachLedger.RecordRequest); OnPathComplete then records the delivery'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')

@@ -200,7 +200,7 @@
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\MountedDoorApproachPolicy.cs" />
-    <Compile Include="Domain\MountedCarrierMovementLedger.cs" />
+    <Compile Include="Domain\MountedCarrierApproachLedger.cs" />
     <Compile Include="Domain\MountedDoorOccupancyPolicy.cs" />
     <Compile Include="Domain\MountedDoorSettlementLifecycle.cs" />
     <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />
@@ -673,6 +673,7 @@
     <Compile Include="Integration\MountedCombatController.cs" />
     <Compile Include="Integration\MountedDoorInteractionCommand.cs" />
     <Compile Include="Integration\NativeSingleAttackWeaponResolver.cs" />
+    <Compile Include="Integration\MountedCarrierPathObserver.cs" />
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\NativeActorCapability.cs" />

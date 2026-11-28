@@ -180,7 +180,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
                     new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
                 PatchExact(typeof(UnitCommand), "TickApproaching", 0x060027A6, Type.EmptyTypes,
-                    nameof(PatchMethods.MountedAttackApproachPrefix));
+                    nameof(PatchMethods.MountedAttackApproachPrefix), nameof(PatchMethods.MountedAttackApproachPostfix));
                 PatchExact(typeof(UnitAttack), "UpdateTarget", 0x06002683, Type.EmptyTypes,
                     nameof(PatchMethods.MountedAttackTargetPrefix));
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
@@ -304,6 +304,18 @@ namespace KingmakerMountedCombat.Integration
                     null, nameof(PatchMethods.FamiliarTeleportPostfix));
                 PatchUnitClick();
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
+                // PR #70 R17-F1/R18-F2 (round 19): the exact carrier's issuance (PathTo 060018A3, the request m_RequestedPath 0400118E) and delivery
+                // (OnPathComplete 060018B9), observed for the issuance/delivery record (MountedCarrierPathObserver); observation only.
+                if (!MountedCarrierPathObserver.RequestedPathContractHolds(0x0400118E))
+                    throw new MissingFieldException(typeof(UnitMovementAgent).FullName, "m_RequestedPath exact token 0400118E (Pathfinding.Path)");
+                PatchExact(typeof(UnitMovementAgent), "PathTo", 0x060018A3,
+                    new[] { typeof(UnitCommand), typeof(UnityEngine.Vector3), typeof(float), typeof(float), typeof(UnitMovementAgentBase) },
+                    nameof(PatchMethods.CarrierPathRequestPrefix), nameof(PatchMethods.CarrierPathRequestPostfix));
+                PatchExact(typeof(UnitMovementAgent), "OnPathComplete", 0x060018B9, new[] { typeof(Pathfinding.Path) },
+                    nameof(PatchMethods.CarrierPathCompletePrefix), nameof(PatchMethods.CarrierPathCompletePostfix));
+                // Round 19 follow-up: the forced request (FollowPrecomputedPath 060018B6, called only by TickApproaching for the ticking command).
+                PatchExact(typeof(UnitMovementAgent), "FollowPrecomputedPath", 0x060018B6, new[] { typeof(Pathfinding.Path), typeof(float) },
+                    nameof(PatchMethods.CarrierForcedPathRequestPrefix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
                 PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));
@@ -1480,6 +1492,8 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool MountedAttackApproachPrefix(UnitCommand __instance)
             {
+                // PR #70 round 19 follow-up: the exact command whose approach native is ticking (MountedAttackApproachPostfix ends the scope).
+                MountedCarrierPathObserver.EnterApproach(__instance);
                 if (!ChargeExecutionPrefix(__instance)) return false;
                 // The pair command owns its mount Move slot and drives it through
                 // the existing native/off-executor movement paths. Running the
@@ -2088,6 +2102,39 @@ namespace KingmakerMountedCombat.Integration
                     return false;
                 }
                 return true;
+            }
+
+            // PR #70 R17-F1/R18-F2 (round 19): an exact carrier's request and its delivery, recorded where native issues and delivers them
+            // (MountedCarrierPathObserver, MountedCarrierApproachLedger). Each prefix hands its own observation to its own postfix (__state).
+            internal static void CarrierPathRequestPrefix(UnitMovementAgent __instance, out Pathfinding.Path __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeRequest(__instance);
+            }
+
+            internal static void CarrierPathRequestPostfix(UnitMovementAgent __instance, UnitCommand command, Pathfinding.Path __state)
+            {
+                MountedCarrierPathObserver.AfterRequest(__instance, command, __state);
+            }
+
+            internal static void CarrierPathCompletePrefix(UnitMovementAgent __instance, Pathfinding.Path p, out int __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeCompletion(__instance, p);
+            }
+
+            internal static void CarrierPathCompletePostfix(UnitMovementAgent __instance, Pathfinding.Path p, int __state)
+            {
+                MountedCarrierPathObserver.AfterCompletion(__instance, p, __state);
+            }
+
+            // PR #70 round 19 follow-up: the forced request of the exact command whose TickApproaching issues it, and the end of that scope.
+            internal static void CarrierForcedPathRequestPrefix(UnitMovementAgent __instance, Pathfinding.Path p)
+            {
+                MountedCarrierPathObserver.BeforeForcedRequest(__instance, p);
+            }
+
+            internal static void MountedAttackApproachPostfix(UnitCommand __instance)
+            {
+                MountedCarrierPathObserver.ExitApproach(__instance);
             }
 
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)

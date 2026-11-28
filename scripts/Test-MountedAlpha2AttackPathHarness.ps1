@@ -38,6 +38,8 @@ $persistenceText=[IO.File]::ReadAllText((Join-Path $integration 'MountedMovement
 # that rebinds the activation and sets partnerContext).
 $participationPath=Join-Path $integration 'PairedActivationPersistence.cs';$participation=[IO.File]::ReadAllText($participationPath)
 # PR #70 R12-F4/R14-F5 (round 15): the production teardown sequence CompositionRoot and MountedLifecycleSubscriber delegate to, and the world drain.
+# PR #70 R17-F1/R18-F2 (round 19): the production observer of the exact carrier's issuance (PathTo) and delivery (OnPathComplete).
+$carrierPathObserver=[IO.File]::ReadAllText((Join-Path $integration 'MountedCarrierPathObserver.cs'))
 $teardownPath=Join-Path $integration 'MountedServiceTeardownSequence.cs';$teardown=[IO.File]::ReadAllText($teardownPath)
 $worldPath=Join-Path $integration 'MountedWorldService.cs';$worldText=[IO.File]::ReadAllText($worldPath)
 $ownershipPath=Join-Path $integration 'GameMountedRelationshipService.Ownership.cs';$ownershipText=[IO.File]::ReadAllText($ownershipPath)
@@ -103,6 +105,8 @@ $members=[ordered]@{
  'FORBID_APPROACH'=(Extract $command 'internal void ForbidApproach()')
  'SUCCESSOR_STEERS'=(ExtractExpression $command 'private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove) =>')
  'CARRIER_CLEANUP_CLASS'=(Extract $command 'internal sealed class MountedCarrierCleanup')
+ 'CARRIER_PATH_OBSERVER'=(Extract $carrierPathObserver 'internal static class MountedCarrierPathObserver')
+ 'CARRIER_PATH_HOOKS'=(ExtractRegion $patch '            internal static void CarrierPathRequestPrefix(UnitMovementAgent __instance, out Pathfinding.Path __state)' '            internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)')
  'DEFERRED_CARRIER'=(ExtractRegion $command '        // PR-1 review R1-F4: a carrier waiting behind older work.' '        private void TickApproach()')
  'APPROACHING_BEFORE_ATTACK'=(ExtractRegion $command '        // PR-1 review R1-F8: also before native start' '        internal bool ValidateNativeSequenceTarget()')
  'START_CHILD'=(Extract $command 'private void StartChildAttack()')
