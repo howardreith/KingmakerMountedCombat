@@ -68,13 +68,55 @@ function Assert-KmcChunk7RestorationHookRows($Hooks,[string]$ProductMvid){
   if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $ProductMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
  }
 }
-# Round 21 (R20-F3): restoration-hook rows observed by processes of one candidate bind each module's methods to tokens consistently: one
-# token per (module, type, method) and one method per (module, token). Token values stay module-specific (historical builds keep theirs).
-function Assert-KmcChunk7SameModuleHookTokens([object[]]$RowSets){
- $byMethod=@{};$byToken=@{}
- foreach($rows in $RowSets){foreach($h in @($rows)){$method=[string]$h.moduleMvid+'|'+[string]$h.declaringType+'.'+[string]$h.method;$token=[string]$h.moduleMvid+'|'+[string]$h.token
-  if($byMethod.ContainsKey($method)-and$byMethod[$method]-cne[string]$h.token){throw 'Same-module restoration observations bind one method to different tokens.'};$byMethod[$method]=[string]$h.token
-  if($byToken.ContainsKey($token)-and$byToken[$token]-cne$method){throw 'Same-module restoration observations bind one token to different methods.'};$byToken[$token]=$method}}
+# Round 21/22 (R20-F3, R21-F1): the restoration rows (declaringType) and the Manual save rows (type) that processes of one candidate observe
+# bind each module's methods to tokens consistently: one token per (module, type, method), one method per (module, token). Token values stay
+# module-specific; a historical or synthetic module keeps its own. Each row's shape is validated before its type field is read.
+function ConvertTo-KmcChunk7HookBindingRows([object[]]$RowSets){
+ foreach($rows in $RowSets){if($rows-isnot[Array]){throw 'Hook rows must be an array.'};foreach($h in $rows){
+  if($h-isnot[Management.Automation.PSCustomObject]){throw 'A hook row is not an object.'};$names=@($h.PSObject.Properties.Name)
+  $declared=$names-ccontains'declaringType';$typed=$names-ccontains'type';if($declared-eq$typed){throw 'A hook row must carry exactly one of declaringType (restoration) or type (Manual save).'}
+  $owner=if($declared){$h.declaringType}else{$h.type};foreach($value in @($owner,$h.method,$h.token,$h.moduleMvid)){if($value-isnot[string]){throw 'Hook identity must be scalar.'}}
+  if($h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Hook MethodDef token invalid.'};Assert-KmcOrdinaryGuid $h.moduleMvid
+  [pscustomobject]@{module=$h.moduleMvid;method=($owner+'.'+$h.method);token=$h.token}}}
+}
+# Round 22 (R21-F1): trusted product metadata from the actual candidate artifact, never from the observation being validated. The artifact is
+# the repository's built bin\Release\KingmakerMountedCombat.dll, or $script:KmcChunk7CandidateDllPath when a caller pins another path. It is
+# used only when its bytes' SHA-256 equals the record's request dllSha256, and then its module MVID must equal the request dllMvid. Bindings
+# are reflected from those bytes as the probes reflect them: NativeCombatActorPersistence.RestoreActor/RestoreDebt by name and
+# MountedPersistenceService.RecordCompletedSave(scope). A record of another build (historical or synthetic) has no artifact here; it keeps
+# the module-consistency checks only (no historical registry).
+function Get-KmcChunk7CandidateProductHooks($Request){
+ $path=if((Test-Path variable:script:KmcChunk7CandidateDllPath)-and$script:KmcChunk7CandidateDllPath){$script:KmcChunk7CandidateDllPath}else{Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))) 'bin\Release\KingmakerMountedCombat.dll'}
+ if(-not(Test-Path -LiteralPath $path -PathType Leaf)-or[string]$Request.dllSha256-cnotmatch'^[a-f0-9]{64}$'){return $null}
+ # The file's bytes are hashed once per (path, length, write time); the metadata is reflected from exactly those hashed bytes.
+ if(-not(Test-Path variable:script:KmcChunk7CandidateProductHooks)){$script:KmcChunk7CandidateProductHooks=@{};$script:KmcChunk7CandidateFileHashes=@{}}
+ $item=Get-Item -LiteralPath $path;$fileKey=$item.FullName+'|'+$item.Length+'|'+$item.LastWriteTimeUtc.Ticks;$bytes=$null
+ if($script:KmcChunk7CandidateFileHashes.ContainsKey($fileKey)){$sha=$script:KmcChunk7CandidateFileHashes[$fileKey]}else{$bytes=[IO.File]::ReadAllBytes($path);$sha=-join([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)|ForEach-Object{$_.ToString('x2')});$script:KmcChunk7CandidateFileHashes[$fileKey]=$sha}
+ if($sha-cne[string]$Request.dllSha256){return $null}
+ if(-not$script:KmcChunk7CandidateProductHooks.ContainsKey($sha)){
+  if($null-eq$bytes){$bytes=[IO.File]::ReadAllBytes($path);if((-join([Security.Cryptography.SHA256]::Create().ComputeHash($bytes)|ForEach-Object{$_.ToString('x2')}))-cne$sha){throw 'The candidate artifact changed while it was being read.'}}
+  $managed=Join-Path (Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')).requestedLayout.kingmakerInstallDir 'Kingmaker_Data\Managed'
+  if(-not(Test-Path variable:script:KmcChunk7CandidateResolverInstalled)){$script:KmcChunk7CandidateResolverDirectories=@($managed,(Join-Path $managed 'UnityModManager'))
+   [AppDomain]::CurrentDomain.add_AssemblyResolve({param($s,$e)$n=($e.Name-split',')[0];foreach($d in $script:KmcChunk7CandidateResolverDirectories){$p=Join-Path $d ($n+'.dll');if(Test-Path -LiteralPath $p){return [Reflection.Assembly]::LoadFrom($p)}};$null});$script:KmcChunk7CandidateResolverInstalled=$true}
+  $assembly=[Reflection.Assembly]::Load($bytes);$all=[Reflection.BindingFlags]'Public,NonPublic,Instance,Static'
+  $tokens=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+  $restore=$assembly.GetType('KingmakerMountedCombat.Integration.NativeCombatActorPersistence',$true)
+  foreach($name in @('RestoreActor','RestoreDebt')){$m=$restore.GetMethod($name,$all);if($null-eq$m){throw ('The candidate artifact lacks '+$name+'.')};$tokens[$m.DeclaringType.FullName+'.'+$m.Name]=$m.MetadataToken.ToString('X8')}
+  $completed=@($assembly.GetType('KingmakerMountedCombat.Integration.MountedPersistenceService',$true).GetMethods($all)|Where-Object{$_.Name-ceq'RecordCompletedSave'-and$_.GetParameters().Count-eq1})
+  if($completed.Count-ne1){throw 'The candidate artifact does not have exactly one RecordCompletedSave(scope).'};$tokens[$completed[0].DeclaringType.FullName+'.'+$completed[0].Name]=$completed[0].MetadataToken.ToString('X8')
+  $script:KmcChunk7CandidateProductHooks[$sha]=[pscustomobject]@{sha256=$sha;mvid=$assembly.ManifestModule.ModuleVersionId.ToString();tokens=$tokens}}
+ $trusted=$script:KmcChunk7CandidateProductHooks[$sha]
+ if($trusted.mvid-cne[string]$Request.dllMvid){throw 'The candidate artifact with the record''s SHA-256 has a different module MVID.'}
+ $trusted
+}
+function Assert-KmcChunk7SameModuleHookTokens($Request,[object[]]$RowSets){
+ $byMethod=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal);$byToken=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+ $rows=@(ConvertTo-KmcChunk7HookBindingRows $RowSets)
+ foreach($r in $rows){$method=$r.module+'|'+$r.method;$token=$r.module+'|'+$r.token
+  if($byMethod.ContainsKey($method)-and$byMethod[$method]-cne$r.token){throw 'Same-module hook observations bind one method to different tokens.'};$byMethod[$method]=$r.token
+  if($byToken.ContainsKey($token)-and$byToken[$token]-cne$method){throw 'Same-module hook observations bind one token to different methods.'};$byToken[$token]=$method}
+ $trusted=Get-KmcChunk7CandidateProductHooks $Request
+ if($null-ne$trusted){foreach($r in $rows){if($r.module-ceq$trusted.mvid-and(-not$trusted.tokens.ContainsKey($r.method)-or$trusted.tokens[$r.method]-cne$r.token)){throw ('A current-build product hook differs from the candidate artifact''s reflected binding: '+$r.method)}}}
 }
 function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$InventoryArtifact,[string]$Status='PASS'){
  Assert-KmcChunk7ManualSeedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-seed-evidence'
@@ -129,8 +171,10 @@ function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
  foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0}
  if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Cold inventory observed native preparation/round or actor/debt restoration.'}
- Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid;Assert-KmcChunk7SameModuleHookTokens (@(,$p.hooks)+@(,$o.sourceColdInventory.noPreparation.hooks))
- $a=$o.archive;[void](Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed');foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
+ Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid;Assert-KmcChunk7SameModuleHookTokens $Request (@(,$p.hooks)+@(,$o.sourceColdInventory.noPreparation.hooks)+@(,$o.nativeSave.hooks))
+ # Round 22 (R21-F2): the seed and its pinned cold inventory ran the same DLL (lineage pins the identity and copy), so their normalized graphs
+ # carry one writer. The input files' own source schemas are independent and are not recorded here.
+ $a=$o.archive;$seedGraph=Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed';if($seedGraph-ne(Assert-KmcChunk7NormalizedGraphVersion $o.sourceColdInventory.archive.schemaVersion 'Manual seed cold inventory')){throw 'Manual seed and its same-build cold inventory report different normalized graph versions.'};foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
  foreach($key in @('profileAdmissionChanged','nativeFixtureCreated','poseQualified','ordinaryAcquisitionProven')){Assert-KmcChunk7Boolean $inventory.$key $false}
