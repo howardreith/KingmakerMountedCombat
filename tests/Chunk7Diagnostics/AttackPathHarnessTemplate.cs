@@ -8989,7 +8989,6 @@ namespace Harness
                     "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + "; the player's newer ground order owns the Move slot " + ReferenceEquals(slot, successor));
             }
 
-<<<<<<< HEAD
             // ===== round 16 (owner authorization 2026-11-28a section 3: R13-F5, R15-F1, R15-F2, R15-F3) =====
             Func<string, string> selectedOf = text => { var at = (text ?? "").IndexOf("waypoint#", StringComparison.Ordinal); if (at < 0) return "?"; var end = text.IndexOfAny(new[] { '=', ',', ';' }, at); return text.Substring(at, (end < 0 ? text.Length : end) - at); };
             Func<string, string> returnedOf = line => { var delta = Field(line ?? "", "physicalDelta"); var arrow = delta.IndexOf("->", StringComparison.Ordinal); return arrow < 0 ? delta : delta.Substring(arrow + 2); };
@@ -9254,8 +9253,6 @@ namespace Harness
                         (order == null ? "-" : order.IsFinished ? "ended (" + order.EndCause + ")" : "live"));
                 }
 
-||||||| parent of ff052b23 (Review R16 (PR-2): native-accepted approach termination (R13-F3) and successor preservation through production dismount cleanup (R12-F4))
-=======
             // R13-F3 (round 16): the native-accepted ordinary rider click (no override route) whose LIVE carrier has acquired its path and moved the
             // mount; the issued path is then cleared (installed CompleteMovement/Stop: Path released, no further request) while UnitMoveTo has not
             // reported finished, and on that same frame, before the rider's command tick, the target drifts 0.8 m (beyond the 0.75 m re-path
@@ -9363,7 +9360,6 @@ namespace Harness
                     "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + successorDetail);
             }
 
->>>>>>> ff052b23 (Review R16 (PR-2): native-accepted approach termination (R13-F3) and successor preservation through production dismount cleanup (R12-F4))
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
             // (0.0439 m of physical travel left at 18 m/s: a 1/60 s request is cut to 0.0439/18 s, not the 0.30 m frame); the ordinary control keeps
             // the full requested tick (native's borrowed time). Domain arithmetic (MountedMovementState.Advance, the debit the adapter applies).
