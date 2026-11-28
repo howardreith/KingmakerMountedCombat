@@ -70,6 +70,78 @@ function Assert-KmcChunk7ManualWriterCapability($Capability,$Write,[string]$Labe
     $writer=Assert-KmcChunk7WriterSchema $Capability.nativeWriterSchema ($Label+' writer capability')
     if($Write.sourceSchema-ne$writer-or$Write.archive.SchemaVersion-ne$writer){throw ($Label+' writer capability differs from the Manual output version.')}
 }
+# Round 19 (R18-F3, R18-F4): the one save-archive evidence chain shared by the UPG-01 and Finalize2 readers:
+#   verified file identity (SHA-256 and length) -> the exact 'kmc-mounted-state' ZIP member -> strict raw decoding by the candidate's own
+#   product codec (MountedArchiveCodec.Decode compiled from src/ at this checkout, the mechanism of chunk7\Test-Chunk7CurrentWriterReaders.ps1:
+#   it bounds the member, refuses duplicate JSON names and validates the versioned shape) -> the actual SourceSchema and the normalized
+#   graph -> a complete comparison with the producer's reported snapshot. The raw text reaches ConvertFrom-Json (which keeps only one of
+#   two duplicate names) only after the codec has accepted it. No other parser decides what was written.
+function Get-KmcChunk7ProductArchiveCodec {
+    if(Test-Path variable:script:KmcChunk7ProductArchiveCodec){return $script:KmcChunk7ProductArchiveCodec}
+    $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+    $managed=Join-Path (Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')).requestedLayout.kingmakerInstallDir 'Kingmaker_Data\Managed'
+    $probe=Join-Path $repo 'obj\current-writer-readers';[void][IO.Directory]::CreateDirectory($probe)
+    foreach($stale in @(Get-ChildItem -LiteralPath $probe -Filter 'ProductArchiveCodec-*.dll' -ErrorAction SilentlyContinue)){try{Remove-Item -LiteralPath $stale.FullName -Force -ErrorAction Stop}catch{}}
+    $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    $compiler=@(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild/**/Bin/Roslyn/csc.exe')|Select-Object -First 1
+    if([string]::IsNullOrEmpty($compiler)){throw 'The product archive codec cannot be compiled: no Roslyn compiler was found.'}
+    $dll=Join-Path $probe ('ProductArchiveCodec-'+$PID+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8)+'.dll')
+    # The same production source set as Test-PersistenceData.ps1 and the current-writer reader suite compile (no test code).
+    $sources=@('Integration/MountedSaveData.cs','Integration/SavedCombatData.cs','Domain/PairedActivationSnapshot.cs','Integration/MountedLoadAdmissionPolicy.cs','Integration/MountedArchiveData.cs','Domain/MountedControlSlotPolicy.cs','Domain/NativeMountedControl.cs','Integration/MountedArchiveCodec.cs','Integration/NativeMountedSaveFormat.cs','Integration/RetainedNativeReentryPolicy.cs','Domain/DeclaredSmallRiderBody.cs','Domain/MountedRiderProfileCatalog.cs','Domain/MountedRiderPoseProfile.cs','Domain/PoseVector3.cs')|ForEach-Object{Join-Path $repo ('src/KingmakerMountedCombat/'+$_)}
+    $output=& $compiler /nologo /target:library /langversion:7.3 "/out:$dll" "/reference:$managed\Newtonsoft.Json.dll" @sources
+    if($LASTEXITCODE-ne0){throw ('The product archive codec failed to compile: '+(@($output)-join' '))}
+    [void][Reflection.Assembly]::LoadFrom((Join-Path $managed 'Newtonsoft.Json.dll'));$assembly=[Reflection.Assembly]::LoadFrom($dll)
+    $static=[Reflection.BindingFlags]'NonPublic,Public,Static';$instance=[Reflection.BindingFlags]'NonPublic,Public,Instance'
+    $codec=$assembly.GetType('KingmakerMountedCombat.Integration.MountedArchiveCodec',$true);$read=$assembly.GetType('KingmakerMountedCombat.Integration.MountedArchiveReadResult',$true)
+    $script:KmcChunk7ProductArchiveCodec=[pscustomobject]@{decode=$codec.GetMethod('Decode',$static);encode=$codec.GetMethod('Encode',$static)
+        kind=$read.GetField('Kind',$instance);source=$read.GetField('SourceSchema',$instance);data=$read.GetField('Data',$instance);feedback=$read.GetField('Feedback',$instance)
+        writer=[int]$assembly.GetType('KingmakerMountedCombat.Integration.MountedArchiveData',$true).GetField('Schema',$static).GetRawConstantValue()
+        maximumBytes=[int]$codec.GetField('MaximumBytes',$static).GetRawConstantValue();assembly=$dll}
+    return $script:KmcChunk7ProductArchiveCodec
+}
+# The mounted member of one hash-verified native save. Returns sourceSchema (the version actually written: 4, or the previous writer 3;
+# historical 1/2 inputs and future versions are not writer output), graph and graphJson (the codec's normalized graph, re-serialized by the
+# product writer), raw (the member as written, parsed only after strict acceptance), sha256 and length. Throws on any identity, container
+# or decoding failure.
+function Read-KmcChunk7MountedArchiveMember([string]$Path,$Sha256,$Length,[string]$Label){
+    if($Sha256-isnot[string]-or$Sha256-cnotmatch'^[0-9a-f]{64}$'-or-not(Test-KmcExactJsonInteger $Length)-or$Length-le0){throw ($Label+' has no exact recorded identity (SHA-256 and length).')}
+    if(-not(Test-Path -LiteralPath $Path -PathType Leaf)-or(Get-KmcSha256 $Path)-cne$Sha256-or(Get-Item -LiteralPath $Path).Length-ne$Length){throw ($Label+' bytes differ from their recorded SHA-256 and length.')}
+    $codec=Get-KmcChunk7ProductArchiveCodec
+    Add-Type -AssemblyName System.IO.Compression
+    $json=$null;$stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$zip=$null
+    try{
+        try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$true)}catch{throw ($Label+' is not a ZIP save archive.')}
+        $entries=@($zip.Entries|Where-Object{$_.FullName-ceq'kmc-mounted-state'})
+        if($entries.Count-ne1-or$entries[0].Length-le0-or$entries[0].Length-gt$codec.maximumBytes){throw ($Label+' lacks exactly one bounded kmc-mounted-state member.')}
+        $reader=[IO.StreamReader]::new($entries[0].Open(),[Text.UTF8Encoding]::new($false,$true));try{$json=$reader.ReadToEnd()}finally{$reader.Dispose()}
+    }finally{if($zip){$zip.Dispose()};$stream.Dispose()}
+    if((Get-KmcSha256 $Path)-cne$Sha256){throw ($Label+' changed while its member was read.')}
+    $result=$codec.decode.Invoke($null,@([string]$json));$kind=$codec.kind.GetValue($result).ToString()
+    if($kind-cne'Current'){throw ($Label+' mounted member is refused by the product codec ('+$kind+'): '+[string]$codec.feedback.GetValue($result))}
+    $source=$codec.source.GetValue($result)
+    if(-not(Test-KmcChunk7WriterSchema $source)){throw ($Label+' mounted member was written as schema '+$source+', which is not a writer format (4, or the previous writer 3).')}
+    try{$graphJson=[string]$codec.encode.Invoke($null,@($codec.data.GetValue($result)))}catch{throw ($Label+' decoded member cannot be re-encoded by the product writer: '+$_.Exception.Message)}
+    [pscustomobject]@{sourceSchema=[int]$source;graph=($graphJson|ConvertFrom-Json);graphJson=$graphJson;raw=($json|ConvertFrom-Json);sha256=$Sha256;length=[long]$Length}
+}
+# JSON comparison that ignores only the lexical form of numbers (the writer emits 0.0 where a decoded copy may carry 0).
+function ConvertTo-KmcChunk7NumericCanonical($Value){(ConvertTo-KmcChunk7Canonical $Value)-replace'(\.\d*?[1-9])0+(?=[,\]}])','$1'-replace'(\d)\.0+(?=[,\]}])','$1'}
+# The explicit version-appropriate view of a decoded member. A build normalizes every read to its own writer version, so a producer's
+# snapshot of its own write is recorded at the version it wrote: version 4 is the decoded graph itself; version 3 (an earlier build's
+# writer) is that graph without the only schema-4 additions (the version number and StepTravel). Nothing else is normalized.
+function Get-KmcChunk7ArchiveMemberView($Member,[int]$Version){
+    $view=$Member.graphJson|ConvertFrom-Json
+    if($Version-eq(Get-KmcChunk7PreviousWriterSchema)){$view.SchemaVersion=$Version;$view.PSObject.Properties.Remove('StepTravel')}
+    elseif($Version-ne(Get-KmcChunk7CurrentWriterSchema)){throw ('No archive view for version '+$Version+'.')}
+    $view
+}
+# The complete comparison: the snapshot's exact versioned field set, its version against the member's ACTUAL source schema (compared
+# separately), then every field of the decoded member's view against the snapshot. Returns the written version.
+function Assert-KmcChunk7ArchiveMemberSnapshot($Member,$Snapshot,[string]$Label){
+    $version=Assert-KmcChunk7WriterArchive $Snapshot ($Label+' reported snapshot')
+    if($Member.sourceSchema-ne$version){throw ($Label+': the reported snapshot is version '+$version+' but its archive member was written as schema '+$Member.sourceSchema+'.')}
+    if((ConvertTo-KmcChunk7NumericCanonical (Get-KmcChunk7ArchiveMemberView $Member $version))-cne(ConvertTo-KmcChunk7NumericCanonical $Snapshot)){throw ($Label+': the reported snapshot differs from the decoded archive member.')}
+    return $version
+}
 . (Join-Path $PSScriptRoot 'Chunk7CombatPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OwnerSeedAreaEvidence.ps1')
