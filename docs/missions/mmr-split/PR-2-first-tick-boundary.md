@@ -1380,7 +1380,7 @@ and case C end through native's denial.
 - **R20-F3.** Within one row set, RestoreActor and RestoreDebt cannot share a token; across the same-candidate row sets
   (`Assert-KmcChunk7SameModuleHookTokens`) each (module, type, method) has one token and each (module, token) one method. Token values are not
   pinned, so historical modules keep their own.
-- Product rows reflected from the round-20 gate build (module c6638f82): RestoreActor 060006A3, RestoreDebt 0600069F, RecordCompletedSave
+- Product rows are reflected from the build being checked. In the round-21 gate receipt (`gate-focused-ba5fbed674b2-d43d449b6c4-a2f4999e993-20261128T151945883820Z.log`, log sha256 d72ea15e...) that is the round-21 build, MVID dd4aea93-59eb-4e9b-a869-e317c3d0bd9a (the HOOK rows of that log); the developer's local runs used the round-20 build c6638f82 (correction, R21-F3). Tokens: RestoreActor 060006A3, RestoreDebt 0600069F, RecordCompletedSave
   06000395. Child 66/0 (12 positives, 54 refusals), including: agreeing source copies downgraded to normalized 3 beside the current writer
   (4 refusals), RestoreActor given RestoreDebt's token in agreeing copies (3), RestoreActor given another same-module token (2). Suites: Manual
   seed 70/0, Manual-derived 118/0, Cumulative evidence 87/0, Medium acquisition 55/0, Medium continuation 14/0, Manual-derived source 30/0.
