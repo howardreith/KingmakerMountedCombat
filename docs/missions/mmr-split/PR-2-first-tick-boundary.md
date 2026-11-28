@@ -1,7 +1,7 @@
 # PR-2 first-tick replacement boundary (R1-F6)
 
-Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7 to 10 (owner instruction 2026-11-27f for round 10). Sections 2-5 describe the round-7 path; sections 6 and 7 record the
-round-8 and round-9 changes, which supersede any earlier passage they contradict (marked *superseded* below). This note records how the restricted single-action approach is decided
+Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7 to 11 (owner instruction 2026-11-27f for rounds 10 and 11). Sections 2-5 describe the round-7 path; sections 6 to 9 record the
+round-8 to round-11 changes, which supersede any earlier passage they contradict (marked *superseded* below). This note records how the restricted single-action approach is decided
 and how a click reaches that decision, checked against the installed assemblies. Round 7 replaces round 6's bare mount carrier with a
 **provisional order on the rider** (R1-F6, R5-F3, R6-F1..R6-F7). The round-5 TwoActions workaround stays removed; the player's single-action
 selection is never rewritten. R5-F1 and R5-F2 are unchanged. Round 8 keeps the verified round-7 path (R1-F6, R6-F3..R6-F6) and corrects
@@ -199,7 +199,7 @@ refuses dispatch (labelled as not player-reachable).
   rarely, restricted first-tick approaches are mostly refused, never spent); the turn being Acting after a refused provisional order (no
   action spent).
 
-## 8. Round 10 corrections (owner instruction 2026-11-27f, section 3) and the current state
+## 8. Round 10 corrections (owner instruction 2026-11-27f, section 3; partly superseded by section 9)
 
 - **R6-F7 (cleanup obligations, real rollback evidence).** A refused request's cleanup is a set of obligations tracked on the request,
   independently of native `Result`/`IsFinished`: the command's terminal interruption (issued once; never replayed once native stamped it),
@@ -208,9 +208,8 @@ refuses dispatch (labelled as not player-reachable).
   fault point now follows the actual retirement mutations (`stockIntent.Cancel`, the ledger cleared, ownership released); the harness records
   that state at the fault before asserting the exact restoration.
 - **R8-F1.** `EvaluateRemainingRoute` applies `RouteInsideDiscAdmits` (the click's 1 mm sampling, each segment with its own heading) to the
-  live remaining subpath, besides `DiscAdmits` under the final heading. The in-route samples stop `BoundaryMarginMetres` (0.2 mm, below the
-  sampling resolution) inside the disc edge, whose ring `DiscAdmits` checks at the full radius; without it, float noise at a centre the click
-  placed exactly at opening + radius refused two previously accepted controls (R1-F10 changed grant, R2-F2 path end).
+  live remaining subpath, besides `DiscAdmits` under the final heading. *Superseded (round 11):* the 0.2 mm inward margin is removed (it skipped
+  a reachable grazing chord); section 9 evaluates the carrier's own revalidated native route with the full radius.
 - **R8-F6 (installed shift at the returned delta).** The one-degree cutoff is gone. `PairedAttackClickProbe.EvaluateFirstTickNative`
   predicts the restricted tick with the installed combat steering rule (traced in IL and asserted by the native contract): waypoint skip while
   (follow-precomputed, not last) distance < `m_Speed x delta`; target `Lerp(MoveDirection, toWaypoint, 0.5)`; `RotateTowards` by
@@ -221,9 +220,8 @@ refuses dispatch (labelled as not player-reachable).
   production hook returns. Inputs that cannot be read (or a forced/non-combat agent) refuse.
 - **R9-F3/R9-F4 (movement units).** The adapter converts time and distance with the agent's own `MaxSpeed` everywhere it does so (allowance,
   `RemainingOrderMetres`/`RemainingGrantedMetres`, `MountedMovementState.Advance`), so click admission, carrier revalidation (the same
-  `PairedMountGrantedMetres`) and the debit price an ordinary Move identically, and a step's remaining distance stays a distance (never scaled).
-  Installed `TurnController.TickMovement` counts a step as `delta x CurrentSpeedMps` (nominal); the paired allocation counts `MaxSpeed x delta`,
-  the distance native shifts; the two differ only under a `MaxSpeedOverride`. This does not claim native step behaviour under an override.
+  `PairedMountGrantedMetres`) and the debit price an ordinary Move identically. *Superseded for steps (round 11):* the step ledger's units are
+  corrected in section 9 (native counter in nominal units, physical travel separately).
 - **R9-F1.** Actual assignments of either actor's manual target observed after the commit (installed-command hook, click hook; the same
   target included) supersede that actor's outstanding deferred write or clear.
 - **R9-F2.** An ordinary carrier's stationary release uses the current in-place admission decision (rider entitlement included), and
@@ -231,32 +229,85 @@ refuses dispatch (labelled as not player-reachable).
 - **R9-F5.** The `MaxSpeed` read is contained at the production movement entry (`PhysicalSpeedOf`, `MountedAgentSteering.PhysicalSpeed`): an
   unreadable speed refuses a gated carrier through the existing refusal and exact cleanup and gives an ungated tick no movement.
 
+## 9. Round 11 corrections (owner instruction 2026-11-27f, sections 3-4) and the current state
+
+Line numbers are at the round-11 commit. The verified path above is kept unchanged.
+
+- **R6-F7 (one cleanup path for the exact carrier).** `MountedPairAttackCommand.StopDelegatedMove` (MountedPairAttackCommand.cs:2140) records
+  its progress on the command for that exact carrier (interrupted, removed from the mount's slots, motion settled), whichever caller runs it:
+  native interruption's `OnEnded` (a target-invalidation callback or native command), the order's own release, or the controller's sweep.
+  `SettleCarrierCleanup` (:465) resumes only the unfinished steps on the captured mount with the same successor rule as the normal release
+  (`SettleCarrierMotion` :451: a live Move-slot successor, or an unstarted out-of-range command in another slot, including a Standard the
+  retried slot cleanup itself promoted from the queue, keeps its movement; otherwise the motion is stopped once). `SweepFirstTickProposal`
+  (MountedCombatController.cs:1959) uses that path for the refused request's carrier and drops the request only when it reports every step
+  settled; the command's terminal is still issued once and never replayed.
+- **R8-F1 (full radius, same points).** The revalidation's untruncated native route and the destination's arc length travel with the carrier
+  (`PairedAttackClickProbe.Approach.NativeRoute/DestinationMetres`, set at MountedCombatController.cs:2111; `MountedPairAttackCommand.ApproachOf`
+  :427). At the first debit `EvaluateRemainingRoute` (PairedAttackClickProbe.cs:415, called at MountedCombatController.cs:1831) requires the
+  agent's path to be that route truncated at the destination, then applies `DiscAdmits` (destination segment heading) and
+  `RouteInsideDiscAdmits` (:683) with the FULL arrival radius on those same points, so its samples are bit-identical to the ones that proved the
+  route and only a change of live state (target, sight) changes the verdict; the part already travelled (before the mount's projection on the
+  segment toward the agent's cursor) is skipped and the mount's current pose is checked when it already stands inside the disc. The
+  `BoundaryMarginMetres` inward margin is gone from this check (it remains only as the click walker's step past a failed opening).
+- **R9-F3 (two step limits).** `MountedMovementState` (Domain/MountedMovementState.cs:33, :86) keeps `MetresStepped` as the installed
+  counter (nominal metres: `CurrentSpeedMps x time`, the unit `TurnController.TickMovement` charges and the adapter writes back to the turn) and
+  `MetresStepTravelled` as the physical step travel. A step's remaining time is the smaller of `(1.524 - MetresStepped) / CurrentSpeedMps` and
+  `(1.524 - MetresStepTravelled) / MaxSpeed`; `Advance` reserves `MaxSpeed x time` (an upper bound of the shift) and the adapter replaces the
+  reservation with the steered displacement actually executed once it is observed (`Allocation.SettleStepTravel`, MountedMovementStateAdapter.cs:35,
+  at the next tick :249 and at every allowance read), so claims about metres travelled use the steered displacement. Click admission,
+  revalidation (`RemainingOrderMetres`/`RemainingGrantedMetres` with `NominalSpeedOf` :335) and the debit use the same two limits; the existing
+  NearTheEnd endpoint tolerance is unchanged. Ordinary Move stays time-limited.
+- **R10-F1 (waypoint and delta together).** `EvaluateFirstTickNative` (PairedAttackClickProbe.cs:315; loop at :333) resolves, for each candidate
+  waypoint, the delta returned to native (the full allowance, shortened by bisection when the shift would pass the waypoint) and applies native's
+  skip test `distance < m_Speed x that delta`; a skipped waypoint moves the prediction to the next one, and the result is accepted only when every
+  skipped waypoint is skipped and the selected one is kept at the final delta (`native-waypoint-unresolved` otherwise).
+- **R10-F2 (decisive final ordinary tick).** At the first debit an ordinary grant that this tick exhausts (`grant <= deltaTime x MaxSpeed`,
+  MountedCombatController.cs:1813) is predicted with the installed steering and arrival rule (`EvaluateFirstTickNative`) and commits only when
+  that stop admits the strike (the tick is then shortened to the predicted travel); otherwise it refuses before any debit. At the click
+  (:1394), an ordinary grant ending within one tick at the current frame's `TimeController.DeltaTime` (the delta the installed UnitMoveController
+  passes to TickMovement; native contract) makes the click a provisional request, so the previous order, manual target and Hold are kept until
+  that decision. When more than one tick remains, the route-length check stands (see open questions).
+- **R10-F3 (first child entitlement).** A committed movement gate records its request (`firstChildEntitlement`, :1714); `AdmitProvisionalStrike`
+  (:1872), asked by `StartChildAttack` before the first child starts, checks the rider's current entitlement (`FirstTickRiderEntitled`, the
+  dispatcher's own admission including `HasStandardAction`) once for that order; a refusal starts no child and spends nothing. Released strikes
+  keep their native handling.
+- **R10-F4 (old target clear survives B).** `ApplyAcceptanceEffects` (:2476) ends B's own effects (its target write, the Hold clears) with B but
+  keeps the retired generation's mount-target clear (A's owned selection, released at the transfer) until it succeeds, an actual newer assignment
+  on the mount is observed, or the mount no longer holds that exact target; it also runs after B retires.
+- **R10-F5.** The restricted-tick detail reports `turnCapacity` with the effective angular speed (last-segment raise included) and
+  `baseTurnCapacity` with the base rate.
+
 ### Developer matrix (owner section 4), with the cases that exercise each cell
 
 | Mode | Click | Revalidation | First debit | Subsequent debit | Initial strike |
 |---|---|---|---|---|---|
-| Ordinary Move (time) | R9-F4 0.1 s / 6 m/s refused; 18 m/s admitted | same grant reader (R9-F4 18 m/s through strike) | R8-F1 bent/closed/passed-waypoint; R7-F1 lifted; R8-F2 | R9-F4 18 m/s through strike | R8-F4, R9-F2 |
-| Step (distance) | R9-F3 affordable step | same reader | R9-F3 2 m switched to 1.524 m refused | R9-F3 ledger = travel through strike | R9-F3 affordable step strike |
-| Restricted first tick | R1-F6 groups | R6-F4 | R8-F6 turn cases, R6-F2, R8-F5 | R8-F5 (no second debit) | R6-F3, R6-F6, R9-F2 |
+| Ordinary Move (time) | R9-F4 0.1 s / 6 m/s refused; 18 m/s admitted; R10-F2 one tick left -> provisional | same grant reader (R9-F4 18 m/s through strike) | R8-F1 (round 11) 49.9 mm blind refused, visible and 50.1 mm controls; R8-F1 (round 9) passed waypoint; R10-F2 aligned commit / perpendicular refusal; R7-F1, R8-F2 | R9-F4 18 m/s through strike; R10-F3 approach after the commit | R10-F3 (both orders), R8-F4, R9-F2 |
+| Step (distance) | R9-F3 slower 1.2 m refused (grant 1.016 m), 0.9 m admitted; affordable 18 m/s | same reader | R9-F3 2 m switched to 1.524 m refused | R9-F3 per-debit time / travel / native units (slower and turning steps) | R9-F3 strikes |
+| Restricted first tick | R1-F6 groups | R6-F4 | R10-F1 kept and skipped waypoints, R8-F6 turn cases, R6-F2, R8-F5 | R8-F5 (no second debit) | R6-F3, R6-F6, R9-F2 |
 
 | Failure phase | Cases |
 |---|---|
-| Before mutation | R6-F7 entitlement read, native order effect, staged read; R6-F7 installation failure |
+| Before mutation | R6-F7 entitlement read, native order effect, staged read; R6-F7 installation failure; R9-F5 speed read |
 | After mutation | R6-F7 transfer fault after `stockIntent.Cancel` (mutation recorded, exact restoration) |
-| After native completion | R6-F7 slot cleanup failure after the wrapper and carrier finished (retry; intervening successor; repeated sweeps) |
-| Deferred-write retry | R6-F7 Hold write; R9-F1 rider and mount, newer different/same target, and the successful-retry control |
+| After native completion | R6-F7 slot cleanup failure after the wrapper and carrier finished (retry: no successor, direct Move successor, queue-promoted Standard); R6-F7 wrapper ended by its target-invalidation callback with a `StopMoving` fault (retry: no successor, Move successor) |
+| Deferred-write retry | R6-F7 Hold write; R9-F1 rider and mount, newer different/same target, successful-retry control; R10-F4 B cancelled or its target invalidated before the retry, with and without a newer mount assignment |
 
-Ownership exercised: attack generation (R5-F3, R6-F5, R6-F7), exact carrier (R6-F6, R8-F3, R8-F4), rider target (R6-F1, R9-F1), mount target
-(R9-F1), newer compatible work (R7-F3, R8-F2, R9-F1). Not separately exercised: a step click under a speed override that is refused
-(the ordinary refused click and the affordable step use the same reader); a mount-target rollback after the transfer mutation (the snapshot
-covers both ownership records; the case records the rider's).
+Ownership exercised: attack generation (R5-F3, R6-F5, R6-F7, R10-F4), exact carrier (R6-F6, R8-F3, R8-F4, R6-F7 round 11), rider target (R6-F1,
+R9-F1), mount target (R9-F1, R10-F4), newer compatible work (R7-F3, R8-F2, R9-F1, R10-F4). Not separately exercised: a step click under a
+faster override that is refused at the click (the 2 m switch case refuses at the first debit with the same reader).
 
 ### Verified, open, pending
 
-- Verified by review (kept unchanged in round 10): R1-F6, R5-F1, R5-F2, R5-F3, R6-F1..R6-F6, R7-F1..R7-F5, R8-F2..R8-F5, R8-F7.
-- Corrected in round 10 with offline evidence (open until reviewed): R6-F7, R8-F1, R8-F6, R9-F1..R9-F5.
-- Remaining source questions: the native first-tick `MoveDirection` of a freshly issued carrier (a zero direction halves the first shift
-  under the rule; the product reads the actual value); `m_FollowPrecomputedPath` for a ForcedPath carrier (the product reads it).
+- Verified by review (kept unchanged in round 11): R1-F6, R5-F1, R5-F2, R5-F3, R6-F1..R6-F6, R7-F1..R7-F5, R8-F2..R8-F7, R9-F1, R9-F2, R9-F4,
+  R9-F5.
+- Corrected in round 11 with offline evidence (open until reviewed): R6-F7, R8-F1, R9-F3, R10-F1..R10-F4; R10-F5 (optional) addressed.
+- Remaining source questions: the native first-tick `MoveDirection` of a freshly issued carrier (a zero direction halves the first shift under
+  the rule; the product reads the actual value); `m_FollowPrecomputedPath` for a ForcedPath carrier (the product reads it); an ordinary approach
+  with more than one tick left whose LAST tick turns (only the tick that exhausts the grant is predicted with the steering rule; earlier ticks
+  are priced by route length, so a turning final tick of a multi-tick approach can still end short; no movement is spent beyond the grant);
+  a frame-delta change between the click and the first debit (the click's one-tick classification uses the click frame's delta; the first
+  debit decides with its own); the physical step ledger is not persisted (a mid-step save/load under a speed override keeps only the native
+  counter's bound).
 - Pending native observation (owner playtest N02/N03): restricted first ticks in the game (how often the agent starts turned), the turn
-  controller's registration order, native's denial branch ending a zeroed carrier, and the turn staying Acting after a refused provisional
-  order (no action spent).
+  controller's registration order, native's denial branch ending a zeroed carrier, the turn staying Acting after a refused provisional order
+  (no action spent), and native step behaviour under a speed override.

@@ -88,6 +88,11 @@ namespace KingmakerMountedCombat.Integration
             // PR #70 R6-F4 (round 7): proven under the route-SEARCH ceiling of the restricted single move's one tick; a carrier made from it is
             // executable only through its first-tick decision.
             public bool FirstTick;
+            // PR #70 R8-F1 (round 11): the untruncated native route the destination was chosen on and the destination's arc length on it. The
+            // first-debit revalidation evaluates the in-disc route on these same points (bit-identical samples to the click and revalidation),
+            // so the full arrival radius is checked without float noise from a re-parameterized route.
+            public List<Vector3> NativeRoute;
+            public float DestinationMetres = float.NaN;
         }
 
         internal sealed class Result
@@ -105,6 +110,9 @@ namespace KingmakerMountedCombat.Integration
             public bool Lateral;
             public int Openings;
             public int LateralQueries;
+            // PR #70 R8-F1 (round 11): the untruncated native route of the proven destination and its arc length there (see Approach).
+            public List<Vector3> NativeRoute;
+            public float DestinationMetres = float.NaN;
             public string Detail = "<none>";
             public bool RouteComplete => Path == PathOutcome.Complete;
             // A usable executable route: native Complete, a destination within the grant and a proven arrival radius.
@@ -237,6 +245,14 @@ namespace KingmakerMountedCombat.Integration
         internal static Vector2 NativeCombatShift(Vector2 moveDirection, Vector2 toWaypoint, float distance, bool onLastSegment, float speed,
             float combatAngularDegrees, float delta, out Vector2 newDirection)
         {
+            float ignored;
+            return NativeCombatShift(moveDirection, toWaypoint, distance, onLastSegment, speed, combatAngularDegrees, delta, out newDirection, out ignored);
+        }
+
+        // effectiveAngularDegrees: the angular speed this tick turns with (the last-segment raise included; PR #70 R10-F5, round 11).
+        internal static Vector2 NativeCombatShift(Vector2 moveDirection, Vector2 toWaypoint, float distance, bool onLastSegment, float speed,
+            float combatAngularDegrees, float delta, out Vector2 newDirection, out float effectiveAngularDegrees)
+        {
             var target = new Vector2((moveDirection.x + toWaypoint.x) * 0.5f, (moveDirection.y + toWaypoint.y) * 0.5f);
             var angular = combatAngularDegrees;
             if (onLastSegment)
@@ -245,6 +261,7 @@ namespace KingmakerMountedCombat.Integration
                 var arrivalTime = distance / Math.Max(speed, 0.01f);
                 if (turnTime * 2f > arrivalTime) angular *= 2f * turnTime / arrivalTime;
             }
+            effectiveAngularDegrees = angular;
             newDirection = RotateTowards(moveDirection, target, angular * delta * (float)(Math.PI / 180d), 1f);
             return new Vector2(newDirection.x * speed * delta, newDirection.y * speed * delta);
         }
@@ -306,39 +323,64 @@ namespace KingmakerMountedCombat.Integration
             result.PairRadius = probe.PairApproachRadius;
             var origin = mount.Position;
             if (cursor < 0 || cursor >= agentPath.Count) { result.Detail = "agent-cursor-outside-path"; return result; }
-            var waypoint = agentPath[cursor];
-            var onLast = cursor >= agentPath.Count - 1;
-            var toWaypoint = new Vector2(waypoint.x - origin.x, waypoint.z - origin.z);
-            var distance = Length(toWaypoint);
             var fullDelta = speed > 0f ? allowedMetres / speed : 0f;
-            if (!(fullDelta > 0f) || !(distance > 1e-6f)) { result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")"; return result; }
-            if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * fullDelta)
+            if (!(fullDelta > 0f)) { result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")"; return result; }
+            // Round 11 (R10-F1): the waypoint native steers to and the delta returned to native are resolved together. For a candidate waypoint
+            // the delta is the full allowance, shortened when the shift would pass that waypoint; native skips a (follow-precomputed, not last)
+            // waypoint while its distance from the mount is below m_Speed x THAT delta, and then steers to the next one, whose own delta is
+            // resolved the same way. The result is accepted only when it is consistent: every skipped waypoint is skipped at the final delta and
+            // the selected one is not.
+            var index = cursor;
+            Vector3 waypoint = agentPath[index];
+            Vector2 unit = default(Vector2), shift = default(Vector2), newDirection = default(Vector2);
+            float distance = 0f, delta = fullDelta, effectiveAngular = combatAngular;
+            bool onLast = false, stopsAtWaypoint = false;
+            for (;;)
             {
-                result.Detail = "native-waypoint-skip(cursor=" + cursor + ";distance=" + distance.ToString("R") + ";agentSpeed=" + currentAgentSpeed.ToString("R") + ")";
-                return result;
-            }
-            var unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
-            Vector2 newDirection;
-            var delta = fullDelta;
-            var shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection);
-            var stopsAtWaypoint = false;
-            if (Length(shift) > distance)
-            {
-                stopsAtWaypoint = true;
-                float low = 0f, high = fullDelta;
-                for (var i = 0; i < 40; i++)
+                waypoint = agentPath[index];
+                onLast = index >= agentPath.Count - 1;
+                var toWaypoint = new Vector2(waypoint.x - origin.x, waypoint.z - origin.z);
+                distance = Length(toWaypoint);
+                if (!(distance > 1e-6f))
                 {
-                    var mid = (low + high) * 0.5f;
-                    Vector2 ignored;
-                    if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
+                    if (followPrecomputedPath && !onLast && currentAgentSpeed > 0f) { index++; continue; }
+                    result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")";
+                    return result;
                 }
-                delta = low;
-                shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection);
+                unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
+                delta = fullDelta;
+                stopsAtWaypoint = false;
+                shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
+                if (Length(shift) > distance)
+                {
+                    stopsAtWaypoint = true;
+                    float low = 0f, high = fullDelta;
+                    for (var i = 0; i < 40; i++)
+                    {
+                        var mid = (low + high) * 0.5f;
+                        Vector2 ignored;
+                        if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
+                    }
+                    delta = low;
+                    shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
+                }
+                if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * delta) { index++; continue; }
+                break;
+            }
+            for (var skipped = cursor; skipped < index; skipped++)
+            {
+                var gap = GeometryUtils.MechanicsDistance(new Vector3(agentPath[skipped].x, origin.y, agentPath[skipped].z), origin);
+                if (!(gap < currentAgentSpeed * delta))
+                {
+                    result.Detail = "native-waypoint-unresolved(cursor=" + cursor + ";selected=" + index + ";skipped#" + skipped + "=" + gap.ToString("R") +
+                        ";agentSpeed=" + currentAgentSpeed.ToString("R") + ";delta=" + delta.ToString("R") + ")";
+                    return result;
+                }
             }
             var stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
             // Installed TickMovement after the move: on the last segment, a waypoint passed (plane test against the previous point) or within
             // 0.05 m completes the movement in turn-based combat by moving the agent onto the path's end (Move(path.Last - position)).
-            var previous = cursor > 0 ? agentPath[cursor - 1] : origin;
+            var previous = index > 0 ? agentPath[index - 1] : origin;
             var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
             var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
             if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
@@ -346,10 +388,11 @@ namespace KingmakerMountedCombat.Integration
             var admitted = Length(newDirection) > 1e-6f &&
                 probe.EvaluateNativeAdmissionAtMountPosition(stop, heading) == MountedPairNativeAdmissionState.Admitted;
             var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
-            result.Detail = "first-tick(origin=" + origin + ";waypoint#" + cursor + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
+            result.Detail = "first-tick(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
                 distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
                 ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
-                ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (combatAngular * delta).ToString("R") +
+                ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (effectiveAngular * delta).ToString("R") +
+                ";baseTurnCapacity=" + (combatAngular * delta).ToString("R") +
                 ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");" + (stopsAtWaypoint ? (onLast ? "reaches-route-end" : "stops-at-waypoint") : "interior") +
                 ";admitted=" + admitted + ")";
             if (!admitted) return result;
@@ -360,11 +403,17 @@ namespace KingmakerMountedCombat.Integration
             return result;
         }
 
-        // PR #70 R8-F1 (round 9): the route the agent will execute from its live position (its own path from its cursor) and the strike's
-        // admission at its arrival: the proven arrival disc around the path's end with the current target and sight, under the last segment's
-        // heading. Route is [current position, remaining points]; RouteMetres its length; RouteProven only when the arrival admits the strike.
+        // PR #70 R8-F1 (rounds 9-11): the route the agent will execute from its live position (its own path from its cursor) and the strike's
+        // admission wherever native proximity can finish the carrier: the proven arrival disc around the destination under the destination
+        // segment's heading (DiscAdmits) and every position of the remaining route inside the FULL arrival radius, each with its own segment
+        // heading (RouteInsideDiscAdmits, the click's 1 mm sampling). Round 11: both are evaluated on the revalidated untruncated native route
+        // (nativeRoute, destinationMetres: the points and arc length the click and the carrier's revalidation chose the destination on), so the
+        // samples are those that proved the route and only a change of the live state (target, sight) can change the verdict; the part the mount
+        // already travelled (before its projection on the segment toward the agent's cursor) is skipped, and its current pose is checked when it
+        // already stands inside the disc. The agent's path must be that route truncated at the destination. Route is [current position,
+        // remaining points]; RouteMetres its length; RouteProven only when every check admits the strike.
         internal static Result EvaluateRemainingRoute(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
-            float arrivalRadius)
+            float arrivalRadius, IList<Vector3> nativeRoute, float destinationMetres)
         {
             var result = new Result();
             if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null) { result.Detail = "unavailable"; return result; }
@@ -372,23 +421,36 @@ namespace KingmakerMountedCombat.Integration
             probe.Init(rider);
             result.Plan = PlanIdentity.Of(probe);
             result.PairRadius = probe.PairApproachRadius;
-            var remaining = new List<Vector3> { mount.Position };
+            if (nativeRoute == null || nativeRoute.Count < 2 || float.IsNaN(destinationMetres) || !(arrivalRadius > 0f)) { result.Detail = "no-revalidated-route"; return result; }
+            Vector3 destinationFrom, destinationTo;
+            List<Vector3> truncated;
+            var centre = PointAt(nativeRoute, destinationMetres, out destinationFrom, out destinationTo, out truncated);
+            if (truncated == null || truncated.Count != agentPath.Count) { result.Detail = "agent-path-not-revalidated-route"; return result; }
+            for (var i = 0; i < truncated.Count; i++)
+                if (GeometryUtils.MechanicsDistance(truncated[i], agentPath[i]) > WaypointPassedMetres) { result.Detail = "agent-path-not-revalidated-route"; return result; }
+            var position = mount.Position;
+            var remaining = new List<Vector3> { position };
             for (var i = Math.Max(0, cursor); i < agentPath.Count; i++)
                 if (GeometryUtils.MechanicsDistance(agentPath[i], remaining[remaining.Count - 1]) > WaypointPassedMetres) remaining.Add(agentPath[i]);
             if (remaining.Count < 2) { result.Detail = "no-remaining-route"; return result; }
+            // The mount's progress along the native route: the arc length to the start of the segment toward the cursor plus its projection on it.
+            var fromMetres = 0d;
+            if (cursor > 0 && cursor < nativeRoute.Count)
+            {
+                for (var i = 1; i < cursor; i++) fromMetres += GeometryUtils.MechanicsDistance(nativeRoute[i - 1], nativeRoute[i]);
+                var a = nativeRoute[cursor - 1]; var b = nativeRoute[cursor];
+                double dx = b.x - a.x, dz = b.z - a.z;
+                var lengthSqr = dx * dx + dz * dz;
+                if (lengthSqr > 0d) fromMetres += Math.Sqrt(lengthSqr) * Math.Max(0d, Math.Min(1d, ((position.x - a.x) * dx + (position.z - a.z) * dz) / lengthSqr));
+            }
             Func<Vector3, Vector3, Vector3, bool> admits = (point, from, to) =>
                 probe.EvaluateNativeAdmissionAtMountPosition(point, to - from) == MountedPairNativeAdmissionState.Admitted;
-            var end = remaining[remaining.Count - 1];
             var length = RouteLength(remaining);
-            // Round 10 (R8-F1): every reachable stopping position of the remaining route inside the arrival disc (native proximity can finish the
-            // carrier there), each with its own segment heading (RouteInsideDiscAdmits, the click's own 1 mm sampling), and the disc under the final
-            // heading (DiscAdmits, whose outer ring at the full radius also covers the disc's edge). The in-route samples stop BoundaryMarginMetres
-            // inside that edge, below the sampling resolution, so float noise at a centre the click placed exactly at opening + radius cannot
-            // refuse the route the click and the revalidation proved.
-            var admitted = arrivalRadius > 0f && DiscAdmits(end, arrivalRadius, remaining[remaining.Count - 2], end, admits) &&
-                RouteInsideDiscAdmits(remaining, length, end, Math.Max(0f, arrivalRadius - BoundaryMarginMetres), admits);
-            result.Detail = "remaining-route(cursor=" + cursor + ";routeMetres=" + length.ToString("R") + ";end=" + end + ";arrivalDisc=" + arrivalRadius.ToString("R") +
-                ";admitted=" + admitted + ")";
+            var poseAdmitted = fromMetres <= 0d || GeometryUtils.SqrMechanicsDistance(position, centre) > arrivalRadius * arrivalRadius || admits(position, position, position);
+            var admitted = poseAdmitted && DiscAdmits(centre, arrivalRadius, destinationFrom, destinationTo, admits) &&
+                RouteInsideDiscAdmits(nativeRoute, destinationMetres, centre, arrivalRadius, admits, fromMetres);
+            result.Detail = "remaining-route(cursor=" + cursor + ";routeMetres=" + length.ToString("R") + ";end=" + centre + ";arrivalDisc=" + arrivalRadius.ToString("R") +
+                ";fromMetres=" + fromMetres.ToString("R") + ";destinationMetres=" + destinationMetres.ToString("R") + ";admitted=" + admitted + ")";
             if (!admitted) return result;
             result.Path = PathOutcome.Complete;
             result.Route = remaining;
@@ -459,6 +521,8 @@ namespace KingmakerMountedCombat.Integration
                     result.Route = route;
                     result.RouteMetres = destination;
                     result.ArrivalRadius = radius;
+                    result.NativeRoute = new List<Vector3>(points);
+                    result.DestinationMetres = destination;
                     result.Detail = "route(opening=" + openingStart.ToString("R") + ".." + openingEnd.ToString("R") + (measured ? "" : "(route end)") + ";openings=" + result.Openings +
                         ";destination=" + destination.ToString("R") + ";radius=" + radius.ToString("R") + ")";
                     return true;
@@ -614,11 +678,13 @@ namespace KingmakerMountedCombat.Integration
         // checked when the start already lies inside the disc, since native completes the carrier there at once. Each segment's part
         // inside the disc is computed stably in double precision (closest point, then the half chord from the perpendicular distance)
         // and sampled every InDiscSampleMetres plus both ends, each with its own segment heading.
+        // PR #70 R8-F1 (round 11): fromMetres > 0 skips the route before that arc length (already travelled; the caller checks the current pose)
+        // without changing any later sample, so a revalidation on the same points samples exactly what the click sampled.
         internal static bool RouteInsideDiscAdmits(IList<Vector3> points, float destinationMetres, Vector3 centre, float radius,
-            Func<Vector3, Vector3, Vector3, bool> admits)
+            Func<Vector3, Vector3, Vector3, bool> admits, double fromMetres = 0d)
         {
             if (points.Count == 0) return true;
-            if (GeometryUtils.SqrMechanicsDistance(points[0], centre) <= radius * radius && !admits(points[0], points[0], points[0])) return false;
+            if (fromMetres <= 0d && GeometryUtils.SqrMechanicsDistance(points[0], centre) <= radius * radius && !admits(points[0], points[0], points[0])) return false;
             var travelled = 0d;
             for (var index = 1; index < points.Count && travelled < destinationMetres; index++)
             {
@@ -636,6 +702,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     var half = Math.Sqrt(r2 - perpendicularSqr) / length;
                     var t0 = Math.Max(0d, closest - half);
+                    if (fromMetres > travelled) t0 = Math.Max(t0, (fromMetres - travelled) / length);
                     var t1 = Math.Min(limit, closest + half);
                     if (t1 >= t0)
                     {

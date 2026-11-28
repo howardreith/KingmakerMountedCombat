@@ -9,7 +9,11 @@ namespace KingmakerMountedCombat.Domain
         public float TimeMoved;
         public float TimeForced;
         public float TimeStepped;
+        // The installed step counter (TurnController.MetersMovedByFiveFootStep): nominal units, CurrentSpeedMps x time (PR #70 R9-F3, round 11).
         public float MetresStepped;
+        // PR #70 R9-F3 (round 11): the step's PHYSICAL travel (the steered displacement). Advance reserves this tick's bound (speed x time) and
+        // the movement adapter replaces the reservation with the displacement actually executed once it is observed (SettleStepTravel).
+        public float MetresStepTravelled;
         public bool StepImmune;
         public bool AiStep;
         public bool AutoStopPending;
@@ -20,11 +24,19 @@ namespace KingmakerMountedCombat.Domain
 
         public float Advance(float requested, float speed, float stepRange, float moveUsed,
             bool standardUsed, bool moveRestricted, bool step, bool singleMove, bool forced,
+            bool nearEnd, bool autoStop, out float moveDebit) =>
+            Advance(requested, speed, speed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove, forced, nearEnd, autoStop, out moveDebit);
+
+        // PR #70 R9-F3 (round 11): speed is the mover's physical speed (the agent's MaxSpeed: the distance one second of movement shifts it);
+        // nominalSpeed the unit's CurrentSpeedMps, the unit in which the installed TurnController.TickMovement charges a step
+        // (MetersMovedByFiveFootStep += CurrentSpeedMps x delta). A step is bounded by both: the native counter and the physical travel.
+        public float Advance(float requested, float speed, float nominalSpeed, float stepRange, float moveUsed,
+            bool standardUsed, bool moveRestricted, bool step, bool singleMove, bool forced,
             bool nearEnd, bool autoStop, out float moveDebit)
         {
             moveDebit = 0f;
             singleMove = EffectiveSingleMove(singleMove, standardUsed);
-            if (!Finite(requested) || !Finite(speed) || !Finite(stepRange) || !Finite(moveUsed))
+            if (!Finite(requested) || !Finite(speed) || !Finite(nominalSpeed) || !Finite(stepRange) || !Finite(moveUsed))
                 throw new ArgumentOutOfRangeException("Mounted movement requires finite nonnegative native state.");
             if (forced)
             {
@@ -32,7 +44,7 @@ namespace KingmakerMountedCombat.Domain
                 TimeForced += requested;
                 return requested;
             }
-            var remaining = Remaining(speed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove);
+            var remaining = Remaining(speed, nominalSpeed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove);
             // Native NearTheEnd permits its final small endpoint correction. It
             // never authorizes another request after the allowance is exhausted.
             var allowed = remaining <= 0f ? 0f : nearEnd ? requested : Math.Min(requested, remaining);
@@ -45,7 +57,8 @@ namespace KingmakerMountedCombat.Domain
             if (step)
             {
                 TimeStepped += allowed;
-                MetresStepped += allowed * speed;
+                MetresStepped += allowed * nominalSpeed;
+                MetresStepTravelled += allowed * speed;
                 StepImmune |= allowed > 0f;
             }
             else
@@ -65,13 +78,19 @@ namespace KingmakerMountedCombat.Domain
         public static bool EffectiveSingleMove(bool singleMove, bool standardUsed) => singleMove && !standardUsed;
 
         public float Remaining(float speed, float stepRange, float moveUsed, bool standardUsed,
+            bool moveRestricted, bool step, bool singleMove) =>
+            Remaining(speed, speed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove);
+
+        // A step's remaining time is the smaller of the native counter's (nominal metres left / nominal speed) and the physical travel's
+        // (metres left / physical speed): a slower override cannot spend past the native counter, a faster one cannot travel past the step.
+        public float Remaining(float speed, float nominalSpeed, float stepRange, float moveUsed, bool standardUsed,
             bool moveRestricted, bool step, bool singleMove)
         {
             singleMove = EffectiveSingleMove(singleMove, standardUsed);
             if (step)
             {
-                if (TimeMoved > TimeStepped || speed <= 0f || speed * 3f <= stepRange) return 0f;
-                return Math.Max(0f, stepRange - MetresStepped) / speed;
+                if (TimeMoved > TimeStepped || speed <= 0f || nominalSpeed <= 0f || nominalSpeed * 3f <= stepRange) return 0f;
+                return Math.Min(Math.Max(0f, stepRange - MetresStepped) / nominalSpeed, Math.Max(0f, stepRange - MetresStepTravelled) / speed);
             }
             if ((!AiStep && MetresStepped > 0f) || ForcedTravelRecorded) return 0f;
             // Exact Kingmaker GetRemainingTime/GetRemainingMovementTime formula.
@@ -101,11 +120,15 @@ namespace KingmakerMountedCombat.Domain
             return remaining > 0f && remaining <= 3f;
         }
         public float RemainingAcrossOrder(float speed, float stepRange, float moveUsed, bool standardUsed, bool moveRestricted,
+            bool step, bool singleMove, bool autoStop) =>
+            RemainingAcrossOrder(speed, speed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove, autoStop);
+
+        public float RemainingAcrossOrder(float speed, float nominalSpeed, float stepRange, float moveUsed, bool standardUsed, bool moveRestricted,
             bool step, bool singleMove, bool autoStop)
         {
             var copy = new MountedMovementState
             {
-                TimeMoved = TimeMoved, TimeForced = TimeForced, TimeStepped = TimeStepped, MetresStepped = MetresStepped,
+                TimeMoved = TimeMoved, TimeForced = TimeForced, TimeStepped = TimeStepped, MetresStepped = MetresStepped, MetresStepTravelled = MetresStepTravelled,
                 StepImmune = StepImmune, AiStep = AiStep, AutoStopPending = AutoStopPending
             };
             if (FirstTickOnly(moveUsed, standardUsed, moveRestricted, step, singleMove)) return 0f;
@@ -114,7 +137,7 @@ namespace KingmakerMountedCombat.Domain
             for (var slice = 0; slice < 8; slice++)
             {
                 float debit;
-                var granted = copy.Advance(6f, speed, stepRange, used, standardUsed, moveRestricted, step, singleMove, false, false, autoStop, out debit);
+                var granted = copy.Advance(6f, speed, nominalSpeed, stepRange, used, standardUsed, moveRestricted, step, singleMove, false, false, autoStop, out debit);
                 if (!(granted > 0f)) break;
                 total += granted;
                 used += debit;

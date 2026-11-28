@@ -420,6 +420,65 @@ namespace KingmakerMountedCombat.Integration
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
 
+        // PR #70 R8-F1 (round 11): the revalidated approach the exact route-bound carrier was made from (its untruncated native route and
+        // destination arc length), for that carrier's first-debit revalidation.
+        private PairedAttackClickProbe.Approach carrierApproach;
+        private UnitMoveTo carrierApproachMove;
+        internal PairedAttackClickProbe.Approach ApproachOf(UnitMoveTo carrier) =>
+            carrier != null && ReferenceEquals(carrier, carrierApproachMove) ? carrierApproach : null;
+
+        // PR #70 R6-F7 (round 11): the exact carrier whose cleanup this command began and what of it is done (interruption, removal from the
+        // mount's Move slot, motion), independently of native Result/IsFinished.
+        private UnitMoveTo cleanupMove;
+        private bool cleanupInterrupted, cleanupSlotRemoved, cleanupMotionSettled;
+        internal UnitMoveTo CarrierCleanupMove => cleanupMove;
+        internal bool CarrierCleanupPending => cleanupMove != null && !(cleanupInterrupted && cleanupSlotRemoved && cleanupMotionSettled);
+        internal string CarrierCleanupState => cleanupMove == null ? "none" :
+            "interrupted=" + cleanupInterrupted + ",slotRemoved=" + cleanupSlotRemoved + ",motionSettled=" + cleanupMotionSettled;
+
+        private void SettleCarrierSlot(UnitMoveTo exactMove)
+        {
+            if (cleanupSlotRemoved) return;
+            var commands = mount.Commands;
+            if (commands != null && commands.Contains(exactMove) && exactMove.IsFinished) commands.RemoveFinishedAndUpdateQueue();
+            cleanupSlotRemoved = commands == null || !commands.Contains(exactMove);
+        }
+
+        // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced carrier's motion is stopped.
+        // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard approaching its
+        // target), including one the slot cleanup just promoted from the queue; such a successor keeps its movement. Once that steering passed
+        // to a successor, or the stop was issued, the motion obligation is settled.
+        private void SettleCarrierMotion(UnitMoveTo exactMove)
+        {
+            if (cleanupMotionSettled || !cleanupSlotRemoved) return;
+            var commands = mount.Commands;
+            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
+            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
+                SuccessorSteersMount(commands, exactMove);
+            if (!successorSteers) mount.View?.StopMoving();
+            cleanupMotionSettled = true;
+        }
+
+        // PR #70 R6-F7 (round 11): the one cleanup path for an exact carrier of this command, resumed by the controller's sweep after a fault in
+        // any caller. A carrier whose cleanup this command never began is begun here (interrupted only while it still holds the Move slot);
+        // otherwise only the unfinished steps run. Returns true once every step is settled; a fault propagates and leaves the rest owned.
+        internal bool SettleCarrierCleanup(UnitMoveTo carrier)
+        {
+            if (carrier == null || chargeMode) return true;
+            if (!ReferenceEquals(cleanupMove, carrier)) { cleanupMove = carrier; cleanupInterrupted = cleanupSlotRemoved = cleanupMotionSettled = false; }
+            if (!cleanupInterrupted)
+            {
+                var commands = mount.Commands;
+                if (!carrier.IsFinished && commands != null && ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), carrier)) carrier.Interrupt(false);
+                cleanupInterrupted = true;
+            }
+            SettleCarrierSlot(carrier);
+            SettleCarrierMotion(carrier);
+            if (ReferenceEquals(delegatedMove, carrier) && cleanupSlotRemoved && cleanupMotionSettled) delegatedMove = null;
+            return cleanupInterrupted && cleanupSlotRemoved && cleanupMotionSettled;
+        }
+
+
         // Review R3-F3: every exact delegated move this command submits (the first, each repath replacement and each pre-start
         // move) is announced before native Run sees it, so the controller recognizes the order's own movement by identity.
         internal Action<UnitCommand> OwnCommandIssuing;
@@ -1942,6 +2001,8 @@ namespace KingmakerMountedCombat.Integration
                 };
                 delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
                 ValidatedRouteFollowed = true;
+                carrierApproach = approach;
+                carrierApproachMove = delegatedMove;
             }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;
@@ -2094,6 +2155,10 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var exactMove = delegatedMove;
+            // PR #70 R6-F7 (round 11): the exact carrier's cleanup progress is recorded on this command, whichever caller runs it (native
+            // interruption's OnEnded, the order's own release, the controller's sweep), so a fault leaves the unfinished steps owned and a resume
+            // (SettleCarrierCleanup) does only those, with the same successor checks.
+            if (!ReferenceEquals(cleanupMove, exactMove)) { cleanupMove = exactMove; cleanupInterrupted = cleanupSlotRemoved = cleanupMotionSettled = false; }
             var commands = mount.Commands;
             var rawMoveSlot = commands?.GetCommand(UnitCommand.CommandType.Move);
             var exactSlotOrStockRemoved = commands != null &&
@@ -2107,27 +2172,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 exactMove.Interrupt(false);
             }
+            cleanupInterrupted = true;
             if (requireSuccess && exactMove.Result != ResultType.Success)
             {
                 throw new InvalidOperationException(
                     "Exact delegated Mammoth move did not finish successfully before rider attack admission.");
             }
             delegatedMoveFinishedSuccessfully |= exactMove.Result == ResultType.Success;
-            if (commands != null && commands.Contains(exactMove))
-            {
-                commands.RemoveFinishedAndUpdateQueue();
-            }
+            SettleCarrierSlot(exactMove);
             mountMoveSlotRestoredAfterApproach = commands != null &&
                 commands.GetCommand(UnitCommand.CommandType.Move) == null &&
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
-            // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced
-            // carrier's motion is stopped.
-            // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard
-            // approaching its target), including one the sweep just promoted; such a successor keeps its movement.
-            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
-            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
-                SuccessorSteersMount(commands, exactMove);
-            if (!successorSteers) mount.View?.StopMoving();
+            SettleCarrierMotion(exactMove);
             delegatedMove = null;
         }
 
