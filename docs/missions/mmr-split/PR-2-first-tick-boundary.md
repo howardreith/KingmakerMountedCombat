@@ -1488,7 +1488,7 @@ module-consistency checks only; there is no historical registry. The synthetic e
 tokens 06001230/06001231 and one completion token 06001234 throughout source, copy and outer record (fixtures corrected from 0600A777). It is
 labelled synthetic and is not presented as reflection of the current build or as native evidence.
 
-Producer child 87/0 (15 positives, 72 refusals). Accepted: the reflected current 4/4 records (Manual-derived paid and existing Horse; Manual
+Producer child 87/0: the round-22 gate receipt records 71 expected refusals and 16 other passes (correction, R22-F7; the developer's count of 72 was wrong). Accepted: the reflected current 4/4 records (Manual-derived paid and existing Horse; Manual
 seed) and the coherent synthetic 3/3 records. Refused:
 - differing RecordCompletedSave tokens for one method and module (synthetic and current);
 - a uniform RestoreActor/RestoreDebt swap across agreeing copies (Manual-derived paid, existing Horse, Manual seed);
