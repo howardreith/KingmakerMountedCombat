@@ -9,6 +9,9 @@ $repoRoot = Get-KmcRepositoryRoot
 $currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
 $testParent = [IO.Path]::GetFullPath((Join-Path $repoRoot 'obj\harness-tests'))
 $testRoot = Assert-KmcChildPath (Join-Path $testParent ([Guid]::NewGuid().ToString('N'))) $testParent 'harness test root'
+# Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
+$testReservationPrevious = Use-KmcTestReservationConvention $testRoot
+$testReservation = Get-KmcReservationConvention -StateRoot $testRoot
 $runtimeEvidenceParent = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence'))
 $runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent ('harness-test-' + [Guid]::NewGuid().ToString('N'))) $runtimeEvidenceParent 'harness runtime-evidence test root'
 $passed = 0
@@ -47,6 +50,21 @@ function Invoke-HarnessTest {
         $script:failed++
         Write-Host "FAIL $Name`: $($_.Exception.Message)"
     }
+    finally { Clear-TestReservation }
+}
+
+# Each test starts with the private reservation free (a test that abandons a lock leaves its reservation behind).
+function Clear-TestReservation {
+    if (Test-Path -LiteralPath $testReservation.RecordPath) { Remove-Item -LiteralPath $testReservation.RecordPath -Force }
+}
+
+# Stand-in for a dead transaction process: the reservation it left names a process that no longer runs.
+function Set-TestReservationHolderDead {
+    if (-not (Test-Path -LiteralPath $testReservation.RecordPath)) { return }
+    $record = Read-KmcJson $testReservation.RecordPath
+    if ([string]$record.lab -cne 'KingmakerMountedCombat') { return }
+    $record.holderProcessId = 2147483646
+    Write-KmcJsonAtomic -Path $testReservation.RecordPath -Value $record
 }
 
 function Assert-Test([bool]$Condition, [string]$Message) {
@@ -160,6 +178,8 @@ function New-TestRawSaveArchive {
 
 function New-TestPendingWorkingRequalification {
     param([Parameter(Mandatory = $true)][string]$Name)
+    # Each stand-in fixture is an independent transaction: it starts with the private reservation free.
+    Clear-TestReservation
     $root = Join-Path $testRoot ('working-requalification-' + $Name)
     $saveRoot = Join-Path $root 'saves'
     $fixtureStateRoot = Join-Path $root 'state'
@@ -360,6 +380,7 @@ function Set-TestRuntimeLockOwnerDead {
     $payload = Read-KmcJson $Path
     $payload.ownerProcessId = 2147483646
     Write-KmcJsonAtomic -Path $Path -Value $payload
+    Set-TestReservationHolderDead
 }
 
 function Select-TestObjectProperties {
@@ -2423,6 +2444,7 @@ try {
         $payload = Read-KmcJson $path
         $payload.ownerProcessId = 2147483646
         Write-KmcJsonAtomic $path $payload
+        Set-TestReservationHolderDead
         $adopted = Adopt-KmcStaleRuntimeLock $stateRoot
         try { Assert-Test ([string]$adopted.Token -ceq [string]$payload.token) 'adopted lock token changed' }
         finally { Close-KmcRuntimeLock $adopted }
@@ -4770,6 +4792,41 @@ try {
         Assert-TestThrows { Invoke-KmcQualifiedWorkingFixtureRecovery -RunId baseline-must-stop -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -Confirm:$false } 'changed Baseline was automatically repaired without a qualified Baseline backup contract'
     }
 
+    # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) on the fixture paths: a stand-in qualified pair with
+    # an exact project-owned Working backup, as the qualified-recovery test above builds it.
+    function New-TestQualifiedRecoveryFixture([string]$Name) {
+        Clear-TestReservation
+        $root=Join-Path $testRoot ('reservation-'+$Name);$saves=Join-Path $root 'saves';$state=Join-Path $root 'state';$backup=Join-Path $root 'backups';$staging=Join-Path $root 'staging'
+        New-Item -ItemType Directory -Path $saves,$state,$backup,$staging|Out-Null
+        $baselinePath=Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks';$workingPath=Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks';$foreignPath=Join-Path $saves 'Manual_3_KBP_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE';New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING';[IO.File]::WriteAllText($foreignPath,'foreign-owned')
+        $qualificationPath=Join-Path $state 'fixture-qualification.json';$pair=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath $qualificationPath -InitializeQualification
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId 'qualified-backup-source'
+        try{$saveState=Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $saves -StateRoot $state -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake;[void](Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $saves -BackupRoot $backup -StagingRoot $staging)}finally{Close-KmcRuntimeLock $lock}
+        New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        return [pscustomobject]@{root=$root;saves=$saves;state=$state;backup=$backup;qualificationPath=$qualificationPath;workingPath=$workingPath;foreignPath=$foreignPath;pair=$pair;authority=[pscustomobject]@{baseline=$pair.baseline;working=$pair.working}}
+    }
+    function Set-TestPeerReservation {
+        New-Item -ItemType Directory -Path (Split-Path -Parent $testReservation.RecordPath) -Force | Out-Null
+        [IO.File]::WriteAllText($testReservation.RecordPath, ([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json))
+    }
+    Invoke-HarnessTest 'qualified Working recovery stops without rollback when its reservation is lost before close' {
+        $f=New-TestQualifiedRecoveryFixture 'lost-before-close'
+        # Replace the lease just before the close: the repair is complete; nothing more may be written.
+        $originalClose=${function:script:Close-KmcRuntimeLock}
+        $probe=@{done=$false;record=$testReservation.RecordPath;original=$originalClose}
+        Set-Item -Path function:script:Close-KmcRuntimeLock -Value ({ param($Lock)
+            if(-not$probe.done){$probe.done=$true;[IO.File]::WriteAllText($probe.record,([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json))}
+            & $probe.original -Lock $Lock }.GetNewClosure())
+        try{
+            $message=$null
+            try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId lost-close -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$message=$_.Exception.Message}
+        }finally{Set-Item -Path function:script:Close-KmcRuntimeLock -Value $originalClose}
+        $journal=Read-KmcJson (Join-Path $f.state 'fixture-recoveries\lost-close.json')
+        Assert-Test ($message -like '*without rollback*') ('unexpected failure: '+$message)
+        Assert-Test ((Get-KmcSha256 $f.workingPath)-ceq[string]$f.pair.working.sha256 -and [string]$journal.phase-ceq'recovered' -and (Test-Path (Join-Path $f.state 'active-transaction.lock'))) 'the lost reservation triggered a rollback write or released the lock'
+        Assert-Test ([string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerFlight' -and (Test-Path (Join-Path $f.state 'native-reservation-incidents\lost-close.first.json'))) 'the replacement or the first incident was not preserved'
+    }
     Invoke-HarnessTest 'schema-v2 fixture payload exposes no save path and Working-only authorization' {
         $payloadRoot = Join-Path $testRoot 'payload-saves'
         New-Item -ItemType Directory -Path $payloadRoot | Out-Null
@@ -13224,6 +13281,7 @@ try {
     }
 }
 finally {
+    Restore-KmcTestReservationConvention $testReservationPrevious
     if (Test-Path -LiteralPath $testRoot) {
         $resolved = [IO.Path]::GetFullPath($testRoot)
         if (-not $resolved.StartsWith($testParent + '\', [StringComparison]::OrdinalIgnoreCase)) {

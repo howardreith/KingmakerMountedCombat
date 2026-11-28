@@ -80,7 +80,7 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         return [pscustomobject]@{status='what-if';path=$workingPath;backupRunId=$candidate.runId}
     }
     $WhatIfPreference=$false
-    $lock=$null;$statePath=$null;$quarantinePath=$null;$replacementQuarantine=$null
+    $lock=$null;$statePath=$null;$quarantinePath=$null;$replacementQuarantine=$null;$closing=$false
     try{
         $lock=Open-KmcRuntimeLock -StateRoot $StateRoot -RunId $RunId -Purpose 'fixture-recovery'
         [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $before -Actual (Get-KmcQualificationTreeInventory -Root $SaveRoot -Scope save-root) -Description 'fixture-recovery under-lock save inventory')
@@ -100,12 +100,20 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         $changed=@(Get-KmcQualificationInventoryDifferences -Before $before -After $after)
         if($changed.Count-ne1-or[string]$changed[0]-cne[IO.Path]::GetFileName($workingPath)){throw 'Fixture recovery changed a non-Working save.'}
         $state.phase='recovered';$state['recoveredAtUtc']=[DateTimeOffset]::UtcNow.ToString('o');$state['restoredSaveInventoryDigest']=[string]$after.digest;Write-KmcJsonDurable $statePath $state
+        $closing=$true
         Close-KmcRuntimeLock $lock;$lock=$null
         return [pscustomobject]@{status='recovered';path=$workingPath;sha256=[string]$pair.working.sha256;backupRunId=$candidate.runId;statePath=$statePath;quarantinePath=$quarantinePath}
     }catch{
         $failure=$_.Exception.Message
+        # A failed close (the repair is complete and verified) or a lost Kingmaker native-test reservation is not a
+        # fixture-operation failure: nothing more is written; the lock and reservation stay for the owner.
+        if($closing-or($null-ne$lock-and-not(Test-KmcNativeReservationHeld $lock.Reservation))){
+            if($null-ne$lock-and$lock.Stream.CanRead){try{Abandon-KmcRuntimeLock $lock}catch{}}
+            throw "Fixture recovery stopped without rollback (close or reservation ownership failed): $failure"
+        }
         if($null-ne$lock){
             try{
+                [void](Assert-KmcRuntimeLockOwner $lock)
                 if(Test-Path -LiteralPath $workingPath){Move-Item -LiteralPath $workingPath -Destination $replacementQuarantine}
                 if($null-ne$quarantinePath-and(Test-Path -LiteralPath $quarantinePath)){Move-Item -LiteralPath $quarantinePath -Destination $workingPath;(Get-Item -LiteralPath $workingPath).LastWriteTimeUtc=[DateTime]::new([long]$currentWorking.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)}
                 if($null-ne$statePath-and(Test-Path -LiteralPath $statePath)){ $rollback=Read-KmcJson $statePath;$rollback.phase='rolled-back';$rollback|Add-Member -NotePropertyName rollbackAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force;$rollback|Add-Member -NotePropertyName failure -NotePropertyValue $failure -Force;Write-KmcJsonDurable $statePath $rollback }

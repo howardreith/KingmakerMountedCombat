@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 # Windows PowerShell -File resolves script-root defaults after parameter binding.
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=Join-Path $PSScriptRoot '../..'}
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot)
@@ -100,3 +104,4 @@ Good 'immutable inventory copied under one actual owned private lock' {
 Good 'explicit pins file admitted read-only' {$f=New-OSource;$path=Join-Path $script:sourceLab 'explicit-selection.json';Write-OJson $path $f.selection;$hash=Get-KmcSha256 $path;$r=Read-KmcChunk7OrdinarySelectionFile $path 'new-run';if($r.sha256-cne$hash-or(Get-KmcSha256 $path)-cne$hash){throw 'Selection read mutated file.'}}
 Bad 'selection outside isolated test lab' {[void](Read-KmcChunk7OrdinarySelectionFile (Join-Path (Split-Path -Parent $script:sourceLab) 'foreign.json') 'new-run')}
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; synthetic source and actual private filesystem/lock checks only; fixtures retained at '+$script:sourceLab)
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious

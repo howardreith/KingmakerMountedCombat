@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$PSBoundParameters.ContainsKey('ReaderDirectory')){$ReaderDirectory=Join-Path $PSScriptRoot '../runtime'}
 if(-not$PSBoundParameters.ContainsKey('OutputDirectory')){$OutputDirectory=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($RepositoryRoot))) ('analysis-cache/chunk7-continuation/progression-fixtures-'+[Guid]::NewGuid().ToString('N'))}
@@ -69,3 +73,4 @@ Good 'exact two input copies require one current private lock and profile owner'
 }
 Good 'explicit progression selection remains immutable on intake'{$f=New-ProgressionSourceFixture;$path=Join-Path $script:sourceLab 'selection.json';Write-F $path $f.selection;$hash=Get-KmcSha256 $path;$selected=Read-KmcChunk7ProgressionSelectionFile $path 'future-progression';if($selected.sha256-cne$hash){throw 'Selection changed.'}}
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; synthetic source ZIPs/receipts and private lock only; no native fixture read')
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious

@@ -40,6 +40,13 @@ elseif(Test-Path -LiteralPath $legacyModsStatePath -PathType Leaf){
     $legacyMode=$true
 }
 else{throw 'Stale lock has no matching combined or legacy durable transaction state; automatic recovery is unsafe.'}
+# The Kingmaker native-test reservation naming exactly this run and lock is taken over before the shared reads below
+# (live Mods, saves); without it (missing, foreign, mismatched or live) recovery refuses and leaves the state for the
+# owner. -WhatIf never acquires it (read-only).
+$nativeReservation=$null
+if(-not$requestedWhatIf){
+    $nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId ([string]$raw.runId) -ExpectedLockToken ([string]$raw.token) -Purpose 'transaction-recovery'
+}
 $liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
 $beforeMods=$null
 if($liveModsExistedBefore){
@@ -100,7 +107,7 @@ if(-not$PSCmdlet.ShouldProcess($target,"recover exact KMC transaction $($raw.run
 $WhatIfPreference=$false
 $lock=$null
 try{
-    $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+    $lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation
     if($legacyMode){
         $restored=Restore-KmcModsTransaction -Lock $lock -StatePath $legacyModsStatePath -LiveModsRoot $liveMods -BackupRoot $backupRoot -StagingRoot $stagingRoot
         if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){

@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$SourceOverlayRoot,[Parameter(Mandatory=$true)][string]$OutputRoot)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 . (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
 $actualLab=Get-KmcLabRoot;$output=Assert-KmcChildPath $OutputRoot (Join-Path $actualLab 'analysis-cache') 'generated assisted cold source checks'
@@ -188,4 +192,5 @@ if($changed.Count-ne0){throw 'Assisted cold test input changed.'}
 $receipt=[ordered]@{schemaVersion=1;kind='assisted-cold-source-focused';status=$(if($script:failed-eq0){'PASS'}else{'FAIL'});passed=$script:passed;failed=$script:failed;durationSeconds=$timer.Elapsed.TotalSeconds;inputPins=$script:inputPins.ToArray();changedInputs=$changed;cases=$cases.ToArray();nativeInvoked=$false;installedOrProtectedArchiveReads=0;archiveDecodes=0;limits=@('Complete producer/native artifact/archive gate explicitly substituted with strict generated argument boundary; full producer source54 remains separate.','Actual new selection/GetSource/copy functions, file/hash/link/path primitives and actual generated transaction locks execute.','All .zks files are generated non-ZIP byte buffers; no native fixture qualification or ordinary acquisition claim.')}
 Write-KmcJsonAtomic (Join-Path $output 'receipt.json') $receipt
 Write-Host ('ASSISTED COLD SOURCE: '+$script:passed+' PASS / '+$script:failed+' FAIL')
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious
 if($script:failed-ne0){exit 1};exit 0

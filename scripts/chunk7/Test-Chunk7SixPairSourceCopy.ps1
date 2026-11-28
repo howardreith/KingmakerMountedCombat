@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 . (Join-Path $PSScriptRoot 'Initialize-Chunk7Tests.ps1')
 if(-not$OutputDirectory){$OutputDirectory=Join-Path $chunk7AnalysisRoot ('six-copy-'+[Guid]::NewGuid().ToString('N'))}
 $OutputDirectory=Assert-KmcChildPath $OutputDirectory $chunk7AnalysisRoot 'six-pair source copy checks'
@@ -44,4 +48,5 @@ Assert-KmcChunk7SixPairCheckpointPins $source.receiptPins
 $failed=@($checks|Where-Object {-not$_.pass}).Count
 [ordered]@{nativeInvoked=$false;modsOrProfileTouched=$false;archiveWritten=$false;status=$(if($failed){'FAIL'}else{'PASS'});results=$checks.ToArray();limits='Real held private locks and unique project-owned staging directories. Actual sixteen-pin qualified source and copy helper; no installed Mods, user profile, protected save or game launch.'}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json') -Encoding UTF8
 Write-Output ('SIX-PAIR COPY PASS='+($checks.Count-$failed)+' FAIL='+$failed)
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious
 if($failed){exit 1}

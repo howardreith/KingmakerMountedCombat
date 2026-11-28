@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$EvidenceSource,[string]$FixtureSource,[string]$CumulativeSource,[string]$RequestSeed,[Alias('OutputRoot')][string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation for this test and its child scripts and processes,
+# never the machine-wide one (docs/NATIVE-RESERVATION.md); the previous selection is restored on every exit.
+$kmcReservationPrevious=$env:KMC_NATIVE_RESERVATION_TEST_ROOT;$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
+trap{$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious;break}
 if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
 if(-not$EvidenceSource){$EvidenceSource=Join-Path $ReaderDirectory 'Chunk7AssistedAcquisitionEvidence.ps1'}
@@ -70,4 +74,5 @@ foreach($name in @('foreign-run','schema','policy','digest','not-exact','accepte
 foreach($name in @('result-schema','game-schema','result-assertions','result-subscenarios','game-save','game-load','game-mode','owner-source','producer-gate','foreign-candidate','cold-selection-source','restoration-flag')){Check ('completed cold '+$name+' refuses') $false {param($f)switch($name){'result-schema'{$f.result.schemaVersion=1}'game-schema'{$f.game.schemaVersion=1}'result-assertions'{$f.result.assertionFailCount=1}'result-subscenarios'{$f.result.subscenarioFailCount=1}'game-save'{$f.game.saveRequestCount=1}'game-load'{$f.game.loadRequestCount=0}'game-mode'{$f.game.currentGameMode='Dialog'}'owner-source'{$f.owner.sourceSha256='f'*64}'producer-gate'{$f.rejectProducer=$true}'foreign-candidate'{$f.request.dllSha256='f'*64}'cold-selection-source'{$f.request.assistedColdInventory.sourceRunId='other'}'restoration-flag'{$f.result.workingRestored=$false}}}.GetNewClosure()}
 $timer.Stop();foreach($pin in $inputs){if((Get-KmcSha256 $pin.path)-cne$pin.sha256){throw 'Focused input changed.'}}
 [pscustomobject]@{status=$(if($script:failed){'FAIL'}else{'PASS'});passed=$script:passed;failed=$script:failed;durationSeconds=$timer.Elapsed.TotalSeconds;cases=$rows.ToArray();inputs=$inputs;substitutions=@('Complete producer qualification, full cold artifact/evidence and source projection are explicit separately tested external boundaries.','New qualifier/copy, real generated receipt/owner/path/link/hash/lock checks execute. No archive content parsed.');nativeInvoked=$false;actualArchivesRead=$false}|ConvertTo-Json -Depth 30|Set-Content -LiteralPath (Join-Path $out 'receipt.json') -Encoding UTF8
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=$kmcReservationPrevious
 if($script:failed){exit 1}
