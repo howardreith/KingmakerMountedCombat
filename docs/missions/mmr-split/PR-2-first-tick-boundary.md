@@ -1321,3 +1321,70 @@ Medium continuation 14/0, Manual-derived source 30/0.
 ### 18.6 Validation
 
 See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
+
+## 19. Round 21 (owner authorization 2026-11-28b; owner amendment revision 1 unchanged; the last authorized PR-2 review)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 and owner authorization
+2026-11-28b. Round 20 (candidate `0c2f003a`) verified R13-F2, R18-F2, R19-F1, R19-F2, R19-F3 and R19-F4. This round corrects R19-F5, R20-F1,
+R20-F2, R20-F3 and the optional R20-F4 (section 18.4's module ID, corrected in `362b1fe3`). Three in-session developers; the lead inspected and
+merged their branches and read the installed `ForcedPath` constructor. All evidence is offline (nativeProof=false). Kinds: R19-F5 and R20-F1
+are production defects; R20-F2 is an evidence gap; R20-F3 is an evidence-reader defect; R20-F4 is a records correction.
+
+### 19.1 Forced-path issuer bound at the call site (R19-F5)
+
+The installed `UnitCommand.TickApproaching` passes `FollowPrecomputedPath` a copy of the ticking command's own `ForcedPath`
+(`new ForcedPath(new List<Vector3>(ForcedPath.vectorPath))`), and the installed `ForcedPath(List<Vector3>)` constructor (06003370,
+Assembly-CSharp-firstpass) stores that list as `vectorPath` unchanged (lead read, metered). The `FollowPrecomputedPath` prefix now attributes
+the request only through `ForcedPathIssuer(agent, p)`: the one live command, in a scope opened this frame, registered on that agent
+(`MountedCarrierApproachLedger.IsAdmittedOn`), whose own `ForcedPath.vectorPath` equals `p.vectorPath` element by element. Two matching scoped
+commands (identical routes) or none (a visualized path, another command's route) attribute nothing: with identical routes a thrown inner
+command and the resumed outer command are indistinguishable at the call site, and innermost-matching would credit the wrong one. The weak,
+frame-scoped stack, stale discard and teardown release are kept. Case: inner B throws inside outer A on one tracked agent; A resumes and
+issues its forced path before its postfix: different routes give A 1 request and its delivery and B 0; identical routes give both 0 (control);
+0 scopes after A's postfix. The round-20 nested, collection, 40-scope and teardown controls, and the R17-F1/R18-F2/R19-F2 cases, still pass.
+Discrimination: round-20 attribution credits B in both. Lifecycle contract 113/0. Limit: an unattributed carrier with an identical route
+inside a nested scope would defer its first tick; not seen natively.
+
+### 19.2 Step search on the affordable-end branch (R20-F1)
+
+`MountedMovementStateAdapter.StepExecutableTick` no longer returns "no bound" when the path end lies within the physical remainder; it runs
+the same `StepExecutableDuration` search, so every positive return is Executable at the representable stop of the waypoint native selects
+(0.01 mm floor, physical remainder, 0.1 mm completion margin). The native counter's own limit is already inside the permitted duration
+(`Remaining`'s minimum); a native-limited duration whose stop rounds onto the origin is too short and returns 0. A snapped affordable
+completion within the remainder is returned unchanged. Ticks with unsupported steering keep their previous result.
+
+| Case (X = 256 m, 9 m/s) | Selected | Returned | Stop | Physical | Native | Disposition |
+|---|---|---|---|---|---|---|
+| A: interior waypoint X=256.3125, end (0.0625, 0.05) m from it, 80.039 mm away | #1 interior | 0.011099115 s | 99.88403 mm | 1.424008 -> 1.523892 m | 0.762 -> 0.861892 m | Cancelled, "validated approach expired", no strike, Standard 0 |
+| B: straight 0.125 m, native counter 1.523995 m | end | 0 | unchanged | unchanged 0.762 | unchanged | native denial, force-finish |
+| C: straight, end 0.08 m ahead (positive control) | end, snapped | 0.0111102266 s | on the end | 1.424008 -> 1.50399458 m | 0.762 -> 0.861992 m | force-finish, no strike |
+
+Discrimination: round-20 code moves case A 100.0061 mm to physical 1.52401412 m (over the 1.524 m limit) and charges case B 5.5631e-7 s with
+no movement. The earlier 50.x mm and R19-F1 cases are unchanged.
+
+**End of the moving X = 256 m cases (disclosed).** Case A here and the R19-F1 positive control end through the product's target-drift re-path,
+not native's force-finish: to place a case at X = 256 m the fixture moves horse, rider and target by the same 256 m offset after the order's
+target snapshot, so the order's next approach tick sees the target displaced beyond `TargetRepathDistance` (0.75 m,
+MountedPairAttackCommand.cs:191, :1856), `Repath` (:1976) re-validates the route (:2058), finds none within the remaining movement and ends the
+order (:2069): Cancelled, "validated approach expired", movement used spent, no strike, Standard unspent (the OWNER AMENDMENT 1 terminal
+disposition through a legitimate product path). The trigger is a fixture artifact; the harness now asserts this exact end. The no-move cases
+and case C end through native's denial.
+
+### 19.3 Same-build source graphs and product hook token bindings (R20-F2, R20-F3)
+
+- **R20-F2.** The producer child builds every archive row of the same-build Manual-derived chain (outer record, Manual-seed source and its
+  copy, the source cold inventory and its copy) from the candidate codec's normalized 4 of a schema-3 input. In the non-missing,
+  same-candidate Manual-seed-sourced path the reader now requires the source and source-cold-inventory normalized versions to equal the
+  record's own Manual writer. The earlier-writer 3/3 control keeps its own labelled earlier-build fixture identity (module 33333333..., its own
+  product tokens), not the current DLL's.
+- **R20-F3.** Within one row set, RestoreActor and RestoreDebt cannot share a token; across the same-candidate row sets
+  (`Assert-KmcChunk7SameModuleHookTokens`) each (module, type, method) has one token and each (module, token) one method. Token values are not
+  pinned, so historical modules keep their own.
+- Product rows reflected from the round-20 gate build (module c6638f82): RestoreActor 060006A3, RestoreDebt 0600069F, RecordCompletedSave
+  06000395. Child 66/0 (12 positives, 54 refusals), including: agreeing source copies downgraded to normalized 3 beside the current writer
+  (4 refusals), RestoreActor given RestoreDebt's token in agreeing copies (3), RestoreActor given another same-module token (2). Suites: Manual
+  seed 70/0, Manual-derived 118/0, Cumulative evidence 87/0, Medium acquisition 55/0, Medium continuation 14/0, Manual-derived source 30/0.
+
+### 19.4 Validation
+
+See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
