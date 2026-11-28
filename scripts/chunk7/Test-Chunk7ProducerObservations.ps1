@@ -25,6 +25,8 @@ param()
 # MVID); a uniform swap of RestoreActor/RestoreDebt across agreeing copies and a differing RecordCompletedSave token are refused. The synthetic
 # earlier-build fixtures keep module 33333333-... with one completion token (06001234) throughout. The Manual seed reader requires its seed
 # and cold-inventory normalized graphs to agree (3/3 and 4/4 accepted; 3/4 and 4/3 refused).
+# Round 22 (fail closed): a chain at the current writer must obtain the candidate artifact; with it absent or stale (another SHA-256) the
+# complete readers refuse current 4/4 records, while the synthetic 3/3 controls are still accepted without any artifact.
 # Round 21: every archive row in a current Manual-derived same-build chain (outer, Manual seed source, its cold inventory, and their copies)
 # is the candidate codec's normalized 4 of a historical schema-3 input; agreeing source copies downgraded to 3 beside the current writer,
 # and agreeing copies that rebind a product method's MethodDef token, are refused. The earlier-writer 3/3 control keeps the retained
@@ -135,6 +137,10 @@ function Assert-NoFixtureIdentity($Value,[string]$FixtureMvid){$text=ConvertTo-J
  foreach($bad in @('"NewRound"','Kingmaker.UnitLogic.UnitCombatState',('"'+$FixtureMvid+'"'),'"06001230"','"06001231"','"06001234"')){if($text.Contains($bad)){throw ('A retained fixture identity survives: '+$bad)}}
  $rows=[regex]::Matches($text,'"moduleMvid":"([0-9a-f-]+)"');if($rows.Count-lt4){throw 'No hook rows found.'};foreach($row in $rows){if($row.Groups[1].Value-cnotin@('07fa1e4d-8618-41b3-9b8d-faa17d3b26f7',$productMvid)){throw ('Foreign hook module '+$row.Groups[1].Value)}};$rows.Count}
 $fixtureMvid='33333333-3333-4333-8333-333333333333'
+# The readers' candidate artifact override: an absent path, and an existing but stale file (the codec DLL compiled above: another SHA-256).
+$absentCandidate=Join-Path $probeDirectory 'absent-candidate-KingmakerMountedCombat.dll';$staleCandidate=$dll
+if(Test-Path -LiteralPath $absentCandidate){throw 'The absent candidate path exists.'};if((Get-KmcSha256 $staleCandidate)-ceq$productSha){throw 'The stale candidate is the built DLL.'}
+function Invoke-WithCandidate([string]$Path,[scriptblock]$Action){$script:KmcChunk7CandidateDllPath=$Path;try{& $Action}finally{$script:KmcChunk7CandidateDllPath=$null}}
 # Round 21: replace every producer archive row (the exact-case observation row, never a capitalized archive graph) with the candidate
 # codec's normalized row for a schema-3 input of that row's own campaign and area.
 function Test-ArchiveRow($Value){$null-ne$Value-and$Value-is[Management.Automation.PSCustomObject]-and@($Value.PSObject.Properties.Name)-ccontains'schemaVersion'-and@($Value.PSObject.Properties.Name)-ccontains'nativeRestorationGrantedByDiagnostic'}
@@ -206,6 +212,9 @@ try{
  Reject 'Manual seed reader: seed normalized 3 beside its same-build cold inventory 4 (both cold copies agree)' {New-CurrentManualSeed} {param($f)$f.artifact.observations.archive.schemaVersion=3;Invoke-ManualSeed $f}
  Reject 'Manual seed reader: seed normalized 4 beside its same-build cold inventory 3 (both cold copies agree)' {New-EarlierManualSeed} {param($f)$f.artifact.observations.archive.schemaVersion=4;Invoke-ManualSeed $f}
  Reject 'Manual seed reader: a uniform RestoreActor/RestoreDebt swap across all agreeing copies' {New-CurrentManualSeed} {param($f)foreach($rows in @($f.artifact.observations.noPreparation.hooks,$f.artifact.observations.sourceColdInventory.noPreparation.hooks,$f.inventory.observations.noPreparation.hooks)){$t=$rows[2].token;$rows[2].token=$rows[3].token;$rows[3].token=$t};Invoke-ManualSeed $f}
+ Reject 'Manual seed reader: current 4/4 record with the candidate artifact absent' {New-CurrentManualSeed} {param($f)Invoke-WithCandidate $absentCandidate {Invoke-ManualSeed $f}}
+ Reject 'Manual seed reader: current 4/4 record with a stale candidate artifact (another SHA-256)' {New-CurrentManualSeed} {param($f)Invoke-WithCandidate $staleCandidate {Invoke-ManualSeed $f}}
+ Check 'Manual seed reader: earlier-build synthetic 3/3 control accepted with no candidate artifact' {$f=New-EarlierManualSeed;Invoke-WithCandidate $absentCandidate {Invoke-ManualSeed $f}}
  foreach($m in $versionMutations.GetEnumerator()){$script:value=$m.Value;Reject ('Manual seed reader: '+$m.Key) {New-CurrentManualSeed} {param($f)$f.artifact.observations.archive.schemaVersion=$script:value;Invoke-ManualSeed $f}}
 }finally{if(Test-Path -LiteralPath $seedDirectory){Remove-Item -LiteralPath $seedDirectory -Recurse -Force}}
 
@@ -232,6 +241,10 @@ foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}els
  Reject ('Manual-derived reader ('+$label+'): outer RecordCompletedSave token differs from its same-candidate source and copy') {New-CurrentManualDerived $script:paid} {param($f)$f.artifact.observations.nativeSave.hooks[2].token=$(if($f.artifact.observations.nativeSave.hooks[2].token-ceq'06FFFFFD'){'06FFFFFC'}else{'06FFFFFD'});Invoke-ManualDerived $f}
  Reject ('Manual-derived reader ('+$label+'): a uniform RestoreActor/RestoreDebt swap across all otherwise agreeing copies') {New-CurrentManualDerived $script:paid} {param($f)foreach($rows in @($f.artifact.observations.noPreparation.hooks,$f.artifact.observations.sourceManualObservations.noPreparation.hooks,$f.artifact.observations.sourceManualObservations.sourceColdInventory.noPreparation.hooks,$f.source.observations.noPreparation.hooks,$f.source.observations.sourceColdInventory.noPreparation.hooks)){$t=$rows[2].token;$rows[2].token=$rows[3].token;$rows[3].token=$t};Invoke-ManualDerived $f}
  Reject ('Manual-derived reader ('+$label+'): a uniform RecordCompletedSave token change across all otherwise agreeing copies') {New-CurrentManualDerived $script:paid} {param($f)foreach($rows in @($f.artifact.observations.nativeSave.hooks,$f.artifact.observations.sourceManualObservations.nativeSave.hooks,$f.source.observations.nativeSave.hooks)){$rows[2].token='06FFFFFD'};Invoke-ManualDerived $f}}
+foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}else{'existing-Horse'}
+ Reject ('Manual-derived reader ('+$label+'): current 4/4 record with the candidate artifact absent') {New-CurrentManualDerived $script:paid} {param($f)Invoke-WithCandidate $absentCandidate {Invoke-ManualDerived $f}}
+ Reject ('Manual-derived reader ('+$label+'): current 4/4 record with a stale candidate artifact (another SHA-256)') {New-CurrentManualDerived $script:paid} {param($f)Invoke-WithCandidate $staleCandidate {Invoke-ManualDerived $f}}}
+Check 'Manual-derived reader: earlier-build synthetic 3/3 control accepted with no candidate artifact' {$f=New-EarlierManualDerived;Invoke-WithCandidate $absentCandidate {Invoke-ManualDerived $f}}
 # Round 20: both source copies agree (the source record and the outer record's copy), yet each carries the impossible round hook.
 foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}else{'existing-Horse'}
  Reject ('Manual-derived reader ('+$label+'): impossible round hook in both agreeing Manual seed source copies') {New-CurrentManualDerived $script:paid} {param($f)foreach($h in @($f.source.observations.noPreparation.hooks[1],$f.artifact.observations.sourceManualObservations.noPreparation.hooks[1])){$h.declaringType='Kingmaker.UnitLogic.UnitCombatState';$h.method='NewRound'};Invoke-ManualDerived $f}

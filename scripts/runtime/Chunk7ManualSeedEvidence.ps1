@@ -109,13 +109,17 @@ function Get-KmcChunk7CandidateProductHooks($Request){
  if($trusted.mvid-cne[string]$Request.dllMvid){throw 'The candidate artifact with the record''s SHA-256 has a different module MVID.'}
  $trusted
 }
-function Assert-KmcChunk7SameModuleHookTokens($Request,[object[]]$RowSets){
+# Round 22 (fail closed): a record whose same-build chain reports the current writer is a current-build record and must obtain the candidate
+# artifact's trusted bindings (SHA-256 = request dllSha256, MVID = request dllMvid); without it the reader refuses. A chain at the previous
+# writer is an earlier-build record and keeps the module-consistency checks only.
+function Assert-KmcChunk7SameModuleHookTokens($Request,[object[]]$RowSets,[int]$ChainWriter){
  $byMethod=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal);$byToken=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
  $rows=@(ConvertTo-KmcChunk7HookBindingRows $RowSets)
  foreach($r in $rows){$method=$r.module+'|'+$r.method;$token=$r.module+'|'+$r.token
   if($byMethod.ContainsKey($method)-and$byMethod[$method]-cne$r.token){throw 'Same-module hook observations bind one method to different tokens.'};$byMethod[$method]=$r.token
   if($byToken.ContainsKey($token)-and$byToken[$token]-cne$method){throw 'Same-module hook observations bind one token to different methods.'};$byToken[$token]=$method}
- $trusted=Get-KmcChunk7CandidateProductHooks $Request
+ $writer=Assert-KmcChunk7WriterSchema $ChainWriter 'Hook-binding chain writer';$trusted=Get-KmcChunk7CandidateProductHooks $Request
+ if($writer-eq(Get-KmcChunk7CurrentWriterSchema)-and$null-eq$trusted){throw 'Current-build hook bindings require the candidate artifact.'}
  if($null-ne$trusted){foreach($r in $rows){if($r.module-ceq$trusted.mvid-and(-not$trusted.tokens.ContainsKey($r.method)-or$trusted.tokens[$r.method]-cne$r.token)){throw ('A current-build product hook differs from the candidate artifact''s reflected binding: '+$r.method)}}}
 }
 function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$InventoryArtifact,[string]$Status='PASS'){
@@ -171,10 +175,10 @@ function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
  foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0}
  if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Cold inventory observed native preparation/round or actor/debt restoration.'}
- Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid;Assert-KmcChunk7SameModuleHookTokens $Request (@(,$p.hooks)+@(,$o.sourceColdInventory.noPreparation.hooks)+@(,$o.nativeSave.hooks))
+ Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid
  # Round 22 (R21-F2): the seed and its pinned cold inventory ran the same DLL (lineage pins the identity and copy), so their normalized graphs
  # carry one writer. The input files' own source schemas are independent and are not recorded here.
- $a=$o.archive;$seedGraph=Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed';if($seedGraph-ne(Assert-KmcChunk7NormalizedGraphVersion $o.sourceColdInventory.archive.schemaVersion 'Manual seed cold inventory')){throw 'Manual seed and its same-build cold inventory report different normalized graph versions.'};foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
+ $a=$o.archive;$seedGraph=Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed';if($seedGraph-ne(Assert-KmcChunk7NormalizedGraphVersion $o.sourceColdInventory.archive.schemaVersion 'Manual seed cold inventory')){throw 'Manual seed and its same-build cold inventory report different normalized graph versions.'};Assert-KmcChunk7SameModuleHookTokens $Request (@(,$p.hooks)+@(,$o.sourceColdInventory.noPreparation.hooks)+@(,$o.nativeSave.hooks)) $seedGraph;foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
  foreach($key in @('profileAdmissionChanged','nativeFixtureCreated','poseQualified','ordinaryAcquisitionProven')){Assert-KmcChunk7Boolean $inventory.$key $false}
