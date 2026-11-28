@@ -327,7 +327,7 @@ namespace KingmakerMountedCombat.Integration
                 {
                     var tick = frameDelta;
                     deltaTime = 0f;
-                    return "mountMove=first-tick-" + (verdict == MountedFirstTickVerdict.Refuse ? "refused" : "committed-in-place") + ";tick=" + tick.ToString("R") +
+                    return "mountMove=first-tick-" + (verdict == MountedFirstTickVerdict.Refuse ? "refused" : verdict == MountedFirstTickVerdict.Defer ? "deferred" : "committed-in-place") + ";tick=" + tick.ToString("R") +
                         ";allowedTick=" + allowedTick.ToString("R") + ";allowedMetres=" + allowedMetres.ToString("R") + endpointDetail + ";" + gateDetail;
                 }
             }

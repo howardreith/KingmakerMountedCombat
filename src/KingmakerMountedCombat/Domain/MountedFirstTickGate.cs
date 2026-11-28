@@ -5,7 +5,9 @@ namespace KingmakerMountedCombat.Domain
     // the restricted single-action move (one engine tick) is known, before any debit. The adapter asks the request's gate there; the gate
     // commits the request (the previous order is retired once, through the normal path, and the tick moves and is debited normally),
     // commits it in place (the strike is already admissible: the tick does not move), or refuses it (the tick is zeroed before any debit).
-    public enum MountedFirstTickVerdict { Refuse, Commit, CommitInPlace }
+    // PR #70 R18-F2 (round 20): Defer leaves the request undecided (no decision, no debit, no refusal; the tick is zeroed): the movement belongs to a
+    // path other than the exact carrier's own delivered approach.
+    public enum MountedFirstTickVerdict { Refuse, Commit, CommitInPlace, Defer }
 
     public enum MountedFirstTickProposalState { Pending, Committed, Refused }
 
