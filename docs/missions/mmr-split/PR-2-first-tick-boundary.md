@@ -1514,3 +1514,60 @@ Manual-derived source 30/0. Lead runs: combined harness on `162e1178` 581 connec
 the changed readers). `Test-Chunk7SixthHireNativeReader.ps1` cannot run in this lab: it requires the frozen runtime evidence
 `runtime-evidence/20261022-c7b-world184-b184s1-sixthhorse-manual/runtime-request.json`, which is absent, so it stops before any reader runs. It is
 not counted as passing. See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
+
+## 21. Round 23 (owner authorization 2026-11-28c; owner amendment revision 1 unchanged; the last authorized PR-2 review)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 and owner authorization
+2026-11-28c. Round 22 (candidate `2a047295`) verified R19-F5, R20-F1, R21-F1, R21-F2 and R21-F3. This round corrects R22-F1..F6 and the optional
+R22-F7 (section 20.3 now cites the receipt's 71 expected refusals, `37be3f8b`). No claimed fix keeps an exception or asserts a defective outcome.
+All evidence is offline (nativeProof=false). Each round-22 gate log's own HOOK rows identify that build; new results here cite this round's
+receipt.
+
+### 21.1 Forced request recorded at native's assignment (R22-F1)
+
+`FollowPrecomputedPathFrom` keeps a stack of active forced calls (agent, path, issuer, outer entry), pushed in its own try and restored in finally;
+only it and teardown write it. The request is recorded where native installs it: the `OnPathComplete` prefix, once `p` is the agent's
+`m_RequestedPath` on a tracked agent, finds the active forced call with that exact agent and path (`RecordForcedRequestAtAssignment`) and records
+the request for its issuer if admitted on that agent; the postfix records the delivery under the existing rule. An outstanding request therefore
+stays outstanding until native replaces it, and a forced call whose native body throws before the assignment records nothing. The separate
+`FollowPrecomputedPath` prefix patch is removed, so no two mechanisms record one request. Case (connected rider-first provisional flow): B's
+complete forced call runs inside carrier A's, after A's call and before A's assignment; identical and different routes: A 1 request, delivered,
+moved along its own delivery; B 1 request, delivered, then EndedByNative; 0 deferrals, `committed:replacement:first-tick`, 0.17 m, 1 strike,
+1 carrier. The nested control now also requires the outer delivery. Changed expectation: a forced call throwing before assignment records 0
+requests (native never installed it). Discrimination: round-22 code leaves A RequestUndelivered and defers its first tick (0 m, no strike).
+
+### 21.2 Exact zero-turn check per candidate and at first debit (R22-F2)
+
+`PairedAttackClickProbe.TurnEstablished(tick, moveDirection, combatAngular)` is true for a positive finite angular speed and, at exactly zero,
+only when the tick's unit direction equals `MoveDirection` component for component. `ClassifyStep`/`Executable` apply it to every candidate (a
+moving unestablished candidate is too long, so the search keeps a shorter aligned duration or returns 0); `EvaluateFirstTickNative` applies it to
+every candidate; the first-tick decision's final-step and shortened-strike branches accept a readable angular speed >= 0 and finite. Unreadable
+steering and negative or non-finite speeds stay refused. Cases: the reviewer's aligned final-counter step at angular speed 0 commits (0.01511115
+s, 0.136 m, both balances 1.383375 -> 1.519375 m, strike, identical to the 720 deg/s control); perpendicular at 0 and unreadable steering are
+refused before any debit; the later-debit case (waypoints (0.045,0), (0.095,0.015), +X heading, 0.100 m left) returns 0.00499038 s, 44.92 mm onto
+the aligned waypoint (native 0.762 -> 0.806913 m, physical 1.424 -> 1.4689219 m). Round-22 values unchanged. Discrimination: round-22 code refuses
+the first debit (`agent-steering-unsupported`) and returns 0 on the later debit.
+
+### 21.3 Manual readers (R22-F3..F6)
+
+- **R22-F3.** `Assert-KmcChunk7ManualSaveHookRows` (exact three rows: the two pinned SaveManager hooks and RecordCompletedSave in the request's
+  product module) runs on the outer save and on the supplied source save rows and their copy before the token comparison. Removing the source
+  completion row, or moving it to a foreign module in both copies, is refused.
+- **R22-F4.** The trusted metadata also reflects `MountedArchiveData.Schema` from the same verified bytes; a record identified with the artifact
+  must report that writer throughout its same-build chain. All-3 records naming the candidate DLL (Manual seed; Manual-derived paid and existing
+  Horse) are refused; the synthetic earlier-build 3/3 controls (no artifact) keep consistency checks only.
+- **R22-F5.** A candidate artifact is explicit product bytes with provenance (`Read-KmcChunk7PackageCandidateArtifact` reads the bounded
+  `KingmakerMountedCombat/KingmakerMountedCombat.dll` package member; `Read-KmcChunk7CandidateArtifactFile` a pinned DLL), passed as
+  `-CandidateArtifact` to the Manual seed and Manual-derived readers; the script-scope path override is removed. `Invoke-KingmakerRuntimeScenario.ps1`
+  reads its validated package's product member at both Manual call sites, checks its digest against `manifest.dllSha256` and passes it. With the
+  package artifact the current 4/4 records are accepted; absent, stale and wrong-assembly artifacts are refused, and a stale explicit artifact is
+  refused even with a valid local build. The runtime call site itself was edited and inspected but not executed (it needs a live run).
+- **R22-F6.** Bytes are hashed on every acquisition; reflected metadata is reused only by content digest. Same path, length and timestamp with a
+  changed byte: the old digest's record is refused, the new one accepted.
+- Producer child 102/0 (20 positives, 82 refusals); Manual seed 70/0, Manual-derived 118/0, ordinary save descriptor 87/0, Medium acquisition
+  55/0, Manual-derived source 30/0. The developer exceeded the metered target (about 7.5 minutes, mostly a slow first byte-storage version).
+
+### 21.4 Validation
+
+Lead: combined harness on `5cc83bf8` 587 connected/0. `Test-Chunk7SixthHireNativeReader.ps1` still cannot run here (frozen runtime evidence
+absent). See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
