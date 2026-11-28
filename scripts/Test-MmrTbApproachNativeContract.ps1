@@ -301,4 +301,22 @@ $commandType = KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackComm
 Check ($null -ne $commandType.GetProperty('NativeApproachEndedCount', $any) -and $null -ne $commandType.GetMethod('MountAgentStoppedAfterCarrierMoved', $any)) 'PR-2 R13-F3/R13-F4 (round 14): an accepted route-bound ordinary turn-based order ends with that disposition (no re-path) when its carrier finished out of reach or the mount''s agent no longer wants to move'
 $probeIl = IlTokens ($probeType.GetMethod('EvaluateRemainingRoute', $any))
 Check ($null -eq $probeType.GetField('PlannedSegmentIdentityMetres', $any) -and $null -ne $probeType.GetMethod('LiveLegAdmits', $any) -and $probeIl.ContainsKey($probeType.GetMethod('LiveLegAdmits', $any).MetadataToken)) 'PR-2 R11-F3 (round 14): the 20 micrometre planned-segment identity is removed; the first debit validates the live leg (LiveLegAdmits) unless the mount stands exactly on the planned segment start'
+# ---- PR-2 round 15 (lead's movement findings; compiled product) -----------------------------------------------------------------------------
+$liveLegText = IlText ($probeType.GetMethod('LiveLegAdmits', $any))
+Check ($liveLegText.Length -gt 2 -and -not $liveLegText.Contains('Lerp')) 'PR-2 R14-F1 (round 15): LiveLegAdmits computes every live-chord sample explicitly, never with Vector3.Lerp (Unity clamps its parameter to [0, 1]); its sampling by live-chord distance is exercised by the attack-path harness'
+$readerInvoke = (KmcType 'KingmakerMountedCombat.Integration.MountedCombatController+MountGrantReader').GetMethod('Invoke')
+$lifecycleType = KmcType 'KingmakerMountedCombat.Integration.MountedPairTurnParticipant'
+$admitText = IlText ($controllerType.GetMethod('AdmitTurnBasedAttackClick', $any))
+Check ($readerInvoke.GetParameters().Count -eq 4 -and $readerInvoke.GetParameters()[3].Name -ceq 'stepCounterBinds' -and $null -eq $lifecycleType.GetMethod('PairedMountStepCounterBinds', $any) -and
+    -not $admitText.Contains('StepCounter')) 'PR-2 R14-F2 (round 15): the click''s grant reader returns the step-counter classification priced with the same speed observations; the click rereads nothing to classify the step'
+$adapterType = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
+$tickDelegatedText = IlText ($adapterType.GetMethod('TickDelegated', $any))
+Check ($null -ne $adapterType.GetMethod('StepEndpointCap', $any) -and $tickDelegatedText.Contains('StepEndpointCap') -and
+    $tickDelegatedText.IndexOf('StepEndpointCap') -lt $tickDelegatedText.IndexOf('Advance;')) 'PR-2 R13-F5 (round 15): a step tick is bounded by installed TickMovement''s endpoint completion (StepEndpointCap) before the allocation advances it'
+Check ($null -ne $probeType.GetField('InteriorStopCandidatesPerTick', $any) -and (IlText ($probeType.GetMethod('EvaluateFirstTickNative', $any))).Contains('ldc.r4 4096;')) 'PR-2 R12-F2 (round 15): the current steered tick''s interior stops are evaluated at the established resolution (first-tick-interior)'
+$tickApproachText = IlText ($commandType.GetMethod('TickApproach', $any))
+$firstEnd = $tickApproachText.IndexOf('EndIfNativeTurnBasedApproachEnded'); $firstRepath = $tickApproachText.IndexOf('call Repath')
+Check ($firstEnd -ge 0 -and $firstRepath -gt $firstEnd -and $null -ne $commandType.GetProperty('NativeTurnBasedDispositionApplies', $any)) 'PR-2 R13-F3 (round 15): TickApproach resolves the end of the issued ordinary turn-based approach before the target-drift re-path, for the override and the native-accepted entries'
+$beginProvisionalText = IlText ($controllerType.GetMethod('BeginProvisionalOrder', $any))
+Check ($beginProvisionalText.Contains('CompetingMountWork') -and $beginProvisionalText.Contains('MountHoldsOtherWork')) 'PR-2 R14-F3 (round 15): a step request is classified with the accepted-work rule (CompetingMountWork; compatible older work waits), the restricted single tick keeps its idle-mount precondition'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')

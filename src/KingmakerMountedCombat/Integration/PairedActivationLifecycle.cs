@@ -88,7 +88,15 @@ namespace KingmakerMountedCombat.Integration
         // current PairedMovementContext is read as before.
         internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, TurnController movementInput = null)
         {
-            step = false; singleMove = false;
+            bool stepCounterBinds;
+            return PairedMountGrantedMetres(turn, out step, out singleMove, out reason, out stepCounterBinds, movementInput);
+        }
+
+        // PR #70 R14-F2 (round 15): the grant with its step-counter classification from the same speed observations (RemainingOrderMetres).
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, out bool stepCounterBinds,
+            TurnController movementInput = null)
+        {
+            step = false; singleMove = false; stepCounterBinds = false;
             var mount = activation?.Partner;
             if (!CanAddressActor(mount, turn)) { reason = "mount-not-addressable"; return 0f; }
             if (PartnerCanGetUp) { reason = "mount-must-stand"; return 0f; }
@@ -108,13 +116,11 @@ namespace KingmakerMountedCombat.Integration
                 return movementState.RemainingGrantedMetres(mount, step, singleMove);
             }
             reason = "granted";
-            return movementState.RemainingOrderMetres(mount, step, singleMove);
+            return movementState.RemainingOrderMetres(mount, step, singleMove, out stepCounterBinds);
         }
 
         // PR #70 R12-F1 (round 13): the paired mount's step tick of this length makes the native step counter final.
         internal bool PairedMountStepCounterFinal(float tick) => movementState.StepCounterFinal(activation?.Partner, tick);
-        // R12-F1 (round 14): the native step counter binds the paired mount's step (a debit of it can be final, whatever the frame).
-        internal bool PairedMountStepCounterBinds() => movementState.StepCounterFinal(activation?.Partner, float.MaxValue);
 
         // PR #70 R1-F6 (round 6): a provisional replacement request binds (and releases) its first-tick gate on the mount's movement adapter.
         internal void BindMountFirstTickGate(IMountedFirstTickGate gate, bool bind)

@@ -126,13 +126,26 @@ Assert-Kmc ($productionText -notmatch '[A-Za-z]:\\') 'production source contains
 # of the cleanup call in the disable branch, and disposal must take its one
 # bounded drain before unpatching anything.
 $compositionRoot = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs')
-$disableBranch = [Regex]::Match($compositionRoot, '(?s)// Always execute idempotent cleanup.*?lifecycle\.HandleModDisable\(\)')
-$beforeCleanup = if ($disableBranch.Success) { $compositionRoot.Substring(0, $disableBranch.Index) } else { '' }
-Assert-Kmc ($disableBranch.Success -and
-    $beforeCleanup -match 'persistence\.SaveSuspended' -and
-    $beforeCleanup -match 'persistence\.LoadInFlight') 'disable refuses both live persistence operations before cleanup'
-$disposeBody = [Regex]::Match($compositionRoot, '(?s)public void Dispose\(\).*?patches\.Dispose\(\)')
-Assert-Kmc ($disposeBody.Success -and $disposeBody.Value -match 'persistence\.DrainForTeardown\(') 'disposal drains an owned archive worker before unpatching'
+# PR #70 R12-F4/R14-F5 (round 15): the order lives in the production MountedServiceTeardownSequence that SetEnabled(false) and Dispose
+# delegate to; CompositionRoot.TeardownSteps binds each step to the same service the root called before the extraction.
+$teardownSequence = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedServiceTeardownSequence.cs')
+function Get-KmcBody([string]$Text, [string]$Signature) { $at = $Text.IndexOf($Signature, [StringComparison]::Ordinal); if ($at -lt 0) { return '' }; $brace = $Text.IndexOf('{', $at); $depth = 0; for ($i = $brace; $i -lt $Text.Length; $i++) { if ($Text[$i] -eq '{') { $depth++ } elseif ($Text[$i] -eq '}') { $depth--; if ($depth -eq 0) { return $Text.Substring($at, $i - $at + 1) } } }; '' }
+$teardownSteps = Get-KmcBody $compositionRoot 'private sealed class TeardownSteps : MountedServiceTeardownSequence.ISteps'
+$stepsBound = $teardownSteps -match 'SaveSuspended => root\.persistence\.SaveSuspended;' -and $teardownSteps -match 'LoadInFlight => root\.persistence\.LoadInFlight;' -and
+    $teardownSteps -match 'HandleModDisable\(\) => root\.lifecycle\.HandleModDisable\(\);' -and $teardownSteps -match 'root\.persistence\.DrainForTeardown\(TeardownDrainMilliseconds\) == OwnedWorkerTeardownVerdict\.Refused' -and
+    $teardownSteps -match 'root\.patches\.Dispose\(\);'
+$beginDisable = Get-KmcBody $teardownSequence 'internal static Verdict BeginDisable(ISteps steps)'
+$disableCleanupAt = $beginDisable.IndexOf('steps.HandleModDisable()', [StringComparison]::Ordinal)
+$setEnabledBody = Get-KmcBody $compositionRoot 'public bool SetEnabled(bool enabled)'
+Assert-Kmc ($stepsBound -and $setEnabledBody -match 'MountedServiceTeardownSequence\.BeginDisable\(teardownSteps\)' -and $setEnabledBody -notmatch 'lifecycle\.HandleModDisable\(\)' -and
+    $disableCleanupAt -gt 0 -and $beginDisable.Substring(0, $disableCleanupAt) -match 'steps\.SaveSuspended' -and
+    $beginDisable.Substring(0, $disableCleanupAt) -match 'if \(steps\.LoadInFlight\) return Verdict\.RefusedLoad;') 'disable refuses both live persistence operations before cleanup'
+$unloadSequence = Get-KmcBody $teardownSequence 'internal static Verdict Unload(ISteps steps)'
+$unloadLoadAt = $unloadSequence.IndexOf('if (steps.LoadInFlight) return Verdict.RefusedLoad;', [StringComparison]::Ordinal)
+$unloadWorkerAt = $unloadSequence.IndexOf('if (steps.OwnedWorkerCanStillCommit()) return Verdict.RefusedOwnedWorker;', [StringComparison]::Ordinal)
+$unloadCleanupAt = $unloadSequence.IndexOf('steps.HandleModDisable()', [StringComparison]::Ordinal)
+$unloadUnpatchAt = $unloadSequence.IndexOf('steps.RemoveHooksAndServices();', [StringComparison]::Ordinal)
+Assert-Kmc ($stepsBound -and $unloadLoadAt -ge 0 -and $unloadWorkerAt -gt $unloadLoadAt -and $unloadCleanupAt -gt $unloadWorkerAt -and $unloadUnpatchAt -gt $unloadCleanupAt) 'disposal drains an owned archive worker before unpatching (and the owned-load fence precedes it, R14-F5)'
 
 # The archive is committed the moment the native replacement returns. Recording
 # that must happen before descriptor rebinding and ownership completion, either
@@ -169,14 +182,17 @@ Assert-Kmc ($isolationText.Contains('PatchWriteSeam(harmony, typeof(SaveManager)
 # Teardown must CONSUME the ownership verdict: a Refused verdict throws before
 # any lifecycle cleanup or unpatching, and Main.OnUnload turns that throw into
 # the false return the installed UMM honours (ModEntry.Reload aborts on it).
-$disposeAll = [Regex]::Match($compositionRoot, '(?s)public void Dispose\(\).*?logger\.Info\("Composition root disposed')
-$verdictAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('var verdict = persistence.DrainForTeardown(', [StringComparison]::Ordinal) } else { -1 }
-$refuseAt = if ($verdictAt -ge 0) { $disposeAll.Value.IndexOf('OwnedWorkerTeardownVerdict.Refused', $verdictAt, [StringComparison]::Ordinal) } else { -1 }
-$throwAt = if ($refuseAt -ge 0) { $disposeAll.Value.IndexOf('throw new InvalidOperationException(', $refuseAt, [StringComparison]::Ordinal) } else { -1 }
-$cleanupAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('lifecycle.HandleModDisable()', [StringComparison]::Ordinal) } else { -1 }
-$unpatchAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('patches.Dispose()', [StringComparison]::Ordinal) } else { -1 }
-Assert-Kmc ($verdictAt -ge 0 -and $refuseAt -gt $verdictAt -and $throwAt -gt $refuseAt -and
-    $cleanupAt -gt $throwAt -and $unpatchAt -gt $cleanupAt) 'disposal consumes the teardown verdict and refuses before cleanup or unpatching'
+$disposeAll = Get-KmcBody $compositionRoot 'public void Dispose()'
+$verdictAt = $disposeAll.IndexOf('switch (MountedServiceTeardownSequence.Unload(teardownSteps))', [StringComparison]::Ordinal)
+$readyAt = if ($verdictAt -ge 0) { $disposeAll.IndexOf('case MountedServiceTeardownSequence.Verdict.Ready:', $verdictAt, [StringComparison]::Ordinal) } else { -1 }
+$refuseAt = if ($verdictAt -ge 0) { $disposeAll.IndexOf('case MountedServiceTeardownSequence.Verdict.RefusedOwnedWorker:', $verdictAt, [StringComparison]::Ordinal) } else { -1 }
+$throwAt = if ($refuseAt -ge 0) { $disposeAll.IndexOf('throw new InvalidOperationException(', $refuseAt, [StringComparison]::Ordinal) } else { -1 }
+$loadRefuseAt = if ($verdictAt -ge 0) { $disposeAll.IndexOf('case MountedServiceTeardownSequence.Verdict.RefusedLoad:', $verdictAt, [StringComparison]::Ordinal) } else { -1 }
+$loadThrowAt = if ($loadRefuseAt -ge 0) { $disposeAll.IndexOf('throw new InvalidOperationException(', $loadRefuseAt, [StringComparison]::Ordinal) } else { -1 }
+$releaseAt = $disposeAll.IndexOf('explorationObserver.Reset();', [StringComparison]::Ordinal)
+Assert-Kmc ($verdictAt -ge 0 -and $readyAt -gt $verdictAt -and $refuseAt -gt $verdictAt -and $throwAt -gt $refuseAt -and $loadThrowAt -gt $loadRefuseAt -and
+    $releaseAt -gt $throwAt -and $disposeAll -notmatch 'persistence\.DrainForTeardown\(|lifecycle\.HandleModDisable\(\)|patches\.Dispose\(\)' -and
+    $unloadWorkerAt -ge 0 -and $unloadCleanupAt -gt $unloadWorkerAt -and $unloadUnpatchAt -gt $unloadCleanupAt) 'disposal consumes the teardown verdict and refuses before cleanup or unpatching'
 $mainText2 = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Main.cs')
 $onUnload = [Regex]::Match($mainText2, '(?s)private static bool OnUnload\(.*?\n        \}')
 Assert-Kmc ($onUnload.Success -and $onUnload.Value -match 'root\?\.Dispose\(\);' -and

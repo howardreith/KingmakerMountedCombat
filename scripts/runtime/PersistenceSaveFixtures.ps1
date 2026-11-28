@@ -99,8 +99,9 @@ function Get-KmcPersistenceSource {
     if($NativeCase-ceq'prepare-removal'){
         $actual=Read-KmcCampaignArchiveMembers $path
         $schema=Get-KmcOptionalMember $actual.kmc 'SchemaVersion'
-        if(-not(Test-KmcExactJsonInteger $schema)-or$schema-cnotin@(2,3)){throw 'Prepare-removal source requires its actual historical schema2 or qualified current schema3 metadata.'}
-        if($schema-eq3){
+        # PR #70 R13-F2 (round 15): the current writer's schema 4, or schema 3 written by an earlier build; both use the current P07 reader.
+        if(-not(Test-KmcExactJsonInteger $schema)-or$schema-cnotin@(2,3,4)){throw 'Prepare-removal source requires its actual historical schema2 or qualified current-format (schema3/schema4) metadata.'}
+        if($schema-ge3){
             Assert-KmcCurrentRemovalSource $SourceRunId $ExpectedSha256 $Fixture $ArtifactRole
         }
     }

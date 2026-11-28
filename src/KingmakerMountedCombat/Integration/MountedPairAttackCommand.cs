@@ -1649,6 +1649,39 @@ namespace KingmakerMountedCombat.Integration
             if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null) return;
         }
 
+        // PR #70 R13-F3/R13-F4 (rounds 14-15): an accepted ordinary turn-based player order follows the installed disposition once its one
+        // issued approach can no longer bring the strike into reach. Installed UnitCommand.TickApproaching issues ONE turn-based path
+        // (NextApproachTime = MaxValue: no re-path); when movement is exhausted or denied, UnitMovementAgent.CanMoveInTurnBased (060018A9)
+        // completes the movement (CompleteMovement -> Stop/InterruptMovement: Path and RequestedPath cleared), so WantsToMove (060018BE:
+        // Path != null || RequestedPath != null) and UnitEntityView.IsMoving become false, and UnitActionController.TickCommandTurnBased
+        // (0600911D) force-finishes the approaching command that is not close enough (ForceFinishForTurnBased, then TickCommand returns
+        // before UpdateCooldowns: no strike, no Standard; the movement debited stays spent). The mounted order therefore ends, without a
+        // further carrier, when its carrier finished out of reach or the mount's agent no longer wants to move after the carrier moved it.
+        // Round 15 (R13-F3): both supported ordinary entries: the override entry (route-bound, its validated route followed) and the
+        // native-accepted rider click (a player-origin order without an override route whose carrier was issued). Only an ACCEPTED order: a
+        // provisional or refused first-tick request keeps its own refusal path; the charge, real-time and automatic orders keep their handling.
+        private bool NativeTurnBasedDispositionApplies =>
+            delegatedMove != null && !chargeMode && !ProvisionalOrder && (RouteBound ? ValidatedRouteFollowed : !IsAutomaticOrigin && delegatedMoveStartCount > 0) &&
+            (FirstTickCarrierPermitted == null || FirstTickCarrierPermitted()) && TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+
+        private bool EndIfNativeTurnBasedApproachEnded()
+        {
+            if (!NativeTurnBasedDispositionApplies) return false;
+            // The live carrier whose agent no longer wants to move is the route-bound override's (its carrier follows the validated ForcedPath);
+            // the native-accepted entry ends on its finished carrier.
+            if (!delegatedMove.IsFinished && !(RouteBound && MountAgentStoppedAfterCarrierMoved())) return false;
+            var admission = childAttack.EvaluateCurrentNativeAdmission();
+            ObserveNativeAdmission(admission);
+            if (admission == MountedPairNativeAdmissionState.Admitted) return false;
+            NativeApproachEndedCount++;
+            var detail = "native turn-based approach ended out of reach (carrier " + (delegatedMove.IsFinished ? "finished" : "live, agent no longer wants to move") +
+                ";admission=" + admission + ";entry=" + (RouteBound ? "override-route" : "native-accepted") + "): TickCommandTurnBased force-finish disposition, no re-path";
+            if (!transaction.IsTerminal) transaction.Cancel("The accepted turn-based approach ended out of reach; native issues no second path.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, detail);
+            Interrupt();
+            return true;
+        }
+
         private void TickApproach()
         {
             // PR-1 review R4-F4: no carrier is issued, adopted or replaced for a superseded unreleased generation.
@@ -1757,6 +1790,10 @@ namespace KingmakerMountedCombat.Integration
             }
 
             if (EndIfAutomaticOrderNotAdmitted()) return;
+            // PR #70 R13-F3 (round 15): the loss of the issued ordinary turn-based approach is resolved FIRST, before the target-drift re-path
+            // below (which could release the ended carrier and issue another): an approach that already ended out of reach takes the installed
+            // force-finish disposition, whatever the target did since.
+            if (EndIfNativeTurnBasedApproachEnded()) return;
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
@@ -1801,33 +1838,13 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
-            // PR #70 R13-F3/R13-F4 (round 14): an accepted route-bound ordinary turn-based order follows the installed disposition once its one
-            // issued approach can no longer bring the strike into reach. Installed UnitCommand.TickApproaching issues ONE turn-based path
-            // (NextApproachTime = MaxValue: no re-path); when movement is exhausted or denied, UnitMovementAgent.CanMoveInTurnBased (060018A9)
-            // completes the movement (CompleteMovement -> Stop/InterruptMovement: Path and RequestedPath cleared), so WantsToMove (060018BE:
-            // Path != null || RequestedPath != null) and UnitEntityView.IsMoving become false, and UnitActionController.TickCommandTurnBased
-            // (0600911D) force-finishes the approaching command that is not close enough (ForceFinishForTurnBased, then TickCommand returns
-            // before UpdateCooldowns: no strike, no Standard; the movement debited stays spent). The mounted order therefore ends here, without a
-            // further carrier, when its carrier finished out of reach or the mount's agent no longer wants to move after the carrier moved it.
-            // Explicit newer orders, the charge and real-time paths keep their own handling (Repath below).
-            // Only an ACCEPTED order: a provisional or refused first-tick request keeps its own refusal path (no further carrier) below.
-            var nativeTurnBasedDisposition = RouteBound && !chargeMode && ValidatedRouteFollowed && !ProvisionalOrder &&
-                (FirstTickCarrierPermitted == null || FirstTickCarrierPermitted()) && TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
-            var approachEnded = delegatedMove.IsFinished || nativeTurnBasedDisposition && MountAgentStoppedAfterCarrierMoved();
-            if (approachEnded)
+            // PR #70 R13-F3/R13-F4 (rounds 14-15): the issued approach's end after this tick's drive (EndIfNativeTurnBasedApproachEnded); the
+            // other orders (provisional requests, charges, real time, automatic orders) keep the re-path below.
+            if (EndIfNativeTurnBasedApproachEnded()) return;
+            if (delegatedMove.IsFinished)
             {
                 var finishedMoveAdmission = childAttack.EvaluateCurrentNativeAdmission();
                 ObserveNativeAdmission(finishedMoveAdmission);
-                if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted && nativeTurnBasedDisposition)
-                {
-                    NativeApproachEndedCount++;
-                    var detail = "native turn-based approach ended out of reach (carrier " + (delegatedMove.IsFinished ? "finished" : "live, agent no longer wants to move") +
-                        ";admission=" + finishedMoveAdmission + "): TickCommandTurnBased force-finish disposition, no re-path";
-                    if (!transaction.IsTerminal) transaction.Cancel("The accepted turn-based approach ended out of reach; native issues no second path.");
-                    RecordEndCause(MountedAttackEndCause.Cancelled, detail);
-                    Interrupt();
-                    return;
-                }
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
                     // PR-1 review R1-F7: a sight goal reached without admission is not chosen again.

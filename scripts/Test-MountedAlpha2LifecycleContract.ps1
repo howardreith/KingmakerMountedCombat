@@ -153,7 +153,10 @@ $admit = @(Method $participant 'AdmitPairedAttackClick')[0]
 $policy = (KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('Decide')
 $probe = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('Evaluate', $any)
 $movementState = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
-$grantHelper = @(Method $participant 'PairedMountGrantedMetres')[0]
+# PR #70 R14-F2 (round 15): the click's reader calls the priced overload (the grant with its step-counter classification from the same speed reads).
+$grantHelper = @(Method $participant 'PairedMountGrantedMetres' | Where-Object { @($_.GetParameters() | ForEach-Object { $_.Name }) -contains 'stepCounterBinds' })[0]
+$grantEntry = @(Method $participant 'PairedMountGrantedMetres' | Where-Object { @($_.GetParameters() | ForEach-Object { $_.Name }) -notcontains 'stepCounterBinds' })[0]
+Check ((Calls $grantEntry $grantHelper) -eq 1) 'R14-F2 (PR #70 round 15): the unpriced grant entry is the priced grant itself (one implementation)'
 # PR #70 round 2: the decision moved into the controller's AdmitTurnBasedAttackClick (spliced into the attack-path harness); the postfix
 # reads the native input and passes the shared mount grant as a reader (a closure calling PairedMountGrantedMetres).
 $admitCore = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCombatController') 'AdmitTurnBasedAttackClick')[0]
@@ -195,7 +198,7 @@ Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeA
 $attachProof = @(Method $controller 'AttachClickProof')[0]
 Check ((Calls $admitCore (@(Method $controller 'RememberValidatedClickProof')[0])) -eq 1 -and (Calls $tryExecute $attachProof) -eq 1 -and (Calls $attachProof ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('RouteRevalidator', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('ClickPlan', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
 $revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
-Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantHelper) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
+Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantEntry) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
 $invoke = [Func`2].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+PlanIdentity'), (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
 $moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
 $moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
@@ -393,6 +396,9 @@ Check ($checkLos.MetadataToken -eq 0x06008555 -and (Calls $nativeLos $checkLos) 
     $decisionContextCtor.MetadataToken -eq 0x0600941F -and (Calls $currentRange $decisionContextCtor) -eq 1 -and
     (Calls $decideAdmission $admissionLost) -eq 1) 'PR-1 R9-F1/R10-F3: the automatic order''s decision rechecks native IsTargetValid''s restricted rule with the proposing action''s CURRENT range (BlueprintAiAction.GetRange on a fresh DecisionContext 0x0600941F for the rider), both bodies and GameHelper.CheckLOS 0x06008555, independent of the optional ranking reader'
 # ---- PR-2 R12-F4 (round 13): outstanding owned cleanup takes part in registry retention and teardown readiness before anything is unpatched ----
+# Round 15: the teardown ORDER is the production MountedServiceTeardownSequence (CompositionRoot.SetEnabled/UpdateCore/Dispose and
+# MountedLifecycleSubscriber.HandleModDisable delegate to it; the attack-path harness executes it). These checks bind each entry point to the
+# sequence, the sequence's order, and each step adapter to the exact service it stood for before the extraction.
 $lifecycleSubscriber = KmcType 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
 $worldService = KmcType 'KingmakerMountedCombat.Integration.MountedWorldService'
 $handleDisable = @(Method $lifecycleSubscriber 'HandleModDisable')[0]
@@ -403,24 +409,54 @@ $retainedGetter = $controller.GetProperty('HasRetainedPairCommands', $any).GetGe
 $teardownReadyGetter = (KmcType 'KingmakerMountedCombat.Integration.GameMountedRelationshipService').GetProperty('AllTeardownOwnersReady', $any).GetGetMethod($true)
 $cleanupMethod = @(Method $lifecycleSubscriber 'Cleanup')[0]
 $teardownClosures = @($worldService.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $outstandingGetter) -ge 1 -and (Calls $_ ($controller.GetProperty('ChargeAdmissionFenced', $any).GetGetMethod($true))) -ge 1 })
+$sequence = KmcType 'KingmakerMountedCombat.Integration.MountedServiceTeardownSequence'
+$stepsType = $sequence.GetNestedType('ISteps', $any); $modStepsType = $sequence.GetNestedType('IModDisableSteps', $any)
+function StepMethod([Type]$Type, [string]$Name) { $m = $Type.GetMethod($Name, $any); if ($null -eq $m) { $m = $Type.GetProperty($Name, $any).GetGetMethod($true) }; $m }
+$seqModDisable = @(Method $sequence 'ModDisable')[0]; $seqBeginDisable = @(Method $sequence 'BeginDisable')[0]; $seqRetry = @(Method $sequence 'RetryWhileDisabled')[0]; $seqUnload = @(Method $sequence 'Unload')[0]
+$mDrain = StepMethod $modStepsType 'DrainOutstandingPairCleanup'; $mReady = StepMethod $modStepsType 'TeardownOwnersReady'; $mCleanup = StepMethod $modStepsType 'CleanupPairs'
+$modStepsImpl = $lifecycleSubscriber.GetNestedType('ModDisableSteps', $any)
+$modIl = $seqModDisable.GetMethodBody().GetILAsByteArray()
+$modDrainSites = @(Refs $seqModDisable | Where-Object { $_.Member -eq $mDrain })
 Check ((Calls $retainedGetter $outstandingGetter) -eq 1 -and (Calls $settlePairs $trySettle) -eq 1 -and $teardownClosures.Count -ge 1 -and
-    (Calls $handleDisable $settlePairs) -eq 2 -and (Calls $handleDisable $teardownReadyGetter) -ge 2 -and
-    (FirstOffset $handleDisable $settlePairs) -lt (FirstOffset $handleDisable $teardownReadyGetter) -and
-    @(Refs $handleDisable | Where-Object { $_.Member -eq $teardownReadyGetter } | Select-Object -Last 1)[0].Offset -gt (FirstOffset $handleDisable $cleanupMethod)) 'PR-2 R12-F4 (round 13): outstanding acceptance effects, retained carrier cleanup and an unfinished refused-request cleanup keep the pair owner registered (HasRetainedPairCommands) and the pair teardown not ready; HandleModDisable (run by disable and by unload before patches.Dispose) drains them once, refuses while they remain, drains again after its own cleanup (work the cancellation created) and reports ready only when none remains'
+    (Calls $handleDisable $seqModDisable) -eq 1 -and $modDrainSites.Count -eq 2 -and (Calls $seqModDisable $mReady) -ge 2 -and
+    (FirstOffset $seqModDisable $mDrain) -lt (FirstOffset $seqModDisable $mReady) -and
+    @(Refs $seqModDisable | Where-Object { $_.Member -eq $mReady } | Select-Object -Last 1)[0].Offset -gt (FirstOffset $seqModDisable $mCleanup) -and
+    $null -ne $modStepsImpl -and (Calls (@(Method $modStepsImpl 'DrainOutstandingPairCleanup')[0]) $settlePairs) -eq 1 -and
+    (Calls (@(Method $modStepsImpl 'get_TeardownOwnersReady')[0]) $teardownReadyGetter) -eq 1 -and (Calls (@(Method $modStepsImpl 'CleanupPairs')[0]) $cleanupMethod) -eq 1) 'PR-2 R12-F4 (round 13; sequence extracted in round 15): outstanding acceptance effects, retained carrier cleanup and an unfinished refused-request cleanup keep the pair owner registered (HasRetainedPairCommands) and the pair teardown not ready; HandleModDisable (run by disable and by unload before patches.Dispose) runs MountedServiceTeardownSequence.ModDisable: one drain (MountedWorldService.SettleOutstandingPairCleanup), refusal while work remains (AllTeardownOwnersReady), the lifecycle cleanup, a second drain for work the cancellation created, ready only when none remains'
 # ---- PR-2 R12-F4 (round 14): drain before readiness, a lifecycle-owned retry after ordinary updates stop, the drain's verdict consumed ----
 $root = KmcType 'KingmakerMountedCombat.CompositionRoot'
 $setEnabled = @(Method $root 'SetEnabled')[0]
 $updateCore = @(Method $root 'UpdateCore')[0]
+$rootDispose = @($root.GetMethods($any) | Where-Object { $_.Name -ceq 'Dispose' -and $_.GetParameters().Count -eq 0 })[0]
 $updatePairs = @(Method $worldService 'UpdatePairs')[0]
 $enabledGetter = $root.GetProperty('IsEnabled', $any).GetGetMethod($true)
 $persistenceType = KmcType 'KingmakerMountedCombat.Integration.MountedPersistenceService'
 $saveSuspended = $persistenceType.GetProperty('SaveSuspended', $any).GetGetMethod($true)
 $loadInFlight = $persistenceType.GetProperty('LoadInFlight', $any).GetGetMethod($true)
-$handleIl = $handleDisable.GetMethodBody().GetILAsByteArray()
-$settleSites = @(Refs $handleDisable | Where-Object { $_.Member -eq $settlePairs })
-Check ((Calls $setEnabled $settlePairs) -eq 1 -and (FirstOffset $setEnabled $settlePairs) -lt (FirstOffset $setEnabled $teardownReadyGetter) -and
-    (FirstOffset $setEnabled $saveSuspended) -lt (FirstOffset $setEnabled $settlePairs) -and (FirstOffset $setEnabled $loadInFlight) -lt (FirstOffset $setEnabled $settlePairs)) 'PR-2 R12-F4 (round 14): CompositionRoot.SetEnabled(false) drains outstanding owned pair cleanup once, outside the save/load fences, BEFORE its AllTeardownOwnersReady check (a refusal leaves everything patched and retryable)'
-Check ((Calls $updateCore $settlePairs) -eq 1 -and (FirstOffset $updateCore $settlePairs) -lt (FirstOffset $updateCore $updatePairs) -and
-    (FirstOffset $updateCore $enabledGetter) -lt (FirstOffset $updateCore $settlePairs)) 'PR-2 R12-F4 (round 14): UpdateCore retries outstanding owned pair cleanup through a lifecycle-owned drain that runs while IsEnabled is false (after PerformFailureCleanup or a refused disable stopped the ordinary pair update), ahead of the ordinary gates and outside the save/load/area/restoration fences'
-Check ($settleSites.Count -eq 2 -and @($settleSites | Where-Object { $handleIl[$_.Offset + 5] -eq 0x26 }).Count -eq 0) 'PR-2 R12-F4 (round 14): HandleModDisable consumes both drain verdicts (before the readiness check and after the cancellation its own cleanup performs); neither result is discarded'
+$drainForTeardown = @(Method $persistenceType 'DrainForTeardown')[0]
+$patchDispose = @((KmcType 'KingmakerMountedCombat.Integration.MountedPatchController').GetMethods($any) | Where-Object { $_.Name -ceq 'Dispose' -and $_.GetParameters().Count -eq 0 })[0]
+$sDrain = StepMethod $stepsType 'DrainOutstandingPairCleanup'; $sReady = StepMethod $stepsType 'TeardownOwnersReady'; $sSave = StepMethod $stepsType 'SaveSuspended'
+$sLoad = StepMethod $stepsType 'LoadInFlight'; $sWorker = StepMethod $stepsType 'ActiveSaveWorkerRunning'; $sArea = StepMethod $stepsType 'AreaTransitionPending'
+$sRestore = StepMethod $stepsType 'CombatRestorationPending'; $sEnabled = StepMethod $stepsType 'IsEnabled'; $sHandle = StepMethod $stepsType 'HandleModDisable'
+$sOwnedWorker = StepMethod $stepsType 'OwnedWorkerCanStillCommit'; $sRelease = StepMethod $stepsType 'ReleaseForUnload'; $sRemove = StepMethod $stepsType 'RemoveHooksAndServices'
+$rootSteps = $root.GetNestedType('TeardownSteps', $any)
+Check ($null -ne $rootSteps -and (Calls (@(Method $rootSteps 'DrainOutstandingPairCleanup')[0]) $settlePairs) -eq 1 -and (Calls (@(Method $rootSteps 'get_TeardownOwnersReady')[0]) $teardownReadyGetter) -eq 1 -and
+    (Calls (@(Method $rootSteps 'get_LoadInFlight')[0]) $loadInFlight) -eq 1 -and (Calls (@(Method $rootSteps 'get_SaveSuspended')[0]) $saveSuspended) -eq 1 -and
+    (Calls (@(Method $rootSteps 'get_IsEnabled')[0]) $enabledGetter) -eq 1 -and (Calls (@(Method $rootSteps 'OwnedWorkerCanStillCommit')[0]) $drainForTeardown) -eq 1 -and
+    (Calls (@(Method $rootSteps 'HandleModDisable')[0]) $handleDisable) -eq 1 -and (Calls (@(Method $rootSteps 'RemoveHooksAndServices')[0]) $patchDispose) -eq 1) 'PR-2 R12-F4/R14-F5 (round 15): CompositionRoot.TeardownSteps binds the sequence''s steps to the services the root called before the extraction (MountedWorldService.SettleOutstandingPairCleanup, AllTeardownOwnersReady, the persistence fences, IsEnabled, DrainForTeardown, MountedLifecycleSubscriber.HandleModDisable, patches.Dispose)'
+Check ((Calls $setEnabled $seqBeginDisable) -eq 1 -and (Calls $setEnabled $settlePairs) -eq 0 -and (Calls $setEnabled $handleDisable) -eq 0 -and
+    (FirstOffset $seqBeginDisable $sDrain) -lt (FirstOffset $seqBeginDisable $sReady) -and
+    (FirstOffset $seqBeginDisable $sSave) -lt (FirstOffset $seqBeginDisable $sDrain) -and (FirstOffset $seqBeginDisable $sLoad) -lt (FirstOffset $seqBeginDisable $sDrain) -and
+    (FirstOffset $seqBeginDisable $sWorker) -lt (FirstOffset $seqBeginDisable $sDrain) -and
+    @(Refs $seqBeginDisable | Where-Object { $_.Member -eq $sLoad } | Select-Object -Last 1)[0].Offset -lt (FirstOffset $seqBeginDisable $sHandle)) 'PR-2 R12-F4 (round 14; round 15 sequence): CompositionRoot.SetEnabled(false) runs MountedServiceTeardownSequence.BeginDisable: outstanding owned pair cleanup is drained once, outside the save/load fences, BEFORE the AllTeardownOwnersReady check, and HandleModDisable runs only after the owned-load refusal (a refusal leaves everything patched and retryable)'
+Check ((Calls $updateCore $seqRetry) -eq 1 -and (Calls $updateCore $settlePairs) -eq 0 -and (FirstOffset $updateCore $seqRetry) -lt (FirstOffset $updateCore $updatePairs) -and
+    (FirstOffset $seqRetry $sEnabled) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sLoad) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sSave) -lt (FirstOffset $seqRetry $sDrain) -and
+    (FirstOffset $seqRetry $sWorker) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sArea) -lt (FirstOffset $seqRetry $sDrain) -and
+    (FirstOffset $seqRetry $sRestore) -lt (FirstOffset $seqRetry $sDrain) -and (Calls $seqRetry $sDrain) -eq 1) 'PR-2 R12-F4 (round 14; round 15 sequence): UpdateCore retries outstanding owned pair cleanup through MountedServiceTeardownSequence.RetryWhileDisabled, which drains only while IsEnabled is false (after PerformFailureCleanup or a refused disable stopped the ordinary pair update), ahead of the ordinary gates and outside the save/load/area/restoration fences'
+Check ($modDrainSites.Count -eq 2 -and @($modDrainSites | Where-Object { $modIl[$_.Offset + 5] -eq 0x26 }).Count -eq 0) 'PR-2 R12-F4 (round 14; round 15 sequence): HandleModDisable''s sequence (MountedServiceTeardownSequence.ModDisable) consumes both drain verdicts (before the readiness check and after the cancellation its own cleanup performs); neither result is discarded'
+# ---- PR-2 R14-F5 (round 15): the owned-load fence precedes every drain, cancellation and unpatch on the unload path ----
+Check ((Calls $rootDispose $seqUnload) -eq 1 -and (Calls $rootDispose $handleDisable) -eq 0 -and (Calls $rootDispose $drainForTeardown) -eq 0 -and (Calls $rootDispose $patchDispose) -eq 0 -and
+    (Calls $rootDispose $settlePairs) -eq 0 -and (Calls $seqUnload $sLoad) -eq 1 -and @(Refs $seqUnload | Where-Object { $_.Member -and $_.Member.DeclaringType -eq $stepsType } | Select-Object -First 1)[0].Member -eq $sLoad -and
+    (FirstOffset $seqUnload $sLoad) -lt (FirstOffset $seqUnload $sOwnedWorker) -and (FirstOffset $seqUnload $sOwnedWorker) -lt (FirstOffset $seqUnload $sHandle) -and
+    (FirstOffset $seqUnload $sHandle) -lt (FirstOffset $seqUnload $sRelease) -and (FirstOffset $seqUnload $sRelease) -lt (FirstOffset $seqUnload $sRemove) -and (Calls $seqUnload $sDrain) -eq 0) 'PR-2 R14-F5 (round 15): CompositionRoot.Dispose (UMM unload) runs MountedServiceTeardownSequence.Unload, whose FIRST step is the owned-load fence (LoadInFlight) before the bounded owned-worker wait, HandleModDisable (the only drain/cancellation), the Mounted Shield release and patches.Dispose; Dispose itself calls none of them directly'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

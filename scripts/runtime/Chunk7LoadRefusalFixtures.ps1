@@ -30,7 +30,8 @@ function Get-KmcChunk7LoadRefusalMembers([IO.Stream]$Stream){
 
 function Get-KmcChunk7LoadRefusalMutation($Metadata,[string]$Checkpoint){
  if($Metadata.SchemaVersion-isnot[int]-and$Metadata.SchemaVersion-isnot[long]){throw 'Refusal source schema must be an integer.'}
- if($Metadata.SchemaVersion-ne3){throw 'Refusal probes derive only from the actual current native archive.'}
+ # PR #70 R13-F2 (round 15): the current native archive is schema 4 from this build's writer (schema 3 from an earlier build).
+ if($Metadata.SchemaVersion-notin@(3,4)){throw 'Refusal probes derive only from the actual current native archive.'}
  if($Checkpoint-ceq'multi-malformed-refusal-manual'){return [pscustomobject]@{mutation='truncated-json';text='{"SchemaVersion":3,'}}
  if($Checkpoint-cne'multi-future-refusal-manual'){throw 'Unknown refusal metadata mutation.'}
  $copy=$Metadata|ConvertTo-Json -Depth 32|ConvertFrom-Json;$copy.SchemaVersion=99

@@ -24,7 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void RequestSchema2Resave()
         {
             var schema2Case = Schema2ResaveCase;
-            var currentWriter = NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld;
+            // PR #70 R13-F2 (round 15): the current writer is the selected archive schema (MountedArchiveData.Schema, 4), not a literal 3.
+            var currentWriter = NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && !legacyWriterHeld;
             var restoredSource = saved != null && (int?)evidence["loadedSourceSchema"] == 2;
             var restorationSettled = !persistence.CombatRestorationPending;
             var nativeTurnBased = CombatController.IsInTurnBasedCombat();
@@ -99,8 +100,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver);
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && read.Data != null &&
-                NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld,
-                "Schema-2 migration did not deliberately write native schema 3.");
+                NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && !legacyWriterHeld,
+                "Schema-2 migration did not deliberately write the current native archive schema.");
             ValidateSchema2Continuity(schema2Imported, read.Data);
             AssertCombatOwners(); AssertSlots(); AssertCombatDebt(schema2Imported); AssertCombatDebt(read.Data);
             checkpoint.ValidateArchive(read.Data); AssertSchema2NoPreparation();

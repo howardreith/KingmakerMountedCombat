@@ -418,9 +418,61 @@ namespace KingmakerMountedCombat.Integration
                 if (onLast || index >= agentPath.Count - 1) break;
                 start = index + 1;
             }
-            result.Detail = firstDetail + (alternatives > 1 ? ";alternativesTried=" + (alternatives - 1) : "");
+            // PR #70 R12-F2 (round 15): the viable INTERIOR stops of the current steered tick at the established resolution (InDiscSampleMetres of
+            // shift, i.e. durations k x InDiscSampleMetres / speed below the full allowance), each with the installed waypoint selection at that
+            // duration (a waypoint whose distance is below m_Speed x duration is skipped), its steering and its last-segment completion (snap)
+            // at that duration; a duration whose shift would pass its waypoint belongs to the waypoint candidates above and is skipped. The first
+            // (shortest) stop admitting the strike is returned with exactly that duration: a visible part of the tick that ends before the
+            // full-duration or waypoint-distance candidate is not hidden by a larger grant.
+            var interiorStep = Math.Max(InDiscSampleMetres / speed, fullDelta / InteriorStopCandidatesPerTick);
+            var interiorTried = 0;
+            for (var k = 1; k * interiorStep < fullDelta; k++)
+            {
+                var dt = k * interiorStep;
+                var index = cursor;
+                Vector3 waypoint = agentPath[index];
+                float distance = 0f;
+                var onLast = false;
+                var moving = false;
+                for (;;)
+                {
+                    waypoint = agentPath[index];
+                    onLast = index >= agentPath.Count - 1;
+                    distance = Length(new Vector2(waypoint.x - origin.x, waypoint.z - origin.z));
+                    if (followPrecomputedPath && !onLast && currentAgentSpeed > 0f && distance < currentAgentSpeed * dt) { index++; continue; }
+                    moving = distance > 1e-6f;
+                    break;
+                }
+                if (!moving) continue;
+                var unit = new Vector2((waypoint.x - origin.x) / distance, (waypoint.z - origin.z) / distance);
+                Vector2 newDirection; float effectiveAngular;
+                var shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, dt, out newDirection, out effectiveAngular);
+                if (Length(shift) > distance) continue;
+                interiorTried++;
+                var stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
+                var previous = index > 0 ? agentPath[index - 1] : origin;
+                var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
+                var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
+                if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
+                if (!(Length(newDirection) > 1e-6f) ||
+                    probe.EvaluateNativeAdmissionAtMountPosition(stop, new Vector3(newDirection.x, 0f, newDirection.y)) != MountedPairNativeAdmissionState.Admitted) continue;
+                result.Detail = "first-tick-interior(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") +
+                    ";delta=" + dt.ToString("R") + ";fullDelta=" + fullDelta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" +
+                    GeometryUtils.MechanicsDistance(origin, stop).ToString("R") + ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") + ";stopZ=" +
+                    stop.z.ToString("R") + ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");interiorCandidate=" + k +
+                    ";admitted=True;fullAndWaypointRefused={" + firstDetail + "})";
+                result.Path = PathOutcome.Complete;
+                result.Route = new List<Vector3> { origin, stop };
+                result.RouteMetres = dt * speed;
+                result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
+                return result;
+            }
+            result.Detail = firstDetail + (alternatives > 1 ? ";alternativesTried=" + (alternatives - 1) : "") + ";interiorStopsTried=" + interiorTried;
             return result;
         }
+
+        // R12-F2 (round 15): the interior-stop search never coarsens below this many candidates per tick (1 mm of shift is finer for any real tick).
+        internal const int InteriorStopCandidatesPerTick = 4096;
 
         // PR #70 R8-F1 (rounds 9-11): the route the agent will execute from its live position (its own path from its cursor) and the strike's
         // admission wherever native proximity can finish the carrier: the proven arrival disc around the destination under the destination
@@ -460,9 +512,8 @@ namespace KingmakerMountedCombat.Integration
             // on the planned segment's start point is the live leg the planned segment itself (same points, same parameters): its established
             // samples are then kept unchanged (R8-F1: the click and the revalidation sample exactly the same points, so a tightly placed destination
             // whose disc begins at the opening's measured start is not refused by a float re-sampling). Any other position, however close, validates
-            // the live leg wherever it can enter the FULL arrival radius (LiveLegAdmits): it is sampled at the planned segment's own parameters
-            // (the live point that projects onto each established sample) and, additionally, every part of the live chord inside the disc but
-            // outside the planned chord is sampled at the in-disc spacing with both ends, all with the live heading; the arrival disc is taken
+            // the live leg wherever it can enter the FULL arrival radius (LiveLegAdmits, round 15): the live chord is sampled by its own distance at
+            // the in-disc spacing with both ends, plus the live points projecting onto the established samples, all with the live heading; the arrival disc is taken
             // under the live heading when the cursor point is the destination, and the established samples are kept from the cursor point on.
             // The current pose is checked when the mount already stands inside the disc.
             var liveEnd = agentPath[Math.Max(0, Math.Min(cursor, agentPath.Count - 1))];
@@ -472,7 +523,11 @@ namespace KingmakerMountedCombat.Integration
             var fromMetres = 0d;
             for (var i = 1; i < cursor && i < nativeRoute.Count; i++) fromMetres += GeometryUtils.MechanicsDistance(nativeRoute[i - 1], nativeRoute[i]);
             var plannedStart = cursor > 0 && cursor < nativeRoute.Count ? nativeRoute[cursor - 1] : agentPath[0];
-            var onPlanned = cursor >= 0 && cursor < agentPath.Count && position.x == plannedStart.x && position.z == plannedStart.z;
+            // R14-F1 (round 15): the planned-leg shortcut needs BOTH live endpoints to be the planned leg's: the start bit for bit and the live end
+            // (the agent's cursor point) bit for bit the revalidated truncated route's point at that cursor (agentPath is admitted within 1 mm of it).
+            var plannedEnd = cursor >= 0 && cursor < truncated.Count ? truncated[cursor] : liveEnd;
+            var onPlanned = cursor >= 0 && cursor < agentPath.Count && position.x == plannedStart.x && position.z == plannedStart.z &&
+                liveEnd.x == plannedEnd.x && liveEnd.z == plannedEnd.z;
             var destinationLeg = cursor >= agentPath.Count - 1;
             var liveHeading = !onPlanned && destinationLeg && liveMetres > WaypointPassedMetres;
             var poseAdmitted = GeometryUtils.SqrMechanicsDistance(position, centre) > arrivalRadius * arrivalRadius || (onPlanned && fromMetres <= 0d) || admits(position, position, position);
@@ -497,17 +552,18 @@ namespace KingmakerMountedCombat.Integration
             return result;
         }
 
-        // R11-F3 (round 14): the live leg [position -> liveEnd] wherever it lies inside the FULL arrival radius. Its in-disc chord is computed in
-        // double precision. Where the live leg runs along the planned segment (nativeRoute[cursor - 1] -> nativeRoute[cursor]) it is parameterized
-        // by that segment's own parameter t (P(t) is the exact line through position and liveEnd, the live point projecting onto t), and is sampled
-        // at the established in-disc sample parameters of the planned chord that fall inside the live chord; every part of the live chord outside
-        // the planned chord (the whole chord when the planned leg misses the disc, a reverse leg past the truncated endpoint) is sampled every
-        // InDiscSampleMetres from its start, both ends included. Every sample uses the live heading. A live leg that cannot be parameterized by
-        // the planned segment (no planned segment, or a leg perpendicular to it) is sampled uniformly along its own chord.
+        // R11-F3 (round 14), R14-F1 (round 15): the live leg [position -> liveEnd] wherever it lies inside the FULL arrival radius. Its in-disc chord
+        // [u0, u1] (u the live leg's own parameter) is computed in double precision and sampled BY DISTANCE ALONG THE LIVE CHORD itself: every
+        // InDiscSampleMetres from its entry, both ends included, whatever its direction relative to the planned segment (a live chord almost
+        // perpendicular to the planned segment projects onto a tiny part of it, so samples spaced on the planned segment could leave most of the
+        // live chord unchecked). Where the live leg projects onto the planned segment's established in-disc samples (nativeRoute[cursor - 1] ->
+        // nativeRoute[cursor], as RouteInsideDiscAdmits samples it), the live points projecting onto those samples are checked as well (retained
+        // established samples). Every point is computed explicitly (position + u x leg), never with Vector3.Lerp (Unity clamps its parameter to
+        // [0, 1]); every sample uses the live heading.
         internal static bool LiveLegAdmits(IList<Vector3> nativeRoute, float destinationMetres, int cursor, Vector3 position, Vector3 liveEnd, Vector3 centre,
             float radius, Func<Vector3, Vector3, Vector3, bool> admits, out string detail)
         {
-            double ex = liveEnd.x - position.x, ez = liveEnd.z - position.z;
+            double ex = liveEnd.x - position.x, ey = liveEnd.y - position.y, ez = liveEnd.z - position.z;
             var liveLength = Math.Sqrt(ex * ex + ez * ez);
             var r2 = (double)radius * radius;
             if (liveLength <= 0d) { detail = "zero-length"; return true; }
@@ -520,95 +576,73 @@ namespace KingmakerMountedCombat.Integration
             var u0 = Math.Max(0d, closestU - halfU); var u1 = Math.Min(1d, closestU + halfU);
             if (u1 < u0) { detail = "outside(perpendicular=" + perpendicular.ToString("R") + ")"; return true; }
             var chord = (u1 - u0) * liveLength;
-            var samples = 0; var plannedSamples = 0;
+            Func<double, Vector3> at = u => new Vector3((float)(position.x + ex * u), (float)(position.y + ey * u), (float)(position.z + ez * u));
             var head = "perpendicular=" + perpendicular.ToString("R") + ";liveChordMetres=" + chord.ToString("R");
-            Vector3 a = Vector3.zero, b = Vector3.zero;
-            double dx = 0d, dz = 0d, length = 0d, tp = 0d, te = 0d;
-            var parameterized = false;
+            // (1) The live chord by its own distance, both ends included.
+            var liveSamples = 0;
+            var liveStep = InDiscSampleMetres / liveLength;
+            for (var k = 0; ; k++)
+            {
+                var u = u0 + k * liveStep;
+                if (u >= u1) u = u1;
+                liveSamples++;
+                if (!admits(at(u), position, liveEnd))
+                {
+                    var p = at(u);
+                    detail = head + ";refusedOnLiveChordAt=" + u.ToString("R") + ";refusedPoint=(" + p.x.ToString("R") + "," + p.z.ToString("R") + ");liveSamples=" + liveSamples;
+                    return false;
+                }
+                if (u >= u1) break;
+            }
+            // (2) The retained established samples of the planned chord, at the live points projecting onto them.
+            var plannedSamples = 0;
+            var plannedChord = "none";
             if (cursor > 0 && cursor < nativeRoute.Count)
             {
-                a = nativeRoute[cursor - 1]; b = nativeRoute[cursor];
-                dx = b.x - a.x; dz = b.z - a.z;
-                length = Math.Sqrt(dx * dx + dz * dz);
+                var a = nativeRoute[cursor - 1]; var b = nativeRoute[cursor];
+                double dx = b.x - a.x, dz = b.z - a.z;
+                var length = Math.Sqrt(dx * dx + dz * dz);
                 if (length > 0d)
                 {
-                    tp = ((position.x - a.x) * dx + (position.z - a.z) * dz) / (length * length);
-                    te = ((liveEnd.x - a.x) * dx + (liveEnd.z - a.z) * dz) / (length * length);
-                    parameterized = Math.Abs(te - tp) * length > 1e-7d;
-                }
-            }
-            if (!parameterized)
-            {
-                var step = InDiscSampleMetres / liveLength;
-                for (var u = u0; u < u1; u += step, samples++)
-                    if (!admits(Vector3.Lerp(position, liveEnd, (float)u), position, liveEnd)) { detail = head + ";uniform;refusedAt=" + u.ToString("R"); return false; }
-                samples++;
-                if (!admits(Vector3.Lerp(position, liveEnd, (float)u1), position, liveEnd)) { detail = head + ";uniform;refusedAt=" + u1.ToString("R"); return false; }
-                detail = head + ";uniform;samples=" + samples;
-                return true;
-            }
-            // Offsets of position and liveEnd from their projections on the planned line: P(t) = a + d t + op (te - t)/(te - tp) + oe (t - tp)/(te - tp).
-            double opx = position.x - (a.x + dx * tp), opz = position.z - (a.z + dz * tp);
-            double oex = liveEnd.x - (a.x + dx * te), oez = liveEnd.z - (a.z + dz * te);
-            var span = te - tp;
-            Func<double, Vector3> at = t =>
-            {
-                var w0 = (te - t) / span; var w1 = (t - tp) / span;
-                var planned = Vector3.Lerp(a, b, (float)t);
-                return new Vector3(planned.x + (float)(opx * w0 + oex * w1), position.y + (liveEnd.y - position.y) * (float)w1, planned.z + (float)(opz * w0 + oez * w1));
-            };
-            double l0 = tp + u0 * span, l1 = tp + u1 * span;
-            if (l0 > l1) { var swap = l0; l0 = l1; l1 = swap; }
-            // The planned chord's established sample parameters (as RouteInsideDiscAdmits computes them on this segment).
-            var travelled = 0d;
-            for (var i = 1; i < cursor; i++) travelled += GeometryUtils.MechanicsDistance(nativeRoute[i - 1], nativeRoute[i]);
-            var limit = Math.Min(1d, (destinationMetres - travelled) / length);
-            double fx = centre.x - a.x, fz = centre.z - a.z;
-            var closest = (fx * dx + fz * dz) / (length * length);
-            double px = a.x + dx * closest - centre.x, pz = a.z + dz * closest - centre.z;
-            var plannedPerpendicularSqr = px * px + pz * pz;
-            double t0 = 0d, t1 = -1d;
-            if (plannedPerpendicularSqr <= r2)
-            {
-                var half = Math.Sqrt(r2 - plannedPerpendicularSqr) / length;
-                t0 = Math.Max(0d, closest - half);
-                t1 = Math.Min(limit, closest + half);
-            }
-            if (t1 >= t0)
-            {
-                var step = InDiscSampleMetres / length;
-                for (var t = t0; ; t += step)
-                {
-                    if (t >= t1) t = t1;
-                    if (t >= l0 && t <= l1)
+                    var tp = ((position.x - a.x) * dx + (position.z - a.z) * dz) / (length * length);
+                    var te = ((liveEnd.x - a.x) * dx + (liveEnd.z - a.z) * dz) / (length * length);
+                    var span = te - tp;
+                    if (Math.Abs(span) * length > 1e-7d)
                     {
-                        samples++; plannedSamples++;
-                        if (!admits(at(t), position, liveEnd)) { detail = head + ";refusedAtPlannedParameter=" + t.ToString("R"); return false; }
+                        var travelled = 0d;
+                        for (var i = 1; i < cursor; i++) travelled += GeometryUtils.MechanicsDistance(nativeRoute[i - 1], nativeRoute[i]);
+                        var limit = Math.Min(1d, (destinationMetres - travelled) / length);
+                        double fx = centre.x - a.x, fz = centre.z - a.z;
+                        var closest = (fx * dx + fz * dz) / (length * length);
+                        double px = a.x + dx * closest - centre.x, pz = a.z + dz * closest - centre.z;
+                        var plannedPerpendicularSqr = px * px + pz * pz;
+                        if (plannedPerpendicularSqr <= r2)
+                        {
+                            var half = Math.Sqrt(r2 - plannedPerpendicularSqr) / length;
+                            var t0 = Math.Max(0d, closest - half);
+                            var t1 = Math.Min(limit, closest + half);
+                            if (t1 >= t0)
+                            {
+                                plannedChord = t0.ToString("R") + ".." + t1.ToString("R");
+                                var step = InDiscSampleMetres / length;
+                                for (var t = t0; ; t += step)
+                                {
+                                    if (t >= t1) t = t1;
+                                    var u = (t - tp) / span;
+                                    if (u >= u0 && u <= u1)
+                                    {
+                                        plannedSamples++;
+                                        if (!admits(at(u), position, liveEnd)) { detail = head + ";refusedAtPlannedParameter=" + t.ToString("R") + ";liveSamples=" + liveSamples; return false; }
+                                    }
+                                    if (t >= t1) break;
+                                }
+                            }
+                        }
                     }
-                    if (t >= t1) break;
                 }
             }
-            // The live chord outside the planned chord: [l0, l1] minus [t0, t1], each piece sampled at the live in-disc spacing with both ends.
-            var liveStep = InDiscSampleMetres * Math.Abs(span) / liveLength;
-            var pieces = new List<KeyValuePair<double, double>>();
-            if (t1 < t0 || t1 < l0 || t0 > l1) pieces.Add(new KeyValuePair<double, double>(l0, l1));
-            else
-            {
-                if (l0 < t0) pieces.Add(new KeyValuePair<double, double>(l0, t0));
-                if (l1 > t1) pieces.Add(new KeyValuePair<double, double>(t1, l1));
-            }
-            foreach (var piece in pieces)
-            {
-                for (var t = piece.Key; t < piece.Value; t += liveStep)
-                {
-                    samples++;
-                    if (!admits(at(t), position, liveEnd)) { detail = head + ";refusedOutsidePlannedChordAt=" + t.ToString("R"); return false; }
-                }
-                samples++;
-                if (!admits(at(piece.Value), position, liveEnd)) { detail = head + ";refusedOutsidePlannedChordAt=" + piece.Value.ToString("R"); return false; }
-            }
-            detail = head + ";plannedChord=" + (t1 >= t0 ? t0.ToString("R") + ".." + t1.ToString("R") : "none") + ";liveChord=" + l0.ToString("R") + ".." + l1.ToString("R") +
-                ";samples=" + samples + ";atPlannedParameters=" + plannedSamples + ";outsidePlannedChordPieces=" + pieces.Count;
+            detail = head + ";liveChord=" + u0.ToString("R") + ".." + u1.ToString("R") + ";liveSamples=" + liveSamples + ";plannedChord=" + plannedChord +
+                ";atPlannedParameters=" + plannedSamples;
             return true;
         }
 

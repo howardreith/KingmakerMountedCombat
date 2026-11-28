@@ -171,6 +171,8 @@ namespace KingmakerMountedCombat
         // A native archive worker writes a few megabytes; this is generous for
         // that and still short enough that a stuck one cannot hang an unload.
         private const int TeardownDrainMilliseconds = 15000;
+        private TeardownSteps teardownStepsInstance;
+        private TeardownSteps teardownSteps => teardownStepsInstance ?? (teardownStepsInstance = new TeardownSteps(this));
 
         public bool IsEnabled { get; private set; }
 
@@ -238,31 +240,25 @@ namespace KingmakerMountedCombat
             // PR #70 R12-F4 (round 14): outstanding owned pair cleanup (a deferred target clear, a retained carrier stop) is drained ONCE
             // before the readiness check, outside the save/load fences (never while an owned archive worker serializes the live graphs or
             // an owned load replaces the world); work it could not settle keeps teardown not ready and this request refused and retryable.
-            if (!persistence.SaveSuspended && !persistence.LoadInFlight && !persistence.ActiveSaveWorkerRunning) world.SettleOutstandingPairCleanup();
-            if (persistence.SaveSuspended || world.AnyChargeFenced || !relationship.AllTeardownOwnersReady)
+            // The same argument for the other live operation: cleanup during an owned world replacement would tear the pair down across a
+            // world being replaced underneath it (bounded by the load finishing). Always execute idempotent cleanup on a disable request: a
+            // prior update failure may already have cleared IsEnabled while a partial runtime operation still needs best-effort cleanup.
+            // Round 15: the order is the production sequence MountedServiceTeardownSequence.BeginDisable (executed offline by the harness).
+            switch (MountedServiceTeardownSequence.BeginDisable(teardownSteps))
             {
-                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
-                    "retry once it finishes.");
-                return false;
-            }
-
-            // The same argument for the other live operation: cleanup during an
-            // owned world replacement would tear the pair down across a world
-            // being replaced underneath it. Bounded by the load finishing.
-            if (persistence.LoadInFlight)
-            {
-                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being loaded; " +
-                    "retry once the area has finished loading.");
-                return false;
-            }
-
-            // Always execute idempotent cleanup on a disable request. A prior
-            // update failure may already have cleared IsEnabled while a partial
-            // runtime operation still needs best-effort cleanup.
-            if (!lifecycle.HandleModDisable())
-            {
-                logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
-                return false;
+                case MountedServiceTeardownSequence.Verdict.RefusedSaveOrOwners:
+                    logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
+                        "retry once it finishes.");
+                    return false;
+                case MountedServiceTeardownSequence.Verdict.RefusedLoad:
+                    logger.Error("Diagnostic services cannot be disabled while a mounted save is still being loaded; " +
+                        "retry once the area has finished loading.");
+                    return false;
+                case MountedServiceTeardownSequence.Verdict.Ready:
+                    break;
+                default:
+                    logger.Error("Diagnostic services could not be disabled because mounted cleanup retained residue.");
+                    return false;
             }
             // Releases every Mounted Shield mount contribution (recorded and swept); the pairs are already dismounted. A
             // contribution that could not be removed keeps the services enabled, as other retained residue does. A refused
@@ -405,8 +401,8 @@ namespace KingmakerMountedCombat
             // PR #70 R12-F4 (round 14): the lifecycle-owned retry of outstanding owned pair cleanup once ordinary pair updates have stopped
             // (an update failure's PerformFailureCleanup or a refused disable leaves IsEnabled false, and the pair update below no longer runs
             // the controllers' per-frame drive). One bounded attempt per frame, never inside the save/load/area/restoration fences.
-            if (!IsEnabled && !persistence.ActiveSaveWorkerRunning && !persistence.SaveSuspended && !persistence.LoadInFlight &&
-                !persistence.AreaTransitionPending && !persistence.CombatRestorationPending) world.SettleOutstandingPairCleanup();
+            // Round 15: MountedServiceTeardownSequence.RetryWhileDisabled (the same gates; executed offline by the harness).
+            MountedServiceTeardownSequence.RetryWhileDisabled(teardownSteps);
             // Mounted Shield: stale mount contributions are removed here, ahead of the ordinary gates, so a changed shield,
             // feat or pair never keeps its bonus while a save, area transition or restoration suspends ordinary updates. New
             // contributions are written only by the ordinary pass below. Not while an archive worker serializes the live
@@ -462,37 +458,34 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            // Unload is the one place a bounded wait for an owned archive worker
-            // is right: patches.Dispose below removes the commit transpiler the
-            // worker is still running through. The verdict is CONSUMED, never
-            // assumed. A wait that expires, or ownership that could not be
-            // established, refuses the unload: nothing has been released, the
-            // root, its hooks and its per-frame drain stay intact, and the throw
-            // reaches Main.OnUnload, which reports false to UMM. The installed
-            // UMM honours that: ModEntry.Reload aborts on a false OnUnload before
-            // any cache, assembly or hook teardown (IL_007D brfalse IL_0335).
-            var verdict = persistence.DrainForTeardown(TeardownDrainMilliseconds);
-            if (verdict == OwnedWorkerTeardownVerdict.Refused)
+            // PR #70 R14-F5 (round 15): an owned load in flight refuses the unload FIRST: nothing waits, drains or cancels pair work while
+            // the world is being replaced; the root, its hooks, observers, per-frame drain and outstanding obligations stay, and the throw
+            // reaches Main.OnUnload, which reports false to UMM (a later unload request settles through the same sequence).
+            // Unload is the one place a bounded wait for an owned archive worker is right: patches.Dispose removes the commit transpiler the
+            // worker is still running through. The verdict is CONSUMED, never assumed. A wait that expires, or ownership that could not be
+            // established, refuses the unload: nothing has been released, the root, its hooks and its per-frame drain stay intact. The
+            // installed UMM honours a false OnUnload: ModEntry.Reload aborts before any cache, assembly or hook teardown (IL_007D brfalse
+            // IL_0335). The order is the production sequence MountedServiceTeardownSequence.Unload (executed offline by the harness).
+            switch (MountedServiceTeardownSequence.Unload(teardownSteps))
             {
-                logger.Error("Unload refused: an owned archive worker can still commit, or its ownership could not " +
-                    "be established, within the bounded teardown wait. Nothing was unpatched or cleaned up; retry " +
-                    "once the save settles.");
-                throw new InvalidOperationException(
-                    "Composition root refuses to dispose while an owned archive worker can still commit.");
+                case MountedServiceTeardownSequence.Verdict.Ready:
+                    break;
+                case MountedServiceTeardownSequence.Verdict.RefusedLoad:
+                    logger.Error("Unload refused: an owned load is replacing the world. Nothing was drained, cancelled, unpatched or " +
+                        "cleaned up; retry once the area has finished loading.");
+                    throw new InvalidOperationException("Composition root refuses to dispose while an owned load is in flight.");
+                case MountedServiceTeardownSequence.Verdict.RefusedOwnedWorker:
+                    logger.Error("Unload refused: an owned archive worker can still commit, or its ownership could not " +
+                        "be established, within the bounded teardown wait. Nothing was unpatched or cleaned up; retry " +
+                        "once the save settles.");
+                    throw new InvalidOperationException(
+                        "Composition root refuses to dispose while an owned archive worker can still commit.");
+                case MountedServiceTeardownSequence.Verdict.RefusedContribution:
+                    throw new InvalidOperationException("Composition root cannot dispose while a Mounted Shield contribution remains on a mount.");
+                default:
+                    throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
             }
 
-            if (!lifecycle.HandleModDisable())
-            {
-                throw new InvalidOperationException("Composition root cannot dispose while mounted cleanup residue remains.");
-            }
-            if (!mountedShield.Disable("unload"))
-            {
-                throw new InvalidOperationException("Composition root cannot dispose while a Mounted Shield contribution remains on a mount.");
-            }
-
-            movementTelemetry?.Dispose();
-            runtimeAutomation?.Dispose();
-            patches.Dispose();
             explorationObserver.Reset();
             Integration.MountedNativeRunScope.Reset();
             Integration.NativeCommandTerminalBranches.Reset();
@@ -510,6 +503,33 @@ namespace KingmakerMountedCombat
             IsEnabled = false;
             disposed = true;
             logger.Info("Composition root disposed; transient mounted references released.");
+        }
+
+        // PR #70 R12-F4 / R14-F5 (round 15): the services MountedServiceTeardownSequence orders, exactly as SetEnabled, UpdateCore and Dispose
+        // called them before the extraction.
+        private sealed class TeardownSteps : MountedServiceTeardownSequence.ISteps
+        {
+            private readonly CompositionRoot root;
+            internal TeardownSteps(CompositionRoot root) { this.root = root; }
+            public bool IsEnabled => root.IsEnabled;
+            public bool SaveSuspended => root.persistence.SaveSuspended;
+            public bool LoadInFlight => root.persistence.LoadInFlight;
+            public bool ActiveSaveWorkerRunning => root.persistence.ActiveSaveWorkerRunning;
+            public bool AreaTransitionPending => root.persistence.AreaTransitionPending;
+            public bool CombatRestorationPending => root.persistence.CombatRestorationPending;
+            public bool ChargeFenced => root.world.AnyChargeFenced;
+            public bool TeardownOwnersReady => root.relationship.AllTeardownOwnersReady;
+            public bool DrainOutstandingPairCleanup() => root.world.SettleOutstandingPairCleanup();
+            public bool OwnedWorkerCanStillCommit() =>
+                root.persistence.DrainForTeardown(TeardownDrainMilliseconds) == OwnedWorkerTeardownVerdict.Refused;
+            public bool HandleModDisable() => root.lifecycle.HandleModDisable();
+            public bool ReleaseForUnload() => root.mountedShield.Disable("unload");
+            public void RemoveHooksAndServices()
+            {
+                root.movementTelemetry?.Dispose();
+                root.runtimeAutomation?.Dispose();
+                root.patches.Dispose();
+            }
         }
 
         private void ThrowIfDisposed()

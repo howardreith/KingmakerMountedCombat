@@ -35,8 +35,32 @@ function New-CombatArchive([string]$Case='multi-tb-debt-manual') {
     }
     return [pscustomobject]@{request=$q;archive=$a}
 }
+# PR #70 R13-F2 (round 15): this build's writer emits archive schema 4 (StepTravel, one row per movement allocation); schema 3 stays the
+# historical shape of an earlier build's evidence. The base fixtures below are schema 3; ConvertTo-Schema4Archive gives the current shape.
+function ConvertTo-Schema4Archive($Archive){$b=Copy-Test $Archive;$b.SchemaVersion=4;$rows=@();if($null-ne$b.Combat){$travel=0.25;foreach($allocation in @($b.Combat.Allocations)){$rows+=[pscustomobject]@{ActorId=$allocation.ActorId;MetresStepTravelled=$travel};$travel+=0.5}};$b|Add-Member NoteProperty StepTravel $rows -Force;$b}
 $tb=New-CombatArchive
 Check 'two independent TB native expenditures and single shared world' {Assert-KmcChunk7CombatArchive $tb.archive $tb.request}
+$tb4=ConvertTo-Schema4Archive $tb.archive
+Check 'R13-F2 (round 15) schema 4: two TB native expenditures with one StepTravel row per allocation (source 4, accepted)' {if(@($tb4.StepTravel).Count-ne2){throw 'Fixture lacks two travel rows.'};Assert-KmcChunk7CombatArchive $tb4 $tb.request}
+$shield=New-CombatArchive 'mounted-shield-tb-manual'
+Check 'R13-F2 (round 15) Mounted Shield case: schema-4 combat archive with StepTravel accepted' {Assert-KmcChunk7CombatArchive (ConvertTo-Schema4Archive $shield.archive) $shield.request}
+Check 'R13-F2 (round 15) Mounted Shield case: historical schema-3 combat archive (earlier build) accepted by its own shape' {Assert-KmcChunk7CombatArchive $shield.archive $shield.request}
+foreach($mutation in @('schema4-without-StepTravel','schema4-missing-one-of-two-rows','schema4-duplicate-row','schema4-row-without-allocation','schema4-negative-travel','schema4-string-travel','schema4-extra-row-field','schema3-with-StepTravel','future-schema5','schema-string')) {
+    Reject ('R13-F2 (round 15) '+$mutation) {
+        $a=if($mutation-ceq'schema3-with-StepTravel'){$x=Copy-Test $tb.archive;$x|Add-Member NoteProperty StepTravel @();$x}else{Copy-Test $tb4}
+        switch($mutation){
+          'schema4-without-StepTravel' {$a.PSObject.Properties.Remove('StepTravel')}
+          'schema4-missing-one-of-two-rows' {$a.StepTravel=@($a.StepTravel[0])}
+          'schema4-duplicate-row' {$a.StepTravel=@($a.StepTravel[0],$a.StepTravel[0],$a.StepTravel[1])}
+          'schema4-row-without-allocation' {$a.StepTravel[1].ActorId='99999999-9999-4999-8999-999999999999'}
+          'schema4-negative-travel' {$a.StepTravel[0].MetresStepTravelled=-0.1}
+          'schema4-string-travel' {$a.StepTravel[0].MetresStepTravelled='0.25'}
+          'schema4-extra-row-field' {$a.StepTravel[0]|Add-Member NoteProperty Extra 1}
+          'future-schema5' {$a.SchemaVersion=5}
+          'schema-string' {$a.SchemaVersion='4'}
+        };Assert-KmcChunk7CombatArchive $a $tb.request
+    }
+}
 $rt=New-CombatArchive 'multi-rt-debt-manual'
 Check 'RT actor-specific expenditures without a synthetic turn' {Assert-KmcChunk7CombatArchive $rt.archive $rt.request}
 $zero=New-CombatArchive 'zero-mounted-tb-retained-manual'

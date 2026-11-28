@@ -39,7 +39,8 @@ namespace KingmakerMountedCombat.Diagnostics
             evidence["loadedDescriptor"] = new JObject { ["internalName"] = input.InternalName, ["fileName"] = input.FileName,
                 ["sha256"] = input.Sha256, ["length"] = input.Length, ["lastWriteTimeUtcTicks"] = input.LastWriteTimeUtcTicks,
                 ["gameId"] = input.GameId, ["gameName"] = input.GameName, ["area"] = input.Area };
-            evidence["loadedSourceSchema"] = 3;
+            // PR #70 R13-F2 (round 15): no hard-coded source version: ObserveCurrentMigrationParent records the version it reads from the
+            // selected bytes (loadedSourceSchema = read.SourceSchema, required to be the current writer's MountedArchiveData.Schema).
             ObserveCurrentMigrationParent();
             evidence["coldRestoration"] = restoration.Capture(); restoration.Dispose(); restoration = null;
             snapshots.Add(Capture("schema1-current-restored-before-continuation"));
@@ -69,7 +70,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && read.HistoricalData == null &&
                 JToken.DeepEquals(JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     JObject.FromObject(saved, MountedSaveCodec.CreateSerializer())),
-                "Current-format migration child did not load the parent's actual schema-3 native archive.");
+                "Current-format migration child did not load the parent's actual current-schema native archive.");
+            evidence["loadedSourceSchema"] = read.SourceSchema;   // R13-F2 (round 15): the observed source version of the read result
             currentMigrationParentPath = path; currentMigrationParentLength = file.Length; currentMigrationInputPath = input.FolderName;
             VerifyCurrentMigrationInput();
             evidence["currentFormatMigration"] = new JObject { ["contract"] = "owner-seed-current-format-load-v1",
@@ -106,7 +108,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 source[schema1 ? "schema2Migration" : "schema1Migration"] == null && write != null,
                 "Current-format continuation parent is not the exact accepted historical native migration/resave.");
             Require((string)write["nativeName"] == name && child.PersistenceLoad.InternalName == name &&
-                (string)write["nativeType"] == "Manual" && (int?)write["sourceSchema"] == 3 &&
+                (string)write["nativeType"] == "Manual" && (int?)write["sourceSchema"] == MountedArchiveData.Schema &&
                 (bool?)write["nativeCallback"] == true && (string)write["operation"] == "None" && (int?)write["snapshotCount"] == 1 &&
                 (string)write["sha256"] == child.PersistenceLoad.Sha256 && (long?)write["length"] == child.PersistenceLoad.Length &&
                 child.PersistenceLoad.Length > 0 && write["archive"] is JObject &&

@@ -34,6 +34,13 @@ $controllerPath=Join-Path $integration 'MountedCombatController.cs';$controller=
 $terminalBranchesPath=Join-Path $integration 'NativeCommandTerminalBranches.cs';$terminalBranches=[IO.File]::ReadAllText($terminalBranchesPath)
 $directInputPath=Join-Path $RepositoryRoot 'src/KingmakerMountedCombat/Diagnostics/NativeOrdinaryAttackInput.cs';$directInput=[IO.File]::ReadAllText($directInputPath)
 $persistenceText=[IO.File]::ReadAllText((Join-Path $integration 'MountedMovementPersistence.cs'))
+# PR #70 R11-F1 (round 15): the pair participation's production persistence binding (capture of the active activation and partner turn; the restore
+# that rebinds the activation and sets partnerContext).
+$participationPath=Join-Path $integration 'PairedActivationPersistence.cs';$participation=[IO.File]::ReadAllText($participationPath)
+# PR #70 R12-F4/R14-F5 (round 15): the production teardown sequence CompositionRoot and MountedLifecycleSubscriber delegate to, and the world drain.
+$teardownPath=Join-Path $integration 'MountedServiceTeardownSequence.cs';$teardown=[IO.File]::ReadAllText($teardownPath)
+$worldPath=Join-Path $integration 'MountedWorldService.cs';$worldText=[IO.File]::ReadAllText($worldPath)
+$ownershipPath=Join-Path $integration 'GameMountedRelationshipService.Ownership.cs';$ownershipText=[IO.File]::ReadAllText($ownershipPath)
 # PR #70 R11-F1 (round 14): the saved-row DTOs, the archive envelope and the SELECTED archive codec, compiled whole with the installed Newtonsoft.Json
 # (the file set scripts/Test-PersistenceData.ps1 compiles), and the persistence tests' archive builder.
 $persistenceFiles=@('MountedSaveData.cs','SavedCombatData.cs','MountedLoadAdmissionPolicy.cs','MountedArchiveData.cs','MountedArchiveCodec.cs','NativeMountedSaveFormat.cs','RetainedNativeReentryPolicy.cs'|ForEach-Object{Join-Path $integration $_})+@((Join-Path $RepositoryRoot 'tests/Chunk7PersistenceTests.cs'))
@@ -65,7 +72,8 @@ $members=[ordered]@{
  'ADAPTER_ALLOCATION'=(ExtractRegion $adapter '        private sealed class Allocation' '        private readonly ActorAllocationLifetime')
  'ADAPTER_GET'=(Extract $adapter 'private Allocation Get(UnitEntityData mount)')
  'ADAPTER_TICK'=(Extract $adapter 'internal string TickDelegated(TurnController inputTurn, UnitEntityData mount, ref float deltaTime)')
- 'ADAPTER_ORDER'=(Extract $adapter 'internal float RemainingOrderMetres(UnitEntityData actor, bool step, bool singleMove)')
+ 'ADAPTER_STEP_ENDPOINT'=(ExtractRegion $adapter '        // R13-F5 (round 15): the longest step tick' '        // The agent''s own speed (MaxSpeed), contained')
+ 'ADAPTER_ORDER'=(Extract $adapter 'internal float RemainingOrderMetres(UnitEntityData actor, bool step, bool singleMove, out bool stepCounterBinds)')
  'ADAPTER_HAS'=(Extract $adapter 'internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)')
  'ADAPTER_FIRST_TICK'=(Extract $adapter 'internal bool FirstTickOnly(UnitEntityData actor, bool step, bool singleMove)')
  'CONTROLLER_STOCK_ROUTE'=(Extract $controller 'public bool TryRouteMountedStockAttack(UnitCommands commands, UnitCommand command)')
@@ -180,11 +188,27 @@ $members=[ordered]@{
  'CONTROLLER_OBSERVE_OUTSTANDING'=(Extract $controller 'internal void ObserveOutstandingAssignment(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)')
  'CONTROLLER_OBSERVES_ACTOR'=(Extract $controller 'internal bool ObservesOutstandingActor(UnitCommands container)')
  'PAIR_STEP_FINAL'=(ExtractExpression $lifecycle 'internal bool PairedMountStepCounterFinal(float tick) =>')
- 'PAIR_STEP_BINDS'=(ExtractExpression $lifecycle 'internal bool PairedMountStepCounterBinds() =>')
+ 'PAIR_GRANT_PRICED'=(Extract $lifecycle 'internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, out bool stepCounterBinds,')
  'ADAPTER_STEP_FINAL'=(Extract $adapter 'internal bool StepCounterFinal(UnitEntityData actor, float tick)')
  'CONTROLLER_APPLY_EFFECTS'=(Extract $controller 'private void ApplyAcceptanceEffects(FirstTickProposal p)')
  'PAIR_REMEMBER_INPUT'=(Extract $controls 'internal void RememberPairedMovementInput()')
  'PAIR_MOVEMENT_INPUT'=(ExtractExpression $controls 'private TurnController MovementInputContext(TurnController turn) =>')
+ 'PAIR_CAPTURE_PARTICIPATION'=(Extract $participation 'internal SavedPairedState CaptureParticipation()')
+ 'PAIR_RESTORE_PARTICIPATION'=(Extract $participation 'internal void RestoreParticipation(SavedPairedState pair, IDictionary<string, UnitEntityData> actors, bool turnBased)')
+ 'PAIR_CAPTURE_ACTOR_PARTICIPATION'=(ExtractExpression $participation 'private static SavedParticipation CaptureParticipation(PairedActorSnapshot actor) =>')
+ 'TEARDOWN_SEQUENCE'=(Extract $teardown 'internal static class MountedServiceTeardownSequence')
+ 'WORLD_SETTLE_OUTSTANDING'=(Extract $worldText 'internal bool SettleOutstandingPairCleanup()')
+ # PR #70 R11-F8 (round 15): the production custody lookups (PatchBridge World/Owner(commands)/CombatFor(commands)/Pairs), the world roster and the
+ # relationship's ownership transitions over the real Domain MountedPairRegistry.
+ 'PATCH_BRIDGE_WORLD'=(ExtractExpression $patch 'internal static MountedWorldService World =>')
+ 'PATCH_BRIDGE_OWNER_COMMANDS'=(ExtractExpression $patch 'internal static GameMountedRelationshipService Owner(UnitCommands commands) =>')
+ 'PATCH_BRIDGE_COMBAT_FOR_COMMANDS'=(ExtractExpression $patch 'internal static MountedCombatController CombatFor(UnitCommands commands) =>')
+ 'PATCH_BRIDGE_PAIRS'=(ExtractExpression $patch 'internal static MountedPairServices[] Pairs =>')
+ 'WORLD_PAIRS'=(ExtractExpression $worldText 'internal MountedPairServices[] Pairs =>')
+ 'RELATIONSHIP_COMMIT_OWNERSHIP'=(ExtractExpression $ownershipText 'private void CommitOwnership() =>')
+ 'RELATIONSHIP_COMPLETE_OWNERSHIP'=(Extract $ownershipText 'private void CompleteOwnershipAttempt()')
+ 'RELATIONSHIP_REFRESH_OWNERSHIP'=(Extract $ownershipText 'internal void RefreshOwnership()')
+ 'RELATIONSHIP_REFRESH_RETIRED'=(Extract $ownershipText 'internal void RefreshRetiredOwnership()')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)
@@ -198,7 +222,7 @@ foreach($dependency in @('Newtonsoft.Json.dll','UnityEngine.dll','UnityEngine.Co
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'MountedMovementPersistence.cs'),$TemplatePath)+$domain+$persistenceFiles|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'MountedMovementPersistence.cs'),$participationPath,$teardownPath,$worldPath,$ownershipPath,$TemplatePath)+$domain+$persistenceFiles|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

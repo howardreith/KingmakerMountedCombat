@@ -7,13 +7,15 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         // A read-only view for this existing single-pair diagnostic. The actual
-        // native schema3 graph remains recorded and independently compared to
+        // native current-format graph remains recorded and independently compared to
         // the ZIP member. This view is never passed to a writer or restoration.
+        // PR #70 R13-F2 (round 15): the source version is the codec's observed read result (the selected writer's schema 4); the
+        // projection label is unchanged.
         internal sealed class RemovalArchiveObservation
         {
             internal const string ProjectionFormat = "schema3-single-pair-observation-v1";
             internal MountedSaveReadKind Kind => MountedSaveReadKind.Current;
-            internal int SourceSchema => 3;
+            internal int SourceSchema;
             internal MountedSaveData Data;
             internal MountedArchiveData NativeArchive;
         }
@@ -21,7 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RemovalArchiveObservation ReadCurrentRemovalArchive(ISaver saver, bool mounted)
         {
             Check(RemovalCase && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
-                NativeMountedSaveFormat.SelectedWriterSchema == 3,
+                NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema,
                 "P07-current-removal-keeps-the-current-native-writer");
             return ValidateCurrentRemovalArchive(NativeMountedSaveStorage.ReadArchive(saver), mounted,
                 (request.PersistenceLoad ?? request.Fixture.Working).GameId,
@@ -31,9 +33,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static RemovalArchiveObservation ValidateCurrentRemovalArchive(MountedArchiveReadResult read,
             bool mounted, string campaign, string area, string riderId, string mountId)
         {
-            if (read == null || read.Kind != MountedSaveReadKind.Current || read.SourceSchema != 3 ||
-                read.HistoricalData != null || read.Data == null || read.Data.SchemaVersion != 3)
-                throw new InvalidOperationException("P07 removal requires its actual native schema3 readback.");
+            // R13-F2 (round 15): the readback of the save this scenario's selected writer just made: source and normalized version are both
+            // MountedArchiveData.Schema. A historical schema-3 archive (normalized by its explicit reader) is not that writer's output and is
+            // refused, as are schema 1-2 sources (HistoricalData).
+            if (read == null || read.Kind != MountedSaveReadKind.Current || read.SourceSchema != MountedArchiveData.Schema ||
+                read.HistoricalData != null || read.Data == null || read.Data.SchemaVersion != MountedArchiveData.Schema)
+                throw new InvalidOperationException("P07 removal requires its actual native current-format readback.");
             var archive = read.Data;
             archive.Validate();
             if (archive.CampaignId != campaign || archive.AreaId != area || archive.Combat != null ||
@@ -53,7 +58,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ProfileId = pair?.ProfileId, Rider = pair?.Rider, Mount = pair?.Mount,
                 Slots = archive.Slots, Combat = null };
             view.Validate();
-            return new RemovalArchiveObservation { Data = view, NativeArchive = archive };
+            return new RemovalArchiveObservation { Data = view, NativeArchive = archive, SourceSchema = read.SourceSchema };
         }
     }
 }

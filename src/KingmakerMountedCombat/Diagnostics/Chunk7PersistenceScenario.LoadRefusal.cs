@@ -59,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedArchiveReadResult primary, alternate;
             using(var reader=loadRefusalPrimary.Saver.Clone())primary=NativeMountedSaveStorage.ReadArchive(reader);
             using(var reader=loadRefusalAlternate.Saver.Clone())alternate=NativeMountedSaveStorage.ReadArchive(reader);
-            Require(primary.Kind==MountedSaveReadKind.Current && primary.SourceSchema==3 && primary.HistoricalData==null &&
+            Require(primary.Kind==MountedSaveReadKind.Current && (primary.SourceSchema==3 || primary.SourceSchema==MountedArchiveData.Schema) && primary.HistoricalData==null &&
                 JToken.DeepEquals(JObject.FromObject(primary.Data,MountedSaveCodec.CreateSerializer()),JObject.FromObject(saved,MountedSaveCodec.CreateSerializer())),
                 "Load-refusal primary source differs from the actual loaded current-format graph.");
             ValidateLoadRefusalDerivation(receipt,request,saved,primary.OriginalJson,alternate.OriginalJson);
@@ -186,7 +186,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Load-refusal derivation lacks its exact disclosed immutable source/alternate lineage.");
             loaded.Validate();
             var source=MountedArchiveCodec.Decode(sourceMetadata);
-            Require(source.Kind==MountedSaveReadKind.Current && source.SourceSchema==3 && source.HistoricalData==null &&
+            Require(source.Kind==MountedSaveReadKind.Current && (source.SourceSchema==3 || source.SourceSchema==MountedArchiveData.Schema) && source.HistoricalData==null &&
                 loaded.Pairs.Length==2 && loaded.Participations.Length==0 && loaded.Combat==null &&
                 loaded.CampaignId==request.PersistenceLoad.GameId && loaded.AreaId==request.PersistenceLoad.Area &&
                 loaded.Pairs.Count(pair=>pair.Rider.Id==request.OwnedPairs.RiderAId && pair.Mount.Id==request.OwnedPairs.MountAId && pair.ProfileId=="medium-humanoid-horse-v1")==1 &&

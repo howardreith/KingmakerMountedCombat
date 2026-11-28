@@ -1368,9 +1368,13 @@ namespace KingmakerMountedCombat.Integration
             // restricted single move's one tick (the click then becomes a provisional request decided at its carrier's first tick).
             public float ArrivalRadius = float.NaN;
             public bool FirstTick;
+            // PR #70 R14-F3 (round 15): the provisional request is a step whose native counter binds (not the restricted single tick): compatible
+            // older mount work does not refuse it; its carrier waits behind that work (the existing accepted-work classification and waiting path).
+            public bool StepCounterBinds;
         }
 
-        internal delegate float MountGrantReader(out bool step, out bool singleMove, out string reason);
+        // PR #70 R14-F2 (round 15): the grant carries its step-counter classification, computed from the same speed observations that priced it.
+        internal delegate float MountGrantReader(out bool step, out bool singleMove, out string reason, out bool stepCounterBinds);
 
         private ClickProof pendingClickProof;
         private long clickProofSequence;
@@ -1394,9 +1398,9 @@ namespace KingmakerMountedCombat.Integration
             var rider = relationship.Rider;
             var mount = relationship.Mount;
             var riderAttack = inputCandidate && RiderMeleeClickAdmitted(target);
-            bool stepMode = false, singleMove = false;
+            bool stepMode = false, singleMove = false, pricedStepCounterBinds = false;
             var grantReason = "<not-read>";
-            var granted = riderAttack && readGrant != null ? readGrant(out stepMode, out singleMove, out grantReason) : 0f;
+            var granted = riderAttack && readGrant != null ? readGrant(out stepMode, out singleMove, out grantReason, out pricedStepCounterBinds) : 0f;
             PairedAttackClickProbe.Result probe = null;
             if (riderAttack)
             {
@@ -1418,13 +1422,14 @@ namespace KingmakerMountedCombat.Integration
             // PR #70 round 13 (owner amendment 2026-11-27g section 3-4): an ordinary click whose route the grant covers is admitted like native's
             // own (IgnoreClick's movement-limited visualized path; no forecast of later frames): it is an accepted order. The restricted
             // single-action tick stays a provisional request decided before its debit, and (R12-F1, round 14) so does a step whose native counter
-            // binds the step (its debit can be final): its replacement effects wait for that debit's own decision.
-            var finalStepPossible = decision == PairedAttackClickAdmission.AdmitRoute && stepMode && grantReason == "granted" && unifiedTurn.PairedMountStepCounterBinds();
+            // binds the step (its debit can be final): its replacement effects wait for that debit's own decision. R14-F2 (round 15): that
+            // classification is the one the grant was priced with (the same speed observations), never a second read.
+            var finalStepPossible = decision == PairedAttackClickAdmission.AdmitRoute && stepMode && grantReason == "granted" && pricedStepCounterBinds;
             RememberValidatedClickProof(target, turn,
                 decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
                 decision == PairedAttackClickAdmission.AdmitInRange ? new List<Vector3>() : null,
                 probe?.Plan ?? default(PairedAttackClickProbe.PlanIdentity), probe?.ArrivalRadius ?? float.NaN,
-                decision == PairedAttackClickAdmission.AdmitRoute && (grantReason == "single-move-first-tick" || finalStepPossible));
+                decision == PairedAttackClickAdmission.AdmitRoute && (grantReason == "single-move-first-tick" || finalStepPossible), finalStepPossible);
             trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason + "; finalStepPossible=" + finalStepPossible +
                 "; mountGrantedMetres=" + granted.ToString("R") + "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") +
                 "; diagnosticReachMetres=" + (probe?.DiagnosticReachMetres ?? float.NaN).ToString("R") + "; path=" + (probe?.Path.ToString() ?? "<not-run>") +
@@ -1434,14 +1439,14 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal void RememberValidatedClickProof(UnitEntityData target, object turn, List<Vector3> route, PairedAttackClickProbe.PlanIdentity plan,
-            float arrivalRadius = float.NaN, bool firstTick = false)
+            float arrivalRadius = float.NaN, bool firstTick = false, bool stepCounterBinds = false)
         {
             if (pendingClickProof != null) DiscardClickProof("replaced by a later click decision");
             if (route == null) return;
             pendingClickProof = new ClickProof
             {
                 Target = target, Turn = turn, Frame = Time.frameCount, Sequence = ++clickProofSequence, Route = new List<Vector3>(route), Plan = plan,
-                Dispatch = inPointerDispatch ? pointerDispatch : -1, ArrivalRadius = arrivalRadius, FirstTick = firstTick
+                Dispatch = inPointerDispatch ? pointerDispatch : -1, ArrivalRadius = arrivalRadius, FirstTick = firstTick, StepCounterBinds = firstTick && stepCounterBinds
             };
             LastClickProofDisposition = "pending:#" + pendingClickProof.Sequence;
         }
@@ -1559,6 +1564,20 @@ namespace KingmakerMountedCombat.Integration
             // R6-F7 (round 10): the exact cleanup obligations of a refused request, tracked independently of native Result/IsFinished.
             public bool CleanupCommandDone, CleanupCarrierDone, CleanupSlotDone, CleanupMotionDone, CleanupFaulted;
             public readonly List<string> OutstandingEffects = new List<string>();
+            // PR #70 R14-F4 (round 15): ownership of the deferred work is its effect flags (each cleared only when its write succeeded or an actual
+            // newer assignment superseded it); OutstandingEffects is the diagnostic list of the writes that failed in the latest application and
+            // can be empty while work is owed (an application that threw before reaching a write handler).
+            public bool EffectsOutstanding => EffectRiderTarget || EffectMountTargetClear || EffectRiderHold || EffectMountHold;
+            public string DescribeEffects()
+            {
+                if (!EffectsOutstanding) return "complete";
+                var owed = new List<string>();
+                if (EffectMountTargetClear) owed.Add("mount-target");
+                if (EffectRiderTarget) owed.Add("rider-target");
+                if (EffectRiderHold) owed.Add("rider-hold");
+                if (EffectMountHold) owed.Add("mount-hold");
+                return "outstanding(" + string.Join(",", owed.ToArray()) + ")";
+            }
             public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, out float grantedMetres, out string detail) =>
                 Owner.DecideFirstTickProposal(this, movementContext, allowedMetres, deltaTime, false, out grantedMetres, out detail);
         }
@@ -1576,7 +1595,8 @@ namespace KingmakerMountedCombat.Integration
                 var settling = settlingProposals[i];
                 try { ApplyAcceptanceEffects(settling); }
                 catch (Exception error) { TryLogException("Deferred acceptance effects retry failed; retained", error); continue; }
-                if (settling.OutstandingEffects.Count == 0) { settlingProposals.RemoveAt(i); i--; }
+                // R14-F4 (round 15): retention follows the effect flags, never the diagnostic list.
+                if (!settling.EffectsOutstanding) { settlingProposals.RemoveAt(i); i--; }
             }
         }
 
@@ -1677,7 +1697,12 @@ namespace KingmakerMountedCombat.Integration
             // R7-F5 (round 8): a pending door settlement owns the pair; installing the provisional order would cancel it before acceptance.
             else if (pendingDoorSettlement != null) refusal = "door-settlement-pending";
             else if (!rider.Commands.Empty) refusal = "rider-holds-live-work";
-            else if (MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
+            // R14-F3 (round 15): a step request (its native counter binds; its route may need several frames) is classified with the existing
+            // accepted-work rule (CompetingMountWork): compatible older mount work (an in-range Free/Swift action, a reaction) coexists and the
+            // request's carrier waits behind it on the existing deferred-carrier path, so finishing that work releases the request; competing
+            // work still refuses it. The restricted single tick keeps its idle-mount precondition. The before-debit decision of the step's
+            // carrier (final-step-counter) still protects the prior order where the actual debit is final.
+            else if (proof.StepCounterBinds ? CompetingMountWork(null) != null : MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
             else if (proof.Route == null || proof.Route.Count < 2 || !(proof.ArrivalRadius > 0f)) refusal = "no-route";
             else if (ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderMelee) refusal = "not-a-melee-order";
             if (refusal != null)
@@ -1792,13 +1817,14 @@ namespace KingmakerMountedCombat.Integration
                     p.Retired = true;
                     unifiedTurn.BindMountFirstTickGate(p, false);
                     if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
-                    if (p.OutstandingEffects.Count > 0 && !settlingProposals.Contains(p)) settlingProposals.Add(p);
+                    // R14-F4 (round 15): registered from the effect flags (an initial application that threw keeps its work owned).
+                    if (p.EffectsOutstanding && !settlingProposals.Contains(p)) settlingProposals.Add(p);
                     // R10-F3 (round 11): the first child of this order still needs the rider's current entitlement when it starts.
                     firstChildEntitlement = p;
                     FirstTickCommitCount++;
                     grantedMetres = inPlace ? 0f : granted;
                     detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + ";grantedMetres=" + grantedMetres.ToString("R") +
-                        ";effects=" + (p.OutstandingEffects.Count == 0 ? "complete" : "outstanding(" + string.Join(",", p.OutstandingEffects.ToArray()) + ")") + tick;
+                        ";effects=" + p.DescribeEffects() + tick;
                     TryLog(() => "Turn-based first-tick decision committed: " + LastFirstTickDecision + ".");
                     return inPlace ? MountedFirstTickVerdict.CommitInPlace : MountedFirstTickVerdict.Commit;
                 }
@@ -2493,7 +2519,11 @@ namespace KingmakerMountedCombat.Integration
             if (chargeOwner != null || activeDoorInteraction != null && !activeDoorInteraction.IsFinished || pendingDoorSettlement != null ||
                 HasLiveCarriedApproach || activeRiderTurnGroundMove != null && !activeRiderTurnGroundMove.IsFinished)
                 throw new InvalidOperationException("other pair work is live at the commit");
-            var newerTarget = p.NewerTargetObserved || !ReferenceEquals(rider.CombatState?.ManualTarget, p.TargetBeforeClick);
+            // PR #70 R14-F4 (round 15): the exact actors and their current manual targets are staged here with the other pre-transfer facts; nothing
+            // after the transfer rereads them to fill the deferred-effect record.
+            var riderTargetAtCommit = rider.CombatState?.ManualTarget;
+            var mountTargetAtCommit = mount.CombatState?.ManualTarget;
+            var newerTarget = p.NewerTargetObserved || !ReferenceEquals(riderTargetAtCommit, p.TargetBeforeClick);
             var actionContext = ResolveRiderPrimaryAction();
             var weaponContext = principal.GetFirstWeapon();
             var mountWeaponContext = mount.GetFirstWeapon();
@@ -2503,8 +2533,8 @@ namespace KingmakerMountedCombat.Integration
             var clearMountHold = p.MountHoldDeferred && mount.HoldState;
             var hadIntent = HasStockAttackIntent;
             var retiringGeneration = stockIntent.Generation;
-            var riderTargetOwnedByRetiring = riderSelection.ClearsOnRetirement(retiringGeneration, rider.CombatState?.ManualTarget);
-            var mountTargetOwnedByRetiring = mountSelection.ClearsOnRetirement(retiringGeneration, mount.CombatState?.ManualTarget);
+            var riderTargetOwnedByRetiring = riderSelection.ClearsOnRetirement(retiringGeneration, riderTargetAtCommit);
+            var mountTargetOwnedByRetiring = mountSelection.ClearsOnRetirement(retiringGeneration, mountTargetAtCommit);
             var carrier = p.CarrierMove ?? command.DelegatedMove;
             ObserveDeliberateOrder();
             // 2. Transfer.
@@ -2560,19 +2590,22 @@ namespace KingmakerMountedCombat.Integration
             p.CommittedGeneration = generation;
             p.EffectRiderTarget = !newerTarget;
             p.EffectMountTargetClear = mountTargetOwnedByRetiring;
-            p.MountTargetToClear = mountTargetOwnedByRetiring ? mount.CombatState?.ManualTarget : null;
+            p.MountTargetToClear = mountTargetOwnedByRetiring ? mountTargetAtCommit : null;
             p.MountToClear = mount;
             p.RiderToWrite = rider;
             p.EffectRiderHold = clearRiderHold;
             p.EffectMountHold = clearMountHold;
             if (newerTarget) riderSelection.Release();
-            ApplyAcceptanceEffects(p);
+            // R14-F4 (round 15): the initial application is contained like every retry; whatever it did not finish stays owned by its flags (the
+            // first-tick decision registers the request from them), so a fault here never reports the effects complete or leaves them unowned.
+            try { ApplyAcceptanceEffects(p); }
+            catch (Exception error) { TryLogException("Accepted order's deferred effects failed on their first application; retained", error); }
             LastRejectionCodes = new MountedCombatRejectionCode[0];
             LastFeedback = feedback;
             LastStockAttackObservation = "intent-start;target=" + target.UniqueId + ";firstTickCommit=True;generation=" + generation +
                 ";previousOwnedTarget=" + riderTargetOwnedByRetiring + ";newerTargetKept=" + newerTarget +
                 ";targetUnconsciousWhenOrdered=" + stockIntent.TargetUnconsciousWhenOrdered +
-                ";effects=" + (p.OutstandingEffects.Count == 0 ? "complete" : "outstanding(" + string.Join(",", p.OutstandingEffects.ToArray()) + ")");
+                ";effects=" + p.DescribeEffects();
             return false;
         }
 
@@ -2586,6 +2619,8 @@ namespace KingmakerMountedCombat.Integration
             // also after B retires; it clears only that target.
             if (!current) p.EffectRiderTarget = p.EffectRiderHold = p.EffectMountHold = false;
             var mountToClear = p.MountToClear ?? relationship.Mount;
+            // R14-F4 (round 15): a fault in this supersession read ends the application with the list possibly empty; the flag keeps the clear
+            // owned and the callers (the first application's containment, the sweep) retain the request from the flags.
             if (p.EffectMountTargetClear && (p.MountAssignedAfterCommit || mountToClear?.CombatState == null || !ReferenceEquals(mountToClear.CombatState.ManualTarget, p.MountTargetToClear)))
                 p.EffectMountTargetClear = false;
             if (p.EffectMountTargetClear)
@@ -2602,12 +2637,15 @@ namespace KingmakerMountedCombat.Integration
             }
             if (p.EffectRiderHold)
             {
-                try { if (relationship.Rider != null && relationship.Rider.HoldState) relationship.Rider.HoldState = false; p.EffectRiderHold = false; }
+                // R14-F4 (round 15): the exact actors staged at the commit (never re-read from the relationship).
+                var riderToWrite = p.RiderToWrite ?? relationship.Rider;
+                try { if (riderToWrite != null && riderToWrite.HoldState) riderToWrite.HoldState = false; p.EffectRiderHold = false; }
                 catch (Exception error) { TryLogException("Accepted order's rider Hold write failed; retried", error); p.OutstandingEffects.Add("rider-hold"); }
             }
             if (p.EffectMountHold)
             {
-                try { if (relationship.Mount != null && relationship.Mount.HoldState) relationship.Mount.HoldState = false; p.EffectMountHold = false; }
+                var mountToWrite = p.MountToClear ?? relationship.Mount;
+                try { if (mountToWrite != null && mountToWrite.HoldState) mountToWrite.HoldState = false; p.EffectMountHold = false; }
                 catch (Exception error) { TryLogException("Accepted order's mount Hold write failed; retried", error); p.OutstandingEffects.Add("mount-hold"); }
             }
         }
@@ -4374,7 +4412,11 @@ namespace KingmakerMountedCombat.Integration
         {
             command.RecordEndCause(cause, reason);
             pairedCommandScheduler.ObserveExternalInterrupt(command, reason);
-            command.Interrupt();
+            // PR #70 R12-F4 (round 15): work created by a cancellation itself. When the interruption's exact carrier stop fails inside
+            // OnEnded (the fault still propagates to the caller), the command's unfinished carrier cleanup record stays owned here, so the
+            // teardown drain after the lifecycle's cleanup sees it (teardown not ready, retryable) instead of losing it with the throw.
+            try { command.Interrupt(); }
+            finally { RetainCarrierCleanup(command); }
         }
 
 

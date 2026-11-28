@@ -316,6 +316,20 @@ namespace KingmakerMountedCombat.Integration
             var agent = mount.View.AgentASP;
             var forced = (bool)ForceModeField.GetValue(agent);
             var steppedBefore = allocation.Movement.MetresStepTravelled;
+            // PR #70 R13-F5 (round 15): installed TickMovement completes the movement after its shift on the last segment (a passed endpoint
+            // plane or within 0.05 m of the path's end moves the agent ONTO the end). A step tick is therefore bounded by that endpoint move as
+            // well: when the endpoint lies farther than the physical step remainder, the tick is shortened so the shift can neither come within
+            // the snap distance nor cross the endpoint plane (a zero tick when no such shift remains: the step ends there, native's denial
+            // branch then completes the movement). An endpoint within the remainder keeps the lawful completion. Ordinary movement (and its
+            // NearTheEnd borrowed time) is unchanged.
+            var endpointDetail = "";
+            if (inputTurn.EnabledFiveFootStep && !forced && deltaTime > 0f && physicalSpeed > 0f)
+            {
+                float endpointCap;
+                if (StepEndpointCap(agent, mount.Position, Math.Max(0f, TurnController.MetersOfFiveFootStep - allocation.Movement.MetresStepTravelled), physicalSpeed,
+                    out endpointCap, out endpointDetail) && endpointCap < deltaTime)
+                    deltaTime = endpointCap;
+            }
             deltaTime = allocation.Movement.Advance(deltaTime, physicalSpeed, nominalUsed,
                 TurnController.MetersOfFiveFootStep, used, standardUsed, mount.IsMoveActionRestricted(),
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
@@ -349,9 +363,39 @@ namespace KingmakerMountedCombat.Integration
                 ";mountStepMetres=" + allocation.Movement.MetresStepped.ToString("R") +
                 ";mountStepTravelled=" + allocation.Movement.MetresStepTravelled.ToString("R") +
                 ";nativePrepared=" + allocation.Prepared + ";round=" + allocation.Round +
-                ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R") + (gatedTick ? ";approvedTick=True" : "");
+                ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R") + (gatedTick ? ";approvedTick=True" : "") + endpointDetail;
             }
             finally { speedScopeActor = null; }
+        }
+
+        // R13-F5 (round 15): the longest step tick whose shift (speed x tick) cannot trigger installed TickMovement's endpoint completion beyond
+        // the physical step remainder. The shift's length bounds the stop's distance change, so a shift no longer than (distance to the end -
+        // snap distance - margin) cannot end within the snap distance, and one shorter than the distance to the last segment's endpoint plane
+        // cannot pass it. False (no bound) when the agent has no readable path or its end lies within the remainder (a lawful completion).
+        internal const float StepEndpointMarginMetres = 0.0001f;
+        internal static bool StepEndpointCap(Kingmaker.View.UnitMovementAgent agent, Vector3 position, float physicalLeft, float speed, out float cap, out string detail)
+        {
+            cap = float.MaxValue; detail = "";
+            List<Vector3> path; int cursor; Vector2 waypoint;
+            if (agent == null || !(speed > 0f) || !MountedAgentSteering.TryRead(agent, out path, out cursor, out waypoint) || path == null || path.Count == 0) return false;
+            var end = path[path.Count - 1];
+            var toEnd = Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, end);
+            if (toEnd <= physicalLeft) return false;
+            var room = toEnd - PairedAttackClickProbe.NativeLastSegmentArrivalMetres - StepEndpointMarginMetres;
+            var plane = float.MaxValue;
+            if (cursor >= path.Count - 2 && path.Count >= 2)
+            {
+                var previous = path[path.Count - 2];
+                double sx = end.x - previous.x, sz = end.z - previous.z, length = Math.Sqrt(sx * sx + sz * sz);
+                if (length > 1e-6d)
+                {
+                    plane = (float)(((end.x - position.x) * sx + (end.z - position.z) * sz) / length);
+                    room = Math.Min(room, plane - StepEndpointMarginMetres);
+                }
+            }
+            cap = Math.Max(0f, room) / speed;
+            detail = ";stepEndpoint(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";plane=" + plane.ToString("R") + ";cap=" + cap.ToString("R") + ")";
+            return true;
         }
 
         // The agent's own speed (MaxSpeed), contained; NaN when unreadable.
@@ -397,8 +441,13 @@ namespace KingmakerMountedCombat.Integration
 
         // Review R6-F3: the distance the same allocation grants across one order (into the Standard conversion when the
         // native limits allow it), with the native auto-stop setting Advance itself honors.
-        internal float RemainingOrderMetres(UnitEntityData actor, bool step, bool singleMove)
+        // PR #70 R14-F2 (round 15): stepCounterBinds is the step-counter classification computed from the SAME speed observations that priced
+        // this grant (MountedMovementState.StepCounterFinal with an unbounded tick: the native counter binds the step, so a debit of it can be
+        // final), carried with the priced grant so the click never rereads the speeds to classify it. Unreadable speeds price NaN (no grant)
+        // and classify a step conservatively as binding (the provisional request, which changes nothing before its debit).
+        internal float RemainingOrderMetres(UnitEntityData actor, bool step, bool singleMove, out bool stepCounterBinds)
         {
+            stepCounterBinds = false;
             Allocation allocation;
             if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return 0f;
             // Round 10 (R9-F3/R9-F4): physical metres for an ordinary Move (time x the agent's own speed). Round 11 (R9-F3): a step's remaining
@@ -406,8 +455,9 @@ namespace KingmakerMountedCombat.Integration
             // the product is the physical distance the mover may still travel within both limits.
             float speed, nominal;
             ReadSpeeds(actor, out speed, out nominal);
-            if (!SpeedsReadable(speed, nominal, step)) return float.NaN;
+            if (!SpeedsReadable(speed, nominal, step)) { stepCounterBinds = step; return float.NaN; }
             allocation.SettleStepTravel(actor.Position);
+            stepCounterBinds = step && allocation.Movement.StepCounterFinal(speed, nominal, TurnController.MetersOfFiveFootStep, float.MaxValue);
             return allocation.Movement.RemainingAcrossOrder(speed, NominalForMode(speed, nominal, step), TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove,

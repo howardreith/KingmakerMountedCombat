@@ -1,9 +1,14 @@
-# Current P07 readback is schema3. The singular schema2-shaped view is explicitly
+# Current P07 readback is the current native archive format. The singular schema2-shaped view is explicitly
 # an observation projection and never supplies native restoration or save input.
+# PR #70 R13-F2 (round 15): the recorded graph is the codec's normalized archive: schema 4 (with its StepTravel member; empty here, P07 has no
+# combat) from this build, or schema 3 (without StepTravel) in evidence recorded by an earlier build. Each version keeps its exact field set.
 Set-StrictMode -Version Latest
 function Assert-KmcCurrentRemovalGraph($Archive,[string]$GameId,[string]$Area,[bool]$Mounted,[string]$RiderId,[string]$MountId){
- Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'current P07 actual native archive'
- Assert-KmcOrdinaryInteger $Archive.SchemaVersion 3 3;Assert-KmcOrdinaryInteger $Archive.GameTimeTicks 0 ([long]::MaxValue)
+ if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-notin@(3,4)){throw 'Current P07 archive is neither the current schema 4 nor the historical schema 3.'}
+ $keys=@('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat');if($Archive.SchemaVersion-eq4){$keys+='StepTravel'}
+ Assert-KmcExactProperties $Archive $keys 'current P07 actual native archive'
+ if($Archive.SchemaVersion-eq4-and($Archive.StepTravel-isnot[Array]-or$Archive.StepTravel.Count-ne0)){throw 'Current P07 schema-4 archive has step travel without a combat snapshot.'}
+ Assert-KmcOrdinaryInteger $Archive.GameTimeTicks 0 ([long]::MaxValue)
  foreach($kv in @(@('CampaignId',$GameId),@('AreaId',$Area),@('Policy','rider-principal-distinct-native-v1'),@('RulesId','crpg-transport-v1'))){Assert-KmcBootstrapInventoryString $Archive.($kv[0]) $kv[1]}
  if($Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne$(if($Mounted){1}else{0})-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-gt128-or$null-ne$Archive.Combat-or(-not$Mounted-and$Archive.Slots.Count-ne0)){throw 'Current P07 archive has extra mounted/retained owners, combat or cleanup controls.'}
  if($Mounted){$p=$Archive.Pairs[0]
@@ -19,9 +24,11 @@ function Assert-KmcCurrentRemovalGraph($Archive,[string]$GameId,[string]$Area,[b
  }
 }
 function Assert-KmcCurrentRemovalProjection($Recorded,[string]$GameId,[string]$Area,[bool]$Mounted,[string]$RiderId,[string]$MountId){
- Assert-KmcOrdinaryInteger $Recorded.nativeSourceSchema 3 3
  Assert-KmcBootstrapInventoryString $Recorded.snapshotProjection 'schema3-single-pair-observation-v1'
  $a=$Recorded.nativeArchive;Assert-KmcCurrentRemovalGraph $a $GameId $Area $Mounted $RiderId $MountId
+ # R13-F2 (round 15): the observed source version is the recorded graph's own (the graph is compared with the raw ZIP member below): 4 from
+ # this build's writer, 3 in an earlier build's evidence.
+ Assert-KmcOrdinaryInteger $Recorded.nativeSourceSchema ([int]$a.SchemaVersion) ([int]$a.SchemaVersion)
  $s=$Recorded.snapshot;Assert-KmcExactProperties $s @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Mounted','ProfileId','Rider','Mount','Slots','Combat') 'current P07 explicitly projected observation'
  Assert-KmcOrdinaryInteger $s.SchemaVersion 2 2;Assert-KmcChunk7Boolean $s.Mounted $Mounted
  foreach($key in @('CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Slots','Combat')){if((ConvertTo-KmcChunk7Canonical $s.$key)-cne(ConvertTo-KmcChunk7Canonical $a.$key)){throw 'Current P07 observation projection differs from its full native archive.'}}

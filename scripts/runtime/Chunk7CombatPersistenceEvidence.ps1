@@ -1,11 +1,29 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk7CombatDebtDiagnosticsEvidence.ps1')
 function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('mounted-charge-tb-committed-manual','integrated-tb-feat-charge-manual','mounted-combat-feat-tb-debt-manual','mounted-shield-tb-manual','multi-rt-debt-manual','multi-tb-debt-manual','zero-mounted-tb-retained-manual','legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual') }
+# PR #70 R13-F2 (round 15): the archive's own version selects its exact field set: schema 4 (this build's writer, normalized reads) carries
+# StepTravel, one row per movement allocation; schema 3 (an earlier build's evidence) has no StepTravel. Returns the observed version.
+function Get-KmcChunk7CombatArchiveSchema($Archive) {
+    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-notin@(3,4)){throw 'Native combat archive is neither the current schema 4 nor the historical schema 3.'}
+    $keys=@('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat');if($Archive.SchemaVersion-eq4){$keys+='StepTravel'}
+    Assert-KmcExactProperties $Archive $keys 'Chunk 7 combat archive'
+    return [int]$Archive.SchemaVersion
+}
+function Assert-KmcChunk7StepTravel($Archive) {
+    if($Archive.StepTravel-isnot[Array]-or$Archive.StepTravel.Count-gt64-or($Archive.StepTravel.Count-gt0-and$null-eq$Archive.Combat)){throw 'Schema-4 step travel is not a bounded array bound to a combat snapshot.'}
+    $rows=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach($row in $Archive.StepTravel){
+        Assert-KmcExactProperties $row @('ActorId','MetresStepTravelled') 'Chunk 7 step travel row'
+        if($row.ActorId-isnot[string]-or-not$rows.Add($row.ActorId)-or-not(Test-KmcFiniteNonnegativeJsonNumber $row.MetresStepTravelled)-or[double]$row.MetresStepTravelled-gt1000000){throw 'Schema-4 step travel row is invalid or duplicated.'}
+        if(@($Archive.Combat.Allocations|Where-Object{$_.ActorId-ceq$row.ActorId}).Count-ne1){throw 'Schema-4 step travel names no unique movement allocation.'}
+    }
+    foreach($allocation in @($Archive.Combat.Allocations)){if(-not$rows.Contains([string]$allocation.ActorId)){throw 'A schema-4 movement allocation has no step travel row.'}}
+}
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
     $pairCount=if($zero){0}elseif($legacy){1}else{2};$ownerCount=if($legacy){1}else{2};$slotCount=$pairCount*2
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 combat archive'
-    if($Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or$Archive.AreaId-cne(Get-KmcChunk7SelectedFixture $Request).area-or
+    $schema=Get-KmcChunk7CombatArchiveSchema $Archive
+    if($Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or$Archive.AreaId-cne(Get-KmcChunk7SelectedFixture $Request).area-or
        -not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or$Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
        $Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne$pairCount-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne$ownerCount-or
        $Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne$slotCount-or$null-eq$Archive.Combat){throw 'Native combat archive has the wrong complete ownership shape.'}
@@ -83,6 +101,7 @@ function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     }
     $allocations=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach($allocation in $combat.Allocations) {if(-not$native.ContainsKey(([Guid]$allocation.ActorId).ToString('N'))-or-not$allocations.Add($allocation.ActorId)){throw 'World movement allocation omitted or duplicated an actor.'}}
+    if($schema-eq4){Assert-KmcChunk7StepTravel $Archive}
     $slots=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach($slot in $Archive.Slots){if($slot.ActorId-cnotin@($Archive.Pairs|ForEach-Object{$_.Rider.Id})-or$slot.Kind-cnotin@(2,3)-or$slot.Index-lt0-or$slot.Index-gt127-or-not$slots.Add($slot.ActorId+':'+$slot.Index)){throw 'Native owned slot differs.'}}
     foreach($pair in $Archive.Pairs){if((@($Archive.Slots|Where-Object ActorId -CEQ $pair.Rider.Id|ForEach-Object{$_.Kind}|Sort-Object)-join',')-cne'2,3'){throw 'Mounted owner lost its declared slots.'}}
@@ -496,16 +515,18 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
-        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
+        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-notin@(3,4)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
         Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     }else{
     if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-cne$Request.persistenceCase-or
        $o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
-       $o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
+       $o.nativeSchema-notin@(3,4)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
     }
     Assert-KmcChunk7Boolean $o.cold $cold;Assert-KmcChunk7Boolean $o.combatDebtProof $true
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned);Assert-KmcChunk7Boolean $o.ordinaryRespecProven $false
     $archive=if($cold){$o.loadedArchive}else{$o.nativeWrite.archive};Assert-KmcChunk7CombatArchive $archive $Request
+    # R13-F2 (round 15): the build's selected writer (nativeSchema) is the version its codec normalizes to: the recorded archive must carry it.
+    if($archive.SchemaVersion-ne$o.nativeSchema){throw 'Native combat archive version differs from the build''s selected writer schema.'}
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold-or$legacy){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     Assert-KmcChunk7CheckpointContinuation $o.combatContinuation $archive $Request $cold
     if($Request.persistenceCase-ceq'mounted-combat-feat-tb-debt-manual'){Assert-KmcSprint6FeatPersistence $Request $o $cold}
@@ -524,7 +545,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if($cold) {
         Assert-KmcChunk7NativeCounters $o @('loadedSourceSchema')
         if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)-or
-           $o.loadedSourceSchema-ne$(if($legacy){2}else{3})-or@($o.inputs).Count-ne0-or$snapshot[0].semanticRestores-ne$archive.Combat.Actors.Count-or
+           $o.loadedSourceSchema-ne$(if($legacy){2}else{[int]$o.nativeSchema})-or@($o.inputs).Count-ne0-or$snapshot[0].semanticRestores-ne$archive.Combat.Actors.Count-or
            $snapshot[0].nativePostLoads-ne$archive.Combat.Actors.Count-or$snapshot[0].presentationRestores-ne$archive.Pairs.Count-or$snapshot[0].snapshots-ne0-or
            $snapshot[0].nativeCastRequests-ne0-or$snapshot[0].archivePhase-cne'all-pair-presentation-restored'){throw 'Cold native combat substituted a source, dropped PostLoads or replayed commands.'}
         Assert-KmcChunk7CombatRestorationProbe $o.coldRestoration $archive $Request
@@ -538,7 +559,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
         if($o.nativeWrite.nativeType-cne'Manual'-or$o.saveRequested.nativeType-cne'Manual'-or$o.nativeWrite.operation-cne'None'-or
            $o.nativeWrite.snapshotCount-ne1-or$o.saveRequested.snapshotCount-ne0-or$o.nativeWrite.sha256-cnotmatch'^[0-9a-f]{64}$'-or
            -not(Test-KmcExactJsonInteger $o.nativeWrite.length)-or$o.nativeWrite.length-le0-or$o.nativeWrite.length-gt256MB-or
-           $o.nativeWrite.sourceSchema-ne$(if($legacy-and-not$currentPendingSource){2}else{3})){throw 'Native combat save category, version or completion differs.'}
+           $o.nativeWrite.sourceSchema-ne$(if($legacy-and-not$currentPendingSource){2}else{[int]$o.nativeSchema})){throw 'Native combat save category, version or completion differs.'}
         foreach($field in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $o.saveRequested.$field $true};Assert-KmcChunk7Boolean $o.nativeWrite.nativeCallback $true
         if($currentPendingSource){
             Assert-KmcBootstrapInventoryString $o.nativeSourceContract 'owner-seed-current-pending-source-v1'
@@ -628,7 +649,7 @@ function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
     Assert-KmcChunk7NativeCounters $Observations.saveRequested @('snapshotCount','gameTicks')
     foreach($field in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $Observations.saveRequested.$field $true}
     Assert-KmcChunk7Boolean $write.nativeCallback $true
-    if($write.nativeType-cne'Manual'-or$write.nativeName-cne'KMC_C7_SCHEMA2'-or$write.operation-cne'None'-or$write.sourceSchema-ne3-or
+    if($write.nativeType-cne'Manual'-or$write.nativeName-cne'KMC_C7_SCHEMA2'-or$write.operation-cne'None'-or$write.sourceSchema-ne$Observations.nativeSchema-or$after.SchemaVersion-ne$Observations.nativeSchema-or
         $write.snapshotCount-ne1-or$Observations.saveRequested.snapshotCount-ne0-or$Observations.saveRequested.nativeType-cne'Manual'-or
         $Observations.saveRequested.nativeName-cne'KMC_C7_SCHEMA2'-or$write.sha256-cnotmatch'^[0-9a-f]{64}$'-or
         $write.sha256-ceq$Request.persistenceLoad.sha256-or$write.length-le0-or$write.length-gt256MB-or
@@ -660,6 +681,7 @@ function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
         $graph.Slots=@($graph.Slots|Sort-Object ActorId,Index,Kind);$graph.Combat.Actors=@($graph.Combat.Actors|Sort-Object {$_.Native.Id})
         $graph.Combat.Roster=@($graph.Combat.Roster|Sort-Object ActorId);$graph.Combat.Allocations=@($graph.Combat.Allocations|Sort-Object ActorId)
         $graph.Combat.Engagements=@($graph.Combat.Engagements|Sort-Object From,To)
+        if($null-ne$graph.PSObject.Properties['StepTravel']){$graph.StepTravel=@($graph.StepTravel|Sort-Object ActorId)}
     }
     if((ConvertTo-KmcChunk7Canonical $normalizedBefore)-cne(ConvertTo-KmcChunk7Canonical $normalizedAfter)){
         throw 'Schema-2 resave changed pending release, owner/generation, native context/allocation or another protected graph field.'

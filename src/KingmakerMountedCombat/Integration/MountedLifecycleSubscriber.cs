@@ -299,25 +299,42 @@ namespace KingmakerMountedCombat.Integration
         {
             // PR #70 R12-F4 (round 13): one drain of outstanding owned cleanup first; anything still outstanding keeps teardown not ready, so the
             // disable or unload is refused here, before any patch or observer is removed (the per-frame drive keeps retrying it).
-            // Round 14: the drain's own verdict is consumed (not only the readiness that includes it).
-            var settledBefore = service.World?.SettleOutstandingPairCleanup() ?? true;
-            if (!settledBefore || !service.AllTeardownOwnersReady || combat.ChargeAdmissionFenced || service.World?.AdmissionFenced() == true) return false;
-            var drained = true;
-            var errors = service.World != null ? service.World.Visit(pair =>
+            // Round 14: the drain's own verdict is consumed (not only the readiness that includes it). Work created by the cleanup's own
+            // cancellation (a carrier stop or target clear that failed) is drained once more and otherwise keeps the request refused and
+            // retryable: the caller reports not ready and nothing is unpatched.
+            // Round 15: the order is the production sequence MountedServiceTeardownSequence.ModDisable (executed offline by the harness).
+            return MountedServiceTeardownSequence.ModDisable(modDisableSteps ?? (modDisableSteps = new ModDisableSteps(this)));
+        }
+
+        private ModDisableSteps modDisableSteps;
+
+        // The services HandleModDisable ran before the round-15 extraction, in the order MountedServiceTeardownSequence.ModDisable keeps.
+        private sealed class ModDisableSteps : MountedServiceTeardownSequence.IModDisableSteps
+        {
+            private readonly MountedLifecycleSubscriber owner;
+            internal ModDisableSteps(MountedLifecycleSubscriber owner) { this.owner = owner; }
+            public bool TeardownOwnersReady => owner.service.AllTeardownOwnersReady;
+            public bool AdmissionFenced => owner.combat.ChargeAdmissionFenced || owner.service.World?.AdmissionFenced() == true;
+            public bool DrainOutstandingPairCleanup() => owner.service.World?.SettleOutstandingPairCleanup() ?? true;
+            public bool DrainChargeOwnership()
             {
-                if (!pair.Combat.TryDrainChargeOwnership("mod disable")) drained = false;
-            }) : service.Ownership.VisitOwners(owner =>
+                var service = owner.service;
+                var drained = true;
+                var errors = service.World != null ? service.World.Visit(pair =>
+                {
+                    if (!pair.Combat.TryDrainChargeOwnership("mod disable")) drained = false;
+                }) : service.Ownership.VisitOwners(o =>
+                {
+                    if (!o.Boundary.CombatOwner.TryDrainChargeOwnership("mod disable")) drained = false;
+                });
+                return errors.Length == 0 && drained && !(service.Ownership.Owners.Length == 0 && !owner.combat.TryDrainChargeOwnership("mod disable"));
+            }
+            public bool CleanupPairs()
             {
-                if (!owner.Boundary.CombatOwner.TryDrainChargeOwnership("mod disable")) drained = false;
-            });
-            if (errors.Length != 0 || !drained || service.Ownership.Owners.Length == 0 && !combat.TryDrainChargeOwnership("mod disable")) return false;
-            unifiedTurn.EndPairedServiceParticipation();
-            persistence.DropRetainedIntent("Kingmaker Mounted Combat was disabled");
-            var cleaned = Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
-            // R12-F4: work created by the cleanup's own cancellation (a carrier stop or target clear that failed) is drained once and otherwise
-            // keeps the request refused and retryable: the caller reports not ready and nothing is unpatched.
-            var settledAfter = service.World?.SettleOutstandingPairCleanup() ?? true;
-            return cleaned && settledAfter && service.AllTeardownOwnersReady;
+                owner.unifiedTurn.EndPairedServiceParticipation();
+                owner.persistence.DropRetainedIntent("Kingmaker Mounted Combat was disabled");
+                return owner.Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
+            }
         }
 
         internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotNativeDeliveries()

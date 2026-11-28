@@ -315,8 +315,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void BeginOwnedSchema1Source()
         {
-            Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == 3,
-                "Owned schema-1 fixture source requires its closed normal schema-3 native writer.");
+            Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema,
+                "Owned schema-1 fixture source requires its closed normal current-schema native writer.");
             if (OwnerSeedCheckpointSave) RequireOwnerSeedPreparedSlots(); else RememberOwners();
             AssertOwnedSchema1Owner(); PinOwnedSchema1OtherSlots();
             if (!OwnerSeedCheckpointSave) BindSlots();

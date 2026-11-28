@@ -56,15 +56,17 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
     $a=Copy-Test $Fixture.archive;$q=Copy-Test $Fixture.request;$q.scenario=if($Cold){'chunk7-persistence-load'}else{'chunk7-persistence-save'}
     if($Cold){Set-Field $q 'persistenceLoad' (Copy-Test $coldRequest.persistenceLoad)}
     $source=SourceCheckpoint $a $q;$continuation=Continuation $a $q $Cold $source;$v=Copy-Test $o;$v.checkpoint=$q.persistenceCase;$v.cold=$Cold;$v.combatDebtProof=$true;$v.movements=@()
+    # R13-F2 (round 15): the build's selected writer is the archive's own version (4 now; 3 for an earlier build's evidence).
+    $v.nativeSchema=[int]$a.SchemaVersion
     $v.snapshots[0].label=if($Cold){'cold-restored-before-input'}else{'native-write-complete'};$v.snapshots[0].owners=(NativeWorld $a $true).owners;$v.snapshots[0].controls.ManagedHotbarSlotCount=$a.Slots.Count
     if($Cold){$v.inputs=@();$v.snapshots[0].semanticRestores=5;$v.snapshots[0].presentationRestores=$a.Pairs.Count;$v.snapshots[0].nativePostLoads=5;$v.snapshots[0].snapshots=0;$v.snapshots[0].nativeCastRequests=0;$v.snapshots[0].archivePhase='all-pair-presentation-restored'
-        Set-Field $v 'loadedArchive' $a;Set-Field $v 'loadedDescriptor' (Copy-Test $q.persistenceLoad);Set-Field $v 'loadedSourceSchema' $(if($q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){2}else{3});Set-Field $v 'coldRestoration' (RestoreProbe $a $q)
+        Set-Field $v 'loadedArchive' $a;Set-Field $v 'loadedDescriptor' (Copy-Test $q.persistenceLoad);Set-Field $v 'loadedSourceSchema' $(if($q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){2}else{[int]$a.SchemaVersion});Set-Field $v 'coldRestoration' (RestoreProbe $a $q)
     }else{$initial=Copy-Test $v.snapshots[0];$initial.label='before-native-save';foreach($owner in $initial.owners){$owner.state='Active'};$v.snapshots=@($initial)+$v.snapshots
-        $v.nativeWrite.archive=$a;Set-Field $v.nativeWrite 'sourceSchema' 3;Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v 'combatCheckpoint' $source
+        $v.nativeWrite.archive=$a;Set-Field $v.nativeWrite 'sourceSchema' ([int]$a.SchemaVersion);Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v 'combatCheckpoint' $source
         if($q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){$v.inputs=@($v.inputs[0]);$v.nativeWrite.sourceSchema=2;$v.nativeWrite.nativeMetadata=Copy-Test $schema2;Set-Field $v 'legacyWriterScope' ([pscustomobject]@{selectedOnlyForCase=$q.persistenceCase;sourceSchema=2;owners=1;selectedCapabilityRestored=$true;restorationEnabledOnColdProcess=$true})}
     }
     if($Cold-and$q.persistenceCase-ceq'legacy-mounted-pending-tb-manual'){
-        $v.nativeWrite.archive=Copy-Test $a;Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v.nativeWrite 'sourceSchema' 3
+        $v.nativeWrite.archive=Copy-Test $a;Set-Field $v.nativeWrite 'nativeMetadata' (Copy-Test $a);Set-Field $v.nativeWrite 'sourceSchema' ([int]$a.SchemaVersion)
         Set-Field $v.nativeWrite 'nativeName' 'KMC_C7_SCHEMA2';$v.nativeWrite.sha256='9'*64
         Set-Field $v.saveRequested 'nativeName' 'KMC_C7_SCHEMA2';Set-Field $v.saveRequested 'gameTicks' $a.GameTimeTicks
         Set-Field $v.snapshots[0] 'frame' 2;Set-Field $v.snapshots[0] 'gameTicks' $a.GameTimeTicks
@@ -79,6 +81,10 @@ function CompleteCombatArtifact($Fixture,[bool]$Cold){
 }
 $complete=@();foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$spec=CompleteCombatArtifact $fixture $isCold;$complete+=@($spec);Check ($spec.request.persistenceCase+' complete '+$spec.request.scenario) {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
 $sourceTb=$complete[0];$coldTb=$complete[1];$sourceRt=$complete[2];$coldZero=$complete[5];$coldLegacy=$complete[7]
+# PR #70 R13-F2 (round 15): the same complete artifacts with this build's schema-4 archive (StepTravel rows), source and cold, including the
+# schema-2 resave; and a schema-4 archive recorded against a schema-3 writer label is refused.
+foreach($fixture in @($tb,$rt,$zero,$legacy)){foreach($isCold in @($false,$true)){$f4=[pscustomobject]@{request=$fixture.request;archive=(ConvertTo-Schema4Archive $fixture.archive)};$spec=CompleteCombatArtifact $f4 $isCold;Check ('R13-F2 (round 15) schema-4 '+$spec.request.persistenceCase+' complete '+$spec.request.scenario+' (nativeSchema '+$spec.artifact.observations.nativeSchema+')') {Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}}}
+Reject 'R13-F2 (round 15) schema-4 archive under a schema-3 writer label' {$f4=[pscustomobject]@{request=$tb.request;archive=(ConvertTo-Schema4Archive $tb.archive)};$spec=CompleteCombatArtifact $f4 $false;$spec.artifact.observations.nativeSchema=3;Assert-KmcChunk7PersistenceObservation $spec.request $spec.artifact 'PASS'}
 foreach($spec in $complete){Check ('six-capacity preserves '+$spec.request.persistenceCase+' '+$spec.request.scenario) {
     # Retain the already-admitted generated graph: serializing its empty native
     # controls through Copy-Test changes that fixture's null/empty array shape.
