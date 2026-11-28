@@ -469,7 +469,9 @@ namespace KingmakerMountedCombat.Integration
             var found = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, heading, speed, steering.AgentSpeed,
                 angular, steering.FollowPrecomputedPath, physicalLeft, permitted, out selected, out evaluated);
             var zeroTurn = !(angular > 0f);
-            var aligned = selected.Moving && selected.Unit.x == heading.x && selected.Unit.y == heading.y;
+            // Round 23 (R22-F2): the search itself applies the exact-alignment requirement to every zero-angular-speed candidate (ClassifyStep:
+            // a non-aligned candidate is TooLong, so a shorter aligned executable duration is kept); the returned tick is re-checked here.
+            var aligned = PairedAttackClickProbe.TurnEstablished(selected, heading, angular);
             var established = found > 0f && (!zeroTurn || aligned);
             executable = established ? found : 0f;
             detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";cursor=" + cursor + ";permitted=" + permitted.ToString("R") +

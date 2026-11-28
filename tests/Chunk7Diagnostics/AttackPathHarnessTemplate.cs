@@ -8577,8 +8577,13 @@ namespace Harness
             // (final-step-counter) and strikes; perpendicular stops near (0.0703, 0.0703), blind: refused before any debit (both ledgers unchanged,
             // no displacement, no strike). The faster turning step (physical 18 vs nominal 9: the physical reservation binds, so the counter is not
             // final) keeps its route checks and gets its second tick (the R11-F2 partial turning step case, ledgers recorded there).
-            foreach (var heading in new[] { "aligned", "perpendicular" })
+            // Round 23 (R22-F2): the same step with only the combat angular speed changed to a readable zero: aligned (zero required turn: the
+            // verified path, commits and strikes) and perpendicular (an unmodelled turn: refused before any debit); and aligned with the steering
+            // read failing (refused before any debit).
+            foreach (var heading in new[] { "aligned", "perpendicular", "aligned, zero combat angular speed", "perpendicular, zero combat angular speed", "aligned, steering unreadable" })
             {
+                var alignedHeading = heading.StartsWith("aligned");
+                var unreadableSteering = heading.Contains("steering unreadable");
                 var c = FirstTickPair(0.086f, 1f / 64f, false, false, true);
                 var a = PriorSelectionAndHold(c);
                 var w = c.World;
@@ -8589,10 +8594,13 @@ namespace Harness
                 var line = LastLine(c);
                 var order = click.Order;
                 Frame(c);
-                if (heading == "perpendicular") w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                if (!alignedHeading) w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                if (heading.Contains("zero combat angular")) w.Horse.View.AgentASP.CombatAngularSpeed = 0f;
                 var start = w.Horse.Position; string decision = null; var stop = start;
                 c.BeforeDrive = () => { if (decision != null || c.Combat.LastFirstTickDecision.StartsWith("pending")) return; decision = c.Combat.LastFirstTickDecision; stop = w.Horse.Position; };
+                MountedAgentSteering.SteeringUnreadable = unreadableSteering;
                 for (var i = 0; i < 3 && decision == null; i++) Frame(c);
+                MountedAgentSteering.SteeringUnreadable = false;
                 c.BeforeDrive = null;
                 decision = decision ?? "<none>";
                 var nativeAtDecision = c.Pair.movementState.AllocationMetresStepped(w.Horse); var physicalAtDecision = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
@@ -8601,14 +8609,19 @@ namespace Harness
                 var strikes = order == null ? 0 : order.StruckTargets.Count;
                 // Round 14 (R12-F1): the click is a provisional request (finalStepPossible): its replacement effects wait for the before-debit decision.
                 bool ok = click.Admitted && order != null && Field(line, "finalStepPossible") == "True";
-                if (heading == "aligned")
+                if (alignedHeading && !unreadableSteering)
                     ok &= decision.StartsWith("committed:replacement:final-step-counter:") && strikes == 1 && nativeAtDecision <= 1.524f + 1e-4f && nativeAtDecision > nativeBefore &&
-                        c.Combat.Generation != gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target);
+                        c.Combat.Generation != gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target) && physicalAtDecision <= 1.524f + 1e-4f;
                 else
-                    ok &= decision.StartsWith("refused:final-step-counter-no-affordable-strike-position") && displacement < 1e-6f && nativeAtDecision == nativeBefore && physicalAtDecision == physicalBefore &&
+                    // refused before any debit: unreadable steering by the decision; the perpendicular zero-angular-speed step already by the adapter's
+                    // step bound (Unestablished: no aligned executable duration, so the executable tick is zero); the positive-speed perpendicular step by
+                    // the decision's executable-stop evaluation
+                    ok &= decision.StartsWith(unreadableSteering ? "refused:agent-steering-unreadable" : heading.Contains("zero combat angular") ? "refused:no-executable-movement(allowedTick=0;" :
+                        "refused:final-step-counter-no-affordable-strike-position") && displacement < 1e-6f && nativeAtDecision == nativeBefore && physicalAtDecision == physicalBefore &&
                         strikes == 0 && order.IsFinished && LiveMountCarrier(c) == null && c.Combat.Generation == gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) &&
                         w.Rider.HoldState == riderHoldBefore && w.Horse.HoldState == horseHoldBefore;
-                Check(ok, "R12-F1 (round 14) equal-speed final-counter step, " + heading + ": click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, route " + Field(line, "routeMetres") +
+                Check(ok, "R12-F1 (round 14), R22-F2 (round 23) equal-speed final-counter step, " + heading + " (combat angular speed " + w.Horse.View.AgentASP.CombatAngularSpeed.ToString("R") +
+                    "; approved duration " + Field(decision, "delta") + " s): click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, route " + Field(line, "routeMetres") +
                     " m); first debit " + decision.Substring(0, Math.Min(150, decision.Length)) + "; native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAtDecision.ToString("0.######") +
                     " m, physical travel " + physicalBefore.ToString("0.######") + " -> " + physicalAtDecision.ToString("0.######") + " m (settled " + c.Pair.movementState.AllocationMetresStepTravelled(w.Horse).ToString("0.######") +
                     " m); displacement at the decision " + displacement.ToString("0.#####") + " m, stop (" + stop.x.ToString("0.#####") + "," + stop.z.ToString("0.#####") + "); attack disposition " +
@@ -9671,7 +9684,8 @@ namespace Harness
             // product does not model at angular speed 0: Unestablished: zero). A, C stay the readable interior and affordable-snap positives.
             foreach (var kase in new[] { "A interior waypoint, affordable end", "B native counter nearly exhausted", "C affordable completion (control)",
                 "A2 interior waypoint, affordable end, steering unreadable", "B2 native counter nearly exhausted, steering unreadable",
-                "A3 interior waypoint, affordable end, zero combat angular speed, aligned", "A4 interior waypoint, affordable end, zero combat angular speed, not aligned" })
+                "A3 interior waypoint, affordable end, zero combat angular speed, aligned", "A4 interior waypoint, affordable end, zero combat angular speed, not aligned",
+                "A5 successive planar waypoints (0.045, 0), (0.095, 0.015), (0.097, 0.015), zero combat angular speed, +X heading" })
             {
                 var unreadable = kase.Contains("steering unreadable");
                 var zeroAngular = kase.Contains("zero combat angular");
@@ -9707,12 +9721,16 @@ namespace Harness
                     var dir = notAligned ? new UnityEngine.Vector2(0.9950042f, 0.09983342f) : new UnityEngine.Vector2(1f, 0f);
                     if (zeroAngular) agent.CombatAngularSpeed = 0f;
                     points.Clear(); points.Add(pose);
-                    if (kase.StartsWith("A")) { points.Add(new Vector3(256.3125f, pose.y, pose.z)); points.Add(new Vector3(pose.x + 0.0625f, pose.y, pose.z + 0.05f)); }
+                    // Round 23 (R22-F2): A5: a longer duration skips the aligned waypoint 0.045 m ahead (agent speed 9 x delta) and selects an off-axis
+                    // point (an unmodelled turn at angular speed 0); the search keeps the shorter aligned duration on waypoint #1.
+                    if (kase.StartsWith("A5")) { points.Add(new Vector3(pose.x + 0.045f, pose.y, pose.z)); points.Add(new Vector3(pose.x + 0.095f, pose.y, pose.z + 0.015f)); points.Add(new Vector3(pose.x + 0.097f, pose.y, pose.z + 0.015f)); }
+                    else if (kase.StartsWith("A")) { points.Add(new Vector3(256.3125f, pose.y, pose.z)); points.Add(new Vector3(pose.x + 0.0625f, pose.y, pose.z + 0.05f)); }
                     else points.Add(new Vector3(pose.x + (kase.StartsWith("B") ? 0.125f : 0.08f), pose.y, pose.z));
                     var end = points[points.Count - 1];
                     agent.SpeedFactor = 1f; agent.CurrentSpeedField = agent.MaxSpeed;
                     agent.MoveDirection = dir; agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(points[1].x, points[1].z); agent.NearTheEnd = false;
                     if (kase.StartsWith("B")) c.Pair.movementState.SetStepLedger(w.Horse, 1.523995f, 0.762f);
+                    else if (kase.StartsWith("A5")) c.Pair.movementState.SetStepLedger(w.Horse, 0.762f, 1.424f);
                     else c.Pair.movementState.SetStepLedger(w.Horse, 0.762f, 1.424008f);
                     var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse);
                     var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
@@ -9750,7 +9768,8 @@ namespace Harness
                     // movement used spent, no strike, the rider's Standard unspent (owner amendment 1), no native force-finish.
                     else if (kase.StartsWith("A")) ok &= returned > 0f && selectedWaypoint == "waypoint#1(interior)" && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x &&
                         order.IsFinished && order.StruckTargets.Count == 0 && order.EndCause == MountedAttackEndCause.Cancelled && order.EndCauseDetail == "validated approach expired" &&
-                        order.NativeApproachEndedCount == 0 && order.RouteArrivalContradictionCount == 0 && w.Rider.CombatState.Cooldown.StandardAction == 0f;
+                        order.NativeApproachEndedCount == 0 && order.RouteArrivalContradictionCount == 0 && w.Rider.CombatState.Cooldown.StandardAction == 0f &&
+                        (!kase.StartsWith("A5") || travel < 0.045f && after.z == pose.z);
                     else ok &= returned > 0f && toEndAfter < 1e-6f && travel <= physicalLeft && Math.Abs(travel - toEndBefore) < 1e-6f;
                     detail = "pose (" + pose.x.ToString("R") + "," + pose.z.ToString("R") + "), end (" + end.x.ToString("R") + "," + end.z.ToString("R") + ") " + (toEndBefore * 1000f).ToString("0.######") + " mm away, 9 m/s, physical step travel " +
                         physicalBefore.ToString("R") + " m (" + (physicalLeft * 1000f).ToString("0.######") + " mm left), native counter " + nativeBefore.ToString("R") + " m: selected " + selectedWaypoint + "; returned duration " +
