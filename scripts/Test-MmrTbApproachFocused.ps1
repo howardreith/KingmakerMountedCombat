@@ -11,6 +11,10 @@ param()
 #      walker, probe and revalidator members (corner, shifted start, narrow sight windows, grant boundaries, flank completion,
 #      turning route).
 #   5. Test-MountedPresentationContracts.ps1: the paired prediction/action-slot presentation seams beside the IgnoreClick admission.
+#   6. chunk7\Test-Chunk7CurrentWriterReaders.ps1 (R13-F2, round 16): the persistence evidence readers that consume this candidate's
+#      schema-4 output, through the real dispatcher and the runner's parent verifier, over graphs written by the candidate's own
+#      archive codec (compiled from src/): current-format migration child and parent, historical schema-1/2 migrations to current
+#      output, ordinary and inherited save/cold, previous-writer (schema 3) controls and malformed/mismatched-version refusals.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
 #   (Mounted Shield registration, amounts, AC/check writes, publication, embedded icon identity); Test-MountedArcheryFeatContract.ps1;
 #   chunk7\Test-Chunk7RangerSelectionContract.ps1 (Horse/Riding Dog selection); chunk7\Test-Chunk7ReplaySubscriberContract.ps1
@@ -27,7 +31,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MmrTbApproachNativeContract.ps1'),@('Test-MmrAttackOrdersNativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),
+    @('Test-MmrTbApproachNativeContract.ps1'),@('Test-MmrAttackOrdersNativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),@('chunk7\Test-Chunk7CurrentWriterReaders.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

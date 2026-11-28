@@ -9,9 +9,11 @@ function Assert-KmcChunk7CurrentMigrationObservation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase
  Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $s.sourceArchiveSha256
  if($null-ne$o.sourceWorkingSha256){throw 'Current-format inherited input cannot claim Working identity.'}
- Assert-KmcOrdinaryInteger $o.nativeSchema 3 3
+ # PR #70 R13-F2 (round 16): the child build's writer (c). A current-format child reads exactly that writer's output: its observed source (a),
+ # its migration input and its normalized graph (b) all carry it; the parent relationship (d) is checked in Assert-KmcChunk7CurrentMigrationParent.
+ $writer=Assert-KmcChunk7WriterSchema $o.nativeSchema 'Current-format child writer'
  if(-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)){throw 'Native capacity must be the historical two or selected six.'}
- Assert-KmcOrdinaryInteger $o.loadedSourceSchema 3 3
+ Assert-KmcOrdinaryInteger $o.loadedSourceSchema $writer $writer
  Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcChunk7Boolean $o.cold $true
  foreach($field in @('ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$field $false}
  foreach($field in @('nativeWrite','saveRequested','ownedOutputAdmission','ownedOutputCompletion','schema1Migration','schema2Migration','ownedSchema1','mountedStart','ownerSeedCheckpointSource','ownerSeedCheckpointPreparation')){if($null-ne$o.PSObject.Properties[$field]){throw 'Current-format load-only child supplied producer or historical-migration evidence.'}}
@@ -22,11 +24,12 @@ function Assert-KmcChunk7CurrentMigrationObservation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $m.parentCheckpoint (Get-KmcChunk7OwnerSeedCurrentParentCase $Request.persistenceCase)
  Assert-KmcBootstrapInventoryString $m.parentRunId $s.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $m.parentArtifactSha256 $s.checkpointSourceArtifactSha256
  Assert-KmcOrdinaryInteger $m.parentProcessId 1 ([int]::MaxValue);if($m.parentProcessId-eq$o.processId){throw 'Current-format child must cold-load in a process separate from its native resave parent.'}
- Assert-KmcOrdinaryInteger $m.inputSchema 3 3;Assert-KmcOrdinaryInteger $m.inputLength $Request.persistenceLoad.length $Request.persistenceLoad.length
+ Assert-KmcOrdinaryInteger $m.inputSchema $writer $writer;Assert-KmcOrdinaryInteger $m.inputLength $Request.persistenceLoad.length $Request.persistenceLoad.length
  foreach($field in @('inputSha256','parentNativeWriteSha256')){Assert-KmcBootstrapInventoryString $m.$field $Request.persistenceLoad.sha256}
  Assert-KmcChunk7Boolean $m.loadedEqualsParentNativeWrite $true
  if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)){throw 'Current-format child substituted its exact native resave descriptor.'}
  $archive=$o.loadedArchive
+ if($null-eq$archive-or$null-eq$archive.PSObject.Properties['SchemaVersion']-or$archive.SchemaVersion-ne$writer){throw 'Current-format child graph differs from its writer schema.'}
  if($Request.persistenceCase-ceq'owned-schema2-pending-current-manual'){
   Assert-KmcChunk7CombatPersistenceObservation $Request $Artifact
   Assert-KmcChunk7NativeWorldRestore $m.restoredWorld $archive $true -AllowElapsedNativeClock
@@ -56,7 +59,8 @@ function Assert-KmcChunk7CurrentMigrationParent($Request,$ParentArtifact,$ColdAr
  Assert-KmcBootstrapInventoryString $ParentArtifact.runId $Request.ownedPairs.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $ParentArtifact.status 'PASS'
  Assert-KmcBootstrapInventoryString $p.checkpoint (Get-KmcChunk7OwnerSeedCurrentParentCase $Request.persistenceCase);Assert-KmcChunk7Boolean $p.cold $true
  Assert-KmcOrdinaryInteger $p.processId $m.parentProcessId $m.parentProcessId
- Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema 3 3
+ # R13-F2 (round 16): one version across the relationship: the parent's writer wrote the child's input with the child's writer.
+ $writer=[int]$c.nativeSchema;Assert-KmcOrdinaryInteger $p.nativeSchema $writer $writer;Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema $writer $writer
  Assert-KmcBootstrapInventoryString $p.nativeWrite.sha256 $Request.persistenceLoad.sha256;Assert-KmcOrdinaryInteger $p.nativeWrite.length $Request.persistenceLoad.length $Request.persistenceLoad.length
  if((ConvertTo-KmcChunk7Canonical $p.nativeWrite.archive)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)){throw 'Current-format load did not restore its accepted parent native resave graph exactly.'}
  if($Request.persistenceCase-ceq'owned-schema1-current-manual'){Assert-KmcOrdinaryInteger $p.schema1Migration.inputSchema 1 1}else{Assert-KmcOrdinaryInteger $p.loadedSourceSchema 2 2}

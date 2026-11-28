@@ -26,8 +26,8 @@ function Assert-KmcOwnedSchema1Request($Request){
  elseif($has){throw 'Owned schema-1 native source cannot select a historical derivative.'}
 }
 function Assert-KmcOwnedSchema1Archive($Archive,$Request,[bool]$Migrated=$false){
- Assert-KmcOwnedSchema1Object $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'owned schema-1 current graph'
- Assert-KmcOrdinaryInteger $Archive.SchemaVersion 3 3;Assert-KmcOrdinaryInteger $Archive.GameTimeTicks 0
+ # PR #70 R13-F2 (round 16): a writer graph (current 4 with StepTravel, previous 3 without); callers bind it to their writer.
+ [void](Assert-KmcChunk7WriterArchive $Archive 'owned schema-1 current graph');Assert-KmcOrdinaryInteger $Archive.GameTimeTicks 0
  foreach($p in @(@('CampaignId',$Request.persistenceLoad.gameId),@('AreaId',$Request.persistenceLoad.area),@('Policy','rider-principal-distinct-native-v1'),@('RulesId','crpg-transport-v1'))){Assert-KmcBootstrapInventoryString $Archive.($p[0]) $p[1]}
  if($Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne1-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat){throw 'Historical projection cannot discard another owner, participation or combat.'}
  $p=$Archive.Pairs[0];Assert-KmcOwnedSchema1Object $p @('PairId','Generation','ProfileId','Rider','Mount') 'owned schema-1 pair'
@@ -81,12 +81,13 @@ function Assert-KmcOwnedSchema1Observation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $Artifact.status 'PASS';$o=$Artifact.observations;$cold=Test-KmcOwnedSchema1ColdRequest $Request
  Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
  if($null-ne$o.sourceWorkingSha256){throw 'Inherited schema-1 cannot claim Working identity.'}
- Assert-KmcOrdinaryInteger $o.nativeSchema 3 3;if(-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)){throw 'Native capacity must be the historical two or selected six.'};Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
+ $writer=Assert-KmcChunk7WriterSchema $o.nativeSchema 'Owned schema-1 writer';if(-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)){throw 'Native capacity must be the historical two or selected six.'};Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue)
  Assert-KmcChunk7Boolean $o.cold $cold;foreach($name in @('combatDebtProof','ordinaryRespecProven','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$name $false}
  Assert-KmcChunk7OwnedOutputEvidence $Request $o
  $v=$o.ownedSchema1;$keys=@('contract','syntheticMetadata','sourceArchiveSchema','fields');if($cold){$keys+=@('sourceCheckpointRunId','sourceCheckpointArtifactSha256','originalNativeArchiveSha256','sourceField')}
  Assert-KmcOwnedSchema1Object $v $keys 'owned schema-1 provenance';Assert-KmcBootstrapInventoryString $v.contract 'owned-schema1-fixture-v1';Assert-KmcChunk7Boolean $v.syntheticMetadata $cold
- Assert-KmcOrdinaryInteger $v.sourceArchiveSchema $(if($cold){1}else{3}) $(if($cold){1}else{3})
+ # R13-F2 (round 16): the cold input is historical schema 1 (a); the source save's archive is this build's write (c).
+ Assert-KmcOrdinaryInteger $v.sourceArchiveSchema $(if($cold){1}else{$writer}) $(if($cold){1}else{$writer})
  $phases=if($cold){@('cold-restored','before-resave','resave-settled')}else{@('source-before-save','source-settled')}
  if($v.fields-isnot[Array]-or$v.fields.Count-ne$phases.Count){throw 'Owned schema-1 full-field preservation observations are incomplete.'}
  $prior=if($cold){$v.sourceField}else{$v.fields[0]};if($cold){Assert-KmcOwnedSchema1Field $prior $Request 'source-settled'}
@@ -95,16 +96,18 @@ function Assert-KmcOwnedSchema1Observation($Request,$Artifact){
  }
  if($o.movements-isnot[Array]-or$o.movements.Count-ne0-or$o.inputs-isnot[Array]){throw 'Historical migration must not replay movement.'}
  $write=$o.nativeWrite;$archive=$write.archive;Assert-KmcOwnedSchema1Archive $archive $Request $cold
+ if($archive.SchemaVersion-ne$writer){throw 'Owned schema-1 native write differs from its writer schema.'}
  Assert-KmcBootstrapInventoryString $write.nativeType 'Manual';Assert-KmcBootstrapInventoryString $write.operation 'None';Assert-KmcChunk7Boolean $write.nativeCallback $true;Assert-KmcOrdinaryInteger $write.snapshotCount 1 1;Assert-KmcOrdinaryInteger $write.length 1 268435456
  if($write.sha256-isnot[string]-or$write.sha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Native schema-1 output hash is invalid.'}
  Assert-KmcBootstrapInventoryString $o.saveRequested.nativeType 'Manual';Assert-KmcBootstrapInventoryString $o.saveRequested.nativeName $write.nativeName;Assert-KmcOrdinaryInteger $o.saveRequested.snapshotCount 0 0
  foreach($key in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $o.saveRequested.$key $true}
  if($cold){
   if($o.inputs.Count-ne0){throw 'Native historical restoration replayed Mount input.'}
-  Assert-KmcOrdinaryInteger $write.sourceSchema 3 3
+  Assert-KmcOrdinaryInteger $write.sourceSchema $writer $writer
   foreach($key in @('sourceCheckpointRunId','sourceCheckpointArtifactSha256')){$selectionKey=if($key-ceq'sourceCheckpointRunId'){'checkpointSourceRunId'}else{'checkpointSourceArtifactSha256'};Assert-KmcBootstrapInventoryString $v.$key $Request.ownedPairs.$selectionKey}
   if($v.originalNativeArchiveSha256-isnot[string]-or$v.originalNativeArchiveSha256-cnotmatch'^[a-f0-9]{64}$'-or$v.originalNativeArchiveSha256-ceq$Request.persistenceLoad.sha256){throw 'Synthetic historical input must be distinct from its recorded native schema-3 source.'}
   $m=$o.schema1Migration;$old=$m.nativeInputMetadata;$imported=$m.migratedArchive;Assert-KmcOwnedSchema1Archive $imported $Request $true
+  if($imported.SchemaVersion-ne$writer){throw 'Owned schema-1 migrated graph is not normalized to its writer schema.'}
   Assert-KmcOwnedSchema1Object $old @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Mounted','ProfileId','Rider','Mount','Slots') 'owned native historical metadata'
   if((ConvertTo-KmcChunk7Canonical $old)-cne(ConvertTo-KmcChunk7Canonical (ConvertTo-KmcOwnedSchema1Metadata $imported $Request))){throw 'Historical decoder changed source identity, allocations or any representable slot.'}
   Assert-KmcBootstrapInventoryString $imported.Pairs[0].PairId (Get-KmcChunk7Schema1Owner $old)

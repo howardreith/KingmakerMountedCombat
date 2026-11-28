@@ -41,6 +41,26 @@ function Assert-KmcChunk7NativeCounters($Value,[string[]]$Fields) {
         if(-not(Test-KmcExactJsonInteger $Value.$field)-or$Value.$field-lt0){throw ('Native identity/counter must be a nonnegative JSON integer: '+$field)}
     }
 }
+# PR #70 R13-F2 (round 16): the mounted-archive versions this family reads, kept distinct (one definition for every reader):
+#  (a) a historical input (schema 1 or 2) is read only by its explicit migration reader and recorded as that migration's inputSchema;
+#  (b) a normalized in-memory graph (loadedArchive, migratedArchive) carries the reading build's writer version;
+#  (c) the writer: a producer records its build's writer as nativeSchema and every write (nativeWrite.sourceSchema/archive) carries it.
+#      The selected current writer is schema 4 (MountedArchiveData.Schema = NativeMountedSaveFormat.SelectedWriterSchema) and requires
+#      StepTravel; schema 3 (no StepTravel) is the previous writer, whose recorded evidence keeps its own label and exact shape;
+#  (d) a parent-child relationship accepts exactly one version: the child's input is the parent's write by the same writer.
+function Get-KmcChunk7CurrentWriterSchema { 4 }
+function Get-KmcChunk7PreviousWriterSchema { 3 }
+function Test-KmcChunk7WriterSchema($Value){(Test-KmcExactJsonInteger $Value)-and($Value-eq(Get-KmcChunk7CurrentWriterSchema)-or$Value-eq(Get-KmcChunk7PreviousWriterSchema))}
+function Assert-KmcChunk7WriterSchema($Value,[string]$Label){if(-not(Test-KmcChunk7WriterSchema $Value)){throw ($Label+' is neither the current writer schema 4 nor the previous writer schema 3.')};return [int]$Value}
+function Get-KmcChunk7WriterArchiveKeys([int]$Schema){$keys=@('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat');if($Schema-eq(Get-KmcChunk7CurrentWriterSchema)){$keys+='StepTravel'};$keys}
+# A writer graph's exact versioned field set: schema 4 requires the validated StepTravel rows, schema 3 refuses the member. Returns its version.
+function Assert-KmcChunk7WriterArchive($Archive,[string]$Label){
+    if($null-eq$Archive-or$null-eq$Archive.PSObject.Properties['SchemaVersion']){throw ($Label+' has no version.')}
+    $schema=Assert-KmcChunk7WriterSchema $Archive.SchemaVersion ($Label+' version')
+    Assert-KmcExactProperties $Archive (Get-KmcChunk7WriterArchiveKeys $schema) $Label
+    if($schema-eq(Get-KmcChunk7CurrentWriterSchema)){Assert-KmcChunk7StepTravel $Archive}
+    return $schema
+}
 . (Join-Path $PSScriptRoot 'Chunk7CombatPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OwnerSeedAreaEvidence.ps1')
@@ -113,8 +133,8 @@ function Assert-KmcChunk7PersistenceArchive($Archive,$Request) {
     $partialSlots=$Request.persistenceCase-ceq'multi-nonselected-mount-unsettled-manual'
     $slotCount=if($partialSlots){2}else{4}
     $postF2=Test-KmcChunk7PostF2Slots $Request
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'Chunk 7 native archive'
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
+    [void](Assert-KmcChunk7WriterArchive $Archive 'Chunk 7 native archive')
+    if($Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or
        $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or(-not$postF2-and$Archive.Slots.Count-ne$slotCount)-or($postF2-and($Archive.Slots.Count-lt2-or$Archive.Slots.Count-gt6))){
@@ -221,13 +241,13 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     $owned=Test-KmcChunk7OwnedPairsScenario $Request.scenario
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
-        if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited native persistence case or capability differs.'}
+        if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited native persistence case or capability differs.'}
         Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     }else{
     if(-not(Test-KmcChunk7PersistenceScenario (Get-KmcChunk7SelectedScenario $Request))-or$Request.persistenceCase-cnotin(Get-KmcChunk7PersistenceCases)-or
        $o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
        $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
-       $o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
+       -not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
     }
     Assert-KmcChunk7Boolean $o.cold $cold
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned)
@@ -235,6 +255,8 @@ function Assert-KmcChunk7PersistenceObservation($Request,$Artifact,[string]$Stat
     Assert-KmcChunk7Boolean $o.combatDebtProof $false
     $archive=if($cold){$o.loadedArchive}else{$o.nativeWrite.archive}
     Assert-KmcChunk7PersistenceArchive $archive $Request
+    # R13-F2 (round 16): the written graph and the normalized cold graph both carry this build's writer version.
+    if($archive.SchemaVersion-ne$o.nativeSchema){throw 'Native persistence archive version differs from the build''s writer schema.'}
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive;if(-not$cold){Assert-KmcChunk7OwnedOutputEvidence $Request $o}}
     $seedCheckpointSave=$owned-and-not$cold-and(Test-KmcChunk7OwnedPairsSeedCheckpointSave $Request)
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}

@@ -1391,7 +1391,8 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  if(@($Archive.Slots).Count-ne$(if($single){2}else{4})){throw 'The written checkpoint changed the restored control bindings.'}
  $comparisonSlots=if($areaFixture-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){$m.loadedArchive.Slots}else{$Archive.Slots}
  foreach($slot in @($m.slots|Where-Object{-not$single-or$_.actorId-ceq$roles[0]})){if(@($comparisonSlots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'The written checkpoint changed the restored control bindings.'}}}
- $l=$m.loadedArchive;if($null-eq$l-or$l.SchemaVersion-ne3-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
+ # R13-F2 (round 16): the restored start is this build's normalized graph: it carries the producer's writer version.
+ $l=$m.loadedArchive;if($null-eq$l-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or$l.SchemaVersion-ne$o.nativeSchema-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
  [void](Get-KmcChunk7OwnerSeedSnapshot $o 'before-native-save')
  $src=$o.ownerSeedCheckpointSource
  Assert-KmcExactProperties $src @('contract','role','ancestry','acquisitionProof','ordinaryProducerAncestry','manualProducerRunId','manualProducerArtifactSha256','manualSha256','acceptedConsumerRunId','acceptedConsumerArtifactSha256','seedId','seedSha256','checkpoint','candidates') 'owner-seed checkpoint source'
@@ -1399,6 +1400,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  Assert-KmcChunk7Boolean $src.acquisitionProof $false;Assert-KmcChunk7Boolean $src.ordinaryProducerAncestry $false;Assert-KmcBootstrapInventoryString $src.checkpoint $Request.persistenceCase
  foreach($pair in @(@('manualProducerRunId','sourceRunId'),@('manualProducerArtifactSha256','sourceArtifactSha256'),@('manualSha256','sourceArchiveSha256'),@('acceptedConsumerRunId','checkpointSourceRunId'),@('acceptedConsumerArtifactSha256','checkpointSourceArtifactSha256'),@('seedId','seedId'),@('seedSha256','seedSha256'))){Assert-KmcBootstrapInventoryString $src.($pair[0]) $s.($pair[1])}
  Assert-KmcChunk7OwnerSeedCandidates $Request $src.candidates
+ if($src.candidates.currentWriterSchema-ne$o.nativeSchema){throw 'The recorded current writer differs from the producer''s writer schema.'}
  if($areaFixture){Assert-KmcChunk7ManticoreFixtureObservation $Request $o $Archive}
 }
 function Get-KmcChunk7OwnerSeedSnapshot($Observations,[string]$Label){$rows=@($Observations.snapshots|Where-Object label -CEQ $Label);if($rows.Count-ne1){throw ('Exact '+$Label+' snapshot is missing or duplicated.')};$rows[0]}
@@ -1406,11 +1408,13 @@ function Get-KmcChunk7OwnerSeedSnapshot($Observations,[string]$Label){$rows=@($O
 function Assert-KmcChunk7OwnerSeedCandidates($Request,$Candidates){
  $c=$Candidates;$s=$Request.ownedPairs;Assert-KmcExactProperties $c @('contract','sameCandidate','crossCandidateAllowed','producer','current','consumerRunId','consumerArtifactSha256','manualSchema','currentWriterSchema') 'owner-seed-derived candidate identities'
  Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-derived-candidate-identity-v1';Assert-KmcChunk7Boolean $c.crossCandidateAllowed $true;if($c.sameCandidate-isnot[bool]){throw 'Cross-candidate fact must be an observed boolean.'}
- Assert-KmcOrdinaryInteger $c.manualSchema 3 3;Assert-KmcOrdinaryInteger $c.currentWriterSchema 3 3
+ # R13-F2 (round 16): the Manual's version is its producer's writer; the current writer is this candidate's; one candidate has one writer.
+ [void](Assert-KmcChunk7WriterSchema $c.manualSchema 'Owner-seed Manual schema');[void](Assert-KmcChunk7WriterSchema $c.currentWriterSchema 'Owner-seed current writer schema')
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $c.current.$key $Request.$key}
  if($c.producer.commit-isnot[string]-or$c.producer.commit-cnotmatch'^[a-f0-9]{40}$'-or$c.producer.dllSha256-isnot[string]-or$c.producer.dllSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Producer candidate identity is not recorded exactly.'}
  $same=$c.producer.commit-ceq$Request.commit-and$c.producer.dllSha256-ceq$Request.dllSha256-and$c.producer.dllMvid-ceq$Request.dllMvid
  if($same-ne$c.sameCandidate){throw 'The recorded cross-candidate fact differs from the two candidate identities.'}
+ if($same-and$c.manualSchema-ne$c.currentWriterSchema){throw 'One candidate recorded two writer schemas.'}
  Assert-KmcBootstrapInventoryString $c.producer.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $c.consumerRunId $s.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $c.consumerArtifactSha256 $s.checkpointSourceArtifactSha256
 }
 # Runner post-run comparison of the checkpoint consumer with its producer's OWN recorded read-back
@@ -1432,12 +1436,14 @@ function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$ProducerArtifac
  }
  $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual';$control=$Request.persistenceCase-ceq'pending-schema3-control-manual';$pendingOnly=$legacy-or$control
  if($legacy){
-  Assert-KmcOwnedSchema2Migration $Request $c;Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema 3 3
+  # R13-F2 (round 16): the source is the producer's write (c); the child's migrated graph (b) carries the child's writer.
+  $sourceWriter=Assert-KmcChunk7WriterSchema $p.nativeSchema 'Checkpoint producer writer'
+  Assert-KmcOwnedSchema2Migration $Request $c;Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema $sourceWriter $sourceWriter
   Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1'
   Assert-KmcBootstrapInventoryString $c.schema2Migration.originalNativeArchiveSha256 $p.nativeWrite.sha256
   $projection=ConvertTo-KmcOwnedSchema2Metadata $p.nativeWrite.archive $Request
   if((ConvertTo-KmcChunk7Canonical $projection)-cne(ConvertTo-KmcChunk7Canonical $c.schema2Migration.nativeInputMetadata)){throw 'Historical schema2 input differs from its genuine current producer graph.'}
-  $legacyImported=ConvertFrom-KmcOwnedSchema2Metadata $projection $Request
+  $legacyImported=ConvertFrom-KmcOwnedSchema2Metadata $projection $Request (Assert-KmcChunk7WriterSchema $c.nativeSchema 'Schema-2 cold writer')
   if((ConvertTo-KmcChunk7Canonical $legacyImported)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)){throw 'Native schema2 migration changed more than deterministic historical owner custody.'}
  }else{Assert-KmcBootstrapInventoryString $p.nativeWrite.sha256 $Request.persistenceLoad.sha256;Assert-KmcOrdinaryInteger $p.nativeWrite.length $Request.persistenceLoad.length $Request.persistenceLoad.length}
  Assert-KmcOrdinaryInteger $p.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.processId 1 ([int]::MaxValue);if($p.processId-eq$c.processId){throw 'Owner-seed checkpoint cold proof did not run in a process separate from its producer.'}
@@ -1446,7 +1452,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$ProducerArtifac
  $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
  if($pendingOnly){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $p (Get-KmcChunk7PersistenceSourceCase $Request.persistenceCase);Assert-KmcChunk7CombatArchive $c.loadedArchive $Request}
  if($legacy){Assert-KmcChunk7LegacyPendingMigration $projection $c.loadedArchive}
- if($control){Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema 3 3;Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1';if($null-ne$c.PSObject.Properties['schema2Migration']){throw 'Unconverted schema-3 control cannot claim schema-2 migration.'}}
+ if($control){$sourceWriter=Assert-KmcChunk7WriterSchema $p.nativeSchema 'Checkpoint producer writer';Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema $sourceWriter $sourceWriter;Assert-KmcOrdinaryInteger $c.nativeSchema $sourceWriter $sourceWriter;Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1';if($null-ne$c.PSObject.Properties['schema2Migration']){throw 'Unconverted schema-3 control cannot claim schema-2 migration.'}}
  # Schema 2 stores no stable owner identity/generation: its explicit adapter
  # derives deterministic custody at generation one. Live preparation preserves
  # A; the cold process must restore this validated migrated graph exactly.

@@ -4,9 +4,9 @@ function Test-KmcChunk7CombatPersistenceCase([string]$Case) { $Case-cin@('mounte
 # PR #70 R13-F2 (round 15): the archive's own version selects its exact field set: schema 4 (this build's writer, normalized reads) carries
 # StepTravel, one row per movement allocation; schema 3 (an earlier build's evidence) has no StepTravel. Returns the observed version.
 function Get-KmcChunk7CombatArchiveSchema($Archive) {
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-notin@(3,4)){throw 'Native combat archive is neither the current schema 4 nor the historical schema 3.'}
-    $keys=@('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat');if($Archive.SchemaVersion-eq4){$keys+='StepTravel'}
-    Assert-KmcExactProperties $Archive $keys 'Chunk 7 combat archive'
+    # R13-F2 (round 16): the shared writer-version definition (Chunk7PersistenceEvidence.ps1); StepTravel rows are validated by the caller.
+    if(-not(Test-KmcChunk7WriterSchema $Archive.SchemaVersion)){throw 'Native combat archive is neither the current schema 4 nor the historical schema 3.'}
+    Assert-KmcExactProperties $Archive (Get-KmcChunk7WriterArchiveKeys ([int]$Archive.SchemaVersion)) 'Chunk 7 combat archive'
     return [int]$Archive.SchemaVersion
 }
 function Assert-KmcChunk7StepTravel($Archive) {
@@ -17,7 +17,8 @@ function Assert-KmcChunk7StepTravel($Archive) {
         if($row.ActorId-isnot[string]-or-not$rows.Add($row.ActorId)-or-not(Test-KmcFiniteNonnegativeJsonNumber $row.MetresStepTravelled)-or[double]$row.MetresStepTravelled-gt1000000){throw 'Schema-4 step travel row is invalid or duplicated.'}
         if(@($Archive.Combat.Allocations|Where-Object{$_.ActorId-ceq$row.ActorId}).Count-ne1){throw 'Schema-4 step travel names no unique movement allocation.'}
     }
-    foreach($allocation in @($Archive.Combat.Allocations)){if(-not$rows.Contains([string]$allocation.ActorId)){throw 'A schema-4 movement allocation has no step travel row.'}}
+    # R13-F2 (round 16): an exploration graph (no combat snapshot) has no allocation and an empty StepTravel.
+    foreach($allocation in @(if($null-ne$Archive.Combat){$Archive.Combat.Allocations})){if(-not$rows.Contains([string]$allocation.ActorId)){throw 'A schema-4 movement allocation has no step travel row.'}}
 }
 function Assert-KmcChunk7CombatArchive($Archive,$Request) {
     $legacy=$Request.persistenceCase-cin@('legacy-mounted-pending-tb-manual','owned-schema2-pending-current-manual','pending-schema3-control-manual');$zero=$Request.persistenceCase-ceq'zero-mounted-tb-retained-manual';$tb=$Request.persistenceCase-cne'multi-rt-debt-manual'
@@ -515,12 +516,12 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
     if(-not$seedCheckpointSave-and($null-ne$o.PSObject.Properties['mountedStart']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointSource']-or$null-ne$o.PSObject.Properties['ownerSeedCheckpointPreparation'])){throw 'Only the owner-seed checkpoint producer may carry a restored mounted start or native preparation.'}
     if($owned){
         Assert-KmcChunk7InheritedEvidence $Request $o
-        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or$o.nativeSchema-notin@(3,4)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
+        if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-isnot[string]-or$o.checkpoint-cne$Request.persistenceCase-or$null-ne$o.sourceWorkingSha256-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Inherited combat persistence case/capability differs.'}
         Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     }else{
     if($Artifact.status-cne'PASS'-or-not(Test-KmcChunk7CombatPersistenceCase $Request.persistenceCase)-or$o.checkpoint-cne$Request.persistenceCase-or
        $o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
-       $o.nativeSchema-notin@(3,4)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
+       -not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native combat persistence family, fixture or capability identity differs.'}
     }
     Assert-KmcChunk7Boolean $o.cold $cold;Assert-KmcChunk7Boolean $o.combatDebtProof $true
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned);Assert-KmcChunk7Boolean $o.ordinaryRespecProven $false
@@ -569,7 +570,7 @@ function Assert-KmcChunk7CombatPersistenceObservation($Request,$Artifact) {
             Assert-KmcChunk7NativeCounters $o.legacyWriterScope @('sourceSchema','owners')
             if($o.legacyWriterScope.selectedOnlyForCase-cne$Request.persistenceCase-or$o.legacyWriterScope.sourceSchema-ne2-or$o.legacyWriterScope.owners-ne1){throw 'Legacy native write escaped its singular case scope.'}
             Assert-KmcChunk7Boolean $o.legacyWriterScope.selectedCapabilityRestored $true;Assert-KmcChunk7Boolean $o.legacyWriterScope.restorationEnabledOnColdProcess $true
-        }elseif((ConvertTo-KmcChunk7Canonical $o.nativeWrite.nativeMetadata)-cne(ConvertTo-KmcChunk7Canonical $archive)){throw 'Native schema-3 archive differs from actual metadata readback.'}
+        }elseif((ConvertTo-KmcChunk7Canonical $o.nativeWrite.nativeMetadata)-cne(ConvertTo-KmcChunk7Canonical $archive)){throw 'Native written archive differs from actual metadata readback.'}
         Assert-KmcChunk7CheckpointSource $o.combatCheckpoint $archive $Request
         $original=@($o.snapshots|Where-Object label -CEQ 'before-native-save')
         if($original.Count-ne1-or@($original[0].owners).Count-ne@($snapshot[0].owners).Count){throw 'Source native owner custody lacks its initial complete boundary.'}
@@ -654,7 +655,7 @@ function Assert-KmcChunk7Schema2ResaveObservation($Request,$Observations) {
         $Observations.saveRequested.nativeName-cne'KMC_C7_SCHEMA2'-or$write.sha256-cnotmatch'^[0-9a-f]{64}$'-or
         $write.sha256-ceq$Request.persistenceLoad.sha256-or$write.length-le0-or$write.length-gt256MB-or
         (ConvertTo-KmcChunk7Canonical $write.nativeMetadata)-cne(ConvertTo-KmcChunk7Canonical $after)){
-        throw 'Schema-2 resave is not one completed native schema-3 write into its separate Manual slot.'
+        throw 'Schema-2 resave is not one completed native writer-schema write into its separate Manual slot.'
     }
     $elapsed=([double]$after.GameTimeTicks-[double]$before.GameTimeTicks)/10000000.0
     if($elapsed-lt0-or$elapsed-gt30){throw 'Schema-2 native resave escaped its bounded clock.'}
