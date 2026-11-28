@@ -407,13 +407,16 @@ namespace KingmakerMountedCombat.Integration
                         low = mid;
                     else high = mid;
                 }
-                var backed = low - StepMarginMetres / speed;
-                if (!(backed > 0f)) break;
+                // Round 18 (R16-F3): the margin back-off stays inside the verified interval [t, low]; when it would leave it, the interval's
+                // midpoint is taken instead, and the verified sample t itself when that re-check fails (never zero while a verified positive
+                // duration exists).
+                var backed = InsideVerified(low - StepMarginMetres / speed, t, low);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, backed, followPrecomputedPath);
                 if (StepSettlementAdmits(candidate, path, origin, physicalLeft)) { selected = candidate; return backed; }
-                bad = backed;
-                t = backed;
+                evaluated++;
+                selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath);
+                return t;
             }
             // Round 17 (R16-F3): the interval between zero and the last bad sample (below one scan step) is resolved before returning zero: the
             // boundary is bisected on (0, bad], backed off by StepMarginMetres of shift and re-checked against the selected segment, the endpoint
@@ -423,20 +426,34 @@ namespace KingmakerMountedCombat.Integration
             {
                 var mid = (lowest + highest) * 0.5f;
                 evaluated++;
-                if (mid > 0f && StepSettlementAdmits(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft))
+                if (mid > 0f && Executable(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft))
                     lowest = mid;
                 else highest = mid;
             }
-            var lowBacked = lowest - StepMarginMetres / speed;
-            if (lowest > 0f && lowBacked > 0f)
+            // Round 18 (R16-F3): the back-off stays inside the verified interval (0, lowest]: its midpoint when the margin would consume it,
+            // re-checked; the verified lowest itself when that re-check fails. Zero only when no positive, displacing duration was verified.
+            if (lowest > 0f)
             {
+                var lowBacked = InsideVerified(lowest - StepMarginMetres / speed, 0f, lowest);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowBacked, followPrecomputedPath);
-                if (StepSettlementAdmits(candidate, path, origin, physicalLeft)) { selected = candidate; return lowBacked; }
+                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return lowBacked; }
+                evaluated++;
+                selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowest, followPrecomputedPath);
+                return lowest;
             }
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, 0f, followPrecomputedPath);
             return 0f;
         }
+
+        // Round 18 (R16-F3): a backed-off duration kept strictly inside the verified interval (lower, upper]: the back-off itself when it stays
+        // above lower, otherwise the interval's midpoint (positive whenever upper is).
+        private static float InsideVerified(float backed, float lower, float upper) => backed > lower && backed > 0f ? backed : (lower + upper) * 0.5f;
+
+        // Round 18: a duration of the interval above zero is executable when it settles within the step remainder AND actually displaces the
+        // mount (a shift below the position's float resolution leaves it where it is: no movement, so the step is not kept alive by it).
+        private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft) =>
+            StepSettlementAdmits(tick, path, origin, physicalLeft) && tick.Moving && (tick.Stop.x != origin.x || tick.Stop.z != origin.z);
 
         // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
         // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
@@ -554,16 +571,24 @@ namespace KingmakerMountedCombat.Integration
             // PR #70 R12-F2 (round 15): the viable INTERIOR stops of the current steered tick at the established resolution (InDiscSampleMetres of
             // shift, i.e. durations k x InDiscSampleMetres / speed below the full allowance), each the installed tick at that duration (round 16:
             // SimulateTick, the waypoint selection with skipping, its steering and its last-segment completion) that settles within a step's
-            // physical remainder; a duration whose shift would pass its waypoint belongs to the waypoint candidates above and is skipped. The first
-            // (shortest) stop admitting the strike is returned with exactly that duration: a visible part of the tick that ends before the
-            // full-duration or waypoint-distance candidate is not hidden by a larger grant.
+            // physical remainder. The first (shortest) stop admitting the strike is returned with exactly that duration: a visible part of the
+            // tick that ends before the full-duration or waypoint-distance candidate is not hidden by a larger grant. Round 18 (R17-F2): a
+            // duration whose shift passes its selected waypoint is evaluated at its native settled stop as well (SimulateTick: on an interior
+            // segment native does not snap back, the mount ends beyond the waypoint and the cursor advances; on the last segment the completion
+            // puts it on the end), and the full permitted duration is the last candidate (its native stop, whatever the waypoint resolution above
+            // shortened), so every candidate is judged at the stop native leaves the mount at.
             var interiorStep = Math.Max(InDiscSampleMetres / speed, fullDelta / InteriorStopCandidatesPerTick);
             var interiorTried = 0;
-            for (var k = 1; k * interiorStep < fullDelta; k++)
+            for (var k = 1; ; k++)
             {
                 var dt = k * interiorStep;
+                if (!(dt < fullDelta))
+                {
+                    if ((k - 1) * interiorStep >= fullDelta) break;
+                    dt = fullDelta;
+                }
                 var tick = SimulateTick(agentPath, cursor, origin, moveDirection, speed, currentAgentSpeed, combatAngular, dt, followPrecomputedPath);
-                if (!tick.Moving || tick.PassesWaypoint || !StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft)) continue;
+                if (!tick.Moving || !StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft)) continue;
                 interiorTried++;
                 var stop = tick.Stop;
                 var newDirection = tick.Direction;
@@ -572,7 +597,8 @@ namespace KingmakerMountedCombat.Integration
                 result.Detail = "first-tick-interior(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + tick.Selected + "=" + agentPath[tick.Selected] + (tick.OnLast ? "(end)" : "(interior)") +
                     ";delta=" + dt.ToString("R") + ";fullDelta=" + fullDelta.ToString("R") + ";shift=" + Length(tick.Shift).ToString("R") + ";travel=" +
                     GeometryUtils.MechanicsDistance(origin, stop).ToString("R") + ";snapped=" + tick.Snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") + ";stopZ=" +
-                    stop.z.ToString("R") + ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");interiorCandidate=" + k +
+                    stop.z.ToString("R") + ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");passesWaypoint=" + tick.PassesWaypoint +
+                    ";interiorCandidate=" + k +
                     ";admitted=True;fullAndWaypointRefused={" + firstDetail + "})";
                 result.Path = PathOutcome.Complete;
                 result.Route = new List<Vector3> { origin, stop };
