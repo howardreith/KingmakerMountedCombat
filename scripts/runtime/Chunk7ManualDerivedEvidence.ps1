@@ -430,8 +430,9 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   # Round 20 (R13-F2): the same-candidate Manual seed source and its cold inventory copy must carry the reflected hook identity themselves;
   # the outer record's copies are compared with them, so agreeing copies cannot carry an identity the installed module cannot emit.
   if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid
-   # Round 21 (R20-F3): this record and its same-candidate sources bind each product method to one token of the shared module.
-   Assert-KmcChunk7SameModuleHookTokens (@(,$o.noPreparation.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks))
+   # Round 21/22 (R20-F3, R21-F1): this record and its same-candidate sources bind each method to one token of its module, across restoration
+   # and Manual save rows, and current-build product rows equal the candidate artifact's reflected bindings.
+   Assert-KmcChunk7SameModuleHookTokens $Request (@(,$o.noPreparation.hooks)+@(,$o.nativeSave.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks)+@(,$sourceValues.nativeSave.hooks)) (Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer')
    # Round 21 (R20-F2): the same-candidate Manual seed and cold-inventory processes decoded with the same build, so their normalized graphs
    # carry this record's writer (its own Manual write). Their inputs' versions are independent and are not recorded.
    $sameBuildWriter=Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer'

@@ -3316,7 +3316,7 @@
           {
             "type": "KingmakerMountedCombat.Integration.MountedPersistenceService",
             "method": "RecordCompletedSave",
-            "token": "0600A777",
+            "token": "06001234",
             "moduleMvid": "33333333-3333-4333-8333-333333333333"
           }
         ],
