@@ -1068,12 +1068,14 @@ namespace KingmakerMountedCombat.Integration
             return path != null;
         }
         internal static float PhysicalSpeed(Kingmaker.View.UnitMovementAgent agent) => agent == null ? float.NaN : agent.MaxSpeed;
+        // Round 22 (R20-F1): makes the steering read fail (as a contained failed read of the installed fields does).
+        internal static bool SteeringUnreadable;
         internal static bool TryReadSteering(Kingmaker.View.UnitMovementAgent agent, out UnityEngine.Vector2 moveDirection, out float combatAngularSpeed, out float currentSpeed,
             out bool followPrecomputedPath, out bool forceMode, out bool inCombat)
         {
             moveDirection = agent?.MoveDirection ?? default(UnityEngine.Vector2); combatAngularSpeed = agent?.CombatAngularSpeed ?? float.NaN; currentSpeed = agent?.CurrentSpeedField ?? float.NaN;
             followPrecomputedPath = agent != null && agent.FollowPrecomputedPath; forceMode = agent != null && agent.ForceModeForHarness; inCombat = agent?.Unit != null && agent.Unit.IsInCombat;
-            return agent != null;
+            return agent != null && !SteeringUnreadable;
         }
         internal static UnityEngine.Vector2 MoveDirection(Kingmaker.View.UnitMovementAgent agent) => agent == null ? default(UnityEngine.Vector2) : agent.MoveDirection;
     }
@@ -9642,8 +9644,20 @@ namespace Harness
             // travel 0.762 m: the permitted 5.5631e-7 s would round the stop back onto X = 256: zero, no balance moves, native's denial ends the
             // order. (C) positive control: a straight path whose end is 0.08 m ahead, physical travel 1.424008 m, native counter 0.762 m: the
             // affordable completion executes normally (the permitted duration, the mount on the end, 0.08 m of physical travel).
-            foreach (var kase in new[] { "A interior waypoint, affordable end", "B native counter nearly exhausted", "C affordable completion (control)" })
+            // Round 22 (R20-F1): the same geometries with the step bound's explicit result. A2/B2: the steering facts cannot be read
+            // (MountedAgentSteering.SteeringUnreadable, the stand-in's failed read): Unestablished: zero, no movement, no debit, native's denial
+            // ends the order (the affordable end plays no part). A3/A4: a readable ZERO combat angular speed: A3 MoveDirection exactly along the
+            // selected waypoint (zero required turn: the verified path, Bounded); A4 MoveDirection 5.7 degrees off it (a non-zero turn the
+            // product does not model at angular speed 0: Unestablished: zero). A, C stay the readable interior and affordable-snap positives.
+            foreach (var kase in new[] { "A interior waypoint, affordable end", "B native counter nearly exhausted", "C affordable completion (control)",
+                "A2 interior waypoint, affordable end, steering unreadable", "B2 native counter nearly exhausted, steering unreadable",
+                "A3 interior waypoint, affordable end, zero combat angular speed, aligned", "A4 interior waypoint, affordable end, zero combat angular speed, not aligned" })
             {
+                var unreadable = kase.Contains("steering unreadable");
+                var zeroAngular = kase.Contains("zero combat angular");
+                var notAligned = kase.Contains("not aligned");
+                var unestablished = kase.StartsWith("B") || unreadable || notAligned;
+                MountedAgentSteering.SteeringUnreadable = false;
                 var c = FirstTickPair(0.095f, 1f / 60f, false, false, true);
                 var w = c.World;
                 w.NativeDenialCompletesMovement = true;
@@ -9670,7 +9684,8 @@ namespace Harness
                     var offset = new Vector3(256f - settledPose.x, 0f, 0f);
                     var pose = new Vector3(256f, settledPose.y, settledPose.z);
                     w.Horse.Position = pose; w.Rider.Position = pose; w.Target.Position = w.Target.Position + offset;
-                    var dir = new UnityEngine.Vector2(1f, 0f);
+                    var dir = notAligned ? new UnityEngine.Vector2(0.9950042f, 0.09983342f) : new UnityEngine.Vector2(1f, 0f);
+                    if (zeroAngular) agent.CombatAngularSpeed = 0f;
                     points.Clear(); points.Add(pose);
                     if (kase.StartsWith("A")) { points.Add(new Vector3(256.3125f, pose.y, pose.z)); points.Add(new Vector3(pose.x + 0.0625f, pose.y, pose.z + 0.05f)); }
                     else points.Add(new Vector3(pose.x + (kase.StartsWith("B") ? 0.125f : 0.08f), pose.y, pose.z));
@@ -9684,6 +9699,7 @@ namespace Harness
                     var physicalLeft = 1.524f - physicalBefore;
                     var toEndBefore = Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, end);
                     LineOfSightGeometry.Instance.Blocked = (f, t) => true;
+                    MountedAgentSteering.SteeringUnreadable = unreadable;
                     Frame(c);
                     var tickLine = w.LastMountTick ?? "";
                     var after = w.Horse.Position;
@@ -9702,16 +9718,19 @@ namespace Harness
                         Frame(c);
                         later.Add(returnedOf(w.LastMountTick ?? "") + " s/" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(beforeLater, w.Horse.Position) * 1000f).ToString("0.######") + " mm");
                     }
+                    MountedAgentSteering.SteeringUnreadable = false;
                     var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "(" + order.EndCauseDetail + "); native force-finish disposition " + order.NativeApproachEndedCount + "; route revalidations " + order.RouteRevalidationCount + ", arrival contradictions " + order.RouteArrivalContradictionCount + "; rider Standard " + w.Rider.CombatState.Cooldown.StandardAction.ToString("0.###") + " s; mount Move " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.###") + " s)";
-                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && tickLine.Contains(";affordableEnd)") && physicalAfter <= 1.524f && nativeAfter <= 1.524f &&
-                        Math.Abs((physicalAfter - physicalBefore) - travel) < 1e-6f && Math.Abs((nativeAfter - nativeBefore) - returned * 9f) < 1e-6f && order.StruckTargets.Count == 0;
+                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && tickLine.Contains(";affordableEnd;") && physicalAfter <= 1.524f && nativeAfter <= 1.524f &&
+                        Math.Abs((physicalAfter - physicalBefore) - travel) < 1e-6f && Math.Abs((nativeAfter - nativeBefore) - returned * 9f) < 1e-6f && order.StruckTargets.Count == 0 &&
+                        tickLine.Contains(unestablished ? ";result=Unestablished)" : ";result=Bounded)");
+                    // Unestablished (B, A2, B2, A4): zero, no movement, neither balance moves, native's denial ends the order promptly.
+                    if (unestablished) ok &= returned == 0f && travel == 0f && physicalAfter == physicalBefore && nativeAfter == nativeBefore && order.IsFinished && order.NativeApproachEndedCount == 1;
                     // (A) ends within the moving frame through the product's target-drift repath (the fixture's 256 m translation of the target exceeds
                     // TargetRepathDistance): BeginDelegatedMove finds no legal route within the remaining movement: Cancelled, "validated approach expired",
                     // movement used spent, no strike, the rider's Standard unspent (owner amendment 1), no native force-finish.
-                    if (kase.StartsWith("A")) ok &= returned > 0f && selectedWaypoint == "waypoint#1(interior)" && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x &&
+                    else if (kase.StartsWith("A")) ok &= returned > 0f && selectedWaypoint == "waypoint#1(interior)" && travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres && travel <= physicalLeft && after.x > pose.x &&
                         order.IsFinished && order.StruckTargets.Count == 0 && order.EndCause == MountedAttackEndCause.Cancelled && order.EndCauseDetail == "validated approach expired" &&
                         order.NativeApproachEndedCount == 0 && order.RouteArrivalContradictionCount == 0 && w.Rider.CombatState.Cooldown.StandardAction == 0f;
-                    else if (kase.StartsWith("B")) ok &= returned == 0f && travel == 0f && physicalAfter == physicalBefore && nativeAfter == nativeBefore && order.IsFinished && order.NativeApproachEndedCount == 1;
                     else ok &= returned > 0f && toEndAfter < 1e-6f && travel <= physicalLeft && Math.Abs(travel - toEndBefore) < 1e-6f;
                     detail = "pose (" + pose.x.ToString("R") + "," + pose.z.ToString("R") + "), end (" + end.x.ToString("R") + "," + end.z.ToString("R") + ") " + (toEndBefore * 1000f).ToString("0.######") + " mm away, 9 m/s, physical step travel " +
                         physicalBefore.ToString("R") + " m (" + (physicalLeft * 1000f).ToString("0.######") + " mm left), native counter " + nativeBefore.ToString("R") + " m: selected " + selectedWaypoint + "; returned duration " +
@@ -9719,7 +9738,8 @@ namespace Harness
                         " mm, " + (toEndAfter * 1000f).ToString("0.######") + " mm from the end); physical step travel " + physicalBefore.ToString("R") + " -> " + physicalAfter.ToString("R") + " m, native counter " + nativeBefore.ToString("R") +
                         " -> " + nativeAfter.ToString("R") + " m; later frames [" + string.Join("; ", later.ToArray()) + "]; disposition " + disposition + " [" + stepPart + "]";
                 }
-                Check(ok, "R20-F1 (round 21) later delegated step tick at X = 256 m with the end within the physical remainder, " + kase + ": " + detail);
+                MountedAgentSteering.SteeringUnreadable = false;
+                Check(ok, "R20-F1 (rounds 21-22) later delegated step tick at X = 256 m with the end within the physical remainder, " + kase + ": " + detail);
             }
 
             // ===== round 18 (R16-F3, R17-F2) =====
