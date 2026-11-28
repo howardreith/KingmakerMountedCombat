@@ -36,6 +36,9 @@ function Get-F1CreatorPreferenceRestoration([string]$Before,[string]$Observed,[s
 }
 if($ContractOnly){return}
 $lab=Get-KmcLabRoot;$run='20261105-finalize-f1c-owner-creator-01';$stateRoot=Join-Path $lab 'runtime-state'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read; its lock
+# takes it over and releases it on a verified close. -WhatIf never acquires it.
+$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $stateRoot -Purpose 'recovery-finalizef1creatorpreferences' -Mode Stale -WhatIfRequested:$dry
 $evidence=Join-Path $lab ('runtime-evidence/'+$run);$backup=Join-Path $lab ('runtime-backups/profile-'+$run)
 $snapshotPath=Join-Path $backup 'snapshot.json';$saved=Join-Path $backup 'Params.xml'
 $receipt=Join-Path $evidence 'reviewed-preferences-restoration.json'

@@ -5,6 +5,9 @@ $WhatIfPreference=$false
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read; its lock
+# takes it over and releases it on a verified close. -WhatIf never acquires it.
+$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $stateRoot -Purpose 'recovery-finalizef1copiedsymbols' -Mode Stale -WhatIfRequested:$requestedWhatIf
 $run='20261104-finalize-f1c-creator-scroll'
 $token='6afaf1c419f8840d8b1f6737c5aa9e5386d93aa9e9a425ce35ce00bab7862596'
 $combinedPath=Get-KmcRunTransactionStatePath $stateRoot $run

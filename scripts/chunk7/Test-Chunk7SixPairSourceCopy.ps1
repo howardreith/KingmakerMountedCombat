@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param([string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 . (Join-Path $PSScriptRoot 'Initialize-Chunk7Tests.ps1')
 if(-not$OutputDirectory){$OutputDirectory=Join-Path $chunk7AnalysisRoot ('six-copy-'+[Guid]::NewGuid().ToString('N'))}
 $OutputDirectory=Assert-KmcChildPath $OutputDirectory $chunk7AnalysisRoot 'six-pair source copy checks'

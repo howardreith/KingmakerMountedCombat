@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory,[string]$EvidenceSource,[string]$FixtureSource,[string]$CumulativeSource,[string]$RequestSeed,[Alias('OutputRoot')][string]$OutputDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 if(-not$RepositoryRoot){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if(-not$ReaderDirectory){$ReaderDirectory=Join-Path $RepositoryRoot 'scripts/runtime'}
 if(-not$EvidenceSource){$EvidenceSource=Join-Path $ReaderDirectory 'Chunk7AssistedAcquisitionEvidence.ps1'}

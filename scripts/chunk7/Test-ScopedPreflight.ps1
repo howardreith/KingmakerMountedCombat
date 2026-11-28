@@ -9,6 +9,9 @@ param(
  [string]$LabRoot='C:\Dev\KingmakerMountedCombatLab'
 )
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 if(-not$PSBoundParameters.ContainsKey('SourceRoot')){$SourceRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 if([string]::IsNullOrWhiteSpace($SourceRoot)){throw 'An explicit SourceRoot must be nonempty.'}
 $SourceRoot=[IO.Path]::GetFullPath($SourceRoot).TrimEnd('\');$LabRoot=[IO.Path]::GetFullPath($LabRoot).TrimEnd('\')

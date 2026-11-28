@@ -19,6 +19,11 @@ $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.js
 $stateRoot=Join-Path $labRoot 'runtime-state'
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $modsRoot=[string]$intake.requestedLayout.kingmakerModsRoot
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before the first shared read (saves, Mods); released
+# after the snapshot is published. -WhatIf never acquires it (read-only).
+$preparationReservation=$null
+if(-not$requestedWhatIf){$preparationReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-suite-snapshot') -Purpose 'preparation-suite-snapshot'}
+try{
 $PackagePath=[IO.Path]::GetFullPath($PackagePath);$manifestPath=$PackagePath+'.manifest.json'
 $manifest=Assert-KmcPackageManifest $PackagePath $manifestPath
 [void](Assert-KmcQualificationAdmissionQuiescent -StateRoot $stateRoot -ModsRoot $modsRoot)
@@ -99,3 +104,4 @@ $modsAfter=Get-KmcQualificationTreeInventory -Root $modsRoot -Scope mods-root
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $saveSecond -Actual $saveAfter -Description 'qualification-suite committed save inventory')
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $modsSecond -Actual $modsAfter -Description 'qualification-suite committed Mods inventory')
 [pscustomobject]@{suiteId=$SuiteId;path=$snapshotPath;sha256=$snapshotSha;saveDigest=[string]$saveAfter.digest;modsDigest=[string]$modsAfter.digest;packageSha256=[string]$record.package.sha256;manifestSha256=[string]$record.package.manifestSha256;dllSha256=[string]$record.package.dllSha256;dllMvid=[string]$record.package.dllMvid}|ConvertTo-Json -Compress
+}finally{if($null-ne$preparationReservation){Exit-KmcNativeReservation $preparationReservation}}

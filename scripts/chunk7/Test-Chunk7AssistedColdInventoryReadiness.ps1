@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$SourceOverlayRoot,[Parameter(Mandatory=$true)][string]$OutputRoot)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))}
 . (Join-Path $RepositoryRoot 'scripts/runtime/RuntimeHarness.Common.ps1')
 $actualLab=Get-KmcLabRoot;$output=Assert-KmcChildPath $OutputRoot (Join-Path $actualLab 'analysis-cache') 'generated assisted cold source checks'

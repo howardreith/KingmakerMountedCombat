@@ -50,6 +50,27 @@ if (-not (Test-Path -LiteralPath $fullStateRoot -PathType Container)) {
     throw "Runtime state root is missing: $fullStateRoot"
 }
 Assert-KmcNotReparsePoint $fullStateRoot 'runtime state root'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md), before the first shared read (the save root):
+# initialization and the continuity audit hold a preparation reservation for the whole guard; requalification takes the
+# reservation its transaction lock then uses; recovery resumes the stale run's own. -WhatIf never acquires it.
+$nativeReservation = $null
+$liveRequalificationRunId = $null
+if (-not $requestedWhatIf) {
+    if ($RecoverWorkingRequalification) {
+        $staleLockPath = Join-Path $fullStateRoot 'active-transaction.lock'
+        if (Test-Path -LiteralPath $staleLockPath -PathType Leaf) {
+            $nativeReservation = Resume-KmcNativeReservation -StateRoot $fullStateRoot -RunId $RequalificationRunId -LockToken ([string](Read-KmcJson $staleLockPath).token) -Mode Stale -AllowLegacy -Purpose 'fixture-requalification'
+        }
+    }
+    elseif ($RequalifyWorking) {
+        $liveRequalificationRunId = 'fixture-requalification-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')
+        $nativeReservation = Enter-KmcNativeReservation -StateRoot $fullStateRoot -RunId $liveRequalificationRunId -Purpose 'fixture-requalification'
+    }
+    else {
+        $nativeReservation = Enter-KmcNativeReservation -StateRoot $fullStateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-fixture-guard') -Purpose 'preparation-fixture-guard'
+    }
+}
+try {
 $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
 if ($RequalifyWorking -or $RecoverWorkingRequalification -or $AuditWorkingContinuity) {
     Assert-KmcPathsDoNotOverlap -First $fullSaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
@@ -70,7 +91,6 @@ if ($audit.rejectedKmcLookingNames.Count -ne 0) {
 $pair = Get-KmcValidatedFixturePair -SaveRoot $SaveRoot
 $requalification = $null
 $qualificationMetadataBefore = $null
-$liveRequalificationRunId = $null
 $recoveryPlan = $null
 $stateManifestBefore = $null
 if ($AuditWorkingContinuity) {
@@ -172,7 +192,7 @@ elseif ($RequalifyWorking) {
         -SaveRoot $fullSaveRoot `
         -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256)
     $qualificationMetadataBefore = Get-Item -LiteralPath $qualificationPath -Force
-    $liveRequalificationRunId = 'fixture-requalification-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')
+    if ($null -eq $liveRequalificationRunId) { $liveRequalificationRunId = 'fixture-requalification-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') }
 }
 elseif ($RecoverWorkingRequalification) {
     $recoveryPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
@@ -258,7 +278,8 @@ elseif ($RequalifyWorking) {
         -PriorSaveTransactionStatePath $PriorSaveTransactionStatePath `
         -ExpectedPriorSaveTransactionRunId $ExpectedPriorSaveTransactionRunId `
         -ExpectedPriorSaveTransactionStateSha256 $ExpectedPriorSaveTransactionStateSha256 `
-        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest
+        -ExpectedPriorSaveMetadataDigest $ExpectedPriorSaveMetadataDigest `
+        -Reservation $nativeReservation
     $WhatIfPreference = $false
     $pair = $liveResult.pair
     Write-Host 'KMC fixture guard PASS.'
@@ -312,7 +333,8 @@ elseif ($RecoverWorkingRequalification) {
         -ExpectedPriorQualificationSha256 $ExpectedExistingQualificationSha256 `
         -ExpectedBaselineSha256 $ExpectedBaselineSha256 `
         -ExpectedSupersededWorkingSha256 $ExpectedSupersededWorkingSha256 `
-        -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256
+        -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 `
+        -Reservation $nativeReservation
     $WhatIfPreference = $false
     Write-Host "Working fixture requalification recovery PASS: $($recoveryResult.disposition)."
     Write-Host "Qualification SHA-256: $($recoveryResult.qualificationSha256)"
@@ -329,3 +351,12 @@ Write-Host "Baseline: $($pair.baseline.fileName) / $($pair.baseline.sha256)"
 Write-Host "Working:  $($pair.working.fileName) / $($pair.working.sha256)"
 Write-Host "Campaign: $($pair.expectedGameName) / $($pair.expectedGameId) / $($pair.expectedArea)"
 Write-Host 'Writable save allowlist: KMC_AUTOMATION_WORKING only.'
+}
+finally {
+    # Preparation modes release here; a requalification or recovery reservation is released by its lock's close (or
+    # here when no lock was ever taken); an abandoned transaction keeps it.
+    if ($null -ne $nativeReservation) {
+        if ($RequalifyWorking -or $RecoverWorkingRequalification) { Exit-KmcUnlockedNativeReservation $nativeReservation }
+        else { Exit-KmcNativeReservation $nativeReservation }
+    }
+}

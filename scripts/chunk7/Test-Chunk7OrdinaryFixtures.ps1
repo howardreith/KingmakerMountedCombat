@@ -1,6 +1,9 @@
 [CmdletBinding()]
 param([string]$RepositoryRoot,[string]$ReaderDirectory)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 # Windows PowerShell -File resolves script-root defaults after parameter binding.
 if(-not$PSBoundParameters.ContainsKey('RepositoryRoot')){$RepositoryRoot=Join-Path $PSScriptRoot '../..'}
 $RepositoryRoot=[IO.Path]::GetFullPath($RepositoryRoot)

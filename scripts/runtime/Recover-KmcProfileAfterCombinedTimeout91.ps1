@@ -8,6 +8,9 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 $requestedWhatIf=[bool]$WhatIfPreference;$WhatIfPreference=$false
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read; its lock
+# takes it over and releases it on a verified close. -WhatIf never acquires it.
+$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $stateRoot -Purpose 'recovery-kmcprofileaftercombinedtimeout91' -Mode Fresh -WhatIfRequested:$requestedWhatIf
 $runId='20261020-c7b-world104-b91s3-small-native-retrain'
 $expectedSnapshot='63ab19003411805be9c8ce2e3ab5a764a64e2ca72b078fd06801a6f139cd6e3c'
 $expectedParamsNow='3ef54abd54572382ccc716e3577788fc08f57ff12cad540cbf583e91a5d3c84c'

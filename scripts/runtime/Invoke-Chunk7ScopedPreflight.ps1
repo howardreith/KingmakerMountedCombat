@@ -79,6 +79,13 @@ function Get-KmcScopedSelectedHistoricalProof([string]$Path,[string]$Sha256,[str
  $selected
 }
 
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md): this closed preflight opens the current save and
+# Mods trees through read handles, so it reserves for the lab's runtime-state on behalf of this process before any
+# handle is opened and releases after every handle is closed (helper process; the harness is not loaded here).
+$preparationRunId=[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-scoped-preflight'
+$preparationHelper=Join-Path $PSScriptRoot 'Invoke-KmcPreparationReservation.ps1'
+& (Join-Path $PSHOME 'powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $preparationHelper -Action Enter -StateRoot (Join-Path $LabRoot 'runtime-state') -RunId $preparationRunId -Purpose 'preparation-scoped-preflight' -HolderProcessId $PID|Out-Null
+if($LASTEXITCODE-ne0){throw 'Closed scoped preflight refused: the Kingmaker native-test reservation could not be acquired.'}
 try{
  # No inherited module/compiler search path may run before the compiler guard.
  # These exact installed standard cmdlets/CLR are the explicit bootstrap trust
@@ -240,5 +247,7 @@ try{
 }finally{
  foreach($owner in $outputOwners){try{Close-KmcScopedOutput $owner}catch{$released=$false;$errors.Add($_.Exception.ToString())}}
 }
+& (Join-Path $PSHOME 'powershell.exe') -NoProfile -ExecutionPolicy Bypass -File $preparationHelper -Action Exit -StateRoot (Join-Path $LabRoot 'runtime-state') -RunId $preparationRunId|Out-Null
+if($LASTEXITCODE-ne0){$released=$false;$errors.Add('The Kingmaker native-test reservation was not released.')}
 if(-not$verified-or-not$released-or$errors.Count-ne0){throw ('Closed scoped preflight FAIL: '+[string]::Join([Environment]::NewLine,$errors))}
 Write-Output 'Closed scoped preflight PASS; exact selected guards ran freshly. Unreferenced historical roots NOT RE-EVALUATED. No native execution authorized.'

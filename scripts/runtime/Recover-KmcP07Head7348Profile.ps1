@@ -19,6 +19,9 @@ $newUpdateCheck='2026-10-19T05:31:20.3193157-04:00'
 $kmcEntry='<Mod Id="KingmakerMountedCombat" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'
 $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read; its lock
+# takes it over and releases it on a verified close. -WhatIf never acquires it.
+$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $stateRoot -Purpose 'recovery-kmcp07head7348profile' -Mode Stale -WhatIfRequested:([bool]$WhatIfPreference)
 $backupRoot=Join-Path $lab 'runtime-backups'
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $receipt=Join-Path $evidenceRoot 'profile-recovery-exact-p07.json'

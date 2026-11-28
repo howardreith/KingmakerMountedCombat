@@ -160,19 +160,47 @@ the pre-run snapshot until verified restoration there is a no-deployment window:
 human game session, no second executor, and no other project installing into those
 paths. Other projects may keep editing and building elsewhere.
 
+### Kingmaker native-test reservation
+
 Exclusion against other Kingmaker labs' native automation is the Kingmaker native-test
-reservation (`docs/NATIVE-RESERVATION.md`): `Open-KmcRuntimeLock` and
-`Adopt-KmcStaleRuntimeLock` take it (a lease record under `%ProgramData%`, written only
-under the `Global\KingmakerNativeTest.Reservation.v1` mutex) before KMC's own
-`active-transaction.lock`, `Close-KmcRuntimeLock` releases it after the lock, and
-`Abandon-KmcRuntimeLock` keeps it for recovery. Every runtime entrypoint (the scenario
-runner and manual review, fixture requalification and recovery, and the `Recover-*`
-tools) goes through those functions. Recovery adopts only KMC's own record whose writer
-is gone; another lab's record, a live holder's or an unreadable one refuses and is left
-alone. A lost record fails the close. The existing process, lock and journal checks
-stay. `scripts/Test-NativeReservation.ps1` proves it with separate contender processes
-on stand-in roots (both arrival orders, simultaneous arrivals, recovery admission, a lab
-alone); self-tests use a private reservation, never the machine-wide one.
+reservation (`docs/NATIVE-RESERVATION.md`): a lease record under `%ProgramData%`, written
+only under the `Global\KingmakerNativeTest.Reservation.v1` mutex. KMC binds each lease to
+its transaction with `native-reservation.json` in the runtime-state root it covers (run,
+purpose, phase `acquiring -> reserved -> locked -> closing`, lease token, KMC lock token),
+written before the lease and at every transition. Order: the reservation first, then
+`active-transaction.lock`; release in reverse, only after every shared surface is verified.
+
+Participating entrypoints (each acquires before its first shared read; `-WhatIf` never
+acquires, because a WhatIf run only reads, publishes nothing and proves its own purity; a
+real run re-derives every baseline under the reservation):
+
+| Entrypoint | Mode | Reservation |
+| --- | --- | --- |
+| `Invoke-KingmakerRuntimeScenario.ps1` (and `Invoke-KingmakerManualReview.ps1`, `Invoke-FinalizeF1Finish.ps1`, which call it) | native run | taken after workflow admission, before loader-dependency, save, continuity and Mods reads; carried into the lock; released only when Mods, saves, profile, the game's exit and (base-game staging) the installed dependencies are verified, otherwise kept with the abandoned lock |
+| `Recover-KingmakerRuntimeTransaction.ps1` | recovery | the stale run's own reservation is resumed before the Mods/save reads; a run with a profile snapshot hands the reservation to the profile recovery instead of releasing it |
+| `Recover-KmcPersistenceProfile.ps1` | recovery | resumes the handoff (or the stale lock's run) before its reads; releases after the profile is verified |
+| other `Recover-*` tools | recovery | adopt through `Adopt-KmcStaleRuntimeLock`, which resumes only the reservation bound to that stale lock's run and token |
+| `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fixture repair | taken before the save-root audit; an interrupted repair is resumed by rerunning with its `-RunId` (journal, quarantine, pre-repair inventory) and released only after verification |
+| `Test-KmcFixtureGuard.ps1` | initialize / audit / requalify / recover | preparation reservation for initialize and audit; requalification takes the reservation its lock uses; recovery resumes the stale run's |
+| `New-KmcQualificationSuiteSnapshot.ps1`, `New-KmcProtectedSaveContinuityAuthority.ps1`, `New-KmcChainedProtectedSaveContinuityAuthority.ps1` | preparation | held from the first save/Mods read until the authority is published |
+| `Invoke-Chunk7ScopedPreflight.ps1` | closed preflight | opens the save and Mods trees through read handles, so it reserves (helper `Invoke-KmcPreparationReservation.ps1`, on behalf of its own process) before any handle and releases after every handle is closed |
+| `Recover-KmcNativeReservation.ps1` | reservation repair | reconciles only an interrupted acquisition before its lock or an interrupted release after a verified close |
+
+Excluded, with the resources they touch: build, packaging and validation scripts
+(repository and artifact files only), the result readers (`Test-Runtime*Result.ps1` and
+similar: completed evidence only), and every self-test (stand-in roots with a private
+reservation below a disposable root, which this lab's production runtime-state refuses).
+
+Rules: any lease is a reservation whether or not its writer runs; only KMC's own binding,
+lease token and a writer that is demonstrably gone allow recovery (strict record parsing;
+an indeterminate holder counts as alive); a binding whose lease vanished is an incident and
+refuses; a pre-protocol stale lock (neither binding nor lease) takes a fresh lease. Every
+existing ownership boundary (`Assert-KmcRuntimeLockOwner`) checks the pair, KMC's lock and
+the lease, and launch is preceded by that check, so a lost lease stops the next shared write
+(no restoration or rollback over the new holder). The first ownership-loss observation is
+written once to `native-reservation-incidents/<run>.first.json`, independent of every journal;
+later observations and dispositions are separate files. The existing process, lock and journal
+checks stay. Evidence: `scripts/Test-NativeReservationGate.ps1`.
 
 An unexpected write that reaches the staged tree during a run is preserved
 byte-exact in that run's quarantine, the live tree is returned to its pre-run

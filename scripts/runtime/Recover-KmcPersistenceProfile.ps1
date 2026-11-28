@@ -25,6 +25,20 @@ if((Get-KmcSha256 $snapshotPath)-cne$SnapshotSha256){throw 'Profile snapshot pin
 $snapshot=Read-KmcPersistenceProfileSnapshot $snapshotPath
 # An interrupted post-transaction recovery leaves only its own stale profile-recovery lock; it is adopted and re-verified.
 $staleProfileLock=$AfterTransactionRecovery-and(Test-Path -LiteralPath (Join-Path $stateRoot 'active-transaction.lock') -PathType Leaf)
+# The neutral reservation precedes the shared reads below (Mods, saves, settings, profile): the stale lock's own run, or
+# the reservation the transaction recovery handed to this run (a pre-protocol transaction with no binding takes a fresh
+# one). -WhatIf never acquires it (read-only).
+$nativeReservation=$null
+if(-not$dryRun){
+    if($staleProfileLock-or-not$AfterTransactionRecovery){
+        $staleLockPayload=Read-KmcJson (Join-Path $stateRoot 'active-transaction.lock')
+        $nativeReservation=Resume-KmcNativeReservation -StateRoot $stateRoot -RunId $RunId -LockToken ([string]$staleLockPayload.token) -Mode Stale -AllowLegacy -Purpose 'profile-recovery'
+    }elseif($null-eq(Read-KmcReservationBinding $stateRoot)){
+        $nativeReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId $RunId -Purpose 'profile-recovery'
+    }else{
+        $nativeReservation=Resume-KmcNativeReservation -StateRoot $stateRoot -RunId $RunId -Mode Handoff -Purpose 'profile-recovery'
+    }
+}
 if($AfterTransactionRecovery){
     $state=Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot -EvidenceRoot (Join-Path $lab 'runtime-evidence') -RunId $RunId -Snapshot $snapshot -ProfileRecoveryLock:$staleProfileLock
     $runToken=[string]$state.token
@@ -79,8 +93,8 @@ if($dryRun-or-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup 
 $lock=$null
 try{
     if($AfterTransactionRecovery){
-        if($staleProfileLock){$lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedPurpose 'profile-recovery'}
-        else{$lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId $RunId -Purpose 'profile-recovery'}
+        if($staleProfileLock){$lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedPurpose 'profile-recovery' -Reservation $nativeReservation}
+        else{$lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId $RunId -Purpose 'profile-recovery' -Reservation $nativeReservation}
         if($lock.RunId-cne$RunId){throw 'The adopted profile-recovery lock belongs to another run.'}
         # Every admission check again, now under the held lock.
         $held=Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot -EvidenceRoot (Join-Path $lab 'runtime-evidence') -RunId $RunId -Snapshot $snapshot -HeldLock $lock
@@ -89,7 +103,7 @@ try{
             throw 'The completed transaction or its Mods/saves changed before profile restoration.'
         }
     }
-    else{$lock=Adopt-KmcStaleRuntimeLock $stateRoot}
+    else{$lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation}
     if($areasPending){
         $areas=Restore-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $snapshot -BackupRoot $backups -RecoveredTransactionToken $runToken
         Write-KmcJsonAtomic (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-areas-isolation.json')) ([ordered]@{

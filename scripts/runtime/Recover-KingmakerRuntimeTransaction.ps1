@@ -40,6 +40,12 @@ elseif(Test-Path -LiteralPath $legacyModsStatePath -PathType Leaf){
     $legacyMode=$true
 }
 else{throw 'Stale lock has no matching combined or legacy durable transaction state; automatic recovery is unsafe.'}
+# The neutral reservation of exactly this run and lock is resumed before the shared reads below (live Mods, saves); a
+# pre-protocol stale lock with neither binding nor lease takes a fresh one. -WhatIf never acquires it (read-only).
+$nativeReservation=$null
+if(-not$requestedWhatIf){
+    $nativeReservation=Resume-KmcNativeReservation -StateRoot $stateRoot -RunId ([string]$raw.runId) -LockToken ([string]$raw.token) -Mode Stale -AllowLegacy -Purpose 'transaction-recovery'
+}
 $liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
 $beforeMods=$null
 if($liveModsExistedBefore){
@@ -100,7 +106,7 @@ if(-not$PSCmdlet.ShouldProcess($target,"recover exact KMC transaction $($raw.run
 $WhatIfPreference=$false
 $lock=$null
 try{
-    $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+    $lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation
     if($legacyMode){
         $restored=Restore-KmcModsTransaction -Lock $lock -StatePath $legacyModsStatePath -LiveModsRoot $liveMods -BackupRoot $backupRoot -StagingRoot $stagingRoot
         if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){
@@ -120,8 +126,14 @@ try{
     if(-not$restoration.modsRestored-or-not$restoration.saveProtectionPassed-or@($restoration.errors).Count-ne0){
         throw "Combined recovery remains incomplete: $(@($restoration.errors) -join '; ')"
     }
-    Close-KmcRuntimeLock $lock
+    # A run that snapshotted the persistence profile is finished by Recover-KmcPersistenceProfile.ps1
+    # -AfterTransactionRecovery: the lock closes here, but the reservation is handed to that recovery of the same run,
+    # so no peer enters while profile drift may remain. Only its verified completion releases it.
+    $profilePending=(Test-Path -LiteralPath (Join-Path $backupRoot ('profile-'+[string]$raw.runId+'/snapshot.json')) -PathType Leaf)-and
+        -not(Test-Path -LiteralPath (Join-Path $labRoot ('runtime-evidence/'+[string]$raw.runId+'/profile-recovery.json')) -PathType Leaf)
+    if($profilePending){Close-KmcRuntimeLock $lock -KeepReservationFor 'profile-recovery'}else{Close-KmcRuntimeLock $lock}
     $lock=$null
+    if($profilePending){Write-Host "Reservation kept for Recover-KmcPersistenceProfile.ps1 -AfterTransactionRecovery -RunId $($raw.runId)."}
     Write-Host "PASS recovered transaction $($raw.runId); Mods=$($restoration.restoredModsDigest); saves=$($restoration.restoredSaveInventoryDigest); baseline immutable; Working restored; allowlist passed."
 }
 finally{

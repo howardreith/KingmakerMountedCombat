@@ -6,6 +6,9 @@ param()
 # launched and no lab state is touched.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# Offline stand-ins take a private Kingmaker native-test reservation (inherited by child scripts and processes), never
+# the machine-wide one (docs/NATIVE-RESERVATION.md).
+$env:KMC_NATIVE_RESERVATION_TEST_ROOT=Join-Path ([IO.Path]::GetTempPath()) ('kmc-reservation-'+[Guid]::NewGuid().ToString('N'))
 $boundary = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) ('kmc-tier-selection-' + [Guid]::NewGuid().ToString('N'))))
 $previous = @{}
 foreach ($name in @('KMC_WORKFLOW_TEST_TRACE','KMC_WORKFLOW_BUDGET_ROOT','KMC_WORKFLOW_BUDGET_ID','KMC_WORKFLOW_BUDGET_ENTRY','KMC_WORKFLOW_TEST_CLOCK_FILE','KMC_WORKFLOW_TEST_DEAD_PIDS','KMC_WORKFLOW_TEST_ADVANCE_TO','KMC_WORKFLOW_NATIVE_BATCH')) {

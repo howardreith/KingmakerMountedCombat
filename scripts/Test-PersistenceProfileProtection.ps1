@@ -452,8 +452,10 @@ try{
         $rejected=$false;try{Restore-KmcPersistenceStartupSettings -Lock $fixtureLock -Snapshot ([pscustomobject]@{runId=$ptRun;token=$fixtureLock.Token}) -WhatIf}catch{$rejected=$true}
         if(!$rejected){throw 'A fixture-recovery lock restored startup settings.'};$passes++
     }finally{Close-KmcRuntimeLock $fixtureLock}
-    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery'}")-or
-        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery'}")-or
+    # Line-ending agnostic: the checkout may use CRLF.
+    $recoverText=$recoverText.Replace("`r`n","`n")
+    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery' -Reservation `$nativeReservation}")-or
+        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery' -Reservation `$nativeReservation}")-or
         -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
         -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."

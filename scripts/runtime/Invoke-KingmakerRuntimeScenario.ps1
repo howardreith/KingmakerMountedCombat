@@ -452,7 +452,17 @@ $workflowHeartbeatAt=[DateTime]::UtcNow
 # Lifetime: a terminating error anywhere outside the transaction's own try/finally (an early
 # refusal, a WhatIf failure, the final verdict) still completes this entry and restores the
 # caller's context; the error itself propagates unchanged.
-trap { try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
+$nativeReservation=$null
+trap { try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{}; try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md): a native run acquires it here, before its first shared
+# read (installed loader dependencies, protected saves and fixture continuity, live Mods), so every baseline it records
+# is derived under ownership; it then takes the KMC lock with it and releases it only when the transaction closes
+# restored. A refusal before the lock exists releases it (the trap above). -WhatIf never acquires it: a WhatIf run only
+# reads, publishes no baseline and proves its own purity; a native run re-derives everything under the reservation.
+if(-not$requestedWhatIf){
+    $actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
+    $nativeReservation=Enter-KmcNativeReservation -StateRoot $runtimeState -RunId $actualRunId -Purpose 'runtime-scenario'
+}
 $f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
 $f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
 $f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
@@ -663,7 +673,7 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
 $WhatIfPreference=$false
 $ConfirmPreference='None'
 $steamSafety=Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState:$BootstrapOfflineCloudEvidence
-$actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
+if($null-eq$nativeReservation){$actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}}
 $evidenceRoot=Assert-KmcChildPath (Join-Path $runtimeEvidence $actualRunId) $runtimeEvidence 'runtime evidence directory'
 if(Test-Path -LiteralPath $evidenceRoot){throw "Runtime evidence ID already exists: $actualRunId"}
 $startedAt=[DateTimeOffset]::UtcNow
@@ -713,7 +723,7 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('transaction lock '+$workflowBatchKey)
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
-    $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
+    $lock=Open-KmcRuntimeLock $runtimeState $actualRunId -Reservation $nativeReservation
     try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
@@ -1237,6 +1247,8 @@ try{
     # restores the staged installation normally; a game or save worker is never interrupted.
     Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmission -StepName ('game launch '+$workflowBatchKey) -EstimatedSeconds $TimeoutSeconds
     $workflowLaunchStarted=[DateTime]::UtcNow
+    # The ownership pair (KMC lock and neutral reservation) immediately before the game starts.
+    [void](Assert-KmcRuntimeLockOwner $lock)
     Invoke-KmcFinalizeF1GameStart -RepoRoot $repoRoot -Admission $workflowAdmission -StartGame {
         [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
     }
@@ -1717,9 +1729,13 @@ finally{
     }
     if($null-ne$lock){
         try{
-            if($modsRestored-and$saveProtection-and$processExited){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
+            # Release follows verification of every shared surface of the transaction, independent of the gameplay
+            # verdict: Mods, saves, profile (inside $saveProtection), the game's exit and, for base-game staging, the
+            # installed loader dependencies. Anything unverified keeps the lock and the reservation for recovery.
+            if($modsRestored-and$saveProtection-and$processExited-and(-not$BaseGameOnly-or$baseGameDependenciesUnchanged)){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
     }
+    elseif($null-ne$nativeReservation){Exit-KmcUnlockedNativeReservation $nativeReservation}
     if($BaseGameOnly){
         try{$isolationResult=[ordered]@{
             schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;
