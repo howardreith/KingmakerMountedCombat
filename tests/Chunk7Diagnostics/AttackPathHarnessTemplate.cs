@@ -8822,6 +8822,60 @@ namespace Harness
                         r.MoveFinal.ToString("0.#####") + " s; strikes " + r.Strikes + "; order " + (r.Order == null ? "-" : r.Order.IsFinished ? "ended (" + r.Order.EndCause + ")" : "live"));
                 }
 
+            // Round 16 (counter-final step, the R15-F3 rule for steps): the same post-binding blind arrival stripe under a step whose native counter
+            // this tick makes final (equal speeds 9 m/s, 0.140625 m left on both counters, 1/64 s frame: the provisional request,
+            // final-step-counter) and under a step whose physical reservation binds instead (physical 18 m/s, native 9 m/s, the same 0.140625 m
+            // grant: not counter-final, the route branch). Endpoint 0.136 m away (sight from x = 0.086, arrival radius 0.05 m), aligned; after
+            // binding sight closes on a 2 mm stripe 35 mm before the endpoint (inside the arrival radius), the endpoint visible. Both refuse the
+            // blind arrival path before any movement (both step counters unchanged); the visible controls commit and strike once.
+            foreach (var counterFinal in new[] { true, false })
+                foreach (var stripe in new[] { true, false })
+                {
+                    var c = FirstTickPair(0.086f, 1f / 64f, false, false, true);
+                    var a = PriorSelectionAndHold(c);
+                    var w = c.World;
+                    if (!counterFinal) w.Horse.View.AgentASP.SpeedFactor = 2f;
+                    c.Pair.movementState.SetStepLedger(w.Horse, 1.524f - 0.140625f, 1.524f - 0.140625f);
+                    var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse); var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    var gBefore = c.Combat.Generation; var horseHoldBefore = w.Horse.HoldState;
+                    var click = ClickTick(c, w.Target);
+                    var line = LastLine(c);
+                    var order = click.Order;
+                    Frame(c);
+                    var path = w.Horse.View.AgentASP.Path == null ? null : w.Horse.View.AgentASP.Path.vectorPath;
+                    var endpoint = path == null ? Vector3.zero : path[path.Count - 1];
+                    var toEndpoint = Kingmaker.Utility.GeometryUtils.MechanicsDistance(w.Horse.Position, endpoint);
+                    if (stripe) LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 0.086f || Math.Abs(from.x - (endpoint.x - 0.035f)) <= 0.001f;
+                    var start = w.Horse.Position; string decision = null; var stop = start; var nativeAtDecision = 0f; var physicalAtDecision = 0f;
+                    c.BeforeDrive = () =>
+                    {
+                        if (decision != null || c.Combat.LastFirstTickDecision.StartsWith("pending")) return;
+                        decision = c.Combat.LastFirstTickDecision; stop = w.Horse.Position;
+                        nativeAtDecision = c.Pair.movementState.AllocationMetresStepped(w.Horse); physicalAtDecision = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    };
+                    for (var i = 0; i < 3 && decision == null; i++) Frame(c);
+                    c.BeforeDrive = null;
+                    decision = decision ?? "<none>";
+                    for (var i = 0; i < 12 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    var strikes = order == null ? 0 : order.StruckTargets.Count;
+                    var moved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, stop);
+                    var ok = click.Admitted && order != null && Field(line, "finalStepPossible") == (counterFinal ? "True" : "False") && Math.Abs(toEndpoint - 0.136f) < 1e-3f;
+                    if (stripe)
+                        ok &= decision.StartsWith(counterFinal ? "refused:final-step-counter-route-arrival-not-admitted(" : "refused:route-arrival-not-admitted(") && moved < 1e-6f &&
+                            nativeAtDecision == nativeBefore && physicalAtDecision == physicalBefore && strikes == 0 && order.IsFinished && LiveMountCarrier(c) == null &&
+                            (!counterFinal || c.Combat.Generation == gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Horse.HoldState == horseHoldBefore);
+                    else
+                        ok &= decision.StartsWith(counterFinal ? "committed:replacement:final-step-counter:" : "committed:") && decision.Contains("remaining-route(") && strikes == 1 &&
+                            nativeAtDecision <= 1.524f + 1e-5f && physicalAtDecision <= 1.524f + 1e-5f;
+                    Check(ok, "Round 16 step " + (counterFinal ? "whose native counter becomes final (equal speeds)" : "whose physical reservation binds (not counter-final)") + ", " +
+                        (stripe ? "blind stripe 35 mm before the endpoint" : "visible control") + ": click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, finalStepPossible " +
+                        Field(line, "finalStepPossible") + "); endpoint " + endpoint + " (" + toEndpoint.ToString("0.#####") + " m); first debit " + decision.Substring(0, Math.Min(stripe ? 200 : 120, decision.Length)) +
+                        "...; moved " + moved.ToString("0.######") + " m to (" + stop.x.ToString("0.#####") + "," + stop.z.ToString("0.#####") + "); native counter " + nativeBefore.ToString("0.######") + " -> " +
+                        nativeAtDecision.ToString("0.######") + " m, physical travel " + physicalBefore.ToString("0.######") + " -> " + physicalAtDecision.ToString("0.######") + " m; generation " + gBefore + " -> " +
+                        c.Combat.Generation + "; target " + Name(w.Rider.CombatState.ManualTarget) + "; horse Hold " + horseHoldBefore + " -> " + w.Horse.HoldState + "; strikes " + strikes + "; order " +
+                        (order == null ? "-" : order.IsFinished ? "ended (" + order.EndCause + ")" : "live"));
+                }
+
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
             // (0.0439 m of physical travel left at 18 m/s: a 1/60 s request is cut to 0.0439/18 s, not the 0.30 m frame); the ordinary control keeps
             // the full requested tick (native's borrowed time). Domain arithmetic (MountedMovementState.Advance, the debit the adapter applies).

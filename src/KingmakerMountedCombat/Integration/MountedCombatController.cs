@@ -1928,17 +1928,20 @@ namespace KingmakerMountedCombat.Integration
             var finalTick = ordinaryTime && grant <= deltaTime * speed;
             var finalStep = mode == "granted" && step && unifiedTurn.PairedMountStepCounterFinal(deltaTime);
             // PR #70 round 16 (R15-F3): the common live route and arrival check (EvaluateRemainingRoute: the carrier's revalidated native route,
-            // the live leg and every route position inside the full arrival radius) applies to every ordinary grant, whatever its size: the final
-            // ordinary tick runs it before its executable stop is accepted, exactly as the larger ordinary grant does below, so the same blind
-            // arrival path is refused at either grant. Its executable-stop decision (a lawful shortened stop included) follows unchanged.
+            // the live leg and every route position inside the full arrival radius) applies to every ordinary grant and every step, whatever the
+            // grant size or counter state: the final ordinary tick and the step whose native counter this tick makes final run it before their
+            // executable stop is accepted, exactly as the larger ordinary grant and the non-final step do below, so the same blind arrival path is
+            // refused on either side of those branches. Their executable-stop decision (a lawful shortened stop included) follows unchanged. The
+            // restricted single-move first tick is different: its only movement is this tick's stop under the single-action restriction (no
+            // later tick follows to complete the route), so that executable stop alone is its admission.
             PairedAttackClickProbe.Result route = null;
             var approach = p.Command.ApproachOf(carrier);
-            if (ordinaryTime)
+            if (ordinaryTime || finalStep)
             {
                 route = PairedAttackClickProbe.EvaluateRemainingRoute(rider, mount, p.Target, agentPath, cursor, carrier.ApproachRadius,
                     approach?.NativeRoute, approach?.DestinationMetres ?? float.NaN);
                 if (p.Command.ClickPlan.Valid && !route.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
-                if (!route.RouteProven) return (finalTick ? "final-ordinary-tick-" : "") + "route-arrival-not-admitted(" + route.Detail + ")";
+                if (!route.RouteProven) return (finalTick ? "final-ordinary-tick-" : finalStep ? "final-step-counter-" : "") + "route-arrival-not-admitted(" + route.Detail + ")";
             }
             if (mode == "single-move-first-tick" || finalTick || finalStep)
             {
