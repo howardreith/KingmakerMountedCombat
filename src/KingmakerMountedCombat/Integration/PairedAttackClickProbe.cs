@@ -394,7 +394,7 @@ namespace KingmakerMountedCombat.Integration
             evaluated = 1;
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, permitted, followPrecomputedPath);
             if (!(permitted > 0f) || !(speed > 0f)) return Math.Max(0f, permitted);
-            if (float.IsPositiveInfinity(physicalLeft) || Executable(selected, path, origin, physicalLeft)) return permitted;
+            if (float.IsPositiveInfinity(physicalLeft) || Executable(selected, path, origin, physicalLeft, moveDirection, combatAngular)) return permitted;
             var step = Math.Max(InDiscSampleMetres / speed, permitted / InteriorStopCandidatesPerTick);
             var bad = permitted;
             var t = permitted;
@@ -422,10 +422,10 @@ namespace KingmakerMountedCombat.Integration
                 var backed = InsideVerified(low - StepMarginMetres / speed, t, low);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, backed, followPrecomputedPath);
-                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return backed; }
+                if (Executable(candidate, path, origin, physicalLeft, moveDirection, combatAngular)) { selected = candidate; return backed; }
                 evaluated++;
                 candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath);
-                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return t; }
+                if (Executable(candidate, path, origin, physicalLeft, moveDirection, combatAngular)) { selected = candidate; return t; }
                 bad = high;
                 break;
             }
@@ -443,7 +443,7 @@ namespace KingmakerMountedCombat.Integration
                 var mid = (lowest + highest) * 0.5f;
                 evaluated++;
                 var sample = mid > 0f
-                    ? ClassifyStep(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft)
+                    ? ClassifyStep(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft, moveDirection, combatAngular)
                     : StepSample.TooLong;
                 if (sample == StepSample.Executable)
                 {
@@ -463,10 +463,10 @@ namespace KingmakerMountedCombat.Integration
                 var lowBacked = InsideVerified(lastVerified - StepMarginMetres / speed, firstVerified, lastVerified);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowBacked, followPrecomputedPath);
-                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return lowBacked; }
+                if (Executable(candidate, path, origin, physicalLeft, moveDirection, combatAngular)) { selected = candidate; return lowBacked; }
                 evaluated++;
                 candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lastVerified, followPrecomputedPath);
-                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return lastVerified; }
+                if (Executable(candidate, path, origin, physicalLeft, moveDirection, combatAngular)) { selected = candidate; return lastVerified; }
             }
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, 0f, followPrecomputedPath);
             return 0f;
@@ -488,15 +488,29 @@ namespace KingmakerMountedCombat.Integration
         // (or onto the origin) TooShort.
         internal const float StepMinimumDisplacementMetres = 0.00001f;
         internal enum StepSample { Executable, TooShort, TooLong }
-        internal static StepSample ClassifyStep(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft)
+        // Round 23 (R22-F2): at a readable ZERO combat angular speed a moving candidate is established only when its own required turn is exactly
+        // zero (TurnEstablished); any other candidate is TooLong: a longer duration can only skip further waypoints, so the search lowers the
+        // upper bound and keeps a shorter aligned executable duration when one exists (zero when none does).
+        internal static StepSample ClassifyStep(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft, Vector2 moveDirection, float combatAngular)
         {
             if (!StepSettlementAdmits(tick, path, origin, physicalLeft)) return StepSample.TooLong;
+            if (tick.Moving && !TurnEstablished(tick, moveDirection, combatAngular)) return StepSample.TooLong;
             var settled = GeometryUtils.MechanicsDistance(origin, tick.Stop);
             if (tick.Moving && settled > physicalLeft) return StepSample.TooLong;
             return tick.Moving && settled >= StepMinimumDisplacementMetres ? StepSample.Executable : StepSample.TooShort;
         }
-        private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft) =>
-            ClassifyStep(tick, path, origin, physicalLeft) == StepSample.Executable;
+        private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft, Vector2 moveDirection, float combatAngular) =>
+            ClassifyStep(tick, path, origin, physicalLeft, moveDirection, combatAngular) == StepSample.Executable;
+
+        // Round 23 (R22-F2): whether a candidate tick's steering is established. A positive combat angular speed: the modelled steering
+        // (NativeCombatShift). A readable zero: only an exactly zero required turn (installed TickMovement, pinned in IL: target
+        // Lerp(MoveDirection, toWaypoint, 0.5), RotateTowards by angular x delta, the last-segment raise angle / angular): the tick's unit
+        // direction to its selected waypoint equals MoveDirection component for component, so the target equals MoveDirection, the angle is
+        // exactly 0, the raise is skipped (0 / 0 is unordered) and the shift is MoveDirection x speed x delta, which SimulateTick computes. A
+        // negative or non-finite angular speed is never established (callers refuse it before evaluating).
+        internal static bool TurnEstablished(NativeTick tick, Vector2 moveDirection, float combatAngular) =>
+            combatAngular > 0f && !float.IsInfinity(combatAngular) ||
+            combatAngular == 0f && tick.Moving && tick.Unit.x == moveDirection.x && tick.Unit.y == moveDirection.y;
 
         // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
         // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
@@ -585,7 +599,8 @@ namespace KingmakerMountedCombat.Integration
                     var stop = tick.Stop;
                     var newDirection = tick.Direction;
                     var settles = StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft);
-                    admitted = settles && Length(newDirection) > 1e-6f &&
+                    // Round 23 (R22-F2): the candidate's steering must be established (TurnEstablished: an exactly aligned tick at zero angular speed).
+                    admitted = settles && Length(newDirection) > 1e-6f && TurnEstablished(tick, moveDirection, combatAngular) &&
                         probe.EvaluateNativeAdmissionAtMountPosition(stop, new Vector3(newDirection.x, 0f, newDirection.y)) == MountedPairNativeAdmissionState.Admitted;
                     var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
                     detail = "first-tick(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
@@ -631,7 +646,7 @@ namespace KingmakerMountedCombat.Integration
                     dt = fullDelta;
                 }
                 var tick = SimulateTick(agentPath, cursor, origin, moveDirection, speed, currentAgentSpeed, combatAngular, dt, followPrecomputedPath);
-                if (!tick.Moving || !StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft)) continue;
+                if (!tick.Moving || !StepSettlementAdmits(tick, agentPath, origin, physicalStepLeft) || !TurnEstablished(tick, moveDirection, combatAngular)) continue;
                 interiorTried++;
                 var stop = tick.Stop;
                 var newDirection = tick.Direction;

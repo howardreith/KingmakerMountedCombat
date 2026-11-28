@@ -1982,8 +1982,10 @@ namespace KingmakerMountedCombat.Integration
             if (mode == "single-move-first-tick" || finalTick || finalStep)
             {
                 // R8-F6 (round 10): the installed combat steering rule at the delta that will be returned (PairedAttackClickProbe.EvaluateFirstTickNative).
-                if (steering.ForceMode || !steering.InCombat || !(steering.CombatAngularSpeed > 0f))
-                    return "agent-steering-unsupported(force=" + steering.ForceMode + ";combat=" + steering.InCombat + ")";
+                // Round 23 (R22-F2): a readable zero combat angular speed is admitted to the evaluation, which accepts only a candidate whose required
+                // turn is exactly zero (PairedAttackClickProbe.TurnEstablished); a negative or non-finite value (an unmodelled turn) is refused.
+                if (steering.ForceMode || !steering.InCombat || !SteeringAngularModelled(steering.CombatAngularSpeed))
+                    return "agent-steering-unsupported(force=" + steering.ForceMode + ";combat=" + steering.InCombat + ";combatAngular=" + steering.CombatAngularSpeed.ToString("R") + ")";
                 var probe = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, steering.CombatAngularSpeed,
                     steering.AgentSpeed, steering.FollowPrecomputedPath, stepTravelLeft);
                 if (p.Command.ClickPlan.Valid && !probe.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
@@ -2009,7 +2011,7 @@ namespace KingmakerMountedCombat.Integration
             // ordinary route proceeds with the full tick under the amended admission rule. Round 17 (R16-F2): this executable immediate strike
             // is tested once the live route and arrival geometry above has passed and BEFORE the cost of the full destination is compared with
             // the grant: an affordable strike within the executable tick is not refused because the carrier's destination costs more.
-            if (allowedTick > 0f && !steering.ForceMode && steering.InCombat && steering.CombatAngularSpeed > 0f)
+            if (allowedTick > 0f && !steering.ForceMode && steering.InCombat && SteeringAngularModelled(steering.CombatAngularSpeed))
             {
                 var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, steering.CombatAngularSpeed,
                     steering.AgentSpeed, steering.FollowPrecomputedPath, stepTravelLeft);
@@ -2030,6 +2032,10 @@ namespace KingmakerMountedCombat.Integration
             p.Detail = "ordinary-movement(" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
             return null;
         }
+
+        // Round 23 (R22-F2): the combat angular speeds the first-tick evaluation can model: positive and finite (NativeCombatShift), or a readable
+        // zero, for which only an exactly aligned candidate is accepted (PairedAttackClickProbe.TurnEstablished).
+        private static bool SteeringAngularModelled(float combatAngular) => combatAngular >= 0f && !float.IsInfinity(combatAngular);
 
         // The commit of a provisional order: success is read from the actual accepted generation and owner, never from a routing result.
         // A failure before the new order owns its command and carrier restores the previous order exactly (CommitAcceptedProvisional).
