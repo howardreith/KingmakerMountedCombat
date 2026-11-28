@@ -102,6 +102,8 @@ namespace KingmakerMountedCombat.Integration
             public PathOutcome Path = PathOutcome.None;
             // The cost along the proven route to its destination; NaN unless a route is proven.
             public float RouteMetres = float.NaN;
+            // Round 17 (R16-F4): the approved duration of a first-tick result (the candidate itself, never reconstructed from metres).
+            public float Duration = float.NaN;
             // Reporting only (PR #70 R1-F1): the unbounded walk's first admissible point; never authorizes anything.
             public float DiagnosticReachMetres = float.NaN;
             public List<Vector3> Route;
@@ -332,7 +334,7 @@ namespace KingmakerMountedCombat.Integration
         internal static NativeTick SimulateTick(IList<Vector3> path, int cursor, Vector3 origin, Vector2 moveDirection, float speed, float agentSpeed,
             float combatAngular, float delta, bool followPrecomputedPath)
         {
-            var tick = new NativeTick { Selected = cursor, Stop = origin };
+            var tick = new NativeTick { Selected = cursor, Stop = origin, OnLast = path != null && cursor >= path.Count - 1 };
             if (path == null || cursor < 0 || cursor >= path.Count || !(delta > 0f)) return tick;
             var index = cursor;
             var distance = PlanarDistance(path[index], origin);
@@ -413,6 +415,25 @@ namespace KingmakerMountedCombat.Integration
                 bad = backed;
                 t = backed;
             }
+            // Round 17 (R16-F3): the interval between zero and the last bad sample (below one scan step) is resolved before returning zero: the
+            // boundary is bisected on (0, bad], backed off by StepMarginMetres of shift and re-checked against the selected segment, the endpoint
+            // completion and the physical remainder.
+            float lowest = 0f, highest = bad;
+            for (var i = 0; i < 40; i++)
+            {
+                var mid = (lowest + highest) * 0.5f;
+                evaluated++;
+                if (mid > 0f && StepSettlementAdmits(SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, mid, followPrecomputedPath), path, origin, physicalLeft))
+                    lowest = mid;
+                else highest = mid;
+            }
+            var lowBacked = lowest - StepMarginMetres / speed;
+            if (lowest > 0f && lowBacked > 0f)
+            {
+                evaluated++;
+                var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, lowBacked, followPrecomputedPath);
+                if (StepSettlementAdmits(candidate, path, origin, physicalLeft)) { selected = candidate; return lowBacked; }
+            }
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, 0f, followPrecomputedPath);
             return 0f;
         }
@@ -426,8 +447,10 @@ namespace KingmakerMountedCombat.Integration
         // Round 16 (R13-F5, R15-F1, R15-F2): every candidate's stop is the installed tick at that candidate's own duration (SimulateTick: native
         // selection with skipping, steering, completion only on a selected last segment), and physicalStepLeft (a step's physical remainder,
         // +Infinity otherwise) admits only a candidate whose settled travel stays within it (StepSettlementAdmits).
+        // Round 17 (R16-F4): allowedTick is the permitted DURATION exactly as the adapter will return it (never allowedMetres / speed, whose
+        // rounding can move native's strict skip threshold); every candidate is a duration and Duration is the selected one, returned as it is.
         internal static Result EvaluateFirstTickNative(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
-            float allowedMetres, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath, float physicalStepLeft)
+            float allowedTick, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath, float physicalStepLeft)
         {
             var result = new Result();
             if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null) { result.Detail = "unavailable"; return result; }
@@ -437,8 +460,8 @@ namespace KingmakerMountedCombat.Integration
             result.PairRadius = probe.PairApproachRadius;
             var origin = mount.Position;
             if (cursor < 0 || cursor >= agentPath.Count) { result.Detail = "agent-cursor-outside-path"; return result; }
-            var fullDelta = speed > 0f ? allowedMetres / speed : 0f;
-            if (!(fullDelta > 0f)) { result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")"; return result; }
+            var fullDelta = speed > 0f && allowedTick > 0f ? allowedTick : 0f;
+            if (!(fullDelta > 0f)) { result.Detail = "no-movement(allowedTick=" + allowedTick.ToString("R") + ")"; return result; }
             // Round 11 (R10-F1): the waypoint native steers to and the delta returned to native are resolved together. For a candidate waypoint
             // the delta is the full allowance, shortened when the shift would pass that waypoint; native skips a (follow-precomputed, not last)
             // waypoint while its distance from the mount is below m_Speed x THAT delta, and then steers to the next one, whose own delta is
@@ -488,7 +511,7 @@ namespace KingmakerMountedCombat.Integration
                 }
                 string detail = null;
                 var tick = default(NativeTick);
-                if (!moving) detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ";start=" + start + ")";
+                if (!moving) detail = "no-movement(allowedTick=" + allowedTick.ToString("R") + ";start=" + start + ")";
                 else
                 {
                     tick = SimulateTick(agentPath, cursor, origin, moveDirection, speed, currentAgentSpeed, combatAngular, delta, followPrecomputedPath);
@@ -519,6 +542,7 @@ namespace KingmakerMountedCombat.Integration
                     result.Detail = detail;
                     result.Path = PathOutcome.Complete;
                     result.Route = new List<Vector3> { origin, tick.Stop };
+                    result.Duration = delta;
                     result.RouteMetres = delta * speed;
                     result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
                     return result;
@@ -552,6 +576,7 @@ namespace KingmakerMountedCombat.Integration
                     ";admitted=True;fullAndWaypointRefused={" + firstDetail + "})";
                 result.Path = PathOutcome.Complete;
                 result.Route = new List<Vector3> { origin, stop };
+                result.Duration = dt;
                 result.RouteMetres = dt * speed;
                 result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
                 return result;

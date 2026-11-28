@@ -15,8 +15,11 @@ namespace KingmakerMountedCombat.Domain
         object Carrier { get; }
         // PR #70 R6-F2 (round 8): a commit also states the metres it grants this tick (the adapter shortens the tick to them, never lengthens it).
         // Round 9 (R8-F5): movementContext is the input context the executing movement adapter debits with (its mode and grant decide).
-        // PR #70 round 16 (R13-F5, R15-F1, R15-F2): allowedMetres is the EXECUTABLE current tick (a step's already bounded by its installed
+        // PR #70 round 16 (R13-F5, R15-F1, R15-F2): the allowance is the EXECUTABLE current tick (a step's already bounded by its installed
         // endpoint completion) and stepTravelLeft the physical step remainder every candidate's settled travel must fit (+Infinity: not a step).
-        MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, out float grantedMetres, out string detail);
+        // Round 17 (R16-F4): the allowance and the approval are DURATIONS (allowedTick: the permitted duration exactly as the adapter would
+        // return it; approvedTick: the selected duration the adapter returns and debits unchanged) and speed is the MaxSpeed the adapter
+        // captured for this tick: no duration is reconstructed from metres, so the decision and the engine select waypoints with the same float.
+        MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail);
     }
 }

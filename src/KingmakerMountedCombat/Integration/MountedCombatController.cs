@@ -1586,8 +1586,8 @@ namespace KingmakerMountedCombat.Integration
                 if (EffectMountHold) owed.Add("mount-hold");
                 return "outstanding(" + string.Join(",", owed.ToArray()) + ")";
             }
-            public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, out float grantedMetres, out string detail) =>
-                Owner.DecideFirstTickProposal(this, movementContext, allowedMetres, deltaTime, stepTravelLeft, false, out grantedMetres, out detail);
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail) =>
+                Owner.DecideFirstTickProposal(this, movementContext, allowedTick, deltaTime, speed, stepTravelLeft, false, out approvedTick, out detail);
         }
 
         private FirstTickProposal firstTickProposal;
@@ -1791,23 +1791,25 @@ namespace KingmakerMountedCombat.Integration
         // wrapper's three plans must agree before any commit (R7-F2); a stationary strike commits in place on the rider's own entitlement, any
         // movement needs the mount's current authority read on that same context (R7-F4, R8-F5), the agent's own live route (R6-F2, R8-F1),
         // and, for the restricted single tick, the installed shift contract (R8-F6).
-        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, bool inPlaceOnly,
-            out float grantedMetres, out string detail)
+        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft,
+            bool inPlaceOnly, out float approvedTick, out string detail)
         {
-            grantedMetres = 0f;
+            approvedTick = 0f;
+            // Reporting only (round 17, R16-F4): the decision works in durations; metres are speed x duration for the record.
+            var allowedMetres = allowedTick * speed;
             if (p == null || !ReferenceEquals(p, firstTickProposal) || p.State != MountedFirstTickProposalState.Pending)
             {
                 detail = "settled:" + (p == null ? "none" : p.State + ":" + p.Detail);
                 var settledCommit = p != null && p.State == MountedFirstTickProposalState.Committed;
-                if (settledCommit) grantedMetres = allowedMetres;
+                if (settledCommit) approvedTick = allowedTick;
                 return settledCommit ? MountedFirstTickVerdict.Commit : MountedFirstTickVerdict.Refuse;
             }
             p.AllowedMetres = allowedMetres;
-            var tick = ";allowedMetres=" + allowedMetres.ToString("R") + ";tick=" + deltaTime.ToString("R");
+            var tick = ";allowedTick=" + allowedTick.ToString("R") + ";allowedMetres=" + allowedMetres.ToString("R") + ";tick=" + deltaTime.ToString("R");
             string refusal;
             bool inPlace = false;
             float granted = 0f;
-            try { refusal = EvaluateFirstTickDecision(p, movementContext, allowedMetres, deltaTime, stepTravelLeft, inPlaceOnly, out inPlace, out granted); }
+            try { refusal = EvaluateFirstTickDecision(p, movementContext, allowedTick, deltaTime, speed, stepTravelLeft, inPlaceOnly, out inPlace, out granted); }
             catch (Exception error)
             {
                 TryLogException("Turn-based first-tick decision failed; the request is refused", error);
@@ -1830,8 +1832,9 @@ namespace KingmakerMountedCombat.Integration
                     // R10-F3 (round 11): the first child of this order still needs the rider's current entitlement when it starts.
                     firstChildEntitlement = p;
                     FirstTickCommitCount++;
-                    grantedMetres = inPlace ? 0f : granted;
-                    detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + ";grantedMetres=" + grantedMetres.ToString("R") +
+                    approvedTick = inPlace ? 0f : granted;
+                    detail = LastFirstTickDecision = "committed:" + (p.Replacement ? "replacement:" : "order:") + p.Detail + ";approvedTick=" + approvedTick.ToString("R") +
+                        ";grantedMetres=" + (approvedTick == 0f ? 0f : approvedTick * speed).ToString("R") +
                         ";effects=" + p.DescribeEffects() + tick;
                     TryLog(() => "Turn-based first-tick decision committed: " + LastFirstTickDecision + ".");
                     return inPlace ? MountedFirstTickVerdict.CommitInPlace : MountedFirstTickVerdict.Commit;
@@ -1883,7 +1886,9 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // The decision's predicates and its geometry, in order; null admits (p.Detail then describes the commit).
-        private string EvaluateFirstTickDecision(FirstTickProposal p, object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, bool inPlaceOnly, out bool inPlace, out float granted)
+        // Round 17 (R16-F4): allowedTick is the permitted duration and speed the captured MaxSpeed; granted is the approved DURATION.
+        private string EvaluateFirstTickDecision(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, bool inPlaceOnly,
+            out bool inPlace, out float granted)
         {
             inPlace = false; granted = 0f;
             var rider = relationship.Rider;
@@ -1922,8 +1927,7 @@ namespace KingmakerMountedCombat.Integration
             if (cursor < 0 || cursor >= agentPath.Count ||
                 Kingmaker.Utility.GeometryUtils.MechanicsDistance(new Vector3(waypoint.x, agentPath[cursor].y, waypoint.y), agentPath[cursor]) > PairedAttackClickProbe.WaypointPassedMetres)
                 return "agent-cursor-inconsistent(" + cursor + ")";
-            var speed = MountedAgentSteering.PhysicalSpeed(agent);
-            if (!(speed > 0f) || !(allowedMetres >= 0f)) return "agent-speed-unreadable";
+            if (!(speed > 0f) || !(allowedTick >= 0f)) return "agent-speed-unreadable";
             // Round 13 (owner amendment 2026-11-27g, sections 3-5): only a genuinely single-tick allowance is decided on its executable stop before
             // the debit: the restricted single tick, an ORDINARY (time-limited) grant this tick exhausts, and a STEP whose native counter this tick
             // makes final (R12-F1: (1.524 - MetresStepped) / CurrentSpeedMps binds and fits this tick, so no later debit can follow whatever the
@@ -1958,12 +1962,12 @@ namespace KingmakerMountedCombat.Integration
                 if (!MountedAgentSteering.TryReadSteering(agent, out heading, out combatAngular, out agentSpeed, out followPrecomputed, out forceMode, out inCombat))
                     return "agent-steering-unreadable";
                 if (forceMode || !inCombat || !(combatAngular > 0f)) return "agent-steering-unsupported(force=" + forceMode + ";combat=" + inCombat + ")";
-                var probe = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedMetres, speed, heading, combatAngular,
+                var probe = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, combatAngular,
                     agentSpeed, followPrecomputed, stepTravelLeft);
                 if (p.Command.ClickPlan.Valid && !probe.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
                 var label = finalTick ? "final-ordinary-tick" : finalStep ? "final-step-counter" : null;
                 if (!probe.RouteProven) return (label != null ? label + "-" : "") + "no-affordable-strike-position(" + probe.Detail + ";grant=" + grant.ToString("R") + ")";
-                granted = probe.RouteMetres;
+                granted = probe.Duration;
                 p.Detail = (label != null ? label + ":" : "") + probe.Detail + ";speed=" + speed.ToString("R") + (label != null ? ";grant=" + grant.ToString("R") : "") +
                     (route != null ? ";route=" + route.Detail : "");
                 return null;
@@ -1978,28 +1982,31 @@ namespace KingmakerMountedCombat.Integration
                 if (p.Command.ClickPlan.Valid && !route.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
                 if (!route.RouteProven) return "route-arrival-not-admitted(" + route.Detail + ")";
             }
-            if (!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, route.RouteMetres, physicalGrant))
-                return "route-beyond-current-grant(routeMetres=" + route.RouteMetres.ToString("R") + ";grant=" + physicalGrant.ToString("R") + ")";
-            // Round 16: the executable current tick must move (a step whose every positive duration would complete the path beyond its physical
-            // remainder executes nothing); a moving order is never committed on a zero tick.
-            if (!(allowedMetres > 0f))
-                return "no-executable-movement(allowedMetres=" + allowedMetres.ToString("R") + (float.IsPositiveInfinity(stepTravelLeft) ? "" : ";stepTravelLeft=" + stepTravelLeft.ToString("R")) + ")";
             // R12-F2 (round 14): when a shortened stop within THIS tick (the installed steering at the returned delta, as for the single tick)
             // already admits the strike, that executable stop is carried through the debit (the tick is shortened to it); otherwise the lawful
-            // ordinary route proceeds with the full tick under the amended admission rule.
+            // ordinary route proceeds with the full tick under the amended admission rule. Round 17 (R16-F2): this executable immediate strike
+            // is tested once the live route and arrival geometry above has passed and BEFORE the cost of the full destination is compared with
+            // the grant: an affordable strike within the executable tick is not refused because the carrier's destination costs more.
             Vector2 headingS; float angularS, agentSpeedS; bool followS, forceS, combatS;
-            if (MountedAgentSteering.TryReadSteering(agent, out headingS, out angularS, out agentSpeedS, out followS, out forceS, out combatS) && !forceS && combatS && angularS > 0f)
+            if (allowedTick > 0f && MountedAgentSteering.TryReadSteering(agent, out headingS, out angularS, out agentSpeedS, out followS, out forceS, out combatS) && !forceS && combatS &&
+                angularS > 0f)
             {
-                var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedMetres, speed, headingS, angularS, agentSpeedS, followS,
+                var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, headingS, angularS, agentSpeedS, followS,
                     stepTravelLeft);
                 if (shortened.RouteProven && (!p.Command.ClickPlan.Valid || shortened.Plan.Matches(p.Command.ClickPlan)))
                 {
-                    granted = shortened.RouteMetres;
+                    granted = shortened.Duration;
                     p.Detail = "ordinary-movement-shortened-strike(" + shortened.Detail + ";route=" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
                     return null;
                 }
             }
-            granted = allowedMetres;
+            if (!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, route.RouteMetres, physicalGrant))
+                return "route-beyond-current-grant(routeMetres=" + route.RouteMetres.ToString("R") + ";grant=" + physicalGrant.ToString("R") + ")";
+            // Round 16: the executable current tick must move (a step whose every positive duration would complete the path beyond its physical
+            // remainder executes nothing); a moving order is never committed on a zero tick.
+            if (!(allowedTick > 0f))
+                return "no-executable-movement(allowedTick=" + allowedTick.ToString("R") + (float.IsPositiveInfinity(stepTravelLeft) ? "" : ";stepTravelLeft=" + stepTravelLeft.ToString("R")) + ")";
+            granted = allowedTick;
             p.Detail = "ordinary-movement(" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
             return null;
         }
@@ -2063,7 +2070,7 @@ namespace KingmakerMountedCombat.Integration
             if (p.State != MountedFirstTickProposalState.Pending) return false;
             string detail;
             float granted;
-            return DecideFirstTickProposal(p, null, 0f, 0f, float.PositiveInfinity, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
+            return DecideFirstTickProposal(p, null, 0f, 0f, float.NaN, float.PositiveInfinity, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
         }
 
         // R8-F4 (round 9): the command released its own carrier because its strike became admissible where the pair stands (TickApproach). A

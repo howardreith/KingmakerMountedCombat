@@ -301,28 +301,31 @@ namespace KingmakerMountedCombat.Integration
                 var gateRemaining = allocation.Movement.Remaining(physicalSpeed > 0f ? physicalSpeed : 0f, nominalUsed, TurnController.MetersOfFiveFootStep,
                     Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                     mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
-                // Round 9 (R8-F6): the installed shift is MaxSpeed x the delta this hook returns (MountedAgentSteering), so distance is measured
-                // with the agent's own speed; unreadable speed gives NaN and the decision refuses any moving commit.
-                var allowedMetres = speedsReadable ? Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed : float.NaN;
+                // Round 9 (R8-F6): the installed shift is MaxSpeed x the delta this hook returns (MountedAgentSteering). Round 17 (R16-F4): the
+                // decision receives the permitted DURATION exactly as this hook would return it and the MaxSpeed captured for this tick (NaN when
+                // unreadable: the decision refuses any moving commit), and approves a duration that is returned as it is (no metres round trip).
+                var allowedTick = Math.Max(0f, Math.Min(deltaTime, gateRemaining));
+                var allowedMetres = speedsReadable ? allowedTick * physicalSpeed : float.NaN;   // reporting only
                 string gateDetail;
-                float grantedMetres;
-                var verdict = gate.Decide(inputTurn, allowedMetres, deltaTime, stepTravelLeft, out grantedMetres, out gateDetail);
+                float decidedTick;
+                var verdict = gate.Decide(inputTurn, allowedTick, deltaTime, speedsReadable ? physicalSpeed : float.NaN, stepTravelLeft, out decidedTick, out gateDetail);
                 // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
                 // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
                 // R11-F5 (round 12): the duration the decision approved is the duration returned and debited, also inside native's NearTheEnd
                 // endpoint correction (which may not lengthen this approved tick; later ticks keep the native tolerance).
                 if (verdict == MountedFirstTickVerdict.Commit && physicalSpeed > 0f)
                 {
-                    deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / physicalSpeed);
+                    // The approved duration is one of the decision's candidates (each at most the permitted duration): returned as it is.
+                    approvedTick = decidedTick;
+                    deltaTime = Math.Min(deltaTime, Math.Max(0f, decidedTick));
                     gatedTick = true;
-                    approvedTick = deltaTime;
                 }
                 if (verdict != MountedFirstTickVerdict.Commit)
                 {
                     var tick = frameDelta;
                     deltaTime = 0f;
                     return "mountMove=first-tick-" + (verdict == MountedFirstTickVerdict.Refuse ? "refused" : "committed-in-place") + ";tick=" + tick.ToString("R") +
-                        ";allowedMetres=" + allowedMetres.ToString("R") + endpointDetail + ";" + gateDetail;
+                        ";allowedTick=" + allowedTick.ToString("R") + ";allowedMetres=" + allowedMetres.ToString("R") + endpointDetail + ";" + gateDetail;
                 }
             }
             if (!speedsReadable)

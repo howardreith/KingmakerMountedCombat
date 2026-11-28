@@ -6170,7 +6170,7 @@ namespace Harness
         {
             public object Carrier { get; set; }
             public int Decisions;
-            public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, out float grantedMetres, out string detail) { Decisions++; grantedMetres = allowedMetres; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail) { Decisions++; approvedTick = allowedTick; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
         }
 
         // PR #70 R12-F4 (round 16): disable and unload through the PRODUCTION cleanup chain: MountedServiceTeardownSequence (BeginDisable/Unload,
@@ -9225,6 +9225,173 @@ namespace Harness
                         r.Stop.z.ToString("0.#####") + "), moved " + moved.ToString("0.######") + " m; mount Move " + r.MoveBefore.ToString("0.#####") + " -> " + r.MoveAfterDecision.ToString("0.#####") + " -> " +
                         r.MoveFinal.ToString("0.#####") + " s; strikes " + r.Strikes + "; order " + (r.Order == null ? "-" : r.Order.IsFinished ? "ended (" + r.Order.EndCause + ")" : "live"));
                 }
+
+            // ===== round 17 (R16-F2, R16-F3, R16-F4) =====
+            // R16-F4 (round 17): the decision works in the adapter's own float duration. Restricted single tick of 0.0139f s, MaxSpeed 9, agent
+            // speed (m_Speed) 8: native's strict skip threshold is 8 x 0.0139f = 0.1111999974 m. After binding the carrier's and agent's path is
+            // origin -> interior waypoint (0.1112f, 0) -> bent end (0.1112f, 0.06); sight only at the end (3 mm). The interior waypoint is retained
+            // at 0.0139f (the tick stops on the interior segment, blind): refused before any effect or debit (before round 17 the duration
+            // reconstructed from metres skipped it and approved the visible end snap). The adjacent 0.0140f tick legitimately skips the waypoint:
+            // predicted and executed waypoint (the end), duration, stop, effects and debit agree, one strike.
+            foreach (var frame in new[] { 0.0139f, 0.0140f })
+            {
+                var skips = frame > 0.01395f;
+                var c = FirstTickPair(0.10f, frame);
+                PriorSelectionAndHold(c);
+                var w = c.World;
+                var agent = w.Horse.View.AgentASP;
+                var w1 = new Vector3(0.1112f, 0f, 0f); var w2 = new Vector3(0.1112f, 0f, 0.06f);
+                var mutated = false;
+                var r = RunProvisional(c, w.Target, null, () =>
+                {
+                    var carrier = LiveMountCarrier(c) as UnitMoveTo;
+                    if (agent.Path == null || carrier == null || carrier.ForcedPath == null) return;
+                    var origin = w.Horse.Position;
+                    foreach (var list in new[] { agent.Path.vectorPath, carrier.ForcedPath.vectorPath }) { list.Clear(); list.Add(origin); list.Add(w1); list.Add(w2); }
+                    agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(w1.x, w1.z); agent.MoveDirection = new UnityEngine.Vector2(1f, 0f);
+                    agent.CurrentSpeedField = 8f; agent.FollowPrecomputedPath = true;
+                    LineOfSightGeometry.Instance.Blocked = (f, t) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(f, w2) > 0.003f;
+                    mutated = origin.x == 0f && origin.z == 0f;
+                });
+                var approved = ParseFloat(Field(r.Decision, "approvedTick"));
+                var debit = r.AfterDecision.MountMove - r.Before.MountMove;
+                var executedStop = c.HorseAtDecision;
+                var threshold = 8f * frame;
+                bool ok;
+                if (!skips)
+                    ok = mutated && RefusedKeptPrior(c, r, "no-affordable-strike-position") && r.Decision.Contains("waypoint#1=") && r.Decision.Contains("(interior)") &&
+                        !r.Decision.Contains("snapped=True") && debit == 0f && r.Order.StruckTargets.Count == 0;
+                else
+                    ok = mutated && r.PendingOk && r.Decision.StartsWith("committed:replacement:first-tick(") && r.Decision.Contains("waypoint#2=") && r.Decision.Contains("snapped=True") &&
+                        approved == frame && debit == approved && Kingmaker.Utility.GeometryUtils.MechanicsDistance(executedStop, w2) < 1e-6f && r.Order.StruckTargets.Count == 1 &&
+                        c.Combat.Generation != r.GenBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target);
+                Check(ok, "R16-F4 (round 17) restricted tick " + frame.ToString("R") + " s, MaxSpeed 9, agent speed 8 (skip threshold " + threshold.ToString("R") + " m), interior waypoint " +
+                    w1.x.ToString("R") + " m, bent end " + w2 + ": " + (skips ? "native skips the waypoint" : "native keeps the waypoint") + "; decision " + r.Decision.Substring(0, Math.Min(skips ? 260 : 330, r.Decision.Length)) +
+                    "...; approved duration " + (float.IsNaN(approved) ? "none" : approved.ToString("R")) + " s; executed stop " + executedStop + " (displacement " + r.Displacement.ToString("0.######") +
+                    " m); debit " + debit.ToString("R") + " s; generation " + r.GenBefore + " -> " + c.Combat.Generation + ", target " + Name(w.Rider.CombatState.ManualTarget) + ", horse Hold " + r.HoldBefore +
+                    " -> " + w.Horse.HoldState + "; strikes " + r.Order.StruckTargets.Count);
+            }
+
+            // R16-F2 (round 17): the displaced 65 mm fixture (provisional final-step click, 43.9 mm left on both counters, displaced before the
+            // first debit to 65 mm before the endpoint) with the current pose blind, the arrival disc visible (sight within 20 mm of the endpoint)
+            // and sight also open around 14 mm of travel. The live route and arrival geometry passes; the executable 14.8 mm tick contains a
+            // visible stop at 14 mm, tested before the 65 mm destination cost is compared with the 43.9 mm grant: one strike from that shortened
+            // stop, both balances within the step. (The R15-F1 65 mm case, every affordable stop blind, keeps its refusal.)
+            {
+                var c = FirstTickPair(0.03f, 1f / 64f, false, false, true);
+                PriorSelectionAndHold(c);
+                var w = c.World;
+                c.Pair.movementState.SetStepLedger(w.Horse, 1.524f - 0.0439f, 1.524f - 0.0439f);
+                var gBefore = c.Combat.Generation;
+                var click = ClickTick(c, w.Target);
+                var line = LastLine(c);
+                var order = click.Order;
+                Frame(c);
+                var agent = w.Horse.View.AgentASP;
+                var points = agent.Path == null ? null : agent.Path.vectorPath;
+                bool ok; string detail;
+                if (points == null || order == null || !c.Combat.LastFirstTickDecision.StartsWith("pending"))
+                {
+                    ok = false;
+                    detail = "setup: click " + click.Decision + "; decision " + c.Combat.LastFirstTickDecision;
+                }
+                else
+                {
+                    var end = points[points.Count - 1];
+                    var from = w.Horse.Position;
+                    double dx = end.x - from.x, dz = end.z - from.z, dl = Math.Sqrt(dx * dx + dz * dz);
+                    var dir = dl > 1e-6 ? new UnityEngine.Vector2((float)(dx / dl), (float)(dz / dl)) : new UnityEngine.Vector2(1f, 0f);
+                    var pose = new Vector3(end.x - dir.x * 0.065f, end.y, end.z - dir.y * 0.065f);
+                    w.Horse.Position = pose; w.Rider.Position = pose;
+                    agent.MoveDirection = dir; agent.NextPointIndex = points.Count - 1; agent.NextWaypoint = new UnityEngine.Vector2(end.x, end.z);
+                    var window = new Vector3(pose.x + dir.x * 0.014f, pose.y, pose.z + dir.y * 0.014f);
+                    LineOfSightGeometry.Instance.Blocked = (f, t) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(f, end) > 0.02f && Kingmaker.Utility.GeometryUtils.MechanicsDistance(f, window) > 0.0006f;
+                    var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse); var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    string decision = null, tickLine = null; var stop = pose; var nativeAtDecision = 0f; var physicalAtDecision = 0f;
+                    c.BeforeDrive = () =>
+                    {
+                        if (decision != null || c.Combat.LastFirstTickDecision.StartsWith("pending")) return;
+                        decision = c.Combat.LastFirstTickDecision; tickLine = w.LastMountTick ?? ""; stop = w.Horse.Position;
+                        nativeAtDecision = c.Pair.movementState.AllocationMetresStepped(w.Horse); physicalAtDecision = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    };
+                    for (var i = 0; i < 3 && decision == null; i++) Frame(c);
+                    c.BeforeDrive = null;
+                    decision = decision ?? "<none>"; tickLine = tickLine ?? "";
+                    for (var i = 0; i < 12 && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    var strikes = order.StruckTargets.Count;
+                    var travel = Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, stop);
+                    var approved = ParseFloat(Field(decision, "approvedTick"));
+                    ok = click.Admitted && Field(line, "finalStepPossible") == "True" && decision.StartsWith("committed:replacement:ordinary-movement-shortened-strike(first-tick-interior(") &&
+                        decision.Contains("remaining-route(") && strikes == 1 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(stop, window) <= 0.0006f && travel < 0.0148f &&
+                        nativeAtDecision <= 1.524f + 1e-5f && physicalAtDecision <= 1.524f + 1e-5f && Math.Abs(nativeAtDecision - nativeBefore - approved * 9f) < 1e-5f;
+                    detail = "displaced to " + pose + " (65 mm before the endpoint " + end + "), pose blind, sight within 20 mm of the endpoint and 0.6 mm around " + window + "; first debit " +
+                        decision.Substring(0, Math.Min(150, decision.Length)) + "...; approved duration " + approved.ToString("R") + " s (executable tick " + Field(tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))), "tick") +
+                        " s); shortened stop " + stop + " (travel " + travel.ToString("0.######") + " m); native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAtDecision.ToString("0.######") +
+                        " m, physical travel " + physicalBefore.ToString("0.######") + " -> " + physicalAtDecision.ToString("0.######") + " m; generation " + gBefore + " -> " + c.Combat.Generation + "; strikes " + strikes;
+                }
+                Check(ok, "R16-F2 (round 17) displaced 65 mm step, affordable visible stop at 14 mm of travel: " + detail);
+            }
+
+            // R16-F3 (round 17): a later delegated step tick of the accepted step (first debit as in the round-15 R13-F5 fixture; this tick at
+            // MaxSpeed 9 = CurrentSpeedMps), aligned on the last segment. (a) 50.6 mm from the final waypoint with 8.9 mm of physical step travel
+            // left: every scan sample from 8.9 mm down to 0.9 mm of shift would snap 50.6 mm; the interval below the last sample is resolved: a
+            // positive duration (about 0.4 mm of shift) leaves the mount outside the completion margins, unsnapped, both balances within the step.
+            // (b) 45 mm from the end (already inside the 50 mm completion radius): every positive tick would snap 45 mm > 8.9 mm: zero.
+            foreach (var gap in new[] { 0.0506f, 0.045f })
+            {
+                var inside = gap < 0.05f;
+                var c = FirstTickPair(0.095f, 1f / 60f, false, false, true);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                w.Horse.View.AgentASP.SpeedFactor = 2f;
+                c.Pair.movementState.SetStepLedger(w.Horse, 0.687f, 1.374f);
+                var click = ClickTick(c, w.Target);
+                var order = click.Order;
+                Frame(c);
+                w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                for (var i = 0; i < 4 && !c.Combat.LastFirstTickDecision.StartsWith("refused") && !c.Combat.LastFirstTickDecision.StartsWith("committed"); i++) Frame(c);
+                var firstDebit = c.Combat.LastFirstTickDecision;
+                var agent = w.Horse.View.AgentASP;
+                var points = agent.Path == null ? null : agent.Path.vectorPath;
+                bool ok; string detail;
+                if (points == null || order == null || order.IsFinished || order.StruckTargets.Count > 0)
+                {
+                    ok = false;
+                    detail = "setup: first debit " + firstDebit;
+                }
+                else
+                {
+                    // The agent's path is set to an aligned last segment [pose, pose + gap] from the mount's settled position (the engine stand-in for
+                    // a native path), so the carrier's own approach radius around its destination plays no part in this tick.
+                    c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    var pose = w.Horse.Position;
+                    var dir = new UnityEngine.Vector2(1f, 0f);
+                    var end = new Vector3(pose.x + gap, pose.y, pose.z);
+                    points.Clear(); points.Add(pose); points.Add(end);
+                    agent.SpeedFactor = 1f; agent.CurrentSpeedField = agent.MaxSpeed;
+                    agent.MoveDirection = dir; agent.NextPointIndex = points.Count - 1; agent.NextWaypoint = new UnityEngine.Vector2(end.x, end.z); agent.NearTheEnd = false;
+                    var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse);
+                    c.Pair.movementState.SetStepLedger(w.Horse, nativeBefore, 1.524f - 0.0089f);
+                    var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    LineOfSightGeometry.Instance.Blocked = (f, t) => true;
+                    Frame(c);
+                    var tickLine = w.LastMountTick ?? "";
+                    var after = w.Horse.Position;
+                    var travel = Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, after);
+                    var toEndAfter = Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, end);
+                    var physicalAfter = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                    var nativeAfter = c.Pair.movementState.AllocationMetresStepped(w.Horse);
+                    var returned = ParseFloat(returnedOf(tickLine));
+                    ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && physicalAfter <= 1.524f + 1e-5f && nativeAfter <= 1.524f + 1e-5f && (inside
+                        ? returned == 0f && travel < 1e-7f && physicalAfter == physicalBefore && nativeAfter == nativeBefore
+                        : returned > 0f && travel > 0f && travel < 0.0006f && toEndAfter > PairedAttackClickProbe.NativeLastSegmentArrivalMetres + PairedAttackClickProbe.StepMarginMetres - 1e-5f);
+                    detail = "pose " + pose + " (" + (gap * 1000f).ToString("0.#") + " mm before the end " + end + "), 8.9 mm of physical step travel left, 9 m/s: returned duration " + returned.ToString("R") +
+                        " s; stop " + after + " (travel " + (travel * 1000f).ToString("0.####") + " mm, " + (toEndAfter * 1000f).ToString("0.####") + " mm from the end, " + (toEndAfter < 1e-4f ? "snapped" : "unsnapped") +
+                        "); physical step travel " + physicalBefore.ToString("0.######") + " -> " + physicalAfter.ToString("0.######") + " m, native counter " + nativeBefore.ToString("0.######") + " -> " +
+                        nativeAfter.ToString("0.######") + " m [" + tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))) + "]";
+                }
+                Check(ok, "R16-F3 (round 17) later delegated step tick, " + (inside ? "inside the completion radius (every positive tick overspends)" : "lawful interval below the last scan sample") + ": " + detail);
+            }
 
             // Round 16 (counter-final step, the R15-F3 rule for steps): the same post-binding blind arrival stripe under a step whose native counter
             // this tick makes final (equal speeds 9 m/s, 0.140625 m left on both counters, 1/64 s frame: the provisional request,
