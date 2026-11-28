@@ -230,6 +230,31 @@ foreach($pair in @(@(4,4),@(3,3))){$c=$pair[0];$w=$pair[1];Check ('owner-seed Ma
 foreach($pair in @(@(3,4),@(4,3))){$c=$pair[0];$w=$pair[1];Reject ('owner-seed Manual world evidence: capability '+$c+' with Manual output '+$w) {New-SeedManual $c $w} {param($v)Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}}
 Reject 'owner-seed Manual world evidence: schema-4 Manual output missing StepTravel' {New-SeedManual 4 4} {param($v)$v.artifact.observations.nativeWrite.archive.PSObject.Properties.Remove('StepTravel');Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
 
+# --- (5) Leaf-level offline cases (round 17): the leaf validators called directly with codec-written graphs, where a full request
+# envelope for the native family is impractical offline. They prove the leaf's version binding only, not the whole family reader.
+# Progression write leaf (Assert-KmcProgressionWrite), non-owned horse-native-level Auto: the ordinary fixture graph is its source.
+$progressionRequest=[pscustomobject]@{runId='synthetic-progression';evidenceRoot='C:\synthetic\runtime-evidence\synthetic-progression';fixture=(Copy-Value $ordinary.save.request.fixture)
+ progression=[pscustomobject]@{case='horse-native-level';sourceArchiveSha256=('e'*64);actorId='d17c8fd0-6627-40c4-bf9a-024cf001c1f7';controlActorId='b6628a77-4962-47a4-a17c-88d9836fc9d5'}}
+$progressionSource=Copy-Graph $ordinary.save.artifact.observations.nativeWrite.archive
+function New-ProgressionWrite([bool]$Current){$w=$progressionRequest.fixture.working;$root=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetDirectoryName($progressionRequest.evidenceRoot))) ('runtime-staging/persistence-'+$progressionRequest.runId+'/Saved Games')
+ $archive=if($Current){ConvertTo-CurrentWriterArchive $progressionSource}else{Copy-Graph $progressionSource}
+ [pscustomobject]@{path=(Join-Path $root 'Auto_1.zks');leaf='Auto_1.zks';type='Auto';operation='None';sha256=('f'*64);name='Auto';gameId=$w.gameId;gameName=$w.gameName;area=$w.area;length=4096;schema=[int]$archive.SchemaVersion;snapshotCount=1;completedWrites=1;nativeAutoLevelup=$true;nativeCallbackSupplied=$false;pairs=2;archive=$archive}}
+Check 'leaf-level offline: progression write leaf accepts a schema-4 codec-written Auto' {Assert-KmcProgressionWrite (New-ProgressionWrite $true) $progressionRequest $progressionSource}
+Check 'leaf-level offline: progression write leaf previous-writer (schema 3) control' {Assert-KmcProgressionWrite (New-ProgressionWrite $false) $progressionRequest $progressionSource}
+Reject 'leaf-level offline: progression write leaf, schema-4 graph missing StepTravel' {New-ProgressionWrite $true} {param($w)$w.archive.PSObject.Properties.Remove('StepTravel');Assert-KmcProgressionWrite $w $progressionRequest $progressionSource}
+Reject 'leaf-level offline: progression write leaf, schema-4 graph recorded as a schema-3 write' {New-ProgressionWrite $true} {param($w)$w.schema=3;Assert-KmcProgressionWrite $w $progressionRequest $progressionSource}
+Reject 'leaf-level offline: progression write leaf, schema-3 graph recorded as a schema-4 write' {New-ProgressionWrite $false} {param($w)$w.schema=4;Assert-KmcProgressionWrite $w $progressionRequest $progressionSource}
+# Stock-Mammoth (and small/medium-fixture) Manual write leaf: the recorded sourceSchema binds the written graph.
+function New-FixtureWrite([bool]$Current){$a=if($Current){ConvertTo-CurrentWriterArchive $empty3}else{Copy-Graph $empty3};[pscustomobject]@{sourceSchema=[int]$a.SchemaVersion;archive=$a}}
+Check 'leaf-level offline: stock-Mammoth Manual write leaf accepts sourceSchema 4 with a codec-written schema-4 graph' {Assert-KmcChunk7FixtureManualWrite (New-FixtureWrite $true) $descriptor 'Stock Mammoth Manual'}
+Check 'leaf-level offline: stock-Mammoth Manual write leaf previous-writer (3/3) control' {Assert-KmcChunk7FixtureManualWrite (New-FixtureWrite $false) $descriptor 'Stock Mammoth Manual'}
+Reject 'leaf-level offline: stock-Mammoth Manual write leaf, schema-4 graph missing StepTravel' {New-FixtureWrite $true} {param($w)$w.archive.PSObject.Properties.Remove('StepTravel');Assert-KmcChunk7FixtureManualWrite $w $descriptor 'Stock Mammoth Manual'}
+Reject 'leaf-level offline: stock-Mammoth Manual write leaf, schema-4 graph recorded as sourceSchema 3' {New-FixtureWrite $true} {param($w)$w.sourceSchema=3;Assert-KmcChunk7FixtureManualWrite $w $descriptor 'Stock Mammoth Manual'}
+Reject 'leaf-level offline: stock-Mammoth Manual write leaf, schema-3 graph recorded as sourceSchema 4' {New-FixtureWrite $false} {param($w)$w.sourceSchema=4;Assert-KmcChunk7FixtureManualWrite $w $descriptor 'Stock Mammoth Manual'}
+# Third-Horse Manual capability cross-check leaf (Assert-KmcChunk7ManualWriterCapability, also used by the owner-seed reader).
+foreach($pair in @(@(4,4),@(3,3))){$c=$pair[0];$out=$pair[1];Check ('leaf-level offline: third-Horse capability '+$c+' with Manual output '+$out+' accepted') {Assert-KmcChunk7ManualWriterCapability ([pscustomobject]@{nativeWriterSchema=$c}) (New-FixtureWrite ($out-eq4)) 'Third-Horse world'}}
+foreach($pair in @(@(3,4),@(4,3))){$c=$pair[0];$out=$pair[1];Reject ('leaf-level offline: third-Horse capability '+$c+' with Manual output '+$out) {New-FixtureWrite ($out-eq4)} {param($w)Assert-KmcChunk7ManualWriterCapability ([pscustomobject]@{nativeWriterSchema=$c}) $w 'Third-Horse world'}}
+
 $clock.Stop();$passed=@($results|Where-Object pass -EQ $true).Count;$failed=@($results|Where-Object pass -EQ $false).Count;$refusals=@($results|Where-Object{$_.pass-and$_.expectedRefusal}).Count
 Write-Output ('CURRENT-WRITER READERS RESULT '+$passed+' PASS / '+$failed+' FAIL ('+$refusals+' expected refusals; '+[Math]::Round($clock.Elapsed.TotalSeconds,1)+' s; offline generated observations, nativeInvoked=false, no native save/load claim)')
 if($failed){exit 1}

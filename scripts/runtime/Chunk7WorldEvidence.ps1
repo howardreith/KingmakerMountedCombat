@@ -116,7 +116,7 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     $a=$w.archive
     if((Assert-KmcChunk7WriterArchive $a 'third-Horse native Manual archive')-ne$writer){throw 'Third-Horse Manual archive differs from its writer schema.'}
     # R16-F5 (round 17): the advertised writer capability is the writer of this record's Manual.
-    if($o.capability.nativeWriterSchema-ne$writer){throw 'World capability writer differs from the Manual output version.'}
+    Assert-KmcChunk7ManualWriterCapability $o.capability $w 'Third-Horse world'
     Assert-KmcBootstrapInventoryString $a.CampaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $a.AreaId $Request.persistenceLoad.area
     foreach($key in @('Pairs','Participations','Slots')){if($a.$key-isnot[Array]-or$a.$key.Count-ne0){throw ('Third-Horse unmounted save carries unexpected '+$key+'.')}}
     if($null-ne$a.Combat){throw 'Third-Horse unmounted save carries combat ownership.'}

@@ -35,6 +35,13 @@ function Assert-KmcChunk7SmallFixtureDescriptor($Request){
   if($d.sha256-ceq$anchor.sha256-or$d.gameId-ceq$anchor.gameId-or$d.fileName-ceq$anchor.fileName-or$d.internalName-ceq$anchor.internalName){throw 'F09 seed aliases a protected Working/Baseline anchor.'}
  }
 }
+# Round 17 (R13-F2): the fixture Manual write leaf shared by the small/medium-fixture and stock-Mammoth readers: the recorded write
+# version is a writer schema and the written unmounted graph carries exactly it.
+function Assert-KmcChunk7FixtureManualWrite($Write,$Descriptor,[string]$Label){
+ $writer=Assert-KmcChunk7WriterSchema $Write.sourceSchema ($Label+' writer')
+ Assert-KmcSmallFixtureEmptyArchive $Write.archive $Descriptor
+ if($Write.archive.SchemaVersion-ne$writer){throw ($Label+' archive differs from its writer schema.')}
+}
 function Assert-KmcSmallFixtureEmptyArchive($Archive,$Descriptor){
  # PR #70 R13-F2 (round 17): the actual written archive is a writer graph; callers bind it to the write's sourceSchema.
  [void](Assert-KmcChunk7WriterArchive $Archive 'F09 actual current archive');Assert-KmcBootstrapInventoryString $Archive.CampaignId $Descriptor.gameId;Assert-KmcBootstrapInventoryString $Archive.AreaId $Descriptor.area
@@ -179,9 +186,9 @@ function Assert-KmcChunk7SmallFixtureEvidence($Request,$Artifact){
  }
  foreach($row in $o.nativeLoad.events){foreach($key in @('game','saveManager','player')){Assert-KmcOrdinaryInteger $row.$key $o.loadedWorld.$key $o.loadedWorld.$key}}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
- $w=$o.nativeWrite;Assert-KmcBootstrapInventoryString $w.type 'Manual';Assert-KmcBootstrapInventoryString $w.internalName $output;Assert-KmcBootstrapInventoryString $w.operationState 'None';Assert-KmcBootstrapInventoryString $w.readKind 'Current';$writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Fixture Manual writer'
+ $w=$o.nativeWrite;Assert-KmcBootstrapInventoryString $w.type 'Manual';Assert-KmcBootstrapInventoryString $w.internalName $output;Assert-KmcBootstrapInventoryString $w.operationState 'None';Assert-KmcBootstrapInventoryString $w.readKind 'Current'
  foreach($key in @('callbackCount','completionSequence','snapshotCount')){Assert-KmcOrdinaryInteger $w.$key 1 1};foreach($key in @('isActuallySaved','hasFileOnDisk','nativeWorkerSettled')){Assert-KmcChunk7Boolean $w.$key $true};foreach($key in @('autoLevelup','slotProjectionEnabled')){Assert-KmcChunk7Boolean $w.$key $false}
- Assert-KmcSmallFixtureEmptyArchive $w.archive $Request.persistenceLoad;if($w.archive.SchemaVersion-ne$writer){throw 'Fixture Manual archive differs from its writer schema.'}
+ Assert-KmcChunk7FixtureManualWrite $w $Request.persistenceLoad 'Fixture Manual'
  Assert-KmcBootstrapInventoryString $w.fileName $o.savedWorld.authority.outputLeaf;Assert-KmcBootstrapInventoryString $w.path (Join-Path (Get-KmcAssistedSaveRoot $Request) $w.fileName)
  $p=$o.nativeSave;Assert-KmcBootstrapInventoryString $p.contract $(if($medium){'medium-fixture-native-save-v1'}else{'small-fixture-native-save-v1'});foreach($key in @('installed','complete')){Assert-KmcChunk7Boolean $p.$key $true};foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1};Assert-KmcAssistedArray $p.errors 0 0 'F09 save observer errors'
  foreach($key in @('custodySettled','nativeWorkerSettled','observersReleased','worldAdmitted','sourceUnchanged','selectorClosed','selectionRestored','pauseRestored','ummLeaseReleased','acquiredNativeStateRetained')){Assert-KmcChunk7Boolean $o.cleanup.$key $true}

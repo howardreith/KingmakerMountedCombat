@@ -1035,7 +1035,7 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  Assert-KmcChunk7OwnerSeedManualArchive $Request $w.archive $roles
  if($w.archive.SchemaVersion-ne$writer){throw 'Owner-seed Manual archive differs from its writer schema.'}
  # R16-F5 (round 17): the advertised writer capability is the writer of this record's Manual.
- if($o.capability.nativeWriterSchema-ne$writer){throw 'Owner-seed capability writer differs from the Manual output version.'}
+ Assert-KmcChunk7ManualWriterCapability $o.capability $w 'Owner-seed world'
  $m=$o.ownerSeedManual;Assert-KmcExactProperties $m (Get-KmcChunk7OwnerSeedManualFields) 'owner-seed-derived Manual receipt'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-manual-v1';Assert-KmcBootstrapInventoryString $m.ancestry 'owner-seed-derived'
  foreach($key in @('disclosedAssistance','setupCompletedBeforeSave','seedCopyUnchanged')){Assert-KmcChunk7Boolean $m.$key $true}

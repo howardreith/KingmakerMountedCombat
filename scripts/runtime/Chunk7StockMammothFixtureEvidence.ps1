@@ -207,14 +207,14 @@ function Assert-KmcChunk7StockMammothFixtureEvidence($Request,$Artifact){
  $w=$o.nativeWrite
  Assert-KmcBootstrapInventoryString $w.internalName 'KMC_C7_STOCK_MAMMOTH'
  Assert-KmcBootstrapInventoryString $w.type 'Manual';Assert-KmcBootstrapInventoryString $w.readKind 'Current'
- # PR #70 R13-F2 (round 17): the Manual is this build's write.
- $writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Stock Mammoth Manual writer';Assert-KmcOrdinaryInteger $w.callbackCount 1 1
+ # PR #70 R13-F2 (round 17): the Manual is this build's write; Assert-KmcChunk7FixtureManualWrite below binds its version.
+ Assert-KmcOrdinaryInteger $w.callbackCount 1 1
  Assert-KmcOrdinaryInteger $w.completionSequence 1 1;Assert-KmcChunk7Boolean $w.nativeWorkerSettled $true
  if($w.fileName-cnotmatch'^Manual_[1-9][0-9]*_KMC_C7_STOCK_MAMMOTH\.zks$'){throw 'Stock Mammoth native Manual leaf is not canonical.'}
  Assert-KmcBootstrapInventoryString $w.fileName $o.savedWorld.authority.outputLeaf
  Assert-KmcBootstrapInventoryString $w.path (Join-Path (Get-KmcAssistedSaveRoot $Request) $w.fileName)
  foreach($key in @('gameId','gameName','area')){Assert-KmcBootstrapInventoryString $w.$key $Request.persistenceLoad.$key}
- Assert-KmcSmallFixtureEmptyArchive $w.archive $Request.persistenceLoad;if($w.archive.SchemaVersion-ne$writer){throw 'Stock Mammoth Manual archive differs from its writer schema.'}
+ Assert-KmcChunk7FixtureManualWrite $w $Request.persistenceLoad 'Stock Mammoth Manual'
  Assert-KmcBootstrapInventoryString $o.nativeSave.contract 'stock-mammoth-fixture-native-save-v1'
  foreach($key in @('installed','complete')){Assert-KmcChunk7Boolean $o.nativeSave.$key $true}
  foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $o.nativeSave.$key 1 1}

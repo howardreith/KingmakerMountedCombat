@@ -61,6 +61,11 @@ function Assert-KmcChunk7WriterArchive($Archive,[string]$Label){
     if($schema-eq(Get-KmcChunk7CurrentWriterSchema)){Assert-KmcChunk7StepTravel $Archive}
     return $schema
 }
+# Round 17 (R16-F5): a record's advertised writer capability is the writer of its own Manual output (recorded version and graph).
+function Assert-KmcChunk7ManualWriterCapability($Capability,$Write,[string]$Label){
+    $writer=Assert-KmcChunk7WriterSchema $Capability.nativeWriterSchema ($Label+' writer capability')
+    if($Write.sourceSchema-ne$writer-or$Write.archive.SchemaVersion-ne$writer){throw ($Label+' writer capability differs from the Manual output version.')}
+}
 . (Join-Path $PSScriptRoot 'Chunk7CombatPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7AreaPersistenceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk7OwnerSeedAreaEvidence.ps1')
