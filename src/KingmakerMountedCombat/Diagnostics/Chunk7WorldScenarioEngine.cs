@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = true;
                 MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
-                evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
+                evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema, // R16-F5 (round 17): the selected writer
                     ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null && !OwnerSeed && !OwnerSurfaceSpeed ? WorkingHash : null,
                     ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
                 evidence["unityDevelopmentPlayer"] = UnityEngine.Debug.isDebugBuild;

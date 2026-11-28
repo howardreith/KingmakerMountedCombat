@@ -758,7 +758,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  Assert-KmcChunk7Boolean $seed.nativeLoadVerifiedByHost $true;Assert-KmcChunk7Boolean $seed.fixtureSetupOnly $true;Assert-KmcChunk7Boolean $seed.acquisitionProof $false
  $c=$o.capability;Assert-KmcExactProperties $c @('archiveNativeEnabled','nativeWriterSchema','nativePairCapacity','workingSha256','inheritedManualSha256','ownerSeedSha256') 'owner-seed capability'
  Assert-KmcChunk7Boolean $c.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $c @('nativeWriterSchema','nativePairCapacity')
- if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
+ if(-not(Test-KmcChunk7WriterSchema $c.nativeWriterSchema)-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
  Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
  $u=$o.ownerSeedSetup
  # The mounted6 Manual producer (owner-made KMC seed): rider A's pre-owned Horse is verified, never built; only rider B is built.
@@ -1034,6 +1034,8 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1
  Assert-KmcChunk7OwnerSeedManualArchive $Request $w.archive $roles
  if($w.archive.SchemaVersion-ne$writer){throw 'Owner-seed Manual archive differs from its writer schema.'}
+ # R16-F5 (round 17): the advertised writer capability is the writer of this record's Manual.
+ if($o.capability.nativeWriterSchema-ne$writer){throw 'Owner-seed capability writer differs from the Manual output version.'}
  $m=$o.ownerSeedManual;Assert-KmcExactProperties $m (Get-KmcChunk7OwnerSeedManualFields) 'owner-seed-derived Manual receipt'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-manual-v1';Assert-KmcBootstrapInventoryString $m.ancestry 'owner-seed-derived'
  foreach($key in @('disclosedAssistance','setupCompletedBeforeSave','seedCopyUnchanged')){Assert-KmcChunk7Boolean $m.$key $true}

@@ -104,7 +104,8 @@ function Assert-KmcChunk7OrdinaryNativeArchive($Request,$Artifact) {
         Assert-KmcChunk7Boolean $header.IsAutoLevelupSave $true
         $reader.Dispose();$reader=[IO.StreamReader]::new($states[0].Open(),[Text.UTF8Encoding]::new($false,$true));$metadata=$reader.ReadToEnd()
         Assert-KmcJsonObjectMembersUnique -Json $metadata -Description 'ordinary native mounted metadata';$archive=$metadata|ConvertFrom-Json
-        Assert-KmcOrdinaryInteger $archive.SchemaVersion 3 3
+        # PR #70 R13-F2 (round 17): the run's own native autosave is a writer graph (exact versioned shape).
+        [void](Assert-KmcChunk7WriterArchive $archive 'ordinary native autosave metadata')
         if($archive.CampaignId-cne$Request.fixture.working.gameId-or$archive.AreaId-cne$Request.fixture.working.area-or
            $archive.Pairs-isnot[Array]-or$archive.Pairs.Count-ne0-or$archive.Participations-isnot[Array]-or$archive.Participations.Count-ne0-or$null-ne$archive.Combat){throw 'Ordinary unmounted autosave invented mounted/combat ownership or changed campaign/area.'}
     }finally{if($reader){$reader.Dispose()};if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}

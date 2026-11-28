@@ -2289,7 +2289,7 @@ function Assert-KmcUpgradeResaveEvidence {
     if($w.ordinal-ne1-or$w.path-cne$archive-or$w.nativeType-cne'Manual'-or$w.nativeCallback-ne$true-or$w.operation-cne'None'-or
         $w.sha256-cnotmatch'^[0-9a-f]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sourceSha256-cne$Request.persistenceLoad.sha256-or
         -not(Test-Path -LiteralPath $archive -PathType Leaf)-or(Get-KmcSha256 $archive)-cne$w.sha256-or(Get-Item -LiteralPath $archive).Length-ne$w.length-or
-        $w.snapshot.SchemaVersion-ne3-or$w.snapshot.AreaId-cne$Request.persistenceLoad.area-or$w.snapshot.CampaignId-cne$Request.persistenceLoad.gameId-or
+        -not(Test-KmcChunk7WriterSchema $w.snapshot.SchemaVersion)-or$w.snapshot.AreaId-cne$Request.persistenceLoad.area-or$w.snapshot.CampaignId-cne$Request.persistenceLoad.gameId-or
         $pairs.Count-ne1-or$pairs[0].Rider.Id-cne$initial[0].rider.Id-or$pairs[0].Mount.Id-cne$initial[0].mount.Id){
         throw 'UPG-01 resave is not one new native Manual carrying the restored mounted pair in the retained area and campaign.'
     }

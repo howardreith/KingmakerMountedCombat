@@ -19,8 +19,8 @@ function Assert-KmcChunk7AssistedFixtureMetadata($Descriptor, $Header, $Archive)
         $Descriptor.gameName.Length -gt 256 -or $Descriptor.gameName -match '[\x00-\x1f\x7f]') {
         throw 'Assisted fixture native campaign name or area is malformed.'
     }
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'assisted fixture mounted metadata'
-    Assert-KmcOrdinaryInteger $Archive.SchemaVersion 3 3
+    # PR #70 R13-F2 (round 17): a writer graph (shared versioned field set).
+    [void](Assert-KmcChunk7WriterArchive $Archive 'assisted fixture mounted metadata')
     Assert-KmcBootstrapInventoryString $Archive.CampaignId $Descriptor.gameId
     Assert-KmcBootstrapInventoryString $Archive.AreaId $Descriptor.area
     Assert-KmcOrdinaryInteger $Archive.GameTimeTicks 0 ([long]::MaxValue)

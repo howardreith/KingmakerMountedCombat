@@ -25,8 +25,9 @@ function Get-KmcFinalize6Service($World,[string]$Label){
 
 # One mounted pair, the Mastodon's; nothing invented.
 function Assert-KmcFinalize6PostFallArchive($Archive,$Request,[string]$FirstRiderId,[string]$SecondRiderId){
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'F6 post-fall archive'
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
+    # PR #70 R13-F2 (round 17): a writer graph (shared versioned field set: StepTravel for schema 4); the observation binds it to its writer.
+    [void](Assert-KmcChunk7WriterArchive $Archive 'F6 post-fall archive')
+    if($Archive.CampaignId-cne(Get-KmcChunk7SelectedFixture $Request).gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7ExpectedArchiveArea $Request)-or$Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
        $Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne1-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or
        $Archive.Slots-isnot[Array]){throw 'F6 post-fall archive is not the one-pair exploration world.'}
@@ -91,6 +92,7 @@ function Assert-KmcFinalize6RiderFallObservation($Request,$Artifact){
         $at=$f.atSave
         if($at.secondPair.mounted-ne$false-or$at.firstPair.mounted-ne$true-or[long]$at.secondRider.damage-ne[long]$f.fall.riderDamageAfter){throw 'F6 the save did not capture the post-fall world.'}
         $pair=Assert-KmcFinalize6PostFallArchive $o.nativeWrite.archive $Request ([string]$at.firstRider.id) ([string]$at.secondRider.id)
+        if($o.nativeWrite.archive.SchemaVersion-ne$o.nativeSchema){throw 'F6 post-fall write differs from the build''s writer schema.'}
         if([string]$o.nativeWrite.nativeType-cne'Manual'-or[string]$o.nativeWrite.sha256-cnotmatch'^[0-9a-f]{64}$'){throw 'F6 the post-fall world was not written through the native Manual.'}
         foreach($shot in $script:KmcF6RiderFallProducerShots){Assert-KmcFinalize6RiderFallShot $n.shots $shot $root}
         return
@@ -113,6 +115,7 @@ function Assert-KmcFinalize6RiderFallObservation($Request,$Artifact){
     if($w.secondPair.mounted-ne$false-or[string]$w.secondPair.state-cne'None'-or$w.firstPair.mounted-ne$true){throw 'F6 the cold world is not the saved one-pair world.'}
     if([string]$w.secondRider.life-cne'Conscious'-or[string]$w.secondMount.life-cne'Conscious'){throw 'F6 the cold unseated pair is not alive.'}
     $pair=Assert-KmcFinalize6PostFallArchive $o.loadedArchive $Request ([string]$w.firstRider.id) ([string]$w.secondRider.id)
+    if($o.loadedArchive.SchemaVersion-ne$o.nativeSchema){throw 'F6 post-fall cold graph is not normalized to the build''s writer schema.'}
     if([string]$c.dog.id-cne[string]$w.secondMount.id-or([Guid]$pair.Mount.Id).ToString('D')-cne[string]$c.mammoth.id){throw 'F6 the cold companions are not the unseated dog and the archive Mastodon.'}
     $r=$f.coldRemounted;$rs=Get-KmcFinalize6Service $r 'cold remounted'
     if($f.coldBeforeRemount.secondPair.mounted-ne$false-or$r.secondPair.mounted-ne$true-or[long]$rs.begun-ne0){throw 'F6 the ordinary Mount control did not seat the unseated rider again without a fall.'}

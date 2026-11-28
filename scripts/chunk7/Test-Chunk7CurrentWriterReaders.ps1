@@ -7,6 +7,8 @@ param()
 # what a native resave of that graph writes. Cases: the current-format migration child and its parent (schema-1 and schema-2 lineage),
 # the historical-input migrations that write current output (schema 1 and schema 2), the ordinary (Working) and inherited (owned) save
 # and cold paths, previous-writer (schema 3) controls, and refusals of malformed/missing/extra StepTravel and mismatched versions.
+# Round 17: the rider-fall save and cold observations through the dispatcher, the small-fixture/stock-Mammoth Manual archive leaf,
+# and the owner-seed Manual world evidence whose writer capability must equal its Manual output version (R16-F5).
 # All observations are generated offline (nativeInvoked=false): they establish reader behavior only, never that a native save or load ran.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'));$kmcRepo=$repo;$ReaderDirectory=Join-Path $repo 'scripts/runtime'
@@ -41,7 +43,7 @@ $decode=$codec.GetMethod('Decode',$flags);$encode=$codec.GetMethod('Encode',$fla
 $readType=$assembly.GetType('KingmakerMountedCombat.Integration.MountedArchiveReadResult',$true)
 $archiveSchema=[int]$assembly.GetType('KingmakerMountedCombat.Integration.MountedArchiveData',$true).GetField('Schema',$flags).GetRawConstantValue()
 $selectedWriter=[int]$assembly.GetType('KingmakerMountedCombat.Integration.NativeMountedSaveFormat',$true).GetProperty('SelectedWriterSchema',$flags).GetValue($null)
-function Read-Archive([string]$Json){$r=$decode.Invoke($null,@($Json));[pscustomobject]@{kind=$readType.GetField('Kind',$instance).GetValue($r).ToString();source=[int]$readType.GetField('SourceSchema',$instance).GetValue($r);data=$readType.GetField('Data',$instance).GetValue($r)}}
+function Read-Archive([string]$Json){$r=$decode.Invoke($null,@($Json));[pscustomobject]@{kind=$readType.GetField('Kind',$instance).GetValue($r).ToString();source=[int]$readType.GetField('SourceSchema',$instance).GetValue($r);data=$readType.GetField('Data',$instance).GetValue($r);feedback=[string]$readType.GetField('Feedback',$instance).GetValue($r)}}
 function Copy-Graph($Value){$Value|ConvertTo-Json -Depth 64 -Compress|ConvertFrom-Json}
 # A previous-writer graph re-encoded by the candidate's current writer. The codec output must equal that graph plus StepTravel at version 4.
 # Equality is numeric: the writer serializes floats (0.0) where the synthetic fixtures carry JSON integers (0), and Windows PowerShell keeps
@@ -51,7 +53,7 @@ function ConvertTo-KmcNumericCanonical($Value){(ConvertTo-KmcChunk7Canonical $Va
 function ConvertTo-CurrentWriterArchive($Archive,[scriptblock]$Edit={}){
  $source=Copy-Graph $Archive;& $Edit $source
  $read=Read-Archive ($source|ConvertTo-Json -Depth 64 -Compress)
- if($read.kind-cne'Current'-or$read.source-notin@(3,4)){throw ('The production codec did not read the fixture graph: '+$read.kind)}
+ if($read.kind-cne'Current'-or$read.source-notin@(3,4)){throw ('The production codec did not read the fixture graph: '+$read.kind+' '+$read.feedback)}
  $graph=($encode.Invoke($null,@($read.data)))|ConvertFrom-Json
  $expected=Copy-Graph $source;$expected.SchemaVersion=$archiveSchema;if($null-ne$expected.PSObject.Properties['StepTravel']){$expected.PSObject.Properties.Remove('StepTravel')};$without=Copy-Graph $graph;$without.PSObject.Properties.Remove('StepTravel')
  $e=ConvertTo-KmcNumericCanonical $expected;$w=ConvertTo-KmcNumericCanonical $without
@@ -178,6 +180,55 @@ Check 'inherited owned combat save multi-tb-debt-manual: schema-4 independent st
  $row=$o.nativeWrite.archive.StepTravel[0];$allocation=@($o.nativeWrite.archive.Combat.Allocations|Where-Object ActorId -CEQ $row.ActorId)[0]
  if([double]$row.MetresStepTravelled-eq[double]$allocation.Movement.MetresStepped){throw 'The step travel is not independent of the native counter.'}
  Invoke-Protected $v}
+
+# --- (4) Round 17 (R13-F2, R16-F5): the remaining current-write leaves. ---
+# Rider fall: the F6 reader suite's own synthetic producer and cold observations (Test-Finalize6Readers.ps1, statements only), wrapped
+# in the ordinary fixture's request/artifact envelope so they enter through the real dispatcher (rider-fall-integration-manual route).
+function New-RiderFallFixtures{
+ $tree=[Management.Automation.Language.Parser]::ParseFile((Join-Path $repo 'scripts/Test-Finalize6Readers.ps1'),[ref]$null,[ref]$null)
+ foreach($s in $tree.EndBlock.Statements){$t=$s.Extent.Text
+  if($t-match'^\s*\.\s'-or$t-match'^\s*(Check|Refuses|\w+Refuses|Assert-\w+|Write-Host|exit)\b'-or$t-match'^\s*\$(ErrorActionPreference|passes)\b'-or$t-match'^\s*function\s+(Check|Refuses|\w+Refuses)\b'){continue}
+  if($s.Extent.StartLineNumber-gt189){break}
+  . ([scriptblock]::Create($t))}
+ [pscustomobject]@{fixture=$fixture;save=$prodObs;cold=$coldObs}
+}
+$riderFall=New-RiderFallFixtures
+function New-RiderFall([bool]$Cold,[bool]$Current){
+ $base=if($Cold){$ordinary.cold}else{$ordinary.save};$v=Copy-Value $base;$v.request.persistenceCase='rider-fall-integration-manual';$v.request.fixture=Copy-Value $riderFall.fixture
+ $o=Copy-Value $(if($Cold){$riderFall.cold}else{$riderFall.save});$o.checkpoint='rider-fall-integration-manual';$v.artifact.observations=$o
+ # The F6 suite's placeholder identities ('camp', 'area', pair 'aaaa') are not valid production identities: the codec refuses them.
+ # Substitute well-formed values consistently across the request and observations (values only, never member names).
+ $json=$v|ConvertTo-Json -Depth 90 -Compress
+ foreach($r in @(@('camp','11111111-1111-4111-8111-111111111111'),@('area',('a'*32)),@('aaaa','a1a1a1a1a1a14a1a8a1aa1a1a1a1a1a1'))){$json=[regex]::Replace($json,'"'+$r[0]+'"(?!\s*:)','"'+$r[1]+'"')}
+ $v=$json|ConvertFrom-Json;$o=$v.artifact.observations
+ # Its archive actors carry only an Id; a written archive carries each actor's complete native debt row (here: no debt).
+ $a=if($Cold){$o.loadedArchive}else{$o.nativeWrite.archive};foreach($pair in @($a.Pairs)){foreach($role in @('Rider','Mount')){$id=$pair.$role.Id;$pair.$role=[pscustomobject][ordered]@{Id=$id;Standard=0.0;Move=0.0;Swift=0.0;Initiative=0.0;Reaction=0.0;ReactionsRemaining=1;LastSurpriseTicks=0}}}
+ if($Current){Set-CurrentWriter $o @($(if($Cold){'loadedArchive'}else{'nativeWrite.archive'}))}
+ $v}
+foreach($cold in @($false,$true)){$label=if($cold){'rider-fall cold'}else{'rider-fall save'};$path=if($cold){'loadedArchive'}else{'nativeWrite.archive'}
+ Check ($label+': schema-4 observation through the dispatcher') {$v=New-RiderFall $cold $true;Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+ Check ($label+': previous-writer (schema 3) control through the dispatcher') {$v=New-RiderFall $cold $false;Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+ Reject ($label+': schema-4 graph missing StepTravel') {New-RiderFall $cold $true} {param($v)(Get-Path $v.artifact.observations $path).PSObject.Properties.Remove('StepTravel');Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+ Reject ($label+': schema-4 graph with an extra field') {New-RiderFall $cold $true} {param($v)(Get-Path $v.artifact.observations $path)|Add-Member NoteProperty Extra 1;Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+ Reject ($label+': schema-4 graph under a schema-3 writer label') {New-RiderFall $cold $true} {param($v)$v.artifact.observations.nativeSchema=3;Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+ Reject ($label+': schema-3 graph under the schema-4 writer label') {New-RiderFall $cold $false} {param($v)$v.artifact.observations.nativeSchema=4;Assert-KmcChunk7PersistenceObservation $v.request $v.artifact 'PASS'}
+}
+# Small-fixture and stock-Mammoth Manual leaf (Assert-KmcSmallFixtureEmptyArchive, shared by both evidence readers and their fixture
+# qualifiers): a codec-written unmounted Manual graph.
+$descriptor=[pscustomobject]@{gameId='11111111-1111-4111-8111-111111111111';area=('a'*32)}
+$empty3=[pscustomobject][ordered]@{SchemaVersion=3;CampaignId=$descriptor.gameId;AreaId=$descriptor.area;GameTimeTicks=12345;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1';Pairs=@();Participations=@();Slots=@();Combat=$null}
+Check 'fixture Manual leaf: schema-4 codec-written unmounted Manual accepted' {Assert-KmcSmallFixtureEmptyArchive (ConvertTo-CurrentWriterArchive $empty3) $descriptor}
+Check 'fixture Manual leaf: previous-writer (schema 3) control accepted' {Assert-KmcSmallFixtureEmptyArchive (Copy-Graph $empty3) $descriptor}
+Reject 'fixture Manual leaf: schema-4 graph missing StepTravel' {ConvertTo-CurrentWriterArchive $empty3} {param($a)$a.PSObject.Properties.Remove('StepTravel');Assert-KmcSmallFixtureEmptyArchive $a $descriptor}
+Reject 'fixture Manual leaf: schema-3 graph carrying StepTravel' {Copy-Graph $empty3} {param($a)$a|Add-Member NoteProperty StepTravel @();Assert-KmcSmallFixtureEmptyArchive $a $descriptor}
+Reject 'fixture Manual leaf: unsupported writer 5' {ConvertTo-CurrentWriterArchive $empty3} {param($a)$a.SchemaVersion=5;Assert-KmcSmallFixtureEmptyArchive $a $descriptor}
+# World/owner-seed capability (R16-F5): the advertised writer must be the writer of the record's own Manual output.
+function New-SeedManual([int]$Capability,[int]$Output){$v=New-KmcOwnerSeedManualFixture;$o=$v.artifact.observations
+ if($Output-eq4){$o.nativeWrite.archive=ConvertTo-CurrentWriterArchive $o.nativeWrite.archive;$o.nativeWrite.sourceSchema=4}
+ $o.capability.nativeWriterSchema=$Capability;$v}
+foreach($pair in @(@(4,4),@(3,3))){$c=$pair[0];$w=$pair[1];Check ('owner-seed Manual world evidence: capability '+$c+' with Manual output '+$w+' accepted') {$v=New-SeedManual $c $w;Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}}
+foreach($pair in @(@(3,4),@(4,3))){$c=$pair[0];$w=$pair[1];Reject ('owner-seed Manual world evidence: capability '+$c+' with Manual output '+$w) {New-SeedManual $c $w} {param($v)Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}}
+Reject 'owner-seed Manual world evidence: schema-4 Manual output missing StepTravel' {New-SeedManual 4 4} {param($v)$v.artifact.observations.nativeWrite.archive.PSObject.Properties.Remove('StepTravel');Assert-KmcChunk7WorldEvidence $v.request $v.artifact 'PASS'}
 
 $clock.Stop();$passed=@($results|Where-Object pass -EQ $true).Count;$failed=@($results|Where-Object pass -EQ $false).Count;$refusals=@($results|Where-Object{$_.pass-and$_.expectedRefusal}).Count
 Write-Output ('CURRENT-WRITER READERS RESULT '+$passed+' PASS / '+$failed+' FAIL ('+$refusals+' expected refusals; '+[Math]::Round($clock.Elapsed.TotalSeconds,1)+' s; offline generated observations, nativeInvoked=false, no native save/load claim)')

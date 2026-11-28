@@ -76,7 +76,7 @@ function Get-KmcChunk7ProgressionColdSource($Selection,$Fixture,$Candidate){
     Assert-KmcReadOnlyArtifactManifest $request $hashes['runtime-artifacts.json'] -GameResult
     Assert-KmcChunk7ProgressionNativeArchive $request $artifact
     $write=$artifact.observations.session.nativeWrite;$archive=$write.archive;$roster=$artifact.observations.ownedRosterAfter
-    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or$archive.SchemaVersion-ne3-or$archive.Pairs.Count-ne1-or
+    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or-not(Test-KmcChunk7WriterSchema $archive.SchemaVersion)-or$archive.Pairs.Count-ne1-or
        @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.controlActorId-and$_.Mount.Id-ceq$Selection.controlPetId-and$_.ProfileId-ceq'medium-humanoid-horse-v1'}).Count-ne1-or
        @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.actorId-or$_.Mount.Id-ceq$Selection.petId-or$_.Mount.Id-ceq$Selection.formerPetId}).Count-ne0-or
        $roster.currentPetId-cne$Selection.petId-or$roster.originalPet.id-cne$Selection.formerPetId-or$roster.originalPet.destroyed-ne$true-or
@@ -123,7 +123,7 @@ function Get-KmcChunk7LevelColdSource($Selection,$Fixture,$Candidate){
     Assert-KmcReadOnlyArtifactManifest $request $hashes['runtime-artifacts.json'] -GameResult
     Assert-KmcChunk7ProgressionNativeArchive $request $artifact
     $write=$artifact.observations.session.nativeWrite;$archive=$write.archive
-    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or$archive.SchemaVersion-ne3-or$archive.Pairs.Count-ne2-or
+    if($write.sha256-cne$Selection.sourceArchiveSha256-or$write.type-cne'Manual'-or-not(Test-KmcChunk7WriterSchema $archive.SchemaVersion)-or$archive.Pairs.Count-ne2-or
        @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.actorId-and$_.Mount.Id-ceq$Selection.petId-and$_.ProfileId-ceq'small-default-halfling-horse-v1'}).Count-ne1-or
        @($archive.Pairs|Where-Object{$_.Rider.Id-ceq$Selection.controlActorId-and$_.Mount.Id-ceq$Selection.controlPetId-and$_.ProfileId-ceq'medium-humanoid-horse-v1'}).Count-ne1){
         throw 'Cold level source lost its exact two settled mounted owners.'
