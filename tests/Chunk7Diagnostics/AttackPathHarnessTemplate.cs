@@ -206,7 +206,9 @@ namespace Kingmaker.View
         public float SpeedFactor = 1f;
         // R9-F5 (round 10): a one-shot failing MaxSpeed getter (injected).
         public static bool MaxSpeedFault;
-        public float MaxSpeed { get { if (MaxSpeedFault) { MaxSpeedFault = false; throw new InvalidOperationException("simulated MaxSpeed getter failure"); } return (Unit == null ? 0f : Unit.CurrentSpeedMps) * SpeedFactor; } }
+        // R11-F9 (round 12): native MaxSpeedOverride (when set, MaxSpeed reads it instead of the unit's CurrentSpeedMps).
+        public float? MaxSpeedOverride;
+        public float MaxSpeed { get { if (MaxSpeedFault) { MaxSpeedFault = false; throw new InvalidOperationException("simulated MaxSpeed getter failure"); } return MaxSpeedOverride ?? (Unit == null ? 0f : Unit.CurrentSpeedMps) * SpeedFactor; } }
         public UnityEngine.Vector2 MoveDirection;
         // R8-F6 (round 10): the installed combat steering facts (m_CombatAngularSpeed default 720, m_Speed, m_FollowPrecomputedPath).
         public float CombatAngularSpeed = 720f, CurrentSpeedField;
@@ -263,7 +265,9 @@ namespace Kingmaker.View
         public readonly UnityEngine.GameObject gameObject = new UnityEngine.GameObject();
         // PR #70 R6-F7 (round 11): a one-shot failing native StopMoving for one view (injected).
         public static Func<UnitEntityView, bool> StopMovingFault;
-        public void StopMoving() { if (StopMovingFault != null && StopMovingFault(this)) { StopMovingFault = null; throw new InvalidOperationException("simulated StopMoving failure"); } StopMovingCount++; }
+        // Round 12 (R6-F7): native StopMoving stops the agent, releasing the path it steers (its path ownership is observable independently of any
+        // command's Result).
+        public void StopMoving() { if (StopMovingFault != null && StopMovingFault(this)) { StopMovingFault = null; throw new InvalidOperationException("simulated StopMoving failure"); } StopMovingCount++; if (AgentASP != null) { AgentASP.Path = null; AgentASP.PathOwner = null; } }
     }
 }
 
@@ -334,7 +338,9 @@ namespace Kingmaker.EntitySystem.Entities
         public bool HasStandard = true;
         public bool HasStandardAction() => HasStandard;
         // PR #70 round 2: the native movement and action facts the paired allocation reads.
-        public float CurrentSpeedMps => CombatSpeedMps;
+        // R11-F9 (round 12): a one-shot failing CurrentSpeedMps getter for one unit (injected).
+        public static Func<UnitEntityData, bool> CurrentSpeedFault;
+        public float CurrentSpeedMps { get { if (CurrentSpeedFault != null && CurrentSpeedFault(this)) { CurrentSpeedFault = null; throw new InvalidOperationException("simulated CurrentSpeedMps getter failure"); } return CombatSpeedMps; } }
         public bool MoveRestricted;
         public bool IsMoveActionRestricted() => MoveRestricted;
         public bool UsedStandardAction() => !HasStandard || CombatState.Cooldown.StandardAction > 0f;
@@ -655,6 +661,15 @@ namespace Kingmaker.UnitLogic.Commands
     }
 }
 
+// PR #70 R11-F1 (round 12): the production saved-row DTO, its validation and the row capture/restore the persistence adapters use.
+namespace KingmakerMountedCombat.Integration
+{
+    using System.IO;
+    /* SAVE_STATE_VALIDATION */
+    /* SAVED_MOVEMENT_VALUES */
+    /* PERSISTENCE_ROWS */
+}
+
 namespace KingmakerMountedCombat.Logging
 {
     public interface IModLogger { void Info(string line); void Exception(string phase, Exception exception); }
@@ -677,6 +692,8 @@ namespace KingmakerMountedCombat.Integration
     /* ADMISSION_ENUM */
 
     /* CHILD_ATTACK_CLASS */
+
+    /* CARRIER_CLEANUP_CLASS */
 
     internal sealed class HarnessLogger : IModLogger
     {
@@ -940,9 +957,14 @@ namespace KingmakerMountedCombat.Integration
         // Round 11 (R9-F3): the physical step ledger after the last tick's steered displacement settled (what any later read sees).
         internal float AllocationMetresStepTravelled(UnitEntityData mount) { var allocation = Get(mount); allocation.SettleStepTravel(mount.Position); return allocation.Movement.MetresStepTravelled; }
         internal float AllocationTimeStepped(UnitEntityData mount) => Get(mount).Movement.TimeStepped;
+        // Round 12 (R11-F1): the allocation's movement record as the production capture reads it (settled first), and its replacement by a restored record.
+        internal MountedMovementState AllocationMovementForHarness(UnitEntityData mount) { var allocation = Get(mount); allocation.SettleStepTravel(mount.Position); return allocation.Movement; }
+        internal void RestoreMovementForHarness(UnitEntityData mount, MountedMovementState movement) => Get(mount).Movement = movement;
         // Engine boundary: the allocation's provenance. Rider first in initiative: the activation's explicit grant at the rider's boundary;
         // mount first: the mount's own native epoch before pairing (its earlier native movement stays on its cooldown).
         internal void SetGrantIdentity(UnitEntityData mount, string identity) => Get(mount).GrantIdentity = identity;
+        // Round 12 (R11-F2): a partially used step with distinct native (nominal) and physical ledgers.
+        internal void SetStepLedger(UnitEntityData mount, float nominalMetres, float physicalMetres) { var m = Get(mount).Movement; m.MetresStepped = nominalMetres; m.MetresStepTravelled = physicalMetres; m.TimeStepped = m.TimeMoved = nominalMetres / mount.CombatSpeedMps; }
         internal void SetStepped(UnitEntityData mount, float metres) { var m = Get(mount).Movement; m.MetresStepped = metres; m.TimeStepped = m.TimeMoved = metres / mount.CurrentSpeedMps; }
         /* ADAPTER_GET */
         /* ADAPTER_TICK */
@@ -1524,6 +1546,10 @@ namespace Harness
         internal void RetireRealTime(string reason) { var command = stockIntentCommand; ClearStockAttackIntent(reason, true); RetireOrderWrapper(command, reason); }
         internal void Own(UnitEntityData actor, UnitEntityData target, long generation) => OwnManualTarget(actor, target, generation);
         internal void Clear(string reason) => ClearStockAttackIntent(reason, true);
+        // Round 12 (R11-F8): the relationship's dismount (production: the order is cancelled, then the runtime's mount reference is cleared) and a
+        // later binding of another mount.
+        internal void SimulateDismountForHarness() { Cancel("dismount"); relationship.State = RelationshipState.Unmounted; relationship.Mount = null; relationship.Runtime.Mount = null; }
+        internal void RebindMountForHarness(UnitEntityData mount) { relationship.Mount = mount; relationship.Runtime.Mount = mount; relationship.State = RelationshipState.Mounted; }
         internal bool HorseFollowThroughAdmissible(UnitEntityData target) => FollowThroughStrikeAdmissibleNow(target);
 
         /* CONTROLLER_RETIREMENT */
@@ -1610,7 +1636,7 @@ namespace Harness
         {
             Kingmaker.Game.Instance = new Kingmaker.Game();
             TurnBased.Controllers.CombatController.TurnBased = turnBased;
-            Kingmaker.View.UnitEntityView.StopMovingFault = null;
+            Kingmaker.View.UnitEntityView.StopMovingFault = null; UnitEntityData.CurrentSpeedFault = null;
             LineOfSightGeometry.Instance = new LineOfSightGeometry { Blocked = blocker ?? ((from, to) => false) };
             UnitAttack.NativeAttackStarts = 0;
             UnitAttack.NativeAttackRules = 0;
@@ -5339,6 +5365,14 @@ namespace Harness
             var delta = w.MountMoveDelta(requested);
             w.LastRequestedMetres = (horse.CurrentSpeedMps * agent.SpeedFactor) * requested;
             if (!(delta > 0f)) { w.MountStalls++; return; }
+            SteerAgent(c, carrier, delta);
+        }
+
+        // The installed TickMovement step itself for the agent's own path with a returned delta (shared by the carrier tick and the ground move).
+        private static void SteerAgent(Connected c, UnitMoveTo carrier, float delta)
+        {
+            var w = c.World; var horse = w.Horse; var agent = horse.View.AgentASP;
+            var points = agent.Path.vectorPath;
             var position = new UnityEngine.Vector2(horse.Position.x, horse.Position.z);
             Func<int, UnityEngine.Vector2> point = i => new UnityEngine.Vector2(points[i].x, points[i].z);
             Func<UnityEngine.Vector2, UnityEngine.Vector2, float> distance = (p, q) => (float)Math.Sqrt((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y));
@@ -5397,6 +5431,43 @@ namespace Harness
             else if (passed) { agent.NextPointIndex++; if (agent.NextPointIndex < points.Count) agent.NextWaypoint = point(agent.NextPointIndex); }
         }
 
+        // Native TickApproaching of a move: the agent takes its own copy of the move's path once (the cursor starts past the points it stands on).
+        private static void TakePath(UnitEntityData unit, UnitMoveTo move)
+        {
+            var agent = unit.View.AgentASP;
+            agent.Path = new Pathfinding.Path { vectorPath = new List<Vector3>(move.ForcedPath.vectorPath) };
+            agent.PathOwner = move; agent.NextPointIndex = 0;
+            AdvanceCursor(agent, unit.Position);
+            // Fixture assumption (round 9): the agent faces its first waypoint when it takes the path (cases turn it explicitly to test R8-F6).
+            if (agent.NextPointIndex < agent.Path.vectorPath.Count)
+            {
+                var first = agent.Path.vectorPath[agent.NextPointIndex];
+                var fx = first.x - unit.Position.x; var fz = first.z - unit.Position.z; var fl = (float)Math.Sqrt(fx * fx + fz * fz);
+                if (fl > 1e-6f) agent.MoveDirection = new UnityEngine.Vector2(fx / fl, fz / fl);
+            }
+        }
+
+        // Round 12 (R6-F7): the old carrier's path is released (stopped) or replaced by a successor's own path; measured on the agent itself,
+        // independently of any command's Result or IsFinished.
+        private static bool OldPathReleased(Connected c, UnitMoveTo oldCarrier) =>
+            !(ReferenceEquals(c.World.Horse.View.AgentASP.PathOwner, oldCarrier) && c.World.Horse.View.AgentASP.Path != null);
+
+        // Round 12 (R6-F7): a later lawful ground move of the mount through the same mover: a ground move takes its own path, the ACTUAL
+        // TickDelegated returns and debits the delta, and the agent is stepped with the installed rule; displacement is measured on the horse.
+        private static float MoverGroundTick(Connected c, float metres, out float debit, out string line)
+        {
+            var w = c.World; var horse = w.Horse;
+            var start = horse.Position;
+            var ground = new UnitMoveTo(start + new Vector3(1f, 0f, 0f), 0.01f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { start, start + new Vector3(1f, 0f, 0f) }) };
+            TakePath(horse, ground);
+            var before = horse.CombatState.Cooldown.MoveAction;
+            var dt = metres / horse.CombatSpeedMps;
+            line = c.Pair.movementState.TickDelegated(c.Pair.PairedMovementContext(c.Context), horse, ref dt);
+            debit = horse.CombatState.Cooldown.MoveAction - before;
+            if (dt > 0f) SteerAgent(c, ground, dt);
+            return Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, horse.Position);
+        }
+
         private static void AdvanceCursor(Kingmaker.View.UnitMovementAgent agent, Vector3 position)
         {
             var points = agent.Path.vectorPath;
@@ -5418,19 +5489,7 @@ namespace Harness
                     // Native TickApproaching of the carrier: its approach gives the agent its own copy of the path once (the cursor starts past the
                     // points the agent already stands on); a carrier whose agent path is consumed completes.
                     var agent = unit.View.AgentASP;
-                    if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath != null)
-                    {
-                        agent.Path = new Pathfinding.Path { vectorPath = new List<Vector3>(move.ForcedPath.vectorPath) };
-                        agent.PathOwner = move; agent.NextPointIndex = 0;
-                        AdvanceCursor(agent, unit.Position);
-                        // Fixture assumption (round 9): the agent faces its first waypoint when it takes the path (cases turn it explicitly to test R8-F6).
-                        if (agent.NextPointIndex < agent.Path.vectorPath.Count)
-                        {
-                            var first = agent.Path.vectorPath[agent.NextPointIndex];
-                            var fx = first.x - unit.Position.x; var fz = first.z - unit.Position.z; var fl = (float)Math.Sqrt(fx * fx + fz * fz);
-                            if (fl > 1e-6f) agent.MoveDirection = new UnityEngine.Vector2(fx / fl, fz / fl);
-                        }
-                    }
+                    if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath != null) TakePath(unit, move);
                     else if (agent != null && ReferenceEquals(agent.PathOwner, move) && agent.NextPointIndex >= agent.Path.vectorPath.Count) move.FinishSuccess();
                     continue;
                 }
@@ -5503,6 +5562,48 @@ namespace Harness
                 c.Combat.LastRouteRevalidation + "; feedback " + c.Combat.LastFeedback + "]";
         }
         private static string Name(UnitEntityData unit) => unit == null ? "none" : unit.UniqueId;
+
+        // Round 12 (R10-F2, R11-F5, R11-F10): a short ordinary click (its ordinary allowance could end within its last two debits at any frame) is
+        // held provisional; click, frame 1 (binding), [afterBinding], frames until its first debit decides, then frames until its strike or end.
+        private sealed class ShortRun
+        {
+            public bool Pending, Bound; public string ClickLine = "", Decision = "<none>", Approved = ""; public Vector3 Start, Stop; public UnityEngine.Vector2 Direction;
+            public UnitEntityData TargetAtDecision; public bool HoldAtDecision; public long GenBefore, GenAtDecision; public float MoveBefore, MoveAfterDecision, MoveFinal;
+            public MountedPairAttackCommand Order; public readonly List<string> Stops = new List<string>(); public int Strikes;
+        }
+        private static ShortRun ShortOrdinaryRun(Connected c, UnitEntityData prior, Action afterBinding, int frames = 14)
+        {
+            var w = c.World; var r = new ShortRun { MoveBefore = w.Horse.CombatState.Cooldown.MoveAction, GenBefore = c.Combat.Generation };
+            var click = ClickTick(c, w.Target);
+            r.ClickLine = LastLine(c);
+            var p = c.Combat.FirstTickProposalForDiagnostics;
+            r.Pending = click.Admitted && p != null && p.Replacement && p.State == MountedFirstTickProposalState.Pending && Field(r.ClickLine, "shortApproachClick") == "True" &&
+                ReferenceEquals(w.Rider.CombatState.ManualTarget, prior) && w.Horse.HoldState && c.Combat.Generation == r.GenBefore;
+            r.Order = w.Rider.Commands.Standard as MountedPairAttackCommand;
+            Frame(c);
+            r.Bound = p != null && p.CarrierMove != null && ReferenceEquals(c.Pair.movementState.FirstTickGate, p);
+            afterBinding?.Invoke();
+            r.Start = w.Horse.Position;
+            c.BeforeDrive = () =>
+            {
+                var d = c.Combat.LastFirstTickDecision;
+                if (r.Decision != "<none>" || d.StartsWith("pending")) return;
+                r.Decision = d; r.Stop = w.Horse.Position; r.Direction = w.Horse.View.AgentASP.MoveDirection; r.Approved = w.LastMountTick ?? "";
+                r.TargetAtDecision = w.Rider.CombatState.ManualTarget; r.HoldAtDecision = w.Horse.HoldState; r.GenAtDecision = c.Combat.Generation;
+            };
+            for (var i = 0; i < 3 && r.Decision == "<none>"; i++) Frame(c);
+            c.BeforeDrive = null;
+            r.MoveAfterDecision = w.Horse.CombatState.Cooldown.MoveAction;
+            var last = w.Horse.Position;
+            for (var i = 0; i < frames && r.Order != null && !r.Order.IsFinished && r.Order.StruckTargets.Count == 0; i++)
+            {
+                Frame(c);
+                if (Kingmaker.Utility.GeometryUtils.MechanicsDistance(last, w.Horse.Position) > 1e-6f) { last = w.Horse.Position; r.Stops.Add("(" + last.x.ToString("0.####") + "," + last.z.ToString("0.####") + ")"); }
+            }
+            r.Strikes = r.Order == null ? 0 : r.Order.StruckTargets.Count;
+            r.MoveFinal = w.Horse.CombatState.Cooldown.MoveAction;
+            return r;
+        }
 
         // Click, frame 1 (the turn's Tick, the provisional order starts and issues its carrier), [beforeDecision], frame 2 (the carrier's first
         // movement tick), then frames until the rider's strike is released or its order ends.
@@ -6636,7 +6737,7 @@ namespace Harness
                 var click = ClickTick(c, w.Target);
                 var line = LastLine(c);
                 var p = c.Combat.FirstTickProposalForDiagnostics;
-                var pending = click.Admitted && p != null && p.Replacement && p.State == MountedFirstTickProposalState.Pending && Field(line, "finalTickClick") == "True" &&
+                var pending = click.Admitted && p != null && p.Replacement && p.State == MountedFirstTickProposalState.Pending && Field(line, "shortApproachClick") == "True" &&
                     ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Horse.HoldState && c.Combat.Generation == gBefore;
                 var order = w.Rider.Commands.Standard as MountedPairAttackCommand;
                 Frame(c);
@@ -6667,7 +6768,7 @@ namespace Harness
                         w.Horse.HoldState && c.Combat.Generation == gBefore && order != null && order.IsFinished && order.StruckTargets.Count == 0 && LiveMountCarrier(c) == null &&
                         Math.Abs(ParseFloat(Field(decision, "stopX")) - 0.075f) < 1e-3f && Math.Abs(ParseFloat(Field(decision, "stopZ")) - 0.075f) < 1e-3f &&
                         ParseFloat(Field(decision, "turnCapacity")) >= 45f && ParseFloat(Field(decision, "baseTurnCapacity")) < 45f;
-                Check(ok, "R10-F2 (round 11) one ordinary tick left, " + heading + " heading: click " + (pending ? "pending provisional (finalTickClick, grant " + Field(line, "mountGrantedMetres") + " m, route " +
+                Check(ok, "R10-F2 (round 11) one ordinary tick left, " + heading + " heading: click " + (pending ? "pending provisional (shortApproachClick, grant " + Field(line, "mountGrantedMetres") + " m, route " +
                     Field(line, "routeMetres") + " m)" : "NOT pending: " + click.Decision + " / " + line) + "; " + decision + "; executed stop " + stop + " (travel " + travel.ToString("0.####") +
                     " m, direction " + direction + "); mount Move " + moveBefore.ToString("0.#####") + " -> " + moveAfterDecision.ToString("0.#####") + " s; target " + Name(w.Rider.CombatState.ManualTarget) +
                     ", horse Hold " + w.Horse.HoldState + "; strikes " + (order == null ? 0 : order.StruckTargets.Count) +
@@ -6749,48 +6850,430 @@ namespace Harness
                         "; mount target before the retry " + Name(mountTargetBeforeRetry) + ", after " + Name(afterRetry) + (assign == "newer assignment" ? " (the newer assignment survives)" : " (A's owned selection cleared)"));
                 }
 
-            // R6-F7: the provisional order's wrapper is ended by its own target-invalidation callback (native interruption) before the sweep, and its
-            // carrier cleanup faults at the motion stop (View.StopMoving) after the carrier was interrupted and removed; the sweep resumes only the
-            // motion obligation on the captured mount: stopped when nothing else steers it, left alone for a direct Move successor.
-            foreach (var successorKind in new[] { "none", "Move" })
+            // ===== round 12 =====
+            // R6-F7 / R11-F7: the order's wrapper is ended by its own target-invalidation callback (native interruption) and its carrier cleanup faults at
+            // the motion stop (View.StopMoving) after the carrier was interrupted and removed. Provisional (refused request: the sweep resumes it) and
+            // accepted after its committed first debit (terminal settlement retains and resumes it). The agent's own path ownership is recorded at the
+            // fault and after the retry, independently of any command's Result; the later ground move runs through the same mover.
+            foreach (var accepted in new[] { false, true })
+                foreach (var successorKind in new[] { "none", "Move" })
+                {
+                    var c = accepted ? FirstTickPair(1.2f, 1f / 60f, false, false) : FirstTickPair(1.2f, 1f / 60f);
+                    var a = PriorSelectionAndHold(c);
+                    var w = c.World;
+                    MountedPairAttackCommand wrapper = null; UnitMoveTo carrier = null; UnitMoveTo successor = null;
+                    var atFault = ""; var stopsBefore = 0; var reportsAtFault = -1; var releasedAtFault = true; var retainedAtFault = -1;
+                    string decision;
+                    c.BeforeDrive = () =>
+                    {
+                        if (atFault != "" || wrapper == null || !wrapper.IsFinished) return;
+                        releasedAtFault = OldPathReleased(c, carrier);
+                        retainedAtFault = c.Combat.RetainedCarrierCleanupCount;
+                        atFault = "wrapper finished=" + wrapper.IsFinished + ", end " + wrapper.EndCause + ", carrier finished=" + carrier.IsFinished + ", carrier in Move slot=" + w.Horse.Commands.Contains(carrier) +
+                            ", carrier cleanup {" + wrapper.CarrierCleanupState + "}, agent path owner " + Id(w.Horse.View.AgentASP.PathOwner) + " (the carrier " + Id(carrier) + ", path " +
+                            (w.Horse.View.AgentASP.Path == null ? "none" : w.Horse.View.AgentASP.Path.vectorPath.Count + " points") + ")";
+                        stopsBefore = w.Horse.View.StopMovingCount; reportsAtFault = wrapper.TerminalReports;
+                        if (successorKind == "Move")
+                        {
+                            var at = w.Horse.Position;
+                            successor = new UnitMoveTo(at + new Vector3(-0.5f, 0f, 0f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(-0.5f, 0f, 0f) }) };
+                            w.Horse.Commands.Run(successor);
+                        }
+                    };
+                    if (accepted)
+                    {
+                        var click = ClickTick(c, w.Target);
+                        wrapper = click.Order;
+                        for (var i = 0; i < 4 && !c.Combat.LastFirstTickDecision.StartsWith("committed"); i++) Frame(c);
+                        decision = c.Combat.LastFirstTickDecision;
+                        carrier = wrapper?.DelegatedMove;
+                        Frame(c);   // the remaining approach after the committed first debit
+                        Kingmaker.View.UnitEntityView.StopMovingFault = view => view == w.Horse.View;
+                        c.ActionStage = () => w.Target.Descriptor.State.IsDead = true;
+                        for (var i = 0; i < 3 && atFault == ""; i++) Frame(c);
+                    }
+                    else
+                    {
+                        var r = RunProvisional(c, w.Target, null, () =>
+                        {
+                            wrapper = c.Combat.FirstTickProposalForDiagnostics?.Command; carrier = c.Combat.FirstTickProposalForDiagnostics?.CarrierMove;
+                            Kingmaker.View.UnitEntityView.StopMovingFault = view => view == w.Horse.View;
+                            c.ActionStage = () => w.Target.Descriptor.State.IsDead = true;
+                        });
+                        decision = r.Decision;
+                    }
+                    c.BeforeDrive = null;
+                    var stops = w.Horse.View.StopMovingCount - stopsBefore;
+                    var slot = w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move);
+                    for (var i = 0; i < 2; i++) c.Combat.SweepFirstTickProposal();
+                    if (successor != null) TakePath(w.Horse, successor);   // the successor's own native approach takes its path
+                    var releasedAfter = OldPathReleased(c, carrier);
+                    var ownerAfter = w.Horse.View.AgentASP.PathOwner;
+                    var ok = atFault.StartsWith("wrapper finished=True") && atFault.Contains("carrier in Move slot=False") && atFault.Contains("interrupted=True,slotRemoved=True,motionSettled=False") &&
+                        !releasedAtFault && releasedAfter && Kingmaker.View.UnitEntityView.StopMovingFault == null && c.Combat.FirstTickProposalForDiagnostics == null &&
+                        c.Pair.movementState.FirstTickGate == null && c.Combat.RetainedCarrierCleanupCount == 0 && (accepted ? retainedAtFault == 1 : true) &&
+                        wrapper.CarrierCleanupState == "interrupted=True,slotRemoved=True,motionSettled=True" && wrapper.TerminalReports == reportsAtFault && reportsAtFault == 1 &&
+                        (accepted ? decision.StartsWith("committed:order:ordinary-movement") : decision.StartsWith("refused:")) &&
+                        (successorKind == "Move" ? ReferenceEquals(slot, successor) && !successor.IsFinished && stops == 0 && ReferenceEquals(ownerAfter, successor) : slot == null && stops == 1 && ownerAfter == null);
+                    if (successor != null) { successor.Interrupt(); w.Horse.Commands.RemoveFinishedAndUpdateQueue(); }
+                    var moveBeforeGround = w.Horse.CombatState.Cooldown.MoveAction;
+                    float debit; string groundLine;
+                    var moved = MoverGroundTick(c, 0.15f, out debit, out groundLine);
+                    ok &= Math.Abs(moved - 0.15f) < 1e-4f && Math.Abs(debit - 1f / 60f) < 1e-4f;
+                    Check(ok, "R6-F7/R11-F7 (round 12) " + (accepted ? "accepted order after its committed first debit" : "refused provisional order") + ", wrapper ended by its target-invalidation callback, StopMoving fault" +
+                        (successorKind == "Move" ? ", then a Move successor" : "") + ": at the fault " + atFault + "; negative control: the old-path-released assertion at the fault is " + releasedAtFault +
+                        (accepted ? "; retained by terminal settlement " + retainedAtFault : "") + "; after the retry: carrier cleanup {" + (wrapper == null ? "-" : wrapper.CarrierCleanupState) + "}, Move slot " + Id(slot) +
+                        ", agent path owner " + Id(ownerAfter) + " (old path released " + releasedAfter + "), motion stops issued " + stops + ", terminal reports " + (wrapper == null ? -1 : wrapper.TerminalReports) +
+                        "; first decision " + decision.Substring(0, Math.Min(50, decision.Length)) + "...; prior target " + Name(w.Rider.CombatState.ManualTarget) + "; later ground move through the mover: displacement " +
+                        moved.ToString("0.####") + " m, one debit " + debit.ToString("0.####") + " s (mount Move " + moveBeforeGround.ToString("0.####") + " -> " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.####") + " s)");
+                }
+
+            // R10-F2: a short ordinary click is provisional whatever its click frame (the installed turn-based frame bound, not this frame), and its first
+            // debit decides its remaining debits with the installed steering. One tick left (1/60 s at 9 m/s, 0.145 m) with a 1/120 s click frame and a
+            // 0.02 s debit frame; two 1/60 s ticks left (0.295 m route, sight from x = 0.245). Aligned controls strike; perpendicular starts refuse.
+            foreach (var kase in new[] { "one tick left, 1/120 s click, 0.02 s debit", "two 1/60 s ticks left" })
+                foreach (var heading in new[] { "aligned", "perpendicular" })
+                {
+                    var twoTicks = kase.StartsWith("two");
+                    var c = FirstTickPair(twoTicks ? 0.245f : 0.095f, twoTicks ? 1f / 60f : 0.02f, false, false, false, true);
+                    Kingmaker.Game.Instance.TimeController.DeltaTime = twoTicks ? 1f / 60f : 1f / 120f;   // the click frame
+                    var a = PriorSelectionAndHold(c);
+                    var w = c.World;
+                    w.Horse.CombatState.Cooldown.MoveAction = 3f - (twoTicks ? 2f / 60f : 1f / 60f);
+                    var r = ShortOrdinaryRun(c, a, heading == "perpendicular" ? (Action)(() => w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f)) : null);
+                    bool ok;
+                    if (heading == "aligned")
+                        ok = r.Pending && r.Bound && r.Decision.StartsWith("committed:replacement:") && r.Strikes == 1 && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target) &&
+                            r.MoveFinal <= 3f + 1e-4f && r.MoveFinal > r.MoveBefore;
+                    else
+                        ok = r.Pending && r.Bound && r.Decision.StartsWith("refused:") && r.Decision.Contains("no-affordable-strike-position") &&
+                            Kingmaker.Utility.GeometryUtils.MechanicsDistance(r.Start, r.Stop) < 1e-6f && r.MoveAfterDecision == r.MoveBefore && r.MoveFinal == r.MoveBefore &&
+                            ReferenceEquals(r.TargetAtDecision, a) && r.HoldAtDecision && r.GenAtDecision == r.GenBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Horse.HoldState &&
+                            c.Combat.Generation == r.GenBefore && r.Strikes == 0 && LiveMountCarrier(c) == null &&
+                            (twoTicks ? r.Decision.Contains("(0.075,0.075)@0.01667-") && r.Decision.Contains(",0.0883)@0.03333-") : r.Decision.Contains("stop=(0.075, 0.075)") || r.Decision.Contains("stopX=0.07"));
+                    Check(ok, "R10-F2 (round 12) " + kase + ", " + heading + ": click " + (r.Pending ? "pending provisional (" + Field(r.ClickLine, "mountGrantedMetres") + " m grant, route " + Field(r.ClickLine, "routeMetres") + " m)" : "NOT pending: " + r.ClickLine) +
+                        "; first debit " + r.Decision + "; executed stops " + string.Join(" ", r.Stops.ToArray()) + "; mount Move " + r.MoveBefore.ToString("0.#####") + " -> " + r.MoveAfterDecision.ToString("0.#####") +
+                        " -> " + r.MoveFinal.ToString("0.#####") + " s; generation " + r.GenBefore + " -> " + c.Combat.Generation + "; target " + Name(w.Rider.CombatState.ManualTarget) + ", horse Hold " + w.Horse.HoldState + "; strikes " + r.Strikes);
+                }
+
+            // R11-F10: an older compatible in-range Swift on the mount does not drop the short ordinary click; it finishes and one approach and strike
+            // follow. Control: a competing older mount order still refuses it (prior target and Hold kept).
+            foreach (var kase in new[] { "older in-range Swift", "control: older competing mount order" })
+            {
+                var c = FirstTickPair(0.095f, 1f / 50f, false, false, false, true);
+                var w = c.World;
+                w.Horse.CombatState.Cooldown.MoveAction = 3f - 1f / 60f;
+                var other = new UnitEntityData("hostile-swift") { Position = new Vector3(0.5f, 0f, -0.5f) };
+                other.View.Corpulence = 0.5f;
+                var older = new HarnessPlayerCommand(other, kase.StartsWith("control") ? UnitCommand.CommandType.Standard : UnitCommand.CommandType.Swift);
+                w.Horse.Commands.Run(older);
+                var a = PriorSelectionAndHold(c);
+                bool ok; string detail;
+                if (kase.StartsWith("control"))
+                {
+                    var click = ClickTick(c, w.Target);
+                    ok = click.Admitted && c.Combat.LastFirstTickDecision.StartsWith("refused:mount-holds-live-work") && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Horse.HoldState &&
+                        c.Combat.FirstTickProposalForDiagnostics == null && !(w.Rider.Commands.Standard is MountedPairAttackCommand) && !older.IsFinished;
+                    detail = c.Combat.LastFirstTickDecision + "; target " + Name(w.Rider.CombatState.ManualTarget) + ", horse Hold " + w.Horse.HoldState + ", the older order live " + !older.IsFinished;
+                }
+                else
+                {
+                    var swiftLiveAtClick = !older.IsFinished && ReferenceEquals(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Swift), older);
+                    var r = ShortOrdinaryRun(c, a, () => { older.FinishSuccess(); w.Horse.Commands.RemoveFinishedAndUpdateQueue(); });
+                    ok = swiftLiveAtClick && r.Pending && r.Decision.StartsWith("committed:replacement:final-ordinary-tick:") && r.Strikes == 1 && older.IsFinished;
+                    detail = "Swift live at the click " + swiftLiveAtClick + "; click pending " + r.Pending + ", bound " + r.Bound + "; Swift finished after binding; " + r.Decision.Substring(0, Math.Min(90, r.Decision.Length)) +
+                        "...; executed stops " + string.Join(" ", r.Stops.ToArray()) + "; strikes " + r.Strikes;
+                }
+                Check(ok, "R11-F10 (round 12) short ordinary click (one tick left, aligned 0.145 m), " + kase + ": " + detail);
+            }
+
+            // R11-F5: NearTheEnd set on the connected mover, the frame (1/60 s) longer than the remaining 5/512 s; the approved perpendicular tick stops at
+            // (0.04395, 0.04395) (visible), the full frame would stop at (0.075, 0.075) (z > 0.06: blind). The approved duration is returned and debited.
+            {
+                var c = FirstTickPair(0.035f, 1f / 60f, false, false, false, true);
+                var w = c.World;
+                LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 0.035f || from.z > 0.06f;
+                w.Horse.CombatState.Cooldown.MoveAction = 3f - 5f / 512f;
+                w.Horse.View.AgentASP.NearTheEnd = true;
+                var a = PriorSelectionAndHold(c);
+                var r = ShortOrdinaryRun(c, a, () => w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f));
+                var forecast = ParseFloat(Field(r.Decision, "delta"));
+                var returned = r.MoveAfterDecision - r.MoveBefore;
+                var ok = r.Pending && r.Bound && r.Decision.StartsWith("committed:replacement:final-ordinary-tick:") && Math.Abs(forecast - 5f / 512f) < 1e-5f && Math.Abs(returned - forecast) < 1e-5f &&
+                    r.Approved.Contains("approvedTick=True") && Math.Abs(r.Stop.x - ParseFloat(Field(r.Decision, "stopX"))) < 1e-4f && Math.Abs(r.Stop.z - ParseFloat(Field(r.Decision, "stopZ"))) < 1e-4f &&
+                    r.Stop.z < 0.06f && r.Strikes == 1;
+                Check(ok, "R11-F5 (round 12) NearTheEnd with a 1/60 s frame and 5/512 s left, perpendicular: forecast delta " + forecast.ToString("0.######") + " s, returned and debited " + returned.ToString("0.######") +
+                    " s (" + Field(r.Approved, "physicalDelta") + "), predicted stop (" + Field(r.Decision, "stopX") + "," + Field(r.Decision, "stopZ") + "), executed (" + r.Stop.x.ToString("0.#####") + "," + r.Stop.z.ToString("0.#####") +
+                    "); strikes " + r.Strikes);
+            }
+
+            // R11-F4: sight closed at the 0.08 m waypoint and open at the 0.145 m endpoint (m_Speed 6, MaxSpeed 9, 1/60 s): the kept-waypoint stop is blind,
+            // so the longer alternative (native skips the waypoint at 0.01611 s because 0.08 < 6 x 0.01611) is evaluated and reaches the visible endpoint.
+            {
+                var c = FirstTickPair(0.095f, 1f / 60f);
+                var w = c.World;
+                var agent = w.Horse.View.AgentASP;
+                agent.Route = (from, to) => new List<Vector3> { from, new Vector3(0.08f, 0f, 0f), to };
+                var r = RunProvisional(c, w.Target, null, () => agent.CurrentSpeedField = 6f);
+                var delta = ParseFloat(Field(r.Decision, "delta"));
+                var ok = r.Decision.StartsWith("committed:replacement:first-tick") && r.Decision.Contains("cursor=1;waypoint#2=") && r.Decision.Contains("alternative=1") &&
+                    Math.Abs(delta - 0.145f / 9f) < 1e-5f && 0.08f < 6f * delta && Math.Abs(c.HorseAtDecision.x - 0.145f) < 1e-4f && Math.Abs(r.AfterDecision.MountMove - delta) < 1e-5f && r.Order.StruckTargets.Count == 1;
+                Check(ok, "R11-F4 (round 12) blind kept waypoint, visible endpoint: " + r.Decision.Substring(0, Math.Min(r.Decision.IndexOf(";segment=") > 0 ? r.Decision.IndexOf(";segment=") : 80, r.Decision.Length)) +
+                    "; returned delta " + delta.ToString("0.######") + " s (skip threshold " + (6f * delta).ToString("0.####") + " m > 0.08 m); executed stop (" + c.HorseAtDecision.x.ToString("0.#####") + "," +
+                    c.HorseAtDecision.z.ToString("0.#####") + "); debit " + r.AfterDecision.MountMove.ToString("0.######") + " s; strikes " + r.Order.StruckTargets.Count + "; shorter alternative " +
+                    (r.Decision.Contains("shorterRefused={") ? "refused (blind at the waypoint)" : "?"));
+            }
+
+            // R11-F3: the mount is displaced sideways after binding (same agent path and cursor); sight closes only on the LIVE incoming chord inside the
+            // disc (away from the planned leg and from every final-heading disc sample): refused before any debit; the visible control strikes.
+            foreach (var closed in new[] { true, false })
             {
                 var c = FirstTickPair(1.2f, 1f / 60f);
                 var a = PriorSelectionAndHold(c);
                 var w = c.World;
-                MountedPairAttackCommand wrapper = null; UnitMoveTo carrier = null; UnitCommand successor = null;
-                var atFault = ""; var stopsBefore = 0; var reportsAtFault = -1;
-                c.BeforeDrive = () =>
-                {
-                    if (atFault != "" || wrapper == null || !wrapper.IsFinished) return;
-                    atFault = "wrapper finished=" + wrapper.IsFinished + ", end " + wrapper.EndCause + ", carrier finished=" + carrier.IsFinished + ", carrier in Move slot=" + w.Horse.Commands.Contains(carrier) +
-                        ", carrier cleanup {" + wrapper.CarrierCleanupState + "}, request owned=" + (c.Combat.FirstTickProposalForDiagnostics != null);
-                    stopsBefore = w.Horse.View.StopMovingCount; reportsAtFault = wrapper.TerminalReports;
-                    if (successorKind == "Move") { successor = new UnitMoveTo(new Vector3(-0.5f, 0f, 0f), 0.1f) { CreatedByPlayer = true }; w.Horse.Commands.Run(successor); }
-                };
+                var chordClosed = false; var p = Vector3.zero; const float block = 0.004f;
+                LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 1.2f || chordClosed && Kingmaker.Utility.GeometryUtils.MechanicsDistance(from, p) < block;
+                var clearance = float.MaxValue; var planned = float.MaxValue; var end = Vector3.zero;
+                var displaced = new Vector3(0.8f, 0f, 0.18f);
                 var r = RunProvisional(c, w.Target, null, () =>
                 {
-                    wrapper = c.Combat.FirstTickProposalForDiagnostics?.Command; carrier = c.Combat.FirstTickProposalForDiagnostics?.CarrierMove;
-                    Kingmaker.View.UnitEntityView.StopMovingFault = view => view == w.Horse.View;
-                    c.ActionStage = () => w.Target.Descriptor.State.IsDead = true;
-                });
+                    w.Horse.MoveRestricted = false;
+                    end = ((UnitMoveTo)LiveMountCarrier(c)).ApproachPoint;
+                    var dx = displaced.x - end.x; var dz = displaced.z - end.z; var dl = (float)Math.Sqrt(dx * dx + dz * dz);
+                    p = new Vector3(end.x + 0.03f * dx / dl, 0f, end.z + 0.03f * dz / dl);
+                    foreach (var ring in new[] { 0.05f, 0.025f })
+                        for (var k = 0; k < 16; k++)
+                            clearance = Math.Min(clearance, Kingmaker.Utility.GeometryUtils.MechanicsDistance(p, new Vector3(end.x + ring * (float)Math.Cos(k * Math.PI / 8d), 0f, end.z + ring * (float)Math.Sin(k * Math.PI / 8d))));
+                    planned = Math.Abs(p.z);   // distance from the planned leg (along z = 0)
+                    w.Horse.Position = displaced; w.Rider.Position = displaced;
+                    chordClosed = closed;
+                }, 40);
+                var ok = clearance > block && planned > block && block > PairedAttackClickProbe.InDiscSampleMetres && (closed
+                    ? RefusedKeptPrior(c, r, "route-arrival-not-admitted") && r.Decision.Contains("liveLeg=True")
+                    : r.Decision.StartsWith("committed:replacement:ordinary-movement") && r.Decision.Contains("liveLeg=True") && r.Order.StruckTargets.Count == 1);
+                Check(ok, "R11-F3 (round 12) mount displaced to " + displaced + " after binding (cursor kept), " + (closed ? "live incoming chord blind" : "control, chord visible") + ": blind spot " + p +
+                    " radius " + block + " m (from the planned leg " + planned.ToString("0.####") + " m, from every final-heading disc sample " + clearance.ToString("0.####") + " m); " + r.Decision +
+                    "; displacement after the tick " + r.Displacement.ToString("0.####") + " m, mount Move " + r.AfterDecision.MountMove.ToString("0.####") + " s; strikes " + r.Order.StruckTargets.Count);
+            }
+
+            // R11-F2: a partially used step (physical 1.374 m, native 0.687 m; nominal 9 / agent 18 m/s) with 0.15 physical metres left and a
+            // perpendicular start toward the 0.145 m endpoint: the step is not a final time tick; the first tick moves about 0.106 m, the settled
+            // remainder lets a second tick cross x = 0.095, one strike. Then the reserved-distance preflight: after that first tick reserved the whole
+            // remainder, the order is cancelled and the normal eligibility entry still grants the settled remainder.
+            foreach (var kase in new[] { "partial turning step through its strike", "preflight after a reserving tick" })
+            {
+                var c = FirstTickPair(0.095f, 1f / 60f, false, false, true);
+                var w = c.World;
+                w.Horse.View.AgentASP.SpeedFactor = 2f;
+                c.Pair.movementState.SetStepLedger(w.Horse, 0.687f, 1.374f);
+                var click = ClickTick(c, w.Target);
+                var line = LastLine(c);
+                var order = click.Order;
+                Frame(c);
+                w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f);
+                var stops = new List<string>(); var last = w.Horse.Position;
+                bool ok; string detail;
+                if (kase.StartsWith("partial"))
+                {
+                    for (var i = 0; i < 14 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++)
+                    {
+                        Frame(c);
+                        if (Kingmaker.Utility.GeometryUtils.MechanicsDistance(last, w.Horse.Position) > 1e-6f) { stops.Add("(" + w.Horse.Position.x.ToString("0.####") + "," + w.Horse.Position.z.ToString("0.####") + ")"); last = w.Horse.Position; }
+                    }
+                    var decision = c.Combat.LastFirstTickDecision;
+                    ok = click.Admitted && Field(line, "shortApproachClick") == "False" && order != null && order.StruckTargets.Count == 1 && stops.Count >= 2 &&
+                        c.Pair.movementState.AllocationMetresStepTravelled(w.Horse) <= 1.524f + 1e-4f;
+                    detail = "click grant " + Field(line, "mountGrantedMetres") + " m; first debit " + decision.Substring(0, Math.Min(45, decision.Length)) + "...; stops " + string.Join(" ", stops.ToArray()) +
+                        "; physical ledger " + c.Pair.movementState.AllocationMetresStepTravelled(w.Horse).ToString("0.####") + " m, native counter " + c.Pair.movementState.AllocationMetresStepped(w.Horse).ToString("0.####") + " m; strikes " + order.StruckTargets.Count;
+                }
+                else
+                {
+                    Frame(c);   // the committed first tick reserves the whole 0.15 m remainder
+                    var moved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(last, w.Horse.Position);
+                    c.Combat.Cancel("player cancelled the order");
+                    bool step, single; string reason;
+                    var grant = c.Pair.PairedMountGrantedMetres(c.Context, out step, out single, out reason);
+                    ok = click.Admitted && moved > 0.09f && moved < 0.12f && step && reason == "granted" && Math.Abs(grant - (0.15f - moved)) < 1e-3f;
+                    detail = "first tick moved " + moved.ToString("0.####") + " m (reserved 0.15); after the cancel the eligibility entry reports " + reason + " with " + grant.ToString("0.####") + " m";
+                }
+                Check(ok, "R11-F2 (round 12) " + kase + ": " + detail);
+            }
+
+            // R11-F6: an accepted ordinary wrapper whose carrier is deferred behind older mount work; the rider's Standard is exhausted, then sight opens
+            // before any carrier is issued: no child starts and nothing is spent. Entitled control: one strike.
+            foreach (var exhaust in new[] { true, false })
+            {
+                var c = FirstTickPair(1.2f, 1f / 60f, false, false);
+                var w = c.World;
+                var cast = new HarnessStationaryCommand();
+                w.Horse.Commands.Run(cast);
+                var click = ClickTick(c, w.Target);
+                var order = click.Order;
+                for (var i = 0; i < 3; i++) Frame(c);
+                var deferred = order != null && !order.IsFinished && order.CarrierDeferred && order.DelegatedMove == null;
+                var startsBefore = UnitAttack.NativeAttackStarts;
+                var mountStandardBefore = w.Horse.CombatState.Cooldown.StandardAction;
+                if (exhaust) w.Rider.HasStandard = false;
+                c.Opening[0] = -10f;
+                for (var i = 0; i < 10 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                var ok = click.Admitted && deferred && (exhaust
+                    ? order.IsFinished && order.Transaction.ChildAttackStartCount == 0 && UnitAttack.NativeAttackStarts == startsBefore && order.StruckTargets.Count == 0 &&
+                      c.Combat.LastFirstTickDecision.StartsWith("refused-at-first-child:rider-not-entitled") && w.Horse.CombatState.Cooldown.StandardAction == mountStandardBefore
+                    : order.StruckTargets.Count == 1);
+                Check(ok, "R11-F6 (round 12) carrier deferred behind older mount work, " + (exhaust ? "rider Standard exhausted, then sight opens" : "control, rider entitled") + ": deferred " + deferred +
+                    "; " + c.Combat.LastFirstTickDecision.Substring(0, Math.Min(60, c.Combat.LastFirstTickDecision.Length)) + "; child starts " + (order == null ? -1 : order.Transaction.ChildAttackStartCount) +
+                    ", native attack starts +" + (UnitAttack.NativeAttackStarts - startsBefore) + ", strikes " + (order == null ? 0 : order.StruckTargets.Count));
+            }
+
+            // R11-F8: A's mount-target clear fails at B's commit; the pair dismounts before the retry: the clear stays bound to the ORIGINAL mount (and
+            // a replacement mount holding the same target keeps it); a later proposal with its own failing effect does not displace the earlier clear.
+            foreach (var kase in new[] { "dismount before the retry", "dismount, then a replacement mount holding the same target" })
+            {
+                var c = FirstTickPair(0.12f, 1f / 60f);
+                var a = RetainedOrderAndHold(c);
+                var w = c.World;
+                var gA = c.Combat.Generation;
+                c.Combat.Own(w.Horse, a, gA);
+                var replacement = new UnitEntityData("horse-replacement") { Position = w.Horse.Position };
+                var outstanding = ""; var handled = false;
+                c.BeforeDrive = () =>
+                {
+                    var settling = c.Combat.SettlingProposalForDiagnostics;
+                    if (handled || settling == null || settling.OutstandingEffects.Count == 0) return;
+                    handled = true;
+                    outstanding = string.Join(",", settling.OutstandingEffects.ToArray());
+                    c.Combat.SimulateDismountForHarness();
+                    if (kase.Contains("replacement")) { replacement.CombatState.ManualTarget = a; c.Combat.RebindMountForHarness(replacement); }
+                };
+                var r = RunProvisional(c, w.Target, null, () => Kingmaker.Controllers.Combat.UnitCombatState.ManualTargetWriteFault = state => state == w.Horse.CombatState);
                 c.BeforeDrive = null;
-                var stops = w.Horse.View.StopMovingCount - stopsBefore;
-                var slot = w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move);
-                for (var i = 0; i < 2; i++) c.Combat.SweepFirstTickProposal();
-                var agentOnCarrier = ReferenceEquals(w.Horse.View.AgentASP.PathOwner, carrier) && carrier != null && !carrier.IsFinished;
-                var ok = atFault.StartsWith("wrapper finished=True") && atFault.Contains("carrier in Move slot=False") && atFault.Contains("interrupted=True,slotRemoved=True,motionSettled=False") &&
-                    atFault.EndsWith("request owned=True") && Kingmaker.View.UnitEntityView.StopMovingFault == null && c.Combat.FirstTickProposalForDiagnostics == null && c.Pair.movementState.FirstTickGate == null &&
-                    wrapper.CarrierCleanupState == "interrupted=True,slotRemoved=True,motionSettled=True" && wrapper.TerminalReports == reportsAtFault && reportsAtFault == 1 && !agentOnCarrier &&
-                    r.Displacement < 1e-6f && w.Horse.CombatState.Cooldown.MoveAction == 0f && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) &&
-                    (successorKind == "Move" ? ReferenceEquals(slot, successor) && !successor.IsFinished && stops == 0 : slot == null && stops == 1);
-                if (successor != null) { successor.Interrupt(); w.Horse.Commands.RemoveFinishedAndUpdateQueue(); }
-                float debit; string groundLine;
-                var moved = GroundTick(c, 0.15f, out debit, out groundLine);
-                ok &= Math.Abs(moved - 0.15f) < 1e-4f && Math.Abs(debit - 1f / 60f) < 1e-4f;
-                Check(ok, "R6-F7 (round 11) wrapper ended by its target-invalidation callback before the sweep, StopMoving fault" + (successorKind == "Move" ? ", then a successor in the Move slot" : "") +
-                    ": at the fault " + atFault + "; after the sweep: carrier cleanup {" + (wrapper == null ? "-" : wrapper.CarrierCleanupState) + "}, Move slot " + Id(slot) + ", agent steering the carrier " + agentOnCarrier +
-                    ", motion stops issued " + stops + ", terminal reports " + (wrapper == null ? -1 : wrapper.TerminalReports) + ", request released; " + r.Decision.Substring(0, Math.Min(60, r.Decision.Length)) +
-                    "...; prior " + Name(w.Rider.CombatState.ManualTarget) + "; a later ground tick moved " + moved.ToString("0.####") + " m, debited " + debit.ToString("0.####") + " s");
+                c.Combat.SweepFirstTickProposal();
+                var ok = r.Decision.StartsWith("committed:replacement:") && outstanding == "mount-target" && w.Horse.CombatState.ManualTarget == null && c.Combat.SettlingProposalCount == 0 &&
+                    (!kase.Contains("replacement") || ReferenceEquals(replacement.CombatState.ManualTarget, a));
+                Check(ok, "R11-F8 (round 12) " + kase + ": deferred clear of A's target failed (" + outstanding + "); after the retry the original mount's target is " + Name(w.Horse.CombatState.ManualTarget) +
+                    (kase.Contains("replacement") ? ", the replacement mount's target " + Name(replacement.CombatState.ManualTarget) : "") + "; outstanding requests " + c.Combat.SettlingProposalCount);
+            }
+            {
+                // B (short ordinary) commits while A's mount clear keeps failing; B is cancelled before its strike; C (the same target clicked again)
+                // commits with its own failing rider write: both requests are outstanding at once; when the writes succeed each settles on its actor.
+                var c = FirstTickPair(0.4f, 1f / 60f, false, false, false, true);
+                var a = RetainedOrderAndHold(c);
+                var w = c.World;
+                var gA = c.Combat.Generation;
+                c.Combat.Own(w.Horse, a, gA);
+                w.Horse.CombatState.Cooldown.MoveAction = 3f - 0.3f;
+                var faultHorse = true; var faultRider = false;
+                Action arm = () => Kingmaker.Controllers.Combat.UnitCombatState.ManualTargetWriteFault = state => faultHorse && state == w.Horse.CombatState || faultRider && state == w.Rider.CombatState;
+                c.BeforeDrive = arm; arm();
+                var clickB = ClickTick(c, w.Target);
+                var commits = c.Combat.FirstTickCommitCount;
+                for (var i = 0; i < 4 && c.Combat.FirstTickCommitCount == commits; i++) Frame(c);
+                var bOutstanding = c.Combat.SettlingProposalForDiagnostics == null ? "" : string.Join(",", c.Combat.SettlingProposalForDiagnostics.OutstandingEffects.ToArray());
+                c.Combat.Cancel("B cancelled before its strike");
+                faultRider = true; arm();
+                var riderBeforeC = w.Rider.CombatState.ManualTarget;
+                var clickC = ClickTick(c, w.Target);
+                commits = c.Combat.FirstTickCommitCount;
+                for (var i = 0; i < 4 && c.Combat.FirstTickCommitCount == commits; i++) Frame(c);
+                var both = c.Combat.SettlingProposalCount;
+                var cOutstanding = c.Combat.SettlingProposalForDiagnostics == null ? "" : string.Join(",", c.Combat.SettlingProposalForDiagnostics.OutstandingEffects.ToArray());
+                faultHorse = faultRider = false; c.BeforeDrive = null; Kingmaker.Controllers.Combat.UnitCombatState.ManualTargetWriteFault = null;
+                var horseBeforeRetry = w.Horse.CombatState.ManualTarget;
+                c.Combat.SweepFirstTickProposal();
+                var ok = clickB.Admitted && clickC.Admitted && bOutstanding == "mount-target" && cOutstanding.Contains("rider-target") && both == 2 && ReferenceEquals(horseBeforeRetry, a) &&
+                    w.Horse.CombatState.ManualTarget == null && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target) && c.Combat.SettlingProposalCount == 0;
+                Check(ok, "R11-F8 (round 12) a later proposal with its own failing effect: B outstanding (" + bOutstanding + "), C outstanding (" + cOutstanding + "), requests held at once " + both +
+                    "; rider target before C " + Name(riderBeforeC) + "; after the writes succeed: mount target " + Name(horseBeforeRetry) + " -> " + Name(w.Horse.CombatState.ManualTarget) + ", rider target " +
+                    Name(w.Rider.CombatState.ManualTarget) + ", outstanding " + c.Combat.SettlingProposalCount);
+            }
+
+            // R11-F1: a partially used step (1.2 m physical, 0.6 native; agent 18 / nominal 9 m/s) round-trips through the production row capture and
+            // restore (MountedMovementPersistenceRows, used by CapturePersistence/RestorePersistence) in the unchanged seven-field row: the same 0.324 m
+            // remainder before and after, a 0.4 m step route refused and a 0.3 m one admitted by the real click; an older row restores both limits.
+            foreach (var kase in new[] { "0.3 m route after the restore", "0.4 m route after the restore", "older saved row (MetresStepped 1.25)" })
+            {
+                var olderRow = kase.StartsWith("older");
+                var route = kase.StartsWith("0.4") ? 0.4f : 0.3f;
+                var c = FirstTickPair(route - 0.05f, 1f / 60f, false, false, true);
+                var a = PriorSelectionAndHold(c);
+                var w = c.World;
+                w.Horse.View.AgentASP.SpeedFactor = 2f;
+                c.Pair.movementState.SetStepLedger(w.Horse, 0.6f, 1.2f);
+                bool st, sm; string reason;
+                var before = c.Pair.PairedMountGrantedMetres(c.Context, out st, out sm, out reason);
+                var row = olderRow ? new SavedMovementValues { TimeMoved = 0.1f, TimeStepped = 0.1f, MetresStepped = 1.25f, StepImmune = true }
+                    : MountedMovementPersistenceRows.Capture(c.Pair.movementState.AllocationMovementForHarness(w.Horse));
+                row.Validate();
+                var restored = MountedMovementPersistenceRows.Restore(row);
+                c.Pair.movementState.RestoreMovementForHarness(w.Horse, restored);
+                var after = c.Pair.PairedMountGrantedMetres(c.Context, out st, out sm, out reason);
+                var fields = typeof(SavedMovementValues).GetProperties().Length;
+                bool ok; string detail;
+                if (olderRow)
+                {
+                    ok = fields == 7 && restored.MetresStepped == 1.25f && restored.MetresStepTravelled == 1.25f && Math.Abs(after - 0.274f) < 1e-3f;
+                    detail = "restored native counter " + restored.MetresStepped + " m and physical travel " + restored.MetresStepTravelled + " m; grant " + after.ToString("0.####") + " m";
+                }
+                else
+                {
+                    var click = ClickTick(c, w.Target);
+                    var line = LastLine(c);
+                    ok = fields == 7 && row.MetresStepped == 1.2f && Math.Abs(before - 0.324f) < 1e-3f && Math.Abs(after - before) < 1e-5f && reason == "granted" &&
+                        (route > 0.35f ? !click.Admitted && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && click.Order == null : click.Admitted && click.Order != null);
+                    detail = "saved step value " + row.MetresStepped + " m in a " + fields + "-field row; grant before " + before.ToString("0.####") + " m, after the restore " + after.ToString("0.####") +
+                        " m; click " + click.Decision + " (route " + Field(line, "routeMetres") + " m, grant " + Field(line, "mountGrantedMetres") + " m)";
+                }
+                Check(ok, "R11-F1 (round 12) " + kase + ": " + detail);
+            }
+
+            // R11-F9: a one-shot CurrentSpeedMps failure with a readable MaxSpeedOverride (12 m/s). Ordinary Move (time) at the click and at the first
+            // debit: priced with the override, moving and striking. A step needs the nominal speed for its native counter: refused at the click
+            // (prior kept) and, for an accepted step, refused at the debit before any movement or spending.
+            foreach (var kase in new[] { "ordinary, failure at the click and at the first debit", "step, failure at the click", "step, failure at the first debit" })
+            {
+                var step = kase.StartsWith("step");
+                var c = FirstTickPair(1.2f, 1f / 60f, false, false, step);
+                var a = PriorSelectionAndHold(c);
+                var w = c.World;
+                w.Horse.View.AgentASP.MaxSpeedOverride = 12f;
+                if (!kase.EndsWith("first debit") || !step) UnitEntityData.CurrentSpeedFault = u => u == w.Horse;
+                var click = ClickTick(c, w.Target);
+                var line = LastLine(c);
+                var armedAtClick = !kase.EndsWith("first debit") || !step;
+                var clickConsumed = armedAtClick && UnitEntityData.CurrentSpeedFault == null;
+                UnitEntityData.CurrentSpeedFault = null;
+                var order = click.Order;
+                bool ok; string detail;
+                if (kase == "step, failure at the click")
+                {
+                    ok = clickConsumed && !click.Admitted && Field(line, "mountGrant") == "mount-movement-spent" && order == null && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) && w.Horse.HoldState;
+                    detail = "click " + click.Decision + " (mountGrant " + Field(line, "mountGrant") + "); target " + Name(w.Rider.CombatState.ManualTarget) + ", horse Hold " + w.Horse.HoldState;
+                }
+                else
+                {
+                    Frame(c);
+                    UnitEntityData.CurrentSpeedFault = u => u == w.Horse;
+                    var before = w.Horse.Position;
+                    var moveBefore = w.Horse.CombatState.Cooldown.MoveAction;
+                    Frame(c);
+                    var debitConsumed = UnitEntityData.CurrentSpeedFault == null;
+                    UnitEntityData.CurrentSpeedFault = null;
+                    var firstMoved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(before, w.Horse.Position);
+                    var firstDebit = w.Horse.CombatState.Cooldown.MoveAction - moveBefore;
+                    var decision = c.Combat.LastFirstTickDecision;
+                    var tickLine = w.LastMountTick ?? "";
+                    for (var i = 0; i < 14 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    if (!step)
+                        ok = clickConsumed && debitConsumed && click.Admitted && decision.StartsWith("committed:order:ordinary-movement") && Math.Abs(firstMoved - 0.2f) < 1e-4f &&
+                            Math.Abs(firstDebit - 1f / 60f) < 1e-5f && !tickLine.Contains("speed-unreadable") && order.StruckTargets.Count == 1;
+                    else
+                        ok = debitConsumed && click.Admitted && decision.StartsWith("refused:") && decision.Contains("allowedMetres=NaN") && firstMoved == 0f && w.Horse.CombatState.Cooldown.MoveAction == 0f &&
+                            c.Pair.movementState.AllocationMetresStepped(w.Horse) == 0f && order.IsFinished && order.StruckTargets.Count == 0;
+                    detail = "click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, fault " + (armedAtClick ? "consumed " + clickConsumed : "not armed at the click") + "); first debit " + decision.Substring(0, Math.Min(70, decision.Length)) +
+                        "... (fault consumed " + debitConsumed + "; tick " + tickLine.Substring(0, Math.Min(60, tickLine.Length)) + "); first tick moved " + firstMoved.ToString("0.####") + " m, debited " +
+                        firstDebit.ToString("0.#####") + " s; strikes " + (order == null ? 0 : order.StruckTargets.Count);
+                }
+                Check(ok, "R11-F9 (round 12) " + kase + ": " + detail);
             }
 
             // (8e) a refused request keeps refusing every carrier its command issues before the sweep settles it: native's denial branch ends the

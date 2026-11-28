@@ -83,7 +83,8 @@ $members=[ordered]@{
  'BEGIN_DELEGATED'=(Extract $command 'private bool BeginDelegatedMove()')
  'STOP_DELEGATED'=(Extract $command 'private void StopDelegatedMove(bool requireSuccess)')
  'FORBID_APPROACH'=(Extract $command 'internal void ForbidApproach()')
- 'SUCCESSOR_STEERS'=(Extract $command 'private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)')
+ 'SUCCESSOR_STEERS'=(ExtractExpression $command 'private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove) =>')
+ 'CARRIER_CLEANUP_CLASS'=(Extract $command 'internal sealed class MountedCarrierCleanup')
  'DEFERRED_CARRIER'=(ExtractRegion $command '        // PR-1 review R1-F4: a carrier waiting behind older work.' '        private void TickApproach()')
  'APPROACHING_BEFORE_ATTACK'=(ExtractRegion $command '        // PR-1 review R1-F8: also before native start' '        internal bool ValidateNativeSequenceTarget()')
  'START_CHILD'=(Extract $command 'private void StartChildAttack()')
@@ -160,6 +161,9 @@ $members=[ordered]@{
  'PAIR_ELIGIBLE'=(Extract $lifecycle 'internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)')
  'ADAPTER_PHYSICAL_SPEED'=(Extract $adapter 'internal static float PhysicalSpeedOf(UnitEntityData actor)')
  'ADAPTER_NOMINAL_SPEED'=(Extract $adapter 'internal static float NominalSpeedOf(UnitEntityData actor)')
+ 'SAVE_STATE_VALIDATION'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal static class SaveStateValidation')
+ 'SAVED_MOVEMENT_VALUES'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'SavedCombatData.cs'))) 'internal sealed class SavedMovementValues')
+ 'PERSISTENCE_ROWS'=(Extract ([IO.File]::ReadAllText((Join-Path $integration 'MountedMovementPersistence.cs'))) 'internal static class MountedMovementPersistenceRows')
  'CONTROLLER_APPLY_EFFECTS'=(Extract $controller 'private void ApplyAcceptanceEffects(FirstTickProposal p)')
  'PAIR_REMEMBER_INPUT'=(Extract $controls 'internal void RememberPairedMovementInput()')
  'PAIR_MOVEMENT_INPUT'=(ExtractExpression $controls 'private TurnController MovementInputContext(TurnController turn) =>')
@@ -174,7 +178,7 @@ $compile=@('/nologo','/langversion:7.3','/target:exe','/warn:0',('/out:'+$exe),$
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'SavedCombatData.cs'),(Join-Path $integration 'MountedMovementPersistence.cs'),$TemplatePath)+$domain|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

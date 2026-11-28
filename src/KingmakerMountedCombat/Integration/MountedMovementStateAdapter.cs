@@ -40,6 +40,20 @@ namespace KingmakerMountedCombat.Integration
                 Movement.MetresStepTravelled = Math.Max(0f, Movement.MetresStepTravelled - StepTickReserved + (float)Math.Sqrt(dx * dx + dz * dz));
             }
         }
+        // R11-F9 (round 12): the speed facts read once at the start of a movement tick (TickDelegated); every allowance read of that tick's
+        // decision and debit uses them, never a later read that could succeed or fail differently.
+        private UnitEntityData speedScopeActor;
+        private float speedScopePhysical, speedScopeNominal;
+        private void ReadSpeeds(UnitEntityData actor, out float physical, out float nominal)
+        {
+            if (actor != null && ReferenceEquals(actor, speedScopeActor)) { physical = speedScopePhysical; nominal = speedScopeNominal; return; }
+            physical = PhysicalSpeedOf(actor);
+            nominal = NominalSpeedOf(actor);
+        }
+        // The speeds a mode needs: the physical speed (MaxSpeed) always; the nominal speed (CurrentSpeedMps) only for a step's native counter.
+        private static bool SpeedsReadable(float physical, float nominal, bool step) => physical > 0f && (!step || nominal > 0f);
+        // The nominal speed handed to the step arithmetic: an ordinary Move never uses it, a step without it gets no allowance.
+        private static float NominalForMode(float physical, float nominal, bool step) => nominal > 0f ? nominal : step ? 0f : physical;
         private readonly Dictionary<UnitEntityData, Allocation> allocations = new Dictionary<UnitEntityData, Allocation>();
         // PR #70 R1-F6 (round 6): the pair's pending provisional replacement request (owned by that request, never by an allocation). It
         // applies only to a tick of the exact carrier the request installed; the request binds and releases it.
@@ -246,23 +260,37 @@ namespace KingmakerMountedCombat.Integration
             var physicalSpeed = PhysicalSpeedOf(mount);
             // R9-F3 (round 11): the installed step counter's unit (CurrentSpeedMps); the previous step tick's steered displacement settles first.
             var nominalSpeed = NominalSpeedOf(mount);
+            // R11-F9 (round 12): the speeds this tick's mode requires are validated here, before any decision, and the same facts price the
+            // decision's allowance reads and the debit (an ordinary Move does not need CurrentSpeedMps).
+            var stepMode = inputTurn.EnabledFiveFootStep;
+            var speedsReadable = SpeedsReadable(physicalSpeed, nominalSpeed, stepMode);
+            var nominalUsed = NominalForMode(physicalSpeed, nominalSpeed, stepMode);
             allocation.SettleStepTravel(mount.Position);
+            speedScopeActor = mount; speedScopePhysical = physicalSpeed; speedScopeNominal = nominalSpeed;
+            try
+            {
+            var gatedTick = false;
             var gate = FirstTickGate;
             if (gate != null && gate.Carrier != null && ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), gate.Carrier))
             {
-                var gateRemaining = allocation.Movement.Remaining(physicalSpeed > 0f ? physicalSpeed : 0f, nominalSpeed > 0f ? nominalSpeed : 0f, TurnController.MetersOfFiveFootStep,
+                var gateRemaining = allocation.Movement.Remaining(physicalSpeed > 0f ? physicalSpeed : 0f, nominalUsed, TurnController.MetersOfFiveFootStep,
                     Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                     mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
                 // Round 9 (R8-F6): the installed shift is MaxSpeed x the delta this hook returns (MountedAgentSteering), so distance is measured
                 // with the agent's own speed; unreadable speed gives NaN and the decision refuses any moving commit.
-                var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed;
+                var allowedMetres = speedsReadable ? Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed : float.NaN;
                 string gateDetail;
                 float grantedMetres;
                 var verdict = gate.Decide(inputTurn, allowedMetres, deltaTime, out grantedMetres, out gateDetail);
                 // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
                 // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
-                if (verdict == MountedFirstTickVerdict.Commit && grantedMetres < allowedMetres && physicalSpeed > 0f)
+                // R11-F5 (round 12): the duration the decision approved is the duration returned and debited, also inside native's NearTheEnd
+                // endpoint correction (which may not lengthen this approved tick; later ticks keep the native tolerance).
+                if (verdict == MountedFirstTickVerdict.Commit && physicalSpeed > 0f)
+                {
                     deltaTime = Math.Min(deltaTime, Math.Max(0f, grantedMetres) / physicalSpeed);
+                    gatedTick = true;
+                }
                 if (verdict != MountedFirstTickVerdict.Commit)
                 {
                     var tick = deltaTime;
@@ -271,7 +299,7 @@ namespace KingmakerMountedCombat.Integration
                         ";allowedMetres=" + allowedMetres.ToString("R") + ";" + gateDetail;
                 }
             }
-            if (!(physicalSpeed > 0f) || !(nominalSpeed > 0f))
+            if (!speedsReadable)
             {
                 var tick = deltaTime;
                 deltaTime = 0f;
@@ -288,10 +316,10 @@ namespace KingmakerMountedCombat.Integration
             var agent = mount.View.AgentASP;
             var forced = (bool)ForceModeField.GetValue(agent);
             var steppedBefore = allocation.Movement.MetresStepTravelled;
-            deltaTime = allocation.Movement.Advance(deltaTime, physicalSpeed, nominalSpeed,
+            deltaTime = allocation.Movement.Advance(deltaTime, physicalSpeed, nominalUsed,
                 TurnController.MetersOfFiveFootStep, used, standardUsed, mount.IsMoveActionRestricted(),
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
-                forced, agent.NearTheEnd,
+                forced, agent.NearTheEnd && !gatedTick,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue, out debit);
             // A forced line reaches here only as a charge, whose native shell paid for its caster and not for this mover.
             if (forced) debit = deltaTime;
@@ -321,7 +349,9 @@ namespace KingmakerMountedCombat.Integration
                 ";mountStepMetres=" + allocation.Movement.MetresStepped.ToString("R") +
                 ";mountStepTravelled=" + allocation.Movement.MetresStepTravelled.ToString("R") +
                 ";nativePrepared=" + allocation.Prepared + ";round=" + allocation.Round +
-                ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R");
+                ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R") + (gatedTick ? ";approvedTick=True" : "");
+            }
+            finally { speedScopeActor = null; }
         }
 
         // The agent's own speed (MaxSpeed), contained; NaN when unreadable.
@@ -356,11 +386,11 @@ namespace KingmakerMountedCombat.Integration
         {
             Allocation allocation;
             if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return 0f;
-            var speed = PhysicalSpeedOf(actor);
-            var nominal = NominalSpeedOf(actor);
-            if (!(speed > 0f) || !(nominal > 0f)) return float.NaN;
+            float speed, nominal;
+            ReadSpeeds(actor, out speed, out nominal);
+            if (!SpeedsReadable(speed, nominal, step)) return float.NaN;
             allocation.SettleStepTravel(actor.Position);
-            return allocation.Movement.Remaining(speed, nominal, TurnController.MetersOfFiveFootStep,
+            return allocation.Movement.Remaining(speed, NominalForMode(speed, nominal, step), TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) * speed;
         }
@@ -374,11 +404,11 @@ namespace KingmakerMountedCombat.Integration
             // Round 10 (R9-F3/R9-F4): physical metres for an ordinary Move (time x the agent's own speed). Round 11 (R9-F3): a step's remaining
             // time is bounded by the installed counter (nominal metres / CurrentSpeedMps) and by the physical travel left (metres / MaxSpeed), so
             // the product is the physical distance the mover may still travel within both limits.
-            var speed = PhysicalSpeedOf(actor);
-            var nominal = NominalSpeedOf(actor);
-            if (!(speed > 0f) || !(nominal > 0f)) return float.NaN;
+            float speed, nominal;
+            ReadSpeeds(actor, out speed, out nominal);
+            if (!SpeedsReadable(speed, nominal, step)) return float.NaN;
             allocation.SettleStepTravel(actor.Position);
-            return allocation.Movement.RemainingAcrossOrder(speed, nominal, TurnController.MetersOfFiveFootStep,
+            return allocation.Movement.RemainingAcrossOrder(speed, NominalForMode(speed, nominal, step), TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove,
                 SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * speed;
@@ -397,7 +427,13 @@ namespace KingmakerMountedCombat.Integration
         {
             Allocation allocation;
             if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return false;
-            return allocation.Movement.Remaining(actor.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+            // R11-F2 / R11-F9 (round 12): completed step travel is settled to its steered displacement before this availability check, and the
+            // speeds are the contained reads the mode needs (a step without a readable CurrentSpeedMps has no allowance; an ordinary Move is time).
+            float speed, nominal;
+            ReadSpeeds(actor, out speed, out nominal);
+            if (step && !SpeedsReadable(speed, nominal, true)) return false;
+            allocation.SettleStepTravel(actor.Position);
+            return allocation.Movement.Remaining(speed > 0f ? speed : 0f, NominalForMode(speed, nominal, step), TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) > 0f;
         }

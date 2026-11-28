@@ -427,37 +427,14 @@ namespace KingmakerMountedCombat.Integration
         internal PairedAttackClickProbe.Approach ApproachOf(UnitMoveTo carrier) =>
             carrier != null && ReferenceEquals(carrier, carrierApproachMove) ? carrierApproach : null;
 
-        // PR #70 R6-F7 (round 11): the exact carrier whose cleanup this command began and what of it is done (interruption, removal from the
-        // mount's Move slot, motion), independently of native Result/IsFinished.
-        private UnitMoveTo cleanupMove;
-        private bool cleanupInterrupted, cleanupSlotRemoved, cleanupMotionSettled;
-        internal UnitMoveTo CarrierCleanupMove => cleanupMove;
-        internal bool CarrierCleanupPending => cleanupMove != null && !(cleanupInterrupted && cleanupSlotRemoved && cleanupMotionSettled);
-        internal string CarrierCleanupState => cleanupMove == null ? "none" :
-            "interrupted=" + cleanupInterrupted + ",slotRemoved=" + cleanupSlotRemoved + ",motionSettled=" + cleanupMotionSettled;
-
-        private void SettleCarrierSlot(UnitMoveTo exactMove)
-        {
-            if (cleanupSlotRemoved) return;
-            var commands = mount.Commands;
-            if (commands != null && commands.Contains(exactMove) && exactMove.IsFinished) commands.RemoveFinishedAndUpdateQueue();
-            cleanupSlotRemoved = commands == null || !commands.Contains(exactMove);
-        }
-
-        // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced carrier's motion is stopped.
-        // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard approaching its
-        // target), including one the slot cleanup just promoted from the queue; such a successor keeps its movement. Once that steering passed
-        // to a successor, or the stop was issued, the motion obligation is settled.
-        private void SettleCarrierMotion(UnitMoveTo exactMove)
-        {
-            if (cleanupMotionSettled || !cleanupSlotRemoved) return;
-            var commands = mount.Commands;
-            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
-            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
-                SuccessorSteersMount(commands, exactMove);
-            if (!successorSteers) mount.View?.StopMoving();
-            cleanupMotionSettled = true;
-        }
+        // PR #70 R6-F7 (rounds 11-12): the exact carrier whose cleanup this command began and what of it is done (interruption, removal from the
+        // mount's Move slot, motion), independently of native Result/IsFinished. Round 12 (R11-F7): the record is its own object
+        // (MountedCarrierCleanup), so terminal settlement can retain the unfinished obligation without holding this wrapper.
+        private MountedCarrierCleanup cleanup;
+        internal MountedCarrierCleanup CarrierCleanupRecord => cleanup;
+        internal UnitMoveTo CarrierCleanupMove => cleanup?.Carrier;
+        internal bool CarrierCleanupPending => cleanup != null && cleanup.Pending;
+        internal string CarrierCleanupState => cleanup == null ? "none" : cleanup.State;
 
         // PR #70 R6-F7 (round 11): the one cleanup path for an exact carrier of this command, resumed by the controller's sweep after a fault in
         // any caller. A carrier whose cleanup this command never began is begun here (interrupted only while it still holds the Move slot);
@@ -465,17 +442,10 @@ namespace KingmakerMountedCombat.Integration
         internal bool SettleCarrierCleanup(UnitMoveTo carrier)
         {
             if (carrier == null || chargeMode) return true;
-            if (!ReferenceEquals(cleanupMove, carrier)) { cleanupMove = carrier; cleanupInterrupted = cleanupSlotRemoved = cleanupMotionSettled = false; }
-            if (!cleanupInterrupted)
-            {
-                var commands = mount.Commands;
-                if (!carrier.IsFinished && commands != null && ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), carrier)) carrier.Interrupt(false);
-                cleanupInterrupted = true;
-            }
-            SettleCarrierSlot(carrier);
-            SettleCarrierMotion(carrier);
-            if (ReferenceEquals(delegatedMove, carrier) && cleanupSlotRemoved && cleanupMotionSettled) delegatedMove = null;
-            return cleanupInterrupted && cleanupSlotRemoved && cleanupMotionSettled;
+            if (cleanup == null || !ReferenceEquals(cleanup.Carrier, carrier)) cleanup = new MountedCarrierCleanup(carrier, mount);
+            var settled = cleanup.Settle(this);
+            if (ReferenceEquals(delegatedMove, carrier) && settled) delegatedMove = null;
+            return settled;
         }
 
 
@@ -2122,20 +2092,7 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)
-        {
-            if (commands == null) return false;
-            foreach (var command in commands.Raw)
-            {
-                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, this) ||
-                    command is UnitMoveTo) continue;
-                bool close;
-                try { close = command.IsUnitEnoughClose; }
-                catch (Exception) { close = false; }
-                if (!command.IsStarted && !close) return true;
-            }
-            return false;
-        }
+        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove) => MountedCarrierCleanup.OtherCommandSteers(commands, exactMove, this);
 
         private void StopDelegatedMove(bool requireSuccess)
         {
@@ -2158,7 +2115,7 @@ namespace KingmakerMountedCombat.Integration
             // PR #70 R6-F7 (round 11): the exact carrier's cleanup progress is recorded on this command, whichever caller runs it (native
             // interruption's OnEnded, the order's own release, the controller's sweep), so a fault leaves the unfinished steps owned and a resume
             // (SettleCarrierCleanup) does only those, with the same successor checks.
-            if (!ReferenceEquals(cleanupMove, exactMove)) { cleanupMove = exactMove; cleanupInterrupted = cleanupSlotRemoved = cleanupMotionSettled = false; }
+            if (cleanup == null || !ReferenceEquals(cleanup.Carrier, exactMove)) cleanup = new MountedCarrierCleanup(exactMove, mount);
             var commands = mount.Commands;
             var rawMoveSlot = commands?.GetCommand(UnitCommand.CommandType.Move);
             var exactSlotOrStockRemoved = commands != null &&
@@ -2172,18 +2129,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 exactMove.Interrupt(false);
             }
-            cleanupInterrupted = true;
+            cleanup.Interrupted = true;
             if (requireSuccess && exactMove.Result != ResultType.Success)
             {
                 throw new InvalidOperationException(
                     "Exact delegated Mammoth move did not finish successfully before rider attack admission.");
             }
             delegatedMoveFinishedSuccessfully |= exactMove.Result == ResultType.Success;
-            SettleCarrierSlot(exactMove);
+            cleanup.SettleSlot();
             mountMoveSlotRestoredAfterApproach = commands != null &&
                 commands.GetCommand(UnitCommand.CommandType.Move) == null &&
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
-            SettleCarrierMotion(exactMove);
+            cleanup.SettleMotion(this);
             delegatedMove = null;
         }
 
@@ -2661,6 +2618,67 @@ namespace KingmakerMountedCombat.Integration
             var dx = first.x - second.x;
             var dz = first.z - second.z;
             return Mathf.Sqrt((dx * dx) + (dz * dz));
+        }
+    }
+
+    // PR #70 R6-F7 / R11-F7 (round 12): one exact carrier's cleanup obligations (interruption, removal from the mount's slots, motion), shared by the
+    // command that began it and, after that command's terminal, by the controller that retains the unfinished record. The successor rule is the
+    // normal release's: a live Move-slot successor, or an unstarted out-of-range command in another slot (a Standard approaching its target,
+    // including one the slot cleanup itself promoted from the queue), keeps its movement; otherwise the motion is stopped once.
+    internal sealed class MountedCarrierCleanup
+    {
+        internal readonly UnitMoveTo Carrier;
+        internal readonly UnitEntityData Mount;
+        internal bool Interrupted, SlotRemoved, MotionSettled;
+        internal MountedCarrierCleanup(UnitMoveTo carrier, UnitEntityData mount) { Carrier = carrier; Mount = mount; }
+        internal bool Pending => !(Interrupted && SlotRemoved && MotionSettled);
+        internal string State => "interrupted=" + Interrupted + ",slotRemoved=" + SlotRemoved + ",motionSettled=" + MotionSettled;
+
+        internal void SettleSlot()
+        {
+            if (SlotRemoved) return;
+            var commands = Mount?.Commands;
+            if (commands != null && commands.Contains(Carrier) && Carrier.IsFinished) commands.RemoveFinishedAndUpdateQueue();
+            SlotRemoved = commands == null || !commands.Contains(Carrier);
+        }
+
+        internal void SettleMotion(UnitCommand except)
+        {
+            if (MotionSettled || !SlotRemoved) return;
+            var commands = Mount?.Commands;
+            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
+            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, Carrier) || OtherCommandSteers(commands, Carrier, except);
+            if (!successorSteers) Mount?.View?.StopMoving();
+            MotionSettled = true;
+        }
+
+        // The unfinished steps only; interruption only while the exact carrier still holds the mount's Move slot. A fault propagates.
+        internal bool Settle(UnitCommand except)
+        {
+            if (!Interrupted)
+            {
+                var commands = Mount?.Commands;
+                if (!Carrier.IsFinished && commands != null && ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), Carrier)) Carrier.Interrupt(false);
+                Interrupted = true;
+            }
+            SettleSlot();
+            SettleMotion(except);
+            return !Pending;
+        }
+
+        internal static bool OtherCommandSteers(UnitCommands commands, UnitMoveTo exactMove, UnitCommand except)
+        {
+            if (commands == null) return false;
+            foreach (var command in commands.Raw)
+            {
+                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, except) ||
+                    command is UnitMoveTo) continue;
+                bool close;
+                try { close = command.IsUnitEnoughClose; }
+                catch (Exception) { close = false; }
+                if (!command.IsStarted && !close) return true;
+            }
+            return false;
         }
     }
 }

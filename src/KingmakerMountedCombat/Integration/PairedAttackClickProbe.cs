@@ -329,77 +329,170 @@ namespace KingmakerMountedCombat.Integration
             // the delta is the full allowance, shortened when the shift would pass that waypoint; native skips a (follow-precomputed, not last)
             // waypoint while its distance from the mount is below m_Speed x THAT delta, and then steers to the next one, whose own delta is
             // resolved the same way. The result is accepted only when it is consistent: every skipped waypoint is skipped at the final delta and
-            // the selected one is not.
-            var index = cursor;
-            Vector3 waypoint = agentPath[index];
-            Vector2 unit = default(Vector2), shift = default(Vector2), newDirection = default(Vector2);
-            float distance = 0f, delta = fullDelta, effectiveAngular = combatAngular;
-            bool onLast = false, stopsAtWaypoint = false;
-            for (;;)
+            // the selected one is not. Round 12 (R11-F4): when that stop does not admit the strike (or is inconsistent), the longer executable
+            // alternative is evaluated before refusing: the resolution starts at the next waypoint, so every waypoint before it must be skipped by
+            // native at the delta that alternative returns (checked), until the route's last point was tried.
+            string firstDetail = null;
+            var alternatives = 0;
+            for (var start = cursor; start < agentPath.Count; alternatives++)
             {
-                waypoint = agentPath[index];
-                onLast = index >= agentPath.Count - 1;
-                var toWaypoint = new Vector2(waypoint.x - origin.x, waypoint.z - origin.z);
-                distance = Length(toWaypoint);
-                if (!(distance > 1e-6f))
+                var index = start;
+                Vector3 waypoint = agentPath[index];
+                Vector2 unit = default(Vector2), shift = default(Vector2), newDirection = default(Vector2);
+                float distance = 0f, delta = fullDelta, effectiveAngular = combatAngular;
+                bool onLast = false, stopsAtWaypoint = false, moving = true;
+                for (;;)
                 {
-                    if (followPrecomputedPath && !onLast && currentAgentSpeed > 0f) { index++; continue; }
-                    result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")";
-                    return result;
-                }
-                unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
-                delta = fullDelta;
-                stopsAtWaypoint = false;
-                shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
-                if (Length(shift) > distance)
-                {
-                    stopsAtWaypoint = true;
-                    float low = 0f, high = fullDelta;
-                    for (var i = 0; i < 40; i++)
+                    waypoint = agentPath[index];
+                    onLast = index >= agentPath.Count - 1;
+                    var toWaypoint = new Vector2(waypoint.x - origin.x, waypoint.z - origin.z);
+                    distance = Length(toWaypoint);
+                    if (!(distance > 1e-6f))
                     {
-                        var mid = (low + high) * 0.5f;
-                        Vector2 ignored;
-                        if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
+                        if (followPrecomputedPath && !onLast && currentAgentSpeed > 0f) { index++; continue; }
+                        moving = false;
+                        break;
                     }
-                    delta = low;
+                    unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
+                    delta = fullDelta;
+                    stopsAtWaypoint = false;
                     shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
+                    if (Length(shift) > distance)
+                    {
+                        stopsAtWaypoint = true;
+                        float low = 0f, high = fullDelta;
+                        for (var i = 0; i < 40; i++)
+                        {
+                            var mid = (low + high) * 0.5f;
+                            Vector2 ignored;
+                            if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
+                        }
+                        delta = low;
+                        shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection, out effectiveAngular);
+                    }
+                    if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * delta) { index++; continue; }
+                    break;
                 }
-                if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * delta) { index++; continue; }
-                break;
-            }
-            for (var skipped = cursor; skipped < index; skipped++)
-            {
-                var gap = GeometryUtils.MechanicsDistance(new Vector3(agentPath[skipped].x, origin.y, agentPath[skipped].z), origin);
-                if (!(gap < currentAgentSpeed * delta))
+                string detail = null;
+                if (!moving) detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ";start=" + start + ")";
+                for (var skipped = cursor; detail == null && skipped < index; skipped++)
                 {
-                    result.Detail = "native-waypoint-unresolved(cursor=" + cursor + ";selected=" + index + ";skipped#" + skipped + "=" + gap.ToString("R") +
-                        ";agentSpeed=" + currentAgentSpeed.ToString("R") + ";delta=" + delta.ToString("R") + ")";
+                    var gap = GeometryUtils.MechanicsDistance(new Vector3(agentPath[skipped].x, origin.y, agentPath[skipped].z), origin);
+                    if (!(followPrecomputedPath && gap < currentAgentSpeed * delta))
+                        detail = "native-waypoint-unresolved(cursor=" + cursor + ";selected=" + index + ";skipped#" + skipped + "=" + gap.ToString("R") +
+                            ";agentSpeed=" + currentAgentSpeed.ToString("R") + ";delta=" + delta.ToString("R") + ")";
+                }
+                var admitted = false;
+                var stop = origin;
+                if (detail == null)
+                {
+                    stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
+                    // Installed TickMovement after the move: on the last segment, a waypoint passed (plane test against the previous point) or within
+                    // 0.05 m completes the movement in turn-based combat by moving the agent onto the path's end (Move(path.Last - position)).
+                    var previous = index > 0 ? agentPath[index - 1] : origin;
+                    var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
+                    var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
+                    if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
+                    var heading = new Vector3(newDirection.x, 0f, newDirection.y);
+                    admitted = Length(newDirection) > 1e-6f &&
+                        probe.EvaluateNativeAdmissionAtMountPosition(stop, heading) == MountedPairNativeAdmissionState.Admitted;
+                    var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
+                    detail = "first-tick(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
+                        distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
+                        ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
+                        ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (effectiveAngular * delta).ToString("R") +
+                        ";baseTurnCapacity=" + (combatAngular * delta).ToString("R") +
+                        ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");" + (stopsAtWaypoint ? (onLast ? "reaches-route-end" : "stops-at-waypoint") : "interior") +
+                        ";admitted=" + admitted + (alternatives > 0 ? ";alternative=" + alternatives + ";shorterRefused={" + firstDetail + "}" : "") + ")";
+                }
+                if (admitted)
+                {
+                    result.Detail = detail;
+                    result.Path = PathOutcome.Complete;
+                    result.Route = new List<Vector3> { origin, stop };
+                    result.RouteMetres = delta * speed;
+                    result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
                     return result;
                 }
+                if (firstDetail == null) firstDetail = detail;
+                if (onLast || index >= agentPath.Count - 1) break;
+                start = index + 1;
             }
-            var stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
-            // Installed TickMovement after the move: on the last segment, a waypoint passed (plane test against the previous point) or within
-            // 0.05 m completes the movement in turn-based combat by moving the agent onto the path's end (Move(path.Last - position)).
-            var previous = index > 0 ? agentPath[index - 1] : origin;
-            var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
-            var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
-            if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
-            var heading = new Vector3(newDirection.x, 0f, newDirection.y);
-            var admitted = Length(newDirection) > 1e-6f &&
-                probe.EvaluateNativeAdmissionAtMountPosition(stop, heading) == MountedPairNativeAdmissionState.Admitted;
-            var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
-            result.Detail = "first-tick(origin=" + origin + ";cursor=" + cursor + ";waypoint#" + index + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
-                distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
-                ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
-                ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (effectiveAngular * delta).ToString("R") +
-                ";baseTurnCapacity=" + (combatAngular * delta).ToString("R") +
-                ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");" + (stopsAtWaypoint ? (onLast ? "reaches-route-end" : "stops-at-waypoint") : "interior") +
-                ";admitted=" + admitted + ")";
-            if (!admitted) return result;
-            result.Path = PathOutcome.Complete;
-            result.Route = new List<Vector3> { origin, stop };
-            result.RouteMetres = delta * speed;
-            result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
+            result.Detail = firstDetail + (alternatives > 1 ? ";alternativesTried=" + (alternatives - 1) : "");
+            return result;
+        }
+
+        // PR #70 R10-F2 (round 12): the last ordinary debits of a short approach, executed with the installed TickMovement rule (the same rule as
+        // EvaluateFirstTickNative, without the restricted tick's shortening): ticks of frameDelta until totalTime is used (the last one shorter),
+        // each starting with the installed proximity completion (within the carrier's approach radius of the path's end) and the points the
+        // agent stands on passed, then the waypoint skip at m_Speed x that tick, the combat steering, the shift MaxSpeed x tick, and the
+        // passed-waypoint / last-segment arrival. The strike is judged at every tick boundary (where the order checks it); success only when a
+        // boundary admits it before the carrier completes, the path ends or the time is used. Route is [origin, admitting stop].
+        internal static Result EvaluateNativeTicks(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
+            float totalTime, float frameDelta, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath,
+            float approachRadius)
+        {
+            var result = new Result();
+            if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null || agentPath.Count == 0) { result.Detail = "unavailable"; return result; }
+            var probe = new MountedPairSingleAttack(target, rider, mount, true, false);
+            probe.Init(rider);
+            result.Plan = PlanIdentity.Of(probe);
+            result.PairRadius = probe.PairApproachRadius;
+            if (!(totalTime > 0f) || !(frameDelta > 0f) || !(speed > 0f)) { result.Detail = "native-ticks(no-movement)"; return result; }
+            var origin = mount.Position;
+            var position = origin;
+            var direction = moveDirection;
+            var index = Math.Max(0, cursor);
+            var agentSpeed = currentAgentSpeed;
+            var end = agentPath[agentPath.Count - 1];
+            var used = 0f;
+            var stops = new List<string>();
+            string outcome = "time-used";
+            for (var tick = 0; tick < 256; tick++)
+            {
+                var remaining = totalTime - used;
+                if (!(remaining > 0f)) { outcome = "time-used"; break; }
+                if (GeometryUtils.MechanicsDistance(position, end) <= approachRadius) { outcome = "carrier-completes-by-proximity"; break; }
+                while (index < agentPath.Count && GeometryUtils.MechanicsDistance(agentPath[index], position) <= WaypointPassedMetres) index++;
+                if (index >= agentPath.Count) { outcome = "path-consumed"; break; }
+                var dt = Math.Min(frameDelta, remaining);
+                var here = new Vector2(position.x, position.z);
+                Func<int, Vector2> point = i => new Vector2(agentPath[i].x, agentPath[i].z);
+                var distance = Length(new Vector2(point(index).x - here.x, point(index).y - here.y));
+                while (followPrecomputedPath && index < agentPath.Count - 1 && distance < agentSpeed * dt)
+                { index++; distance = Length(new Vector2(point(index).x - here.x, point(index).y - here.y)); }
+                var waypoint = point(index);
+                var onLast = index >= agentPath.Count - 1;
+                var unit = new Vector2((waypoint.x - here.x) / Math.Max(distance, 0.0001f), (waypoint.y - here.y) / Math.Max(distance, 0.0001f));
+                Vector2 newDirection;
+                var shift = NativeCombatShift(direction, unit, distance, onLast, speed, combatAngular, dt, out newDirection);
+                var moved = new Vector3(position.x + shift.x, position.y, position.z + shift.y);
+                direction = newDirection; agentSpeed = speed;
+                var previous = index > 0 ? point(index - 1) : here;
+                var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - moved.x) + (waypoint.y - previous.y) * (waypoint.y - moved.z) < 0f;
+                var completed = false;
+                if (onLast && (passed || Length(new Vector2(moved.x - waypoint.x, moved.z - waypoint.y)) < NativeLastSegmentArrivalMetres))
+                { moved = new Vector3(end.x, position.y, end.z); completed = true; }
+                else if (passed) index++;
+                used += dt;
+                position = moved;
+                var admitted = Length(direction) > 1e-6f &&
+                    probe.EvaluateNativeAdmissionAtMountPosition(position, new Vector3(direction.x, 0f, direction.y)) == MountedPairNativeAdmissionState.Admitted;
+                stops.Add("(" + position.x.ToString("0.#####") + "," + position.z.ToString("0.#####") + ")@" + used.ToString("0.#####") + (admitted ? "+" : "-"));
+                if (admitted)
+                {
+                    result.Detail = "native-ticks(frame=" + frameDelta.ToString("R") + ";time=" + totalTime.ToString("R") + ";stops=" + string.Join(" ", stops.ToArray()) +
+                        ";strikeAtTick=" + (tick + 1) + ";admitted=True)";
+                    result.Path = PathOutcome.Complete;
+                    result.Route = new List<Vector3> { origin, position };
+                    result.RouteMetres = used * speed;
+                    result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
+                    return result;
+                }
+                if (completed) { outcome = "route-end-blind"; break; }
+            }
+            result.Detail = "native-ticks(frame=" + frameDelta.ToString("R") + ";time=" + totalTime.ToString("R") + ";stops=" + string.Join(" ", stops.ToArray()) +
+                ";outcome=" + outcome + ";admitted=False)";
             return result;
         }
 
@@ -446,11 +539,44 @@ namespace KingmakerMountedCombat.Integration
             Func<Vector3, Vector3, Vector3, bool> admits = (point, from, to) =>
                 probe.EvaluateNativeAdmissionAtMountPosition(point, to - from) == MountedPairNativeAdmissionState.Admitted;
             var length = RouteLength(remaining);
-            var poseAdmitted = fromMetres <= 0d || GeometryUtils.SqrMechanicsDistance(position, centre) > arrivalRadius * arrivalRadius || admits(position, position, position);
-            var admitted = poseAdmitted && DiscAdmits(centre, arrivalRadius, destinationFrom, destinationTo, admits) &&
-                RouteInsideDiscAdmits(nativeRoute, destinationMetres, centre, arrivalRadius, admits, fromMetres);
+            // Round 12 (R11-F3): a mount displaced off the segment toward its cursor (farther than the mover's own passing distance) executes the
+            // LIVE connecting leg [position -> agent cursor point], not the planned segment: that leg is validated at the full radius with its own
+            // heading (its start being the current pose), the native route is kept from the cursor point on, and when the cursor point is the
+            // destination the arrival disc is judged under the live leg's heading. A mount on the planned segment keeps the planned samples.
+            var displaced = false;
+            if (cursor >= 0 && cursor < agentPath.Count)
+            {
+                if (cursor == 0) displaced = GeometryUtils.MechanicsDistance(position, nativeRoute[0]) > WaypointPassedMetres;
+                else if (cursor < nativeRoute.Count)
+                {
+                    var a = nativeRoute[cursor - 1]; var b = nativeRoute[cursor];
+                    double dx = b.x - a.x, dz = b.z - a.z;
+                    var lengthSqr = dx * dx + dz * dz;
+                    var t = lengthSqr > 0d ? Math.Max(0d, Math.Min(1d, ((position.x - a.x) * dx + (position.z - a.z) * dz) / lengthSqr)) : 0d;
+                    double px = a.x + dx * t - position.x, pz = a.z + dz * t - position.z;
+                    displaced = Math.Sqrt(px * px + pz * pz) > WaypointPassedMetres;
+                }
+            }
+            bool admitted;
+            if (displaced)
+            {
+                var liveEnd = agentPath[cursor];
+                var live = new List<Vector3> { position, liveEnd };
+                var restFrom = 0d;
+                for (var i = 1; i <= cursor && i < nativeRoute.Count; i++) restFrom += GeometryUtils.MechanicsDistance(nativeRoute[i - 1], nativeRoute[i]);
+                var destinationLeg = cursor >= agentPath.Count - 1;
+                admitted = DiscAdmits(centre, arrivalRadius, destinationLeg ? position : destinationFrom, destinationLeg ? liveEnd : destinationTo, admits) &&
+                    RouteInsideDiscAdmits(live, GeometryUtils.MechanicsDistance(position, liveEnd), centre, arrivalRadius, admits) &&
+                    RouteInsideDiscAdmits(nativeRoute, destinationMetres, centre, arrivalRadius, admits, Math.Max(restFrom, 1e-9d));
+            }
+            else
+            {
+                var poseAdmitted = fromMetres <= 0d || GeometryUtils.SqrMechanicsDistance(position, centre) > arrivalRadius * arrivalRadius || admits(position, position, position);
+                admitted = poseAdmitted && DiscAdmits(centre, arrivalRadius, destinationFrom, destinationTo, admits) &&
+                    RouteInsideDiscAdmits(nativeRoute, destinationMetres, centre, arrivalRadius, admits, fromMetres);
+            }
             result.Detail = "remaining-route(cursor=" + cursor + ";routeMetres=" + length.ToString("R") + ";end=" + centre + ";arrivalDisc=" + arrivalRadius.ToString("R") +
-                ";fromMetres=" + fromMetres.ToString("R") + ";destinationMetres=" + destinationMetres.ToString("R") + ";admitted=" + admitted + ")";
+                ";fromMetres=" + fromMetres.ToString("R") + ";destinationMetres=" + destinationMetres.ToString("R") + ";liveLeg=" + displaced + ";admitted=" + admitted + ")";
             if (!admitted) return result;
             result.Path = PathOutcome.Complete;
             result.Route = remaining;

@@ -1145,18 +1145,21 @@ namespace KingmakerMountedCombat.Integration
         // delegated move it issued (repath replacements included) are recognized by identity, so they never count as newer work.
         internal void ObserveAcceptedWork(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)
         {
-            if (disposed || command == null || container == null || relationship.State != RelationshipState.Mounted) return;
+            if (disposed || command == null || container == null) return;
+            // R9-F1 (round 10), R11-F8 (round 12): an installed command's actual manual-target write on either actor supersedes each committed
+            // request's outstanding operation on that exact actor (the same target included), also after the pair was unbound.
+            if (settlingProposals.Count > 0 && route != MountedAcceptedWorkRoute.Queue && !(command is MountedPairSingleAttack) && container.Contains(command) &&
+                command.MarkManualTarget && command.AiAction == null && command.TargetUnit != null)
+                foreach (var settling in settlingProposals)
+                {
+                    var settlingRider = settling.RiderToWrite ?? relationship.Rider;
+                    if (container == settlingRider?.Commands && ReferenceEquals(settlingRider.CombatState?.ManualTarget, command.TargetUnit)) settling.RiderAssignedAfterCommit = true;
+                    if (settling.MountToClear != null && container == settling.MountToClear.Commands && ReferenceEquals(settling.MountToClear.CombatState?.ManualTarget, command.TargetUnit))
+                        settling.MountAssignedAfterCommit = true;
+                }
+            if (relationship.State != RelationshipState.Mounted) return;
             // PR #70 R1-F6 (rounds 6-7): a pending provisional order's own command and carrier are not newer work against any order.
             if (IsPendingReplacementWork(command)) return;
-            // R9-F1 (round 10): an installed command's actual manual-target write on either actor supersedes a committed request's outstanding
-            // operation on that actor (the same target included).
-            var settling = settlingProposal;
-            if (settling != null && route != MountedAcceptedWorkRoute.Queue && !(command is MountedPairSingleAttack) && container.Contains(command) &&
-                command.MarkManualTarget && command.AiAction == null && command.TargetUnit != null)
-            {
-                if (container == relationship.Rider?.Commands && ReferenceEquals(relationship.Rider.CombatState?.ManualTarget, command.TargetUnit)) settling.RiderAssignedAfterCommit = true;
-                if (container == relationship.Mount?.Commands && ReferenceEquals(relationship.Mount.CombatState?.ManualTarget, command.TargetUnit)) settling.MountAssignedAfterCommit = true;
-            }
             if (PendingReplacement) ObserveWorkAgainstProvisional(container, command, route);
             if (!HasStockAttackIntent || !retainedOrder.IsCurrent(stockIntent.Generation)) return;
             var onRider = container == relationship.Rider?.Commands;
@@ -1267,9 +1270,12 @@ namespace KingmakerMountedCombat.Integration
             if (disposed || activeClick < 0 || combatState == null || target == null) return;
             if (relationship.Rider != null && ReferenceEquals(relationship.Rider.CombatState, combatState)) riderCommandedByClick = true;
             // R9-F1 (round 10): and of a committed request's outstanding operation on that actor.
-            var settlingClick = settlingProposal;
-            if (settlingClick != null && relationship.Rider != null && ReferenceEquals(relationship.Rider.CombatState, combatState)) settlingClick.RiderAssignedAfterCommit = true;
-            if (settlingClick != null && relationship.Mount != null && ReferenceEquals(relationship.Mount.CombatState, combatState)) settlingClick.MountAssignedAfterCommit = true;
+            foreach (var settlingClick in settlingProposals)
+            {
+                var settlingRider = settlingClick.RiderToWrite ?? relationship.Rider;
+                if (settlingRider != null && ReferenceEquals(settlingRider.CombatState, combatState)) settlingClick.RiderAssignedAfterCommit = true;
+                if (settlingClick.MountToClear != null && ReferenceEquals(settlingClick.MountToClear.CombatState, combatState)) settlingClick.MountAssignedAfterCommit = true;
+            }
             // PR #70 R6-F1 (round 8): a later click's actual assignment of the rider's target is the player's newer assignment.
             var pending = firstTickProposal;
             if (PendingReplacement && pending.ClickSerial != activeClick && relationship.Rider != null && ReferenceEquals(relationship.Rider.CombatState, combatState))
@@ -1340,6 +1346,9 @@ namespace KingmakerMountedCombat.Integration
             // restricted single move's one tick (the click then becomes a provisional request decided at its carrier's first tick).
             public float ArrivalRadius = float.NaN;
             public bool FirstTick;
+            // R10-F2 / R11-F10 (round 12): provisional because its ordinary allowance is short (not the restricted single tick): compatible
+            // mount work coexists with it as with an ordinary order.
+            public bool ShortOrdinary;
         }
 
         internal delegate float MountGrantReader(out bool step, out bool singleMove, out string reason);
@@ -1387,23 +1396,22 @@ namespace KingmakerMountedCombat.Integration
                 reason = "prediction-plan-mismatch";
             }
             LastAttackClickProbe = probe;
-            // PR #70 R10-F2 (round 11): an ordinary grant that ends within one tick at the current frame's delta (TimeController.DeltaTime, the
-            // delta the installed UnitMoveController passes to TickMovement) makes the carrier's first tick its decisive final one; the click then
-            // becomes a provisional request like the restricted tick's, so the previous order, manual target and Hold stay until that tick is
-            // decided with the installed steering rule.
-            var finalTickClick = false;
-            if (decision == PairedAttackClickAdmission.AdmitRoute && grantReason == "granted")
+            // PR #70 R10-F2 (rounds 11-12): an ordinary (time-limited) grant that could end within the approach's last two debits at ANY
+            // turn-based frame (ShortOrdinaryApproach: at most two of the installed maximum frame, independent of this click's frame) makes the
+            // click a provisional request like the restricted tick's: the previous order, manual target and Hold stay until the carrier's first
+            // debit decides the remaining debits with the installed steering rule.
+            var shortApproachClick = false;
+            if (decision == PairedAttackClickAdmission.AdmitRoute && grantReason == "granted" && !stepMode)
             {
-                var frameDelta = Game.Instance?.TimeController == null ? 0f : Game.Instance.TimeController.DeltaTime;
                 var speed = MountedMovementStateAdapter.PhysicalSpeedOf(mount);
-                finalTickClick = frameDelta > 0f && speed > 0f && granted <= frameDelta * speed;
+                shortApproachClick = speed > 0f && ShortOrdinaryApproach(granted, speed);
             }
             RememberValidatedClickProof(target, turn,
                 decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
                 decision == PairedAttackClickAdmission.AdmitInRange ? new List<Vector3>() : null,
                 probe?.Plan ?? default(PairedAttackClickProbe.PlanIdentity), probe?.ArrivalRadius ?? float.NaN,
-                decision == PairedAttackClickAdmission.AdmitRoute && (grantReason == "single-move-first-tick" || finalTickClick));
-            trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason + "; finalTickClick=" + finalTickClick +
+                decision == PairedAttackClickAdmission.AdmitRoute && (grantReason == "single-move-first-tick" || shortApproachClick), shortApproachClick);
+            trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason + "; shortApproachClick=" + shortApproachClick +
                 "; mountGrantedMetres=" + granted.ToString("R") + "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") +
                 "; diagnosticReachMetres=" + (probe?.DiagnosticReachMetres ?? float.NaN).ToString("R") + "; path=" + (probe?.Path.ToString() ?? "<not-run>") +
                 "; probe=" + (probe?.Detail ?? "<not-run>") + "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
@@ -1411,15 +1419,22 @@ namespace KingmakerMountedCombat.Integration
             return decision;
         }
 
+        // PR #70 R10-F2 (round 12): the installed turn-based frame bound. TimeController.Tick sets DeltaTime = Min(PlayerTimeScale x
+        // DebugTimeScale / 12, Unity's frame delta), and in turn-based combat clamps PlayerTimeScale to at most 3 (native contract): no
+        // turn-based movement tick exceeds 3/12 s at the shipped DebugTimeScale of 1.
+        internal const float NativeMaxTurnBasedFrameSeconds = 3f / 12f;
+        // An ordinary allowance that could end within the approach's last two debits at any frame.
+        internal static bool ShortOrdinaryApproach(float grantedMetres, float speed) => speed > 0f && grantedMetres <= 2f * NativeMaxTurnBasedFrameSeconds * speed;
+
         internal void RememberValidatedClickProof(UnitEntityData target, object turn, List<Vector3> route, PairedAttackClickProbe.PlanIdentity plan,
-            float arrivalRadius = float.NaN, bool firstTick = false)
+            float arrivalRadius = float.NaN, bool firstTick = false, bool shortOrdinary = false)
         {
             if (pendingClickProof != null) DiscardClickProof("replaced by a later click decision");
             if (route == null) return;
             pendingClickProof = new ClickProof
             {
                 Target = target, Turn = turn, Frame = Time.frameCount, Sequence = ++clickProofSequence, Route = new List<Vector3>(route), Plan = plan,
-                Dispatch = inPointerDispatch ? pointerDispatch : -1, ArrivalRadius = arrivalRadius, FirstTick = firstTick
+                Dispatch = inPointerDispatch ? pointerDispatch : -1, ArrivalRadius = arrivalRadius, FirstTick = firstTick, ShortOrdinary = shortOrdinary
             };
             LastClickProofDisposition = "pending:#" + pendingClickProof.Sequence;
         }
@@ -1529,8 +1544,9 @@ namespace KingmakerMountedCombat.Integration
             public string Superseded;
             // R6-F7 (round 9): the accepted order's deferred engine writes still to apply, and those that failed (retried by the sweep).
             public bool EffectRiderTarget, EffectMountTargetClear, EffectRiderHold, EffectMountHold;
-            // R10-F4 (round 11): the retired generation's mount target the outstanding clear belongs to (A's owned selection).
-            public UnitEntityData MountTargetToClear;
+            // R10-F4 (round 11): the retired generation's mount target the outstanding clear belongs to (A's owned selection); R11-F8 (round 12):
+            // and the exact mount and rider the deferred operations address, captured at the commit (never re-read from the relationship).
+            public UnitEntityData MountTargetToClear, MountToClear, RiderToWrite;
             // R9-F1 (round 10): an actual assignment of that actor's manual target observed after the commit supersedes its outstanding operation.
             public bool RiderAssignedAfterCommit, MountAssignedAfterCommit;
             // R6-F7 (round 10): the exact cleanup obligations of a refused request, tracked independently of native Result/IsFinished.
@@ -1544,9 +1560,46 @@ namespace KingmakerMountedCombat.Integration
         // R10-F3 (round 11): the committed request whose order has not yet started its first child (checked once, immediately before it starts).
         private FirstTickProposal firstChildEntitlement;
         internal int FirstChildEntitlementRefusalCount { get; private set; }
+        // R6-F7 (round 9), R11-F8 (round 12): committed requests whose deferred effects are still outstanding; the sweep retries each (B's own
+        // effects while B is current, the retired generation's mount-target clear on its exact mount until it completes or is superseded).
+        private void SettleOutstandingEffects()
+        {
+            for (var i = 0; i < settlingProposals.Count; i++)
+            {
+                var settling = settlingProposals[i];
+                try { ApplyAcceptanceEffects(settling); }
+                catch (Exception error) { TryLogException("Deferred acceptance effects retry failed; retained", error); continue; }
+                if (settling.OutstandingEffects.Count == 0) { settlingProposals.RemoveAt(i); i--; }
+            }
+        }
+
+        // R11-F7 (round 12): an accepted command whose exact carrier's cleanup was left unfinished at its terminal (a fault in OnEnded after native
+        // completion) keeps that obligation here until SettleCarrierCleanup reports every step settled (same slot and successor checks; the
+        // terminal itself was reported once by the command).
+        // The record (exact carrier and mount, the unfinished steps) is retained, never the finished wrapper.
+        private readonly List<MountedCarrierCleanup> retainedCarrierCleanups = new List<MountedCarrierCleanup>();
+        internal int RetainedCarrierCleanupCount => retainedCarrierCleanups.Count;
+        private void RetainCarrierCleanup(MountedPairAttackCommand command)
+        {
+            var record = command?.CarrierCleanupRecord;
+            if (record != null && record.Pending && !retainedCarrierCleanups.Contains(record)) retainedCarrierCleanups.Add(record);
+        }
+        private void SettleRetainedCarrierCleanups()
+        {
+            for (var i = 0; i < retainedCarrierCleanups.Count; i++)
+            {
+                var record = retainedCarrierCleanups[i];
+                bool settled;
+                try { settled = !record.Pending || record.Settle(null); }
+                catch (Exception error) { FirstTickCleanupFailureCount++; TryLogException("Accepted command's carrier cleanup retry failed; retained", error); continue; }
+                if (settled) { retainedCarrierCleanups.RemoveAt(i); i--; }
+            }
+        }
         // R6-F7 (round 9): a committed request whose deferred effects are still outstanding; the sweep retries them while its order is current.
-        private FirstTickProposal settlingProposal;
-        internal FirstTickProposal SettlingProposalForDiagnostics => settlingProposal;
+        // R11-F8 (round 12): every committed request with outstanding deferred effects (not one reference a later commit could overwrite).
+        private readonly List<FirstTickProposal> settlingProposals = new List<FirstTickProposal>();
+        internal FirstTickProposal SettlingProposalForDiagnostics => settlingProposals.Count == 0 ? null : settlingProposals[settlingProposals.Count - 1];
+        internal int SettlingProposalCount => settlingProposals.Count;
         internal int FirstTickCleanupFailureCount { get; private set; }
         private MountedPairAttackCommand evaluatingFirstTickCommand;
         internal FirstTickProposal FirstTickProposalForDiagnostics => firstTickProposal;
@@ -1594,7 +1647,7 @@ namespace KingmakerMountedCombat.Integration
             // R7-F5 (round 8): a pending door settlement owns the pair; installing the provisional order would cancel it before acceptance.
             else if (pendingDoorSettlement != null) refusal = "door-settlement-pending";
             else if (!rider.Commands.Empty) refusal = "rider-holds-live-work";
-            else if (MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
+            else if (proof.ShortOrdinary ? CompetingMountWork(null) != null : MountHoldsOtherWork(null)) refusal = "mount-holds-live-work";
             else if (proof.Route == null || proof.Route.Count < 2 || !(proof.ArrivalRadius > 0f)) refusal = "no-route";
             else if (ResolveRiderPrimaryAction() != MountedCombatActionKind.RiderMelee) refusal = "not-a-melee-order";
             if (refusal != null)
@@ -1709,7 +1762,7 @@ namespace KingmakerMountedCombat.Integration
                     p.Retired = true;
                     unifiedTurn.BindMountFirstTickGate(p, false);
                     if (ReferenceEquals(firstTickProposal, p)) firstTickProposal = null;
-                    if (p.OutstandingEffects.Count > 0) settlingProposal = p;
+                    if (p.OutstandingEffects.Count > 0 && !settlingProposals.Contains(p)) settlingProposals.Add(p);
                     // R10-F3 (round 11): the first child of this order still needs the rider's current entitlement when it starts.
                     firstChildEntitlement = p;
                     FirstTickCommitCount++;
@@ -1807,10 +1860,27 @@ namespace KingmakerMountedCombat.Integration
                 return "agent-cursor-inconsistent(" + cursor + ")";
             var speed = MountedAgentSteering.PhysicalSpeed(agent);
             if (!(speed > 0f) || !(allowedMetres >= 0f)) return "agent-speed-unreadable";
-            // Round 11 (R10-F2): an ordinary grant that this tick exhausts (the remaining allowance is at most this tick's travel) makes this tick the
-            // decisive final one: it is predicted with the installed steering and arrival rule like the restricted tick, never priced as route length
-            // against time x speed.
-            var finalTick = mode == "granted" && grant <= deltaTime * speed;
+            // Round 11-12 (R10-F2, R11-F2): an ORDINARY (time-limited) grant that this tick exhausts makes this tick the decisive final one: it is
+            // predicted with the installed steering and arrival rule like the restricted tick. A step is distance-limited: its tick reserves a
+            // physical upper bound and the step continues while both its settled travel and native counter allow, so it is never a final tick.
+            var ordinaryTime = mode == "granted" && !step;
+            var finalTick = ordinaryTime && grant <= deltaTime * speed;
+            // R10-F2 (round 12): a short ordinary allowance spanning more than this tick is decided across its remaining debits (the last two
+            // included) with the installed TickMovement rule at this tick's frame, before any debit.
+            if (ordinaryTime && !finalTick && ShortOrdinaryApproach(grant, speed))
+            {
+                Vector2 heading2; float angular2, agentSpeed2; bool follow2, force2, combat2;
+                if (!MountedAgentSteering.TryReadSteering(agent, out heading2, out angular2, out agentSpeed2, out follow2, out force2, out combat2))
+                    return "agent-steering-unreadable";
+                if (force2 || !combat2 || !(angular2 > 0f)) return "agent-steering-unsupported(force=" + force2 + ";combat=" + combat2 + ")";
+                var ticks = PairedAttackClickProbe.EvaluateNativeTicks(rider, mount, p.Target, agentPath, cursor, grant / speed, deltaTime, speed, heading2, angular2,
+                    agentSpeed2, follow2, carrier.ApproachRadius);
+                if (p.Command.ClickPlan.Valid && !ticks.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
+                if (!ticks.RouteProven) return "short-ordinary-no-affordable-strike-position(" + ticks.Detail + ";grant=" + grant.ToString("R") + ")";
+                granted = allowedMetres;
+                p.Detail = "short-ordinary:" + ticks.Detail + ";speed=" + speed.ToString("R") + ";grant=" + grant.ToString("R");
+                return null;
+            }
             if (mode == "single-move-first-tick" || finalTick)
             {
                 // R8-F6 (round 10): the installed combat steering rule at the delta that will be returned (PairedAttackClickProbe.EvaluateFirstTickNative).
@@ -1874,25 +1944,26 @@ namespace KingmakerMountedCombat.Integration
             var p = firstTickProposal;
             if (p == null || !ReferenceEquals(p.Command, command))
             {
-                // R10-F3 (round 11): an order whose movement gate committed keeps one current entitlement check for its first unreleased child
-                // (the rider can lose its Standard during the remaining approach); an already released strike keeps its native handling.
+                // R10-F3 (round 11), R11-F6 (round 12): every accepted click-bound rider order (this gate is attached from its dispatch) checks the
+                // rider's current entitlement immediately before its first child starts, whether a movement gate committed, a carrier was deferred
+                // behind older work, or no carrier was ever needed; StartChildAttack asks only before the first child, so an already released
+                // strike keeps its native handling.
+                if (command.ProvisionalOrder) return false;
                 var committed = firstChildEntitlement;
-                if (committed != null && ReferenceEquals(committed.Command, command))
+                if (committed != null && ReferenceEquals(committed.Command, command)) firstChildEntitlement = null;
+                bool entitled;
+                evaluatingFirstTickCommand = command;
+                try { entitled = RiderMeleeClickAdmitted(committed != null && ReferenceEquals(committed.Command, command) ? committed.Target : command.TargetUnit); }
+                catch (Exception error) { TryLogException("Turn-based first child entitlement check failed; the strike is refused", error); entitled = false; }
+                finally { evaluatingFirstTickCommand = null; }
+                if (!entitled)
                 {
-                    firstChildEntitlement = null;
-                    bool entitled;
-                    try { entitled = FirstTickRiderEntitled(committed); }
-                    catch (Exception error) { TryLogException("Turn-based first child entitlement check failed; the strike is refused", error); entitled = false; }
-                    if (!entitled)
-                    {
-                        FirstChildEntitlementRefusalCount++;
-                        LastFirstTickDecision = "refused-at-first-child:rider-not-entitled;generation=" + committed.CommittedGeneration;
-                        LastStockAttackObservation = "first-child-refused;rider-not-entitled";
-                        return false;
-                    }
-                    return !command.ProvisionalOrder;
+                    FirstChildEntitlementRefusalCount++;
+                    LastFirstTickDecision = "refused-at-first-child:rider-not-entitled;generation=" + (committed != null && ReferenceEquals(committed.Command, command) ? committed.CommittedGeneration : stockIntent.Generation);
+                    LastStockAttackObservation = "first-child-refused;rider-not-entitled";
+                    return false;
                 }
-                return !command.ProvisionalOrder;
+                return true;
             }
             if (p.State == MountedFirstTickProposalState.Committed) return true;
             if (p.State != MountedFirstTickProposalState.Pending) return false;
@@ -1958,12 +2029,8 @@ namespace KingmakerMountedCombat.Integration
         // still held); a committed request needs nothing (its order owns command and carrier). Idempotent: a retired request is never revived.
         internal void SweepFirstTickProposal()
         {
-            var settling = settlingProposal;
-            if (settling != null)
-            {
-                ApplyAcceptanceEffects(settling);
-                if (settling.OutstandingEffects.Count == 0) settlingProposal = null;
-            }
+            SettleOutstandingEffects();
+            SettleRetainedCarrierCleanups();
             var p = firstTickProposal;
             if (p == null) return;
             if (p.State == MountedFirstTickProposalState.Pending)
@@ -2380,7 +2447,7 @@ namespace KingmakerMountedCombat.Integration
         //    (MountedStateSnapshot); a failure before the new order owns its command and carrier restores it exactly (same generation, intent,
         //    ledger and ownership records) and the request is refused.
         // 3. Deferred effects (engine writes): the manual targets and both Holds. Each is applied once and contained; one that fails stays
-        //    outstanding on the request (settlingProposal) and is retried by the sweep while B is still the current order, so success is never
+        //    outstanding on the request (settlingProposals) and is retried by the sweep while B is still the current order, so success is never
         //    reported as complete before those writes finish.
         private bool CommitAcceptedProvisional(UnitEntityData principal, UnitEntityData target, TurnController turn, UnitEntityData rider, UnitEntityData mount,
             FirstTickProposal p)
@@ -2459,6 +2526,8 @@ namespace KingmakerMountedCombat.Integration
             p.EffectRiderTarget = !newerTarget;
             p.EffectMountTargetClear = mountTargetOwnedByRetiring;
             p.MountTargetToClear = mountTargetOwnedByRetiring ? mount.CombatState?.ManualTarget : null;
+            p.MountToClear = mount;
+            p.RiderToWrite = rider;
             p.EffectRiderHold = clearRiderHold;
             p.EffectMountHold = clearMountHold;
             if (newerTarget) riderSelection.Release();
@@ -2481,11 +2550,12 @@ namespace KingmakerMountedCombat.Integration
             // (A's owned selection, released at the transfer) stays owned until it succeeds or an actual newer assignment on the mount supersedes it,
             // also after B retires; it clears only that target.
             if (!current) p.EffectRiderTarget = p.EffectRiderHold = p.EffectMountHold = false;
-            if (p.EffectMountTargetClear && (p.MountAssignedAfterCommit || !ReferenceEquals(relationship.Mount?.CombatState?.ManualTarget, p.MountTargetToClear)))
+            var mountToClear = p.MountToClear ?? relationship.Mount;
+            if (p.EffectMountTargetClear && (p.MountAssignedAfterCommit || mountToClear?.CombatState == null || !ReferenceEquals(mountToClear.CombatState.ManualTarget, p.MountTargetToClear)))
                 p.EffectMountTargetClear = false;
             if (p.EffectMountTargetClear)
             {
-                try { if (relationship.Mount?.CombatState != null) relationship.Mount.CombatState.ManualTarget = null; p.EffectMountTargetClear = false; }
+                try { mountToClear.CombatState.ManualTarget = null; p.EffectMountTargetClear = false; }
                 catch (Exception error) { TryLogException("Retired order's mount target clear failed; retried", error); p.OutstandingEffects.Add("mount-target"); }
             }
             if (!current) return;
@@ -4098,6 +4168,8 @@ namespace KingmakerMountedCombat.Integration
             // Review of fa533e97 (R20): every step that can fail is contained, so ownership, the finished-command sweep,
             // the outcome and the order's retirement always settle, and the handler is applied once and completely.
             if (ReferenceEquals(chargeOwner?.Command, command)) TryContain("Charge ownership retirement at the terminal", () => chargeOwner.Ownership.Retire());
+            // R11-F7 (round 12): an exact carrier cleanup the command left unfinished at its end stays owned until it settles.
+            TryContain("Retained carrier cleanup at the terminal", () => RetainCarrierCleanup(command));
             TryContain("Paired scheduler terminal observation", () => pairedCommandScheduler.ObserveTerminal(
                 command,
                 outcome?.Result,
