@@ -930,6 +930,7 @@ namespace KingmakerMountedCombat.Integration
         internal string LastAttackClickDecision { get; private set; }
         /* PAIR_GRANT */
         /* PAIR_STEP_FINAL */
+        /* PAIR_STEP_BINDS */
         private TurnController pairedMovementInputContext;
         /* PAIR_REMEMBER_INPUT */
         /* PAIR_MOVEMENT_INPUT */
@@ -1344,6 +1345,7 @@ namespace Harness
             // PR #70 R1-F10: the paired participant whose ACTUAL PairedMountGrantedMetres the revalidation reads.
             public HarnessPairParticipant Participant;
             internal bool PairedMountStepCounterFinal(float tick) => Participant != null && Participant.PairedMountStepCounterFinal(tick);
+            internal bool PairedMountStepCounterBinds() => Participant != null && Participant.PairedMountStepCounterBinds();
             internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, TurnController movementInput = null)
             {
                 if (Participant != null) return Participant.PairedMountGrantedMetres(turn, out step, out singleMove, out reason, movementInput);
@@ -5723,9 +5725,10 @@ namespace Harness
             Math.Abs(r.Displacement - ParseFloat(Field(r.Decision, "travel"))) < 1e-4f && r.StopAfterDecision == Field(r.Decision, "stop")) &&
             c.Combat.FirstTickProposalForDiagnostics == null && c.Pair.movementState.FirstTickGate == null;
 
-        private static bool RefusedKeptPrior(Connected c, Run7 r, string reason, bool standardChangedByCase = false) =>
-            r.PendingOk && r.Decision.StartsWith("refused:" + reason) && r.Displacement < 1e-6f && r.AfterDecision.MountMove == r.Before.MountMove &&
-            r.AtStrike.MountMove == r.Before.MountMove && (standardChangedByCase || r.AtStrike.RiderStandard == r.Before.RiderStandard) && r.Starts == 0 &&
+        // expectedMove: the mount's Move when a case itself set it after binding (R12-F3 short grant); otherwise the value before the click.
+        private static bool RefusedKeptPrior(Connected c, Run7 r, string reason, bool standardChangedByCase = false, float? expectedMove = null) =>
+            r.PendingOk && r.Decision.StartsWith("refused:" + reason) && r.Displacement < 1e-6f && r.AfterDecision.MountMove == (expectedMove ?? r.Before.MountMove) &&
+            r.AtStrike.MountMove == (expectedMove ?? r.Before.MountMove) && (standardChangedByCase || r.AtStrike.RiderStandard == r.Before.RiderStandard) && r.Starts == 0 &&
             r.GenAtDecision == r.GenBefore && ReferenceEquals(r.IntentAtDecision, r.IntentBefore) && ReferenceEquals(r.TargetAtDecision, r.TargetBefore) && r.HoldAtDecision == r.HoldBefore &&
             r.Order != null && r.Order.IsFinished && (r.Carrier == null || r.Carrier.IsFinished) && LiveMountCarrier(c) == null && c.Combat.Active == null &&
             (c.World.Rider.Commands.Standard == null || c.World.Rider.Commands.Standard.IsFinished && ReferenceEquals(c.World.Rider.Commands.Standard, r.Order)) &&
@@ -6468,6 +6471,8 @@ namespace Harness
             // R8-F1 (round 11): first-debit revalidation with the FULL native arrival radius on a carrier whose ApproachPoint is the bent route's end.
             // The incoming leg passes 49.9 mm from that end (a 6.3 mm chord inside the 50 mm disc) and sight on that chord closes after binding,
             // while every final-heading disc sample stays admissible; the 50.1 mm leg never enters the disc.
+            // Round 14 (R12-F3): run with the long grant (27 m) and with a short ordinary grant (1.8 m over the 1.0534 m route) at the first debit.
+            foreach (var grantKase in new[] { "27 m grant", "1.8 m ordinary grant" })
             foreach (var kase in new[] { "49.9 mm, chord blind after binding", "49.9 mm, chord visible (control)", "50.1 mm, same blind spot (control)" })
             {
                 var grazing = kase.StartsWith("49.9") ? 0.0499f : 0.0501f;
@@ -6493,15 +6498,16 @@ namespace Harness
                         clearance = Math.Min(clearance, Kingmaker.Utility.GeometryUtils.MechanicsDistance(q, sample));
                     }
                 var qInDisc = Kingmaker.Utility.GeometryUtils.MechanicsDistance(q, end) < 0.05f;
-                var r = RunProvisional(c, w.Target, null, () => { w.Horse.MoveRestricted = false; chordClosed = closed; }, 40);
+                var r = RunProvisional(c, w.Target, null, () => { w.Horse.MoveRestricted = false; if (grantKase.StartsWith("1.8")) w.Horse.CombatState.Cooldown.MoveAction = 3f - 0.2f; chordClosed = closed; }, 40);
                 var approachPoint = r.Carrier == null ? "none" : r.Carrier.ApproachPoint.ToString();
                 var bound = r.Carrier != null && r.Carrier.ForcedPath.vectorPath.Count == 3 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(r.Carrier.ApproachPoint, end) < 1e-5f &&
                     Math.Abs(r.Carrier.ApproachRadius - 0.05f) < 1e-6f;
                 var ok = bound && clearance > block && block > PairedAttackClickProbe.InDiscSampleMetres && qInDisc == kase.StartsWith("49.9") &&
                     (kase.StartsWith("49.9 mm, chord blind")
-                        ? RefusedKeptPrior(c, r, "route-arrival-not-admitted") && r.Decision.Contains("arrivalDisc=0.05;")
+                        ? RefusedKeptPrior(c, r, "route-arrival-not-admitted", false, grantKase.StartsWith("1.8") ? (float?)(3f - 0.2f) : null) && r.Decision.Contains("arrivalDisc=0.05;")
                         : r.Decision.StartsWith("committed:replacement:ordinary-movement") && r.Order.StruckTargets.Count == 1);
-                Check(ok, "R8-F1 (round 11) " + kase + ": carrier ApproachPoint " + approachPoint + " (bent route end " + end + ", radius " + (r.Carrier == null ? float.NaN : r.Carrier.ApproachRadius).ToString("R") +
+                ok &= grantKase.StartsWith("27") || r.Decision.StartsWith("refused:route-arrival-not-admitted") || r.Decision.Contains(";grant=1.");
+                Check(ok, "R8-F1 (round 11) / R12-F3 (round 14) " + grantKase + " (provisional request: the prior order is owned until the decision), " + kase + ": carrier ApproachPoint " + approachPoint + " (bent route end " + end + ", radius " + (r.Carrier == null ? float.NaN : r.Carrier.ApproachRadius).ToString("R") +
                     "), blind spot " + q + " radius " + block.ToString("0.####") + " m (inside the disc " + qInDisc + ", clearance from every final-heading disc sample " + clearance.ToString("0.####") +
                     " m); " + r.Decision + "; displacement after the tick " + r.Displacement.ToString("0.####") + " m, mount Move " + r.AfterDecision.MountMove.ToString("0.####") + " s; strikes " +
                     (r.Order == null ? 0 : r.Order.StruckTargets.Count) + "; prior " + Name(r.TargetAtDecision) + ", horse Hold " + r.HoldAtDecision);
@@ -7305,7 +7311,8 @@ namespace Harness
                 };
                 var stored = SavedStepTravel.Detach(new[] { row });
                 var read = new SavedMovementAllocation { ActorId = row.ActorId, Movement = row.Movement };
-                SavedStepTravel.Attach(stored, new[] { read });
+                if (historical) SavedStepTravel.MigrateSingleValue(new[] { read });   // R13-F1: explicit historical migration
+                else SavedStepTravel.Attach(stored, new[] { read });
                 read.Movement.Validate();
                 var restored = MountedMovementPersistenceRows.Restore(read.Movement, read.StepTravelled);
                 c.Pair.movementState.RestoreMovementForHarness(w.Horse, restored);
@@ -7314,7 +7321,7 @@ namespace Harness
                 bool ok; string detail;
                 if (historical)
                 {
-                    ok = fields == 7 && stored.Length == 0 && !read.StepTravelled.HasValue && restored.MetresStepped == 1.25f && restored.MetresStepTravelled == 1.25f && Math.Abs(after - 0.274f) < 1e-3f;
+                    ok = fields == 7 && stored.Length == 0 && read.StepTravelled == 1.25f && restored.MetresStepped == 1.25f && restored.MetresStepTravelled == 1.25f && Math.Abs(after - 0.274f) < 1e-3f;
                     detail = "no step travel row; restored native counter " + restored.MetresStepped + " m and physical travel " + restored.MetresStepTravelled + " m; grant " + after.ToString("0.####") + " m";
                 }
                 else
@@ -7452,6 +7459,7 @@ namespace Harness
                 var w = c.World;
                 c.Pair.movementState.SetStepLedger(w.Horse, 1.524f - 0.140625f, 1.524f - 0.140625f);
                 var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse); var physicalBefore = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
+                var gBefore = c.Combat.Generation; var riderHoldBefore = w.Rider.HoldState; var horseHoldBefore = w.Horse.HoldState;
                 var click = ClickTick(c, w.Target);
                 var line = LastLine(c);
                 var order = click.Order;
@@ -7466,17 +7474,21 @@ namespace Harness
                 for (var i = 0; i < 12 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
                 var displacement = Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, stop);
                 var strikes = order == null ? 0 : order.StruckTargets.Count;
-                bool ok = click.Admitted && order != null;
+                // Round 14 (R12-F1): the click is a provisional request (finalStepPossible): its replacement effects wait for the before-debit decision.
+                bool ok = click.Admitted && order != null && Field(line, "finalStepPossible") == "True";
                 if (heading == "aligned")
-                    ok &= decision.StartsWith("committed:order:final-step-counter:") && strikes == 1 && nativeAtDecision <= 1.524f + 1e-4f && nativeAtDecision > nativeBefore;
+                    ok &= decision.StartsWith("committed:replacement:final-step-counter:") && strikes == 1 && nativeAtDecision <= 1.524f + 1e-4f && nativeAtDecision > nativeBefore &&
+                        c.Combat.Generation != gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, w.Target);
                 else
                     ok &= decision.StartsWith("refused:final-step-counter-no-affordable-strike-position") && displacement < 1e-6f && nativeAtDecision == nativeBefore && physicalAtDecision == physicalBefore &&
-                        strikes == 0 && order.IsFinished && LiveMountCarrier(c) == null;
-                Check(ok, "R12-F1 (round 13) equal-speed final-counter step, " + heading + ": click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, route " + Field(line, "routeMetres") +
+                        strikes == 0 && order.IsFinished && LiveMountCarrier(c) == null && c.Combat.Generation == gBefore && ReferenceEquals(w.Rider.CombatState.ManualTarget, a) &&
+                        w.Rider.HoldState == riderHoldBefore && w.Horse.HoldState == horseHoldBefore;
+                Check(ok, "R12-F1 (round 14) equal-speed final-counter step, " + heading + ": click " + click.Decision + " (grant " + Field(line, "mountGrantedMetres") + " m, route " + Field(line, "routeMetres") +
                     " m); first debit " + decision.Substring(0, Math.Min(150, decision.Length)) + "; native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAtDecision.ToString("0.######") +
                     " m, physical travel " + physicalBefore.ToString("0.######") + " -> " + physicalAtDecision.ToString("0.######") + " m (settled " + c.Pair.movementState.AllocationMetresStepTravelled(w.Horse).ToString("0.######") +
                     " m); displacement at the decision " + displacement.ToString("0.#####") + " m, stop (" + stop.x.ToString("0.#####") + "," + stop.z.ToString("0.#####") + "); attack disposition " +
-                    (strikes == 1 ? "strike" : "no strike, order ended " + order.IsFinished) + "; target " + Name(w.Rider.CombatState.ManualTarget));
+                    (strikes == 1 ? "strike" : "no strike, order ended " + order.IsFinished) + "; generation " + gBefore + " -> " + c.Combat.Generation + "; target " + Name(w.Rider.CombatState.ManualTarget) +
+                    " (prior " + Name(a) + "); rider Hold " + riderHoldBefore + " -> " + w.Rider.HoldState + ", horse Hold " + horseHoldBefore + " -> " + w.Horse.HoldState);
             }
 
             // R11-F8 (round 13): assignment observation outlives pair custody. A's deferred mount-target clear fails during B's commit; the pair then
@@ -7658,6 +7670,41 @@ namespace Harness
                 }
             }
 
+            // ===== round 14 =====
+            // R12-F2 (round 14): a larger ordinary grant keeps an executable shortened strike. Same frame (1/60 s), perpendicular heading, 0.085 m
+            // endpoint, sight from x >= 0.035 and z <= 0.065: 5/512 s (single final tick) and 1/60 s + 0.001 s (ordinary branch, whose full tick
+            // would stop blind near (0.075, 0.075)): each returns the shortened duration, stops at the visible point and strikes once.
+            foreach (var kase in new[] { "5/512 s allowance", "1/60 s + 0.001 s allowance" })
+            {
+                var c = FirstTickPair(0.035f, 1f / 60f, false, false, false, true);
+                var w = c.World;
+                LineOfSightGeometry.Instance.Blocked = (from, to) => from.x < 0.035f || from.z > 0.065f;
+                w.Horse.CombatState.Cooldown.MoveAction = 3f - (kase.StartsWith("5/512") ? 5f / 512f : 1f / 60f + 0.001f);
+                var a = PriorSelectionAndHold(c);
+                var r = ShortOrdinaryRun(c, a, () => w.Horse.View.AgentASP.MoveDirection = new UnityEngine.Vector2(0f, 1f));
+                var returned = r.MoveAfterDecision - r.MoveBefore;
+                var ok = r.Pending && r.Strikes == 1 && returned < 1f / 60f - 1e-4f && r.Stop.x >= 0.035f && r.Stop.z <= 0.065f &&
+                    (kase.StartsWith("5/512") ? r.Decision.StartsWith("committed:order:final-ordinary-tick:") : r.Decision.StartsWith("committed:order:ordinary-movement-shortened-strike("));
+                Check(ok, "R12-F2 (round 14) " + kase + ", perpendicular: first debit " + r.Decision.Substring(0, Math.Min(60, r.Decision.Length)) + "...; returned and debited " + returned.ToString("0.######") +
+                    " s (frame 1/60 s); stop (" + r.Stop.x.ToString("0.#####") + "," + r.Stop.z.ToString("0.#####") + "); mount Move " + r.MoveBefore.ToString("0.#####") + " -> " + r.MoveFinal.ToString("0.#####") + " s; strikes " + r.Strikes);
+            }
+
+            // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
+            // (0.0439 m of physical travel left at 18 m/s: a 1/60 s request is cut to 0.0439/18 s, not the 0.30 m frame); the ordinary control keeps
+            // the full requested tick (native's borrowed time). Domain arithmetic (MountedMovementState.Advance, the debit the adapter applies).
+            {
+                var stepState = new MountedMovementState { MetresStepped = 0.7f, MetresStepTravelled = 1.524f - 0.0439f, TimeStepped = 0.1f, TimeMoved = 0.1f };
+                float stepDebit;
+                var stepAllowed = stepState.Advance(1f / 60f, 18f, 9f, 1.524f, 0f, false, false, true, false, false, true, false, out stepDebit);
+                var ordinary = new MountedMovementState { TimeMoved = 2.99f };
+                float ordinaryDebit;
+                var ordinaryAllowed = ordinary.Advance(1f / 60f, 9f, 9f, 1.524f, 2.99f, false, false, false, false, false, true, false, out ordinaryDebit);
+                var ok = Math.Abs(stepAllowed - 0.0439f / 18f) < 1e-6f && stepState.MetresStepTravelled <= 1.524f + 1e-5f && stepState.MetresStepped <= 1.524f &&
+                    Math.Abs(ordinaryAllowed - 1f / 60f) < 1e-7f && Math.Abs(ordinaryDebit - 1f / 60f) < 1e-7f;
+                Check(ok, "R13-F5 (round 14) NearTheEnd: step tick returned " + stepAllowed.ToString("0.#######") + " s (physical remainder 0.0439 m at 18 m/s), physical travel " + stepState.MetresStepTravelled.ToString("0.#####") +
+                    " m, native counter " + stepState.MetresStepped.ToString("0.#####") + " m; ordinary borrowed-time control returned " + ordinaryAllowed.ToString("0.#####") + " s with 0.01 s left (debit " + ordinaryDebit.ToString("0.#####") + " s)");
+            }
+
             // (8e) a refused request keeps refusing every carrier its command issues before the sweep settles it: native's denial branch ends the
             // zeroed carrier, the provisional order replans in the same frame, and that replan carrier is decided (refused), never moved ungated.
             {
@@ -7697,10 +7744,13 @@ namespace Harness
                 var order = click.Order;
                 for (var i = 0; i < 16 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
                 // Round 8 (R7-F1): the ordinary order's carrier is decided at its first tick in the mode then in force (an ordinary grant here).
-                Check(click.Admitted && order != null && !order.ProvisionalOrder && c.Combat.LastFirstTickProposal != null && !c.Combat.LastFirstTickProposal.Replacement &&
-                    c.Combat.LastFirstTickDecision.StartsWith("committed:order:ordinary-movement") && Field(line, "mountGrant") == "granted" &&
-                    order.StruckTargets.Count == 1,
-                    "R1-F6 (round 7) control, " + kase + ": an ordinary order (step=" + Field(line, "mountStepMode") + ", single=" + Field(line, "mountSingleMove") + ", grant " +
+                // Round 14 (R12-F1, changed expectation for the step control): an equal-speed step's native counter binds, so a debit of it can be
+                // final; its click is a provisional request whose replacement commits at the before-debit decision. The other controls are unchanged.
+                var stepCase = kase == "five-foot step";
+                Check(click.Admitted && order != null && !order.ProvisionalOrder && c.Combat.LastFirstTickProposal != null && c.Combat.LastFirstTickProposal.Replacement == stepCase &&
+                    c.Combat.LastFirstTickDecision.StartsWith(stepCase ? "committed:replacement:ordinary-movement" : "committed:order:ordinary-movement") && Field(line, "mountGrant") == "granted" &&
+                    Field(line, "finalStepPossible") == (stepCase ? "True" : "False") && order.StruckTargets.Count == 1,
+                    "R1-F6 (round 7; step expectation round 14) control, " + kase + ": " + (stepCase ? "a provisional step request committed at its first debit" : "an ordinary order") + " (step=" + Field(line, "mountStepMode") + ", single=" + Field(line, "mountSingleMove") + ", grant " +
                     Field(line, "mountGrantedMetres") + " m), no provisional order, one strike through the connected frames [" + c.Combat.LastFirstTickDecision + "; order " +
                     (order == null ? "-" : order.IsFinished + "/" + order.EndCause + "(" + order.EndCauseDetail + ")") + "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + "]; mount Move " +
                     c.World.Horse.CombatState.Cooldown.MoveAction.ToString("0.####") + " s");

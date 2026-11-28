@@ -1163,7 +1163,9 @@ namespace KingmakerMountedCombat.Integration
         {
             if (disposed || container == null) return false;
             foreach (var settling in settlingProposals)
-                if (settling.OutstandingEffects.Count > 0 && (settling.RiderToWrite != null && container == settling.RiderToWrite.Commands ||
+                // R11-F8 (round 14): the retained request itself is the outstanding operation (ApplyAcceptanceEffects may have emptied its list
+                // before a read that threw; the sweep keeps it until a retry completes), so observation follows retention, not the list.
+                if ((settling.RiderToWrite != null && container == settling.RiderToWrite.Commands ||
                     settling.MountToClear != null && container == settling.MountToClear.Commands)) return true;
             return false;
         }
@@ -1413,15 +1415,17 @@ namespace KingmakerMountedCombat.Integration
                 reason = "prediction-plan-mismatch";
             }
             LastAttackClickProbe = probe;
-            // PR #70 round 13 (owner amendment 2026-11-27g section 3-4): an ordinary or step click whose route the grant covers is admitted like
-            // native's own (IgnoreClick's movement-limited visualized path; no forecast of later frames): it is an accepted order. Only the
-            // restricted single-action tick, whose one allowance is the imminent frame's, stays a provisional request decided before its debit.
+            // PR #70 round 13 (owner amendment 2026-11-27g section 3-4): an ordinary click whose route the grant covers is admitted like native's
+            // own (IgnoreClick's movement-limited visualized path; no forecast of later frames): it is an accepted order. The restricted
+            // single-action tick stays a provisional request decided before its debit, and (R12-F1, round 14) so does a step whose native counter
+            // binds the step (its debit can be final): its replacement effects wait for that debit's own decision.
+            var finalStepPossible = decision == PairedAttackClickAdmission.AdmitRoute && stepMode && grantReason == "granted" && unifiedTurn.PairedMountStepCounterBinds();
             RememberValidatedClickProof(target, turn,
                 decision == PairedAttackClickAdmission.AdmitRoute ? probe.Route :
                 decision == PairedAttackClickAdmission.AdmitInRange ? new List<Vector3>() : null,
                 probe?.Plan ?? default(PairedAttackClickProbe.PlanIdentity), probe?.ArrivalRadius ?? float.NaN,
-                decision == PairedAttackClickAdmission.AdmitRoute && grantReason == "single-move-first-tick");
-            trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason +
+                decision == PairedAttackClickAdmission.AdmitRoute && (grantReason == "single-move-first-tick" || finalStepPossible));
+            trace = "mountStepMode=" + stepMode + "; mountSingleMove=" + singleMove + "; mountGrant=" + grantReason + "; finalStepPossible=" + finalStepPossible +
                 "; mountGrantedMetres=" + granted.ToString("R") + "; routeMetres=" + (probe?.RouteMetres ?? float.NaN).ToString("R") +
                 "; diagnosticReachMetres=" + (probe?.DiagnosticReachMetres ?? float.NaN).ToString("R") + "; path=" + (probe?.Path.ToString() ?? "<not-run>") +
                 "; probe=" + (probe?.Detail ?? "<not-run>") + "; pairRadius=" + (probe?.PairRadius ?? float.NaN).ToString("R") +
@@ -1922,6 +1926,20 @@ namespace KingmakerMountedCombat.Integration
             if (!route.RouteProven) return "route-arrival-not-admitted(" + route.Detail + ")";
             if (!PairedAttackClickAdmissionPolicy.RouteWithinGrant(true, route.RouteMetres, physicalGrant))
                 return "route-beyond-current-grant(routeMetres=" + route.RouteMetres.ToString("R") + ";grant=" + physicalGrant.ToString("R") + ")";
+            // R12-F2 (round 14): when a shortened stop within THIS tick (the installed steering at the returned delta, as for the single tick)
+            // already admits the strike, that executable stop is carried through the debit (the tick is shortened to it); otherwise the lawful
+            // ordinary route proceeds with the full tick under the amended admission rule.
+            Vector2 headingS; float angularS, agentSpeedS; bool followS, forceS, combatS;
+            if (MountedAgentSteering.TryReadSteering(agent, out headingS, out angularS, out agentSpeedS, out followS, out forceS, out combatS) && !forceS && combatS && angularS > 0f)
+            {
+                var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedMetres, speed, headingS, angularS, agentSpeedS, followS);
+                if (shortened.RouteProven && (!p.Command.ClickPlan.Valid || shortened.Plan.Matches(p.Command.ClickPlan)))
+                {
+                    granted = shortened.RouteMetres;
+                    p.Detail = "ordinary-movement-shortened-strike(" + shortened.Detail + ";route=" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
+                    return null;
+                }
+            }
             granted = allowedMetres;
             p.Detail = "ordinary-movement(" + route.Detail + ";grant=" + physicalGrant.ToString("R") + ")";
             return null;

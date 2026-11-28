@@ -114,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveCombatCold()
         {
             saved = persistence.LoadedArchive;
-            Require(saved?.SchemaVersion == 3 && saved.Combat != null && saved.Combat.TurnBased == TurnBasedCase &&
+            Require(saved?.SchemaVersion == MountedArchiveData.Schema && saved.Combat != null && saved.Combat.TurnBased == TurnBasedCase &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && !persistence.CombatRestorationPending,
                 "Complete native combat graph was not restored: " + persistence.Feedback);
             if (NativeArchiveRestorationProbe.IsDebtDiagnosticRequest(request))

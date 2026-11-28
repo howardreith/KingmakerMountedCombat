@@ -47,7 +47,8 @@ namespace KingmakerMountedCombat.Domain
             var remaining = Remaining(speed, nominalSpeed, stepRange, moveUsed, standardUsed, moveRestricted, step, singleMove);
             // Native NearTheEnd permits its final small endpoint correction. It
             // never authorizes another request after the allowance is exhausted.
-            var allowed = remaining <= 0f ? 0f : nearEnd ? requested : Math.Min(requested, remaining);
+            // PR #70 R13-F5 (round 14): ordinary movement only; a step tick stays within both step limits (native counter and physical travel).
+            var allowed = remaining <= 0f ? 0f : nearEnd && !step ? requested : Math.Min(requested, remaining);
             if (AutoStopPending)
             {
                 AutoStopPending = false;

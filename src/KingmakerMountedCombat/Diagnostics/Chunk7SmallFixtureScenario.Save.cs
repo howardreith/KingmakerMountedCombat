@@ -87,7 +87,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     authority.ValidateArchiveIdentity(Target(value), authority.Root) == null),
                 "F09 final isolated inventory must retain its original seed and only the genuine Manual output.");
             var read = NativeMountedSaveStorage.ReadArchive(written.Saver); var archive = read.Data;
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && archive != null,
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && archive != null,
                 "F09 native output must have actual current schema-3 metadata read back from its written archive.");
             RequireEmptyArchive(archive, request.PersistenceLoad.GameId, request.PersistenceLoad.Area);
             var after = Arrangement(); var body = NativeSmallRiderBody.Capture(actor, pet); RequireSelectedBody(body);
@@ -121,7 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static void RequireEmptyArchive(MountedArchiveData archive, string campaign, string area)
         {
             Require(archive != null, "F09 native schema-3 archive is absent."); archive.Validate();
-            Require(archive.SchemaVersion == 3 && archive.CampaignId == campaign && archive.AreaId == area &&
+            Require(archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == campaign && archive.AreaId == area &&
                 archive.Pairs.Length == 0 && archive.Participations.Length == 0 && archive.Slots.Length == 0 && archive.Combat == null,
                 "F09 unmounted fixture Manual must have zero pairs, retained participation, persistent slots and combat.");
         }

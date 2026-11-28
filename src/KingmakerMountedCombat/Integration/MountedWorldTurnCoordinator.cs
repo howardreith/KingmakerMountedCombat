@@ -377,6 +377,8 @@ namespace KingmakerMountedCombat.Integration
         }
         internal void RestorePersistence(SavedCombatData saved, IDictionary<string, UnitEntityData> actors)
         {
+            // PR #70 R13-F1 (round 14): the legacy schema-2 adapter's rows hold one step value: explicit single-value migration.
+            SavedStepTravel.MigrateSingleValue(saved?.Allocations);
             RestoreSharedPersistence(saved, actors);
             Primary.RestoreParticipation(saved.Paired, actors, saved.TurnBased);
         }

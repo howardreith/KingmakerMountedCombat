@@ -66,7 +66,8 @@ namespace KingmakerMountedCombat.Integration
         internal static MountedMovementState Restore(SavedMovementValues saved, float? travelled) => new MountedMovementState
         {
             TimeMoved = saved.TimeMoved, TimeForced = saved.TimeForced, TimeStepped = saved.TimeStepped,
-            MetresStepped = saved.MetresStepped, MetresStepTravelled = travelled ?? saved.MetresStepped,
+            MetresStepped = saved.MetresStepped,
+            MetresStepTravelled = travelled ?? throw new InvalidOperationException("A movement row reached restoration without its step travel (an unmigrated single-value row)."),
             StepImmune = saved.StepImmune, AiStep = saved.AiStep, AutoStopPending = saved.AutoStop
         };
 

@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveRiderFallCold()
         {
             saved = persistence.LoadedArchive;
-            Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 1 && saved.Participations.Length == 0 &&
+            Require(saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == 1 && saved.Participations.Length == 0 &&
                 saved.Combat == null && saved.AreaId == ColdInputArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "The post-fall exploration graph was not restored from the selected native archive: " + persistence.Feedback);
             var pair = saved.Pairs.Single();

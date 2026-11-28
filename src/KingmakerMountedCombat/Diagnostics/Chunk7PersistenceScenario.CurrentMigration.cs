@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var read = NativeMountedSaveStorage.ReadArchive(input.Saver);
             Require(input.Type == SaveInfo.SaveType.Manual && input.Name == request.PersistenceLoad.InternalName &&
                 input.OperationState == SaveInfo.StateType.None && input.HasFileOnDisk &&
-                read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && read.HistoricalData == null &&
+                read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && read.HistoricalData == null &&
                 JToken.DeepEquals(JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     JObject.FromObject(saved, MountedSaveCodec.CreateSerializer())),
                 "Current-format migration child did not load the parent's actual schema-3 native archive.");
@@ -118,7 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 JToken.DeepEquals(write["archive"], JObject.Parse(MountedArchiveCodec.Encode(loaded))),
                 "Current-format continuation substituted the parent's genuine current-schema native write.");
             loaded.Validate();
-            Require(loaded.SchemaVersion == 3 && loaded.CampaignId == child.PersistenceLoad.GameId &&
+            Require(loaded.SchemaVersion == MountedArchiveData.Schema && loaded.CampaignId == child.PersistenceLoad.GameId &&
                 loaded.AreaId == child.PersistenceLoad.Area && loaded.Pairs.Length == 1 &&
                 loaded.Pairs[0].Rider.Id == child.OwnedPairs.RiderAId && loaded.Pairs[0].Mount.Id == child.OwnedPairs.MountAId &&
                 loaded.Pairs[0].ProfileId == SupportedMountedProfiles.Horse.Id,

@@ -98,7 +98,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 savedDescriptor.HasFileOnDisk, "Schema-2 resave did not settle its separately authorized output leaf.");
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver);
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && read.Data != null &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && read.Data != null &&
                 NativeMountedSaveFormat.SelectedWriterSchema == 3 && !legacyWriterHeld,
                 "Schema-2 migration did not deliberately write native schema 3.");
             ValidateSchema2Continuity(schema2Imported, read.Data);

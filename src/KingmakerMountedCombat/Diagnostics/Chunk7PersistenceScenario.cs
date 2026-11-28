@@ -483,7 +483,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (SixPairCase) { ObserveSixPairCold(); return; }
             if (RiderFallCase) { ObserveRiderFallCold(); return; }
             saved = persistence.LoadedArchive;
-            Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 2 && saved.Participations.Length == 0 &&
+            Require(saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == 2 && saved.Participations.Length == 0 &&
                 saved.Combat == null && saved.AreaId == ColdInputArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "Entire exploration schema 3 graph was not restored from the selected native archive: " + persistence.Feedback);
             if (request.OwnedPairs != null)
@@ -626,7 +626,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
             if (CombatCase) { ObserveCombatSaved(read); return; }
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == (SixPairCase ? 6 : OwnedSchema1SourceCase || RiderFallCase ? 1 : 2) &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && saved?.Pairs.Length == (SixPairCase ? 6 : OwnedSchema1SourceCase || RiderFallCase ? 1 : 2) &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == request.SelectedChunk7Fixture.GameId &&
                 saved.AreaId == ExpectedArchiveArea, "Native archive readback did not retain the entire exploration world.");
             AssertOwners(); AssertSlots(); AssertDebt(saved);

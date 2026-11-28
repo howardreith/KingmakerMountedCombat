@@ -483,3 +483,32 @@ more and strike nothing, and the KMC carrier keeps the waiting outcome (offline 
 - Offline evidence only; native gameplay observation remains the owner's playtest (N02/N03 and the items in section 10).
 - `PlannedSegmentIdentityMetres` is a numerical identity tolerance (20 micrometres); a deviation below it uses the established samples.
 - The diagnostic runtime scenarios that read a newly written archive now expect schema 4; they were not run (no game launch).
+
+## 12. Round 14 (partial; owner amendment revision 1, 2026-11-27g)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825. Round 13 verified R12-F5 and
+R6-F7 and accepted the R10-F2/R12-F6 rebuttals; those are kept. This round corrects the items below; the rest stay open (11.3 and the list at the
+end).
+
+- **R12-F1.** A step click whose native counter binds the step (`PairedMountStepCounterBinds`: a debit of it can be final at some frame) is a
+  provisional request (`finalStepPossible` at the click): the replacement's target, generation and Hold wait for the before-debit decision. A
+  refused final step keeps the prior order, target and both Holds; a faster step whose physical reservation binds stays an accepted order and
+  keeps its second debit. Changed expectation: the R1-F6 five-foot-step control (equal speeds) is now a provisional request committed at its
+  first debit.
+- **R12-F2.** In the larger ordinary branch, a shortened stop within the current tick that admits the strike (the installed steering at the
+  returned delta, `EvaluateFirstTickNative`) is carried through the debit; otherwise the ordinary route proceeds. Harness: 5/512 s and
+  1/60 s + 0.001 s allowances return 0.009766 s and 0.013356 s, stop at (0.04395, 0.04395) and (0.0601, 0.0601), one strike each.
+- **R12-F3.** The connected 49.9 mm grazing control (blind, visible, 50.1 mm outside) runs with the 27 m and the 1.8 m ordinary grant.
+- **R13-F1.** `SavedStepTravel.Attach` requires a travel row for every current allocation (encode and decode). The single-value interpretation
+  is explicit migration only (`SavedStepTravel.MigrateSingleValue`: the schema-3 reader, schema 1-2 migration, the legacy schema-2 adapter);
+  `Restore` refuses a row without travel. Codec controls: a two-allocation archive round-trips unequal counters; a missing row is refused on
+  decode and encode.
+- **R13-F2.** The diagnostic consumers of a newly written or decoded archive expect `MountedArchiveData.Schema` (decoded archives are always
+  normalized to it); historical source checks (schema 1 and 2) are unchanged. Not run (no game).
+- **R13-F5.** NearTheEnd's borrowed time applies only to ordinary movement; a step tick stays within both step limits (domain arithmetic
+  control: 0.0439 m left at 18 m/s returns 0.0024389 s).
+- **R11-F8 (part).** Observation follows the retained request even after `ApplyAcceptanceEffects` emptied its list before a read that threw.
+
+Still open: R11-F1 (the full chain through the selected codec into the connected harness), R11-F3 (no tolerance that can skip a live chord),
+R11-F8 (discovery through the production postfix and custody path), R12-F4 (lifecycle drain after updates stop; SetEnabled drain order; real
+entry points), R13-F3 (route loss without re-path), R13-F4 (WantsToMove after a zero-delta tick).

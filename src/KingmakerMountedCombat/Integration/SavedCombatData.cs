@@ -272,6 +272,20 @@ namespace KingmakerMountedCombat.Integration
                 SaveStateValidation.Require(count == 1, "Saved step travel names no unique movement allocation.");
                 match.StepTravelled = row.MetresStepTravelled;
             }
+            // R13-F1 (round 14): coverage of every current allocation row; a missing travel row is malformed, never a single-value read.
+            if (allocations != null)
+                foreach (var allocation in allocations)
+                    SaveStateValidation.Require(allocation != null && allocation.ActorId != null && seen.Contains(allocation.ActorId),
+                        "A current movement allocation has no step travel row.");
+        }
+
+        // R13-F1 (round 14): the explicit historical migration of a single-value row (archive schema 3, legacy schema 1-2): it stored one
+        // step value, so both limits are restored from it (the round-12 writer stored the larger commitment, earlier writers the counter).
+        internal static void MigrateSingleValue(SavedMovementAllocation[] allocations)
+        {
+            if (allocations == null) return;
+            foreach (var allocation in allocations)
+                if (allocation?.Movement != null && !allocation.StepTravelled.HasValue) allocation.StepTravelled = allocation.Movement.MetresStepped;
         }
     }
 

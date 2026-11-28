@@ -45,6 +45,12 @@ public static class Chunk7PersistenceTests
                         Mount = new SavedParticipation { Granted = true, Prepared = true, MoveObserved = 3.125f } } }
             } };
     }
+    // PR #70 R13-F1 (round 14): a test that rebuilds a current archive's allocations rebuilds their step travel coverage (single-value rows).
+    private static void SyncStepTravel(MountedArchiveData data)
+    {
+        SavedStepTravel.MigrateSingleValue(data.Combat?.Allocations);
+        data.StepTravel = SavedStepTravel.Detach(data.Combat?.Allocations);
+    }
     private static MountedArchiveData Archive(int pairs)
     {
         var seed = Historical();
@@ -54,7 +60,7 @@ public static class Chunk7PersistenceTests
         data.Slots = new SavedMountedSlot[0];
         data.Combat.Actors = all.SelectMany(x => x.Combat.Actors).ToArray();
         data.Combat.Roster = all.SelectMany(x => x.Combat.Roster).ToArray();
-        data.Combat.Allocations = all.SelectMany(x => x.Combat.Allocations).ToArray();
+        data.Combat.Allocations = all.SelectMany(x => x.Combat.Allocations).ToArray(); SyncStepTravel(data);
         data.Combat.Current = all[0].Combat.Current;
         for (var i = 0; i < pairs; i++)
         {
@@ -152,7 +158,7 @@ public static class Chunk7PersistenceTests
         retained.Combat.Allocations = retained.Combat.Allocations.Concat(new[] { new SavedMovementAllocation {
             ActorId = spent.Rider.Id, Round = retained.Combat.Round,
             RoundStartTicks = retained.Combat.RoundStartTicks, GrantId = mountGrant.GrantId,
-            Prepared = true, Movement = new SavedMovementValues() } }).ToArray();
+            Prepared = true, Movement = new SavedMovementValues() } }).ToArray(); SyncStepTravel(retained);
         Check(RetainedNativeReentryPolicy.SpentPendingRiders(retained).SequenceEqual(new[] { spent.Rider.Id }) &&
             !RetainedNativeReentryPolicy.SpentPendingRiders(retained).Contains(retained.Pairs[1].Rider.Id),
             "retained pending split protects only the exact spent rider, not its mount or neighboring pair");
@@ -252,7 +258,7 @@ public static class Chunk7PersistenceTests
             ActorId = a.Native.Id, Round = 2, Prepared = true, MoveObserved = 3.125f, StandardCommitted = true,
             GrantId = Guid.NewGuid().ToString("N") + ":" + long.MaxValue,
             Movement = new SavedMovementValues { TimeMoved = 3.125f, TimeForced = 1f, TimeStepped = 0.75f, MetresStepped = 1.25f }
-        }).ToArray();
+        }).ToArray(); SyncStepTravel(maximum);
         maximum.Combat.Engagements = maximum.Combat.Actors.Select((a,i) => new SavedEngagement {
             From = a.Native.Id, To = maximum.Combat.Actors[(i+1)%maximum.Combat.Actors.Length].Native.Id, SinceTicks = 20 }).ToArray();
         maximum.Slots = maximum.Combat.Actors.SelectMany(a => new[] {
@@ -452,8 +458,9 @@ public static class Chunk7PersistenceTests
         var schema3Read = MountedArchiveCodec.Decode(schema3Json);
         var schema3Row = schema3Read.Data == null ? null : schema3Read.Data.Combat.Allocations.Single(a => a.ActorId == stepRow.ActorId);
         Check(schema3Read.Kind == MountedSaveReadKind.Current && schema3Read.SourceSchema == 3 && schema3Read.Data.SchemaVersion == 4 && schema3Row != null &&
-            schema3Row.Movement.MetresStepped == 0.45f && !schema3Row.StepTravelled.HasValue && schema3Read.OriginalJson == schema3Json,
-            "schema3 is read by its explicit historical reader: one stored step value, no independent travel (legacy interpretation), original preserved");
+            schema3Row.Movement.MetresStepped == 0.45f && schema3Row.StepTravelled == 0.45f && schema3Read.Data.StepTravel.Length == schema3Read.Data.Combat.Allocations.Length &&
+            schema3Read.OriginalJson == schema3Json,
+            "schema3 is read by its explicit historical reader and migrated explicitly: its single stored step value becomes both commitments, original preserved");
         Check(NativeMountedSaveFormat.CanRestore(schema3Read) && NativeMountedSaveFormat.CanRestore(stepRead),
             "a historical schema-3 archive and a schema-4 archive both remain restorable by the native adapter");
         var schema3WithTravel = JObject.Parse(stepJson); schema3WithTravel["SchemaVersion"] = 3;
@@ -467,6 +474,23 @@ public static class Chunk7PersistenceTests
         Reject(stepWith(o => o["StepTravel"][0]["MetresStepTravelled"] = "0.4"), "schema4 refuses a step travel of the wrong primitive type");
         Reject(stepWith(o => { o["Combat"] = JValue.CreateNull(); o["Participations"] = new JArray(); }), "schema4 refuses step travel without a combat snapshot");
         Check(MountedArchiveCodec.Decode(stepWith(o => o["SchemaVersion"] = 5)).Kind == MountedSaveReadKind.Future, "a schema newer than 4 is preserved as future data");
+        // R13-F1 (round 14): a current archive must cover every allocation with a travel row, on decode and on encode.
+        var multi = Archive(2);
+        multi.Combat.Allocations[0].StepTravelled = 0.6f; multi.Combat.Allocations[0].Movement.MetresStepped = 0.3f;
+        multi.Combat.Allocations[0].Movement.TimeStepped = 0.05f; multi.Combat.Allocations[0].Movement.TimeMoved = Math.Max(multi.Combat.Allocations[0].Movement.TimeMoved, 0.05f);
+        multi.StepTravel = SavedStepTravel.Detach(multi.Combat.Allocations);
+        var multiJson = MountedArchiveCodec.Encode(multi);
+        var multiRead = MountedArchiveCodec.Decode(multiJson);
+        Check(multi.Combat.Allocations.Length == 2 && multiRead.Kind == MountedSaveReadKind.Current && multiRead.Data.StepTravel.Length == 2 &&
+            multiRead.Data.Combat.Allocations[0].StepTravelled == 0.6f && multiRead.Data.Combat.Allocations[0].Movement.MetresStepped == 0.3f,
+            "schema4 with two allocations round-trips unequal counters (0.3 native / 0.6 physical) with full travel coverage");
+        var missingTravel = JObject.Parse(multiJson); ((JArray)missingTravel["StepTravel"]).RemoveAt(1);
+        Reject(missingTravel.ToString(Formatting.None),
+            "schema4 refuses an archive missing one current allocation's step travel row (decode, before any restoration)");
+        var uncovered = MountedArchiveCodec.Decode(multiJson).Data; uncovered.StepTravel = new[] { uncovered.StepTravel[0] };
+        var encodeRefused = false; try { MountedArchiveCodec.Encode(uncovered); } catch (InvalidDataException) { encodeRefused = true; }
+        Check(encodeRefused, "schema4 encode refuses an archive missing one current allocation's step travel row");
+
         Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
     }
 }

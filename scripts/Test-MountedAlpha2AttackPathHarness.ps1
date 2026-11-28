@@ -170,6 +170,7 @@ $members=[ordered]@{
  'CONTROLLER_OBSERVE_OUTSTANDING'=(Extract $controller 'internal void ObserveOutstandingAssignment(UnitCommands container, UnitCommand command, MountedAcceptedWorkRoute route)')
  'CONTROLLER_OBSERVES_ACTOR'=(Extract $controller 'internal bool ObservesOutstandingActor(UnitCommands container)')
  'PAIR_STEP_FINAL'=(ExtractExpression $lifecycle 'internal bool PairedMountStepCounterFinal(float tick) =>')
+ 'PAIR_STEP_BINDS'=(ExtractExpression $lifecycle 'internal bool PairedMountStepCounterBinds() =>')
  'ADAPTER_STEP_FINAL'=(Extract $adapter 'internal bool StepCounterFinal(UnitEntityData actor, float tick)')
  'CONTROLLER_APPLY_EFFECTS'=(Extract $controller 'private void ApplyAcceptanceEffects(FirstTickProposal p)')
  'PAIR_REMEMBER_INPUT'=(Extract $controls 'internal void RememberPairedMovementInput()')

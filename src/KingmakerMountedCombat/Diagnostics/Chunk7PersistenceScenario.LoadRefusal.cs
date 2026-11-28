@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void BeginLoadRefusal()
         {
             RequireLoadRefusalAuthority();
-            Require(loadRefusal == null && saved?.SchemaVersion == 3 && saved.Pairs.Length == 2 && saved.Participations.Length == 0 && saved.Combat == null &&
+            Require(loadRefusal == null && saved?.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == 2 && saved.Participations.Length == 0 && saved.Combat == null &&
                 restoration != null && persistence.NativeWorldDisposalCount == 0 && persistence.SnapshotCount == 0,
                 "Load-refusal requires the one accepted native restored exploration graph, once.");
             loadRefusalPrimary=Game.Instance.SaveManager.Single(value=>value.FileName==request.PersistenceLoad.FileName);
