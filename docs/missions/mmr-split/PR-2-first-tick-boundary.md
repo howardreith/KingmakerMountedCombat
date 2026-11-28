@@ -1295,7 +1295,7 @@ Discrimination: round-19 code returns 5.5631e-7 s with no movement (native count
 
 `chunk7\Test-Chunk7ProducerObservations.ps1` now requires the built `bin\Release\KingmakerMountedCombat.dll` (no synthetic fallback) and reflects
 the product hooks the probes patch (`NativeCombatActorPersistence.RestoreActor` 060006A3 and `RestoreDebt` 0600069F, and the Manual save probe's
-`MountedPersistenceService.RecordCompletedSave` 06000395, at the gate build's MVID 56df16b1); the native rows (`TurnController.Prepare`
+`MountedPersistenceService.RecordCompletedSave` 06000395) at the MVID of the build being checked: in the round-20 gate receipt that is c6638f82-3c9e-4908-8ee7-23df98f16629 (the HOOK rows in its log); the developer's local runs used the round-19 build 56df16b1 (correction, R20-F4); the native rows (`TurnController.Prepare`
 06000C3C, `UnitCombatState.OnNewRound` 0600939D, `SaveManager.SaveRoutine` 06008029, `SaveManager.PrepareSave` 06008025) come from the installed
 module 07fa1e4d. The same rows replace every hook array in the outer record, the source record and each copied observation, and every positive is
 scanned for any impossible or fixture identity. The Manual-seed and Manual-derived readers now validate the source copies' hook rows themselves
