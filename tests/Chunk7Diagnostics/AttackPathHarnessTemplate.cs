@@ -249,7 +249,7 @@ namespace Kingmaker.View
         public UnityEngine.Vector2 MoveDirection;
         // R8-F6 (round 10): the installed combat steering facts (m_CombatAngularSpeed default 720, m_Speed, m_FollowPrecomputedPath).
         public float CombatAngularSpeed = 720f, CurrentSpeedField;
-        public bool FollowPrecomputedPath = true;
+        public bool FollowsPrecomputedPath = true;   // installed m_FollowPrecomputedPath (round 22: renamed beside the FollowPrecomputedPath method)
         public bool ForceModeForHarness => m_IsInForceMode;
         public readonly List<Vector3> Endpoints = new List<Vector3>();
         private static List<Vector3> Cutoff(List<Vector3> points, Vector3 destination, float radius, bool needLos, int blocker)
@@ -275,6 +275,10 @@ namespace Kingmaker.View
         private float m_MinSpeed = 0.3f, m_WarmupTime = 0.2f, m_SlowDownTime = 0.2f;
         public Kingmaker.EntitySystem.Entities.UnitEntityData Unit;
         public int FindPathCount;
+        // Round 22 (R19-F5): installed FollowPrecomputedPath(Path p, float) 060018B6, modeled by the harness (Program.NativeFollowPrecomputedPath:
+        // the ACTUAL Harmony prefix, then m_RequestedPath = p and the synchronous OnPathComplete through the ACTUAL completion hooks).
+        public static Action<UnitMovementAgent, Pathfinding.Path, float> FollowModel;
+        public void FollowPrecomputedPath(Pathfinding.Path p, float radius) { FollowModel(this, p, radius); }
         public Pathfinding.Path FindPath(Vector3 destination, Pathfinding.OnPathDelegate callback, float? approachRadius = null, bool needLOS = false,
             int ignoreBlockerId = 0)
         {
@@ -1072,7 +1076,7 @@ namespace KingmakerMountedCombat.Integration
             out bool followPrecomputedPath, out bool forceMode, out bool inCombat)
         {
             moveDirection = agent?.MoveDirection ?? default(UnityEngine.Vector2); combatAngularSpeed = agent?.CombatAngularSpeed ?? float.NaN; currentSpeed = agent?.CurrentSpeedField ?? float.NaN;
-            followPrecomputedPath = agent != null && agent.FollowPrecomputedPath; forceMode = agent != null && agent.ForceModeForHarness; inCombat = agent?.Unit != null && agent.Unit.IsInCombat;
+            followPrecomputedPath = agent != null && agent.FollowsPrecomputedPath; forceMode = agent != null && agent.ForceModeForHarness; inCombat = agent?.Unit != null && agent.Unit.IsInCombat;
             return agent != null;
         }
         internal static UnityEngine.Vector2 MoveDirection(Kingmaker.View.UnitMovementAgent agent) => agent == null ? default(UnityEngine.Vector2) : agent.MoveDirection;
@@ -2018,6 +2022,8 @@ namespace Harness
             // the latest result of the ACTUAL TryOverrideMountTurnMovement (false: production MountMovementPrefix returns true and native
             // CanMoveInTurnBased runs).
             public Vector3? RequestedDestination;
+            // Round 22: one-shot work inside the carrier's TickApproaching before its transpiled forced call.
+            public Action<UnitMoveTo> InsideApproachBeforeForcedCall;
             public bool LastHookHandled, LastHookResult;
             public int NativeDenials;
             // PR #70 R1-F6 (round 4): the engine frame's tick length for the mount (0: the fixed 0.25 m step of earlier cases).
@@ -2081,7 +2087,6 @@ namespace Harness
                 if (!command.IsStarted)
                 {
                     if (PatchMethods.MountedAttackApproachPrefix(command)) { command.IsMoveUnit = true; NativeApproach(world, command); }
-                    PatchMethods.MountedAttackApproachPostfix(command);   // round 19 follow-up: Harmony's postfix ends the TickApproaching scope
                     if (!command.IsFinished && world.Ready[command.Executor] && command.Result == UnitCommand.ResultType.None && command.IsUnitEnoughClose)
                         command.Start();
                 }
@@ -2141,7 +2146,7 @@ namespace Harness
                 {
                     // Round 20 (R18-F2): native TickApproaching -> FollowPrecomputedPath -> OnPathComplete through the ACTUAL scope and hooks.
                     if (!ReferenceEquals(steering.PathOwner, move))
-                    { PatchMethods.MountedAttackApproachPrefix(move); TakePath(mover, move); PatchMethods.MountedAttackApproachPostfix(move); }
+                    { PatchMethods.MountedAttackApproachPrefix(move); TakePath(mover, move); }
                     steering.NextPointIndex = move.PathIndex; steering.NextWaypoint = new UnityEngine.Vector2(goal.x, goal.z);
                     var dx = goal.x - mover.Position.x; var dz = goal.z - mover.Position.z; var dl = (float)Math.Sqrt(dx * dx + dz * dz);
                     if (dl > 1e-6f) steering.MoveDirection = new UnityEngine.Vector2(dx / dl, dz / dl);
@@ -5865,7 +5870,7 @@ namespace Harness
             Func<int, UnityEngine.Vector2> point = i => new UnityEngine.Vector2(points[i].x, points[i].z);
             Func<UnityEngine.Vector2, UnityEngine.Vector2, float> distance = (p, q) => (float)Math.Sqrt((p.x - q.x) * (p.x - q.x) + (p.y - q.y) * (p.y - q.y));
             var dist = distance(point(agent.NextPointIndex), position);
-            while (agent.FollowPrecomputedPath && agent.NextPointIndex < points.Count - 1 && dist < agent.CurrentSpeedField * delta)
+            while (agent.FollowsPrecomputedPath && agent.NextPointIndex < points.Count - 1 && dist < agent.CurrentSpeedField * delta)
             { agent.NextPointIndex++; dist = distance(point(agent.NextPointIndex), position); }
             var waypoint = point(agent.NextPointIndex);
             var onLast = agent.NextPointIndex >= points.Count - 1;
@@ -5920,14 +5925,25 @@ namespace Harness
         }
 
         // Native TickApproaching of a move: the agent takes its own copy of the move's path once (the cursor starts past the points it stands on).
-        // Round 20 (R19-F5): a top-level TickApproaching whose native body throws after the ACTUAL prefix entered its scope (Harmony runs no postfix).
-        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-        private static WeakReference ThrowingApproachScope()
+        // Round 22 (R19-F5): installed FollowPrecomputedPath's body after the ACTUAL Harmony prefix: m_RequestedPath = p, then OnPathComplete through the
+        // ACTUAL completion hooks. ForcedCallBody (one-shot) is extra native work inside the call (it may nest another call or throw).
+        private static Action<Kingmaker.View.UnitMovementAgent> ForcedCallBody;
+        private static void NativeFollowPrecomputedPath(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p, float radius)
         {
-            var command = new UnitMoveTo(new Vector3(9f, 0f, 9f), 0.1f);
-            PatchMethods.MountedAttackApproachPrefix(command);
-            try { throw new InvalidOperationException("simulated TickApproaching failure"); }
-            catch (InvalidOperationException) { }
+            PatchMethods.CarrierForcedPathRequestPrefix(agent, p);
+            var body = ForcedCallBody; ForcedCallBody = null; body?.Invoke(agent);
+            agent.RequestedPath = p;
+            NativeOnPathComplete(agent.Unit, p, null);
+        }
+
+        // A TickApproaching whose transpiled forced call throws inside the native body; the command is reachable only from the returned weak reference.
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static WeakReference ThrowingForcedCall(UnitEntityData unit)
+        {
+            var command = new UnitMoveTo(new Vector3(9f, 0f, 9f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { unit.Position, new Vector3(9f, 0f, 9f) }) };
+            MountedCarrierApproachLedger.Admit(command, unit.View.AgentASP);
+            ForcedCallBody = a => { throw new InvalidOperationException("simulated FollowPrecomputedPath failure"); };
+            try { TakePath(unit, command); } catch (InvalidOperationException) { }
             return new WeakReference(command);
         }
 
@@ -5943,13 +5959,13 @@ namespace Harness
 
         // Round 19: installed TickApproaching -> FollowPrecomputedPath (060018B6) sets m_RequestedPath to a ForcedPath copy and calls OnPathComplete
         // synchronously, without PathTo; the ACTUAL completion hooks see it (a delivery no admitted carrier requested).
+        // Round 22 (R19-F5): the transpiled call site: `ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(agent, p, radius, this)`.
         private static void TakePath(UnitEntityData unit, UnitMoveTo move)
         {
             var agent = unit.View.AgentASP;
             var forced = new Pathfinding.ForcedPath(new List<Vector3>(move.ForcedPath.vectorPath));
-            PatchMethods.CarrierForcedPathRequestPrefix(agent, forced);   // round 19 follow-up: the ACTUAL FollowPrecomputedPath prefix
-            agent.RequestedPath = forced;
-            NativeOnPathComplete(unit, forced, move);
+            Kingmaker.View.UnitMovementAgent.FollowModel = NativeFollowPrecomputedPath;
+            MountedCarrierPathObserver.FollowPrecomputedPathFrom(agent, forced, move.ApproachRadius, move);
             agent.PathOwner = move; agent.NextPointIndex = 0;
             AdvanceCursor(agent, unit.Position);
             // Fixture assumption (round 9): the agent faces its first waypoint when it takes the path (cases turn it explicitly to test R8-F6).
@@ -6023,7 +6039,12 @@ namespace Harness
                     var agent = unit.View.AgentASP;
                     // Round 19 follow-up: native TickApproaching of the carrier, scoped by the ACTUAL prefix/postfix (FollowPrecomputedPath's issuer).
                     if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath != null)
-                    { PatchMethods.MountedAttackApproachPrefix(move); TakePath(unit, move); PatchMethods.MountedAttackApproachPostfix(move); }
+                    {
+                        PatchMethods.MountedAttackApproachPrefix(move);
+                        // Round 22: other work inside this TickApproaching before its forced call (one-shot; e.g. a nested approach that throws)
+                        var inside = c.World.InsideApproachBeforeForcedCall; c.World.InsideApproachBeforeForcedCall = null; inside?.Invoke(move);
+                        TakePath(unit, move);
+                    }
                     else if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath == null && c.World.PathfindUnforcedMoves)
                     {
                         var goal = move.ApproachPoint;
@@ -6046,7 +6067,6 @@ namespace Harness
                 if (!command.IsStarted)
                 {
                     if (PatchMethods.MountedAttackApproachPrefix(command)) { command.IsMoveUnit = true; NativeApproach(c.World, command); }
-                    PatchMethods.MountedAttackApproachPostfix(command);   // round 19 follow-up: Harmony's postfix ends the TickApproaching scope
                     if (!command.IsFinished && c.World.Ready[command.Executor] && command.Result == UnitCommand.ResultType.None && command.IsUnitEnoughClose)
                         command.Start();
                 }
@@ -9197,7 +9217,7 @@ namespace Harness
                     var end = points[points.Count - 1];
                     agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(points[1].x, points[1].z); agent.NearTheEnd = false;
                     agent.MoveDirection = corner ? new UnityEngine.Vector2(1f, 0f) : new UnityEngine.Vector2(0.6f, 0.8f);
-                    agent.CombatAngularSpeed = 720f; agent.FollowPrecomputedPath = true; agent.CurrentSpeedField = agent.MaxSpeed;
+                    agent.CombatAngularSpeed = 720f; agent.FollowsPrecomputedPath = true; agent.CurrentSpeedField = agent.MaxSpeed;
                     var left = corner ? 0.10f : 0.245f;
                     var nativeBefore = c.Pair.movementState.AllocationMetresStepped(w.Horse);
                     c.Pair.movementState.SetStepLedger(w.Horse, nativeBefore, 1.524f - left);
@@ -9386,7 +9406,7 @@ namespace Harness
                     var origin = w.Horse.Position;
                     foreach (var list in new[] { agent.Path.vectorPath, carrier.ForcedPath.vectorPath }) { list.Clear(); list.Add(origin); list.Add(w1); list.Add(w2); }
                     agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(w1.x, w1.z); agent.MoveDirection = new UnityEngine.Vector2(1f, 0f);
-                    agent.CurrentSpeedField = 8f; agent.FollowPrecomputedPath = true;
+                    agent.CurrentSpeedField = 8f; agent.FollowsPrecomputedPath = true;
                     LineOfSightGeometry.Instance.Blocked = (f, t) => Kingmaker.Utility.GeometryUtils.MechanicsDistance(f, w2) > 0.003f;
                     mutated = origin.x == 0f && origin.z == 0f;
                 });
@@ -9743,7 +9763,7 @@ namespace Harness
                     var origin = w.Horse.Position;
                     foreach (var list in new[] { agent.Path.vectorPath, carrier.ForcedPath.vectorPath }) { list.Clear(); list.Add(origin); list.Add(w1); list.Add(w2); }
                     agent.NextPointIndex = 1; agent.NextWaypoint = new UnityEngine.Vector2(w1.x, w1.z); agent.MoveDirection = new UnityEngine.Vector2(1f, 0f);
-                    agent.CurrentSpeedField = 8f; agent.FollowPrecomputedPath = true;
+                    agent.CurrentSpeedField = 8f; agent.FollowsPrecomputedPath = true;
                     LineOfSightGeometry.Instance.Blocked = (f, t) => !open || f.x < 0.115f || f.x > 0.121f || Math.Abs(f.z) > 0.001f;
                     mutated = origin.x == 0f && origin.z == 0f;
                     var previous = c.BeforeDrive;
@@ -10176,7 +10196,7 @@ namespace Harness
                                 // a predecessor command's native TickApproaching on the same agent (its own scope) follows its own forced path
                                 var at = w.Horse.Position;
                                 var earlier = new UnitMoveTo(at + new Vector3(0f, 0f, 0.6f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(0f, 0f, 0.6f) }) };
-                                PatchMethods.MountedAttackApproachPrefix(earlier); TakePath(w.Horse, earlier); PatchMethods.MountedAttackApproachPostfix(earlier);
+                                PatchMethods.MountedAttackApproachPrefix(earlier); TakePath(w.Horse, earlier);
                                 predecessorPath = agent.Path; requestsAfterTick = MountedCarrierApproachLedger.RequestCount(first); phaseAfterTick = order.CarrierApproachPhase;
                                 movedAlongAtTick = MountedCarrierApproachLedger.MovedAlongDelivery(first); deliveryAtTick = MountedCarrierApproachLedger.HasDelivery(first);
                             }
@@ -10386,95 +10406,146 @@ namespace Harness
                     ", strikes " + strikes + "; successor ground order admitted " + admittedAsGroundMove + ", moved the mount " + successorMoved.ToString("0.###") + " m");
             }
 
-            // R19-F5: the forced-path issuer scope through the ACTUAL TickApproaching prefix/postfix and FollowPrecomputedPath prefix: a throwing top-level
-            // approach (prefix ran, the native body threw, no postfix), then balanced unrelated and nested approaches whose forced paths keep their
-            // actual issuers; the failed command is not retained; 40 nested scopes keep every outer issuer; a stale scope is discarded by the next
-            // frame's first scope; the production ModDisable teardown leaves no scope.
-            {
-                UnityEngine.Time.frameCount++;
-                MountedCarrierPathObserver.ReleaseScopes();
-                var failed = ThrowingApproachScope();
-                var retainedAfterThrow = MountedCarrierPathObserver.RetainedScopeCount;
-                var unrelated = new UnitMoveTo(new Vector3(1f, 0f, 0f), 0.1f);
-                PatchMethods.MountedAttackApproachPrefix(unrelated); var unrelatedIssuer = MountedCarrierPathObserver.CurrentIssuer; PatchMethods.MountedAttackApproachPostfix(unrelated);
-                var horse = new UnitEntityData("horse-r19f5");
-                var scopeAgent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
-                horse.View.AgentASP = scopeAgent;
-                var outer = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }) };
-                var inner = new UnitMoveTo(new Vector3(3f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(3f, 0f, 0f) }) };
-                MountedCarrierApproachLedger.Admit(outer, scopeAgent); MountedCarrierApproachLedger.Admit(inner, scopeAgent);
-                PatchMethods.MountedAttackApproachPrefix(outer);
-                PatchMethods.MountedAttackApproachPrefix(inner);
-                var innerIssuer = MountedCarrierPathObserver.CurrentIssuer;
-                PatchMethods.CarrierForcedPathRequestPrefix(scopeAgent, new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(3f, 0f, 0f) }));
-                PatchMethods.MountedAttackApproachPostfix(inner);
-                var outerIssuer = MountedCarrierPathObserver.CurrentIssuer;
-                PatchMethods.CarrierForcedPathRequestPrefix(scopeAgent, new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }));
-                PatchMethods.MountedAttackApproachPostfix(outer);
-                var innerRequests = MountedCarrierApproachLedger.RequestCount(inner); var outerRequests = MountedCarrierApproachLedger.RequestCount(outer);
-                GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
-                var failedReleased = !failed.IsAlive;
-                var balanced = new UnitMoveTo(new Vector3(4f, 0f, 0f), 0.1f);
-                PatchMethods.MountedAttackApproachPrefix(balanced); PatchMethods.MountedAttackApproachPostfix(balanced);
-                var retainedAfterBalanced = MountedCarrierPathObserver.RetainedScopeCount;
-                var deep = new List<UnitMoveTo>(); var deepOk = true;
-                for (var d = 0; d < 40; d++) { var m = new UnitMoveTo(new Vector3(d, 0f, 1f), 0.1f); deep.Add(m); PatchMethods.MountedAttackApproachPrefix(m); }
-                for (var d = deep.Count - 1; d >= 0; d--) { deepOk &= ReferenceEquals(MountedCarrierPathObserver.CurrentIssuer, deep[d]); PatchMethods.MountedAttackApproachPostfix(deep[d]); }
-                var keep = new UnitMoveTo(new Vector3(5f, 0f, 0f), 0.1f);
-                PatchMethods.MountedAttackApproachPrefix(keep);   // throws: no postfix (strongly held here, so only the frame rule can discard it)
-                var retainedSameFrame = MountedCarrierPathObserver.RetainedScopeCount;
-                UnityEngine.Time.frameCount++;
-                var next = new UnitMoveTo(new Vector3(6f, 0f, 0f), 0.1f);
-                PatchMethods.MountedAttackApproachPrefix(next);
-                var retainedNextFrame = MountedCarrierPathObserver.RetainedScopeCount; var nextIssuer = MountedCarrierPathObserver.CurrentIssuer;
-                PatchMethods.MountedAttackApproachPostfix(next);
-                PatchMethods.MountedAttackApproachPrefix(keep);   // throws again
-                var retainedBeforeTeardown = MountedCarrierPathObserver.RetainedScopeCount;
-                var teardownReady = MountedServiceTeardownSequence.ModDisable(new ReadyModDisableSteps());
-                var retainedAfterTeardown = MountedCarrierPathObserver.RetainedScopeCount;
-                var ok = retainedAfterThrow == 1 && ReferenceEquals(unrelatedIssuer, unrelated) && ReferenceEquals(innerIssuer, inner) && ReferenceEquals(outerIssuer, outer) &&
-                    innerRequests == 1 && outerRequests == 1 && failedReleased && retainedAfterBalanced == 0 && deepOk && retainedSameFrame == 1 && retainedNextFrame == 1 &&
-                    ReferenceEquals(nextIssuer, next) && retainedBeforeTeardown == 1 && teardownReady && retainedAfterTeardown == 0;
-                GC.KeepAlive(keep);
-                Check(ok, "Round 20 (R19-F5) forced-path issuer scope: throwing top-level approach left " + retainedAfterThrow + " scope; balanced unrelated issuer exact " + ReferenceEquals(unrelatedIssuer, unrelated) +
-                    "; nested issuers inner " + ReferenceEquals(innerIssuer, inner) + " / outer " + ReferenceEquals(outerIssuer, outer) + ", forced requests attributed inner " + innerRequests + " / outer " + outerRequests +
-                    "; failed command released (collected) " + failedReleased + ", scopes after the next balanced approach " + retainedAfterBalanced + "; 40 nested scopes keep each outer issuer " + deepOk +
-                    "; a same-frame stale scope " + retainedSameFrame + " is discarded by the next frame's scope (retained " + retainedNextFrame + ", issuer exact " + ReferenceEquals(nextIssuer, next) +
-                    "); production ModDisable ready " + teardownReady + ", scopes " + retainedBeforeTeardown + " -> " + retainedAfterTeardown);
-            }
-
-            // Round 21 (R19-F5): inner command B (admitted on the same tracked agent as outer A) throws inside A's TickApproaching: its postfix is
-            // skipped, its scope entry stays live in this frame, and A resumes and issues its forced path (the modeled FollowPrecomputedPath through
-            // the ACTUAL prefix and the ACTUAL completion hooks) BEFORE A's postfix. The issuer is bound to the call site's argument (A's own route):
-            // A gets 1 request and the delivery, B none. Control: two live scoped carriers of the agent with IDENTICAL routes resolve to nobody.
-            foreach (var kase in new[] { "different routes", "identical routes (ambiguous)" })
+            // ===================== Round 22 (R19-F5): exact caller binding at the transpiled TickApproaching -> FollowPrecomputedPath site =====================
+            // (1)(2) Outer A and inner B admitted on one tracked agent: inside A's TickApproaching, B's nested approach throws before any forced call and
+            // is caught; A then makes its transpiled forced call (FollowPrecomputedPathFrom with `this` = A) before its TickApproaching returns. For
+            // DIFFERENT and IDENTICAL routes alike: A has 1 request and the delivery, B none.
+            foreach (var kase in new[] { "different routes", "identical routes" })
             {
                 var identical = kase.StartsWith("identical");
-                UnityEngine.Time.frameCount++;
-                var horse = new UnitEntityData("horse-r21");
+                var horse = new UnitEntityData("horse-r22");
                 var agent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
                 horse.View.AgentASP = agent;
-                var outerA = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }) };
-                var innerB = new UnitMoveTo(new Vector3(0f, 0f, 3f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(identical ? new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) } : new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, 3f) }) };
+                var routeA = new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) };
+                var outerA = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(routeA) };
+                var innerB = new UnitMoveTo(new Vector3(0f, 0f, 3f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(identical ? new List<Vector3>(routeA) : new List<Vector3> { Vector3.zero, new Vector3(0f, 0f, 3f) }) };
                 MountedCarrierApproachLedger.Admit(outerA, agent); MountedCarrierApproachLedger.Admit(innerB, agent);
-                PatchMethods.MountedAttackApproachPrefix(outerA);
-                PatchMethods.MountedAttackApproachPrefix(innerB);
+                PatchMethods.MountedAttackApproachPrefix(outerA);          // A's TickApproaching begins
+                PatchMethods.MountedAttackApproachPrefix(innerB);          // B's nested TickApproaching begins
                 var innerThrew = false;
-                try { throw new InvalidOperationException("simulated inner TickApproaching failure"); }   // B's native body throws: no postfix
+                try { throw new InvalidOperationException("simulated inner TickApproaching failure"); }
                 catch (InvalidOperationException) { innerThrew = true; }
-                var issuerAfterThrow = MountedCarrierPathObserver.CurrentIssuer;   // the innermost live scope is still B
-                TakePath(horse, outerA);   // A resumes: native FollowPrecomputedPath(copy of A's ForcedPath) -> OnPathComplete, before A's postfix
+                var issuerBeforeOuterCall = MountedCarrierPathObserver.CurrentForcedIssuer;
+                TakePath(horse, outerA);                                    // A's transpiled forced call
+                var issuerAfter = MountedCarrierPathObserver.CurrentForcedIssuer;
                 var aRequests = MountedCarrierApproachLedger.RequestCount(outerA); var bRequests = MountedCarrierApproachLedger.RequestCount(innerB);
                 var aDelivered = MountedCarrierApproachLedger.HasDelivery(outerA); var bDelivered = MountedCarrierApproachLedger.HasDelivery(innerB);
                 var aPhase = MountedCarrierPathObserver.PhaseOf(outerA, agent); var bPhase = MountedCarrierPathObserver.PhaseOf(innerB, agent);
-                PatchMethods.MountedAttackApproachPostfix(outerA);
-                var retainedAfterOuter = MountedCarrierPathObserver.RetainedScopeCount;
-                var ok = innerThrew && ReferenceEquals(issuerAfterThrow, innerB) && retainedAfterOuter == 0 && bRequests == 0 && !bDelivered &&
-                    (identical ? aRequests == 0 && !aDelivered : aRequests == 1 && aDelivered && aPhase == MountedCarrierApproachPhase.Delivered);
-                Check(ok, "Round 21 (R19-F5) inner command threw inside the outer approach, " + kase + ": innermost live scope after the throw is the inner command " + ReferenceEquals(issuerAfterThrow, innerB) +
-                    "; the outer command's forced path issued before its postfix: outer requests " + aRequests + ", delivered " + aDelivered + ", phase " + aPhase + "; inner requests " + bRequests +
-                    ", delivered " + bDelivered + ", phase " + bPhase + "; scopes after the outer postfix " + retainedAfterOuter);
+                var ok = innerThrew && issuerBeforeOuterCall == null && issuerAfter == null && aRequests == 1 && aDelivered && aPhase == MountedCarrierApproachPhase.Delivered &&
+                    bRequests == 0 && !bDelivered && bPhase == MountedCarrierApproachPhase.AwaitingFirstRequest;
+                Check(ok, "Round 22 (R19-F5) inner approach threw inside the outer approach, " + kase + ": issuer before the outer forced call " + Id(issuerBeforeOuterCall) +
+                    ", after it " + Id(issuerAfter) + "; outer A requests " + aRequests + ", delivered " + aDelivered + ", phase " + aPhase + "; inner B requests " + bRequests + ", delivered " + bDelivered + ", phase " + bPhase);
                 GC.KeepAlive(outerA); GC.KeepAlive(innerB);
+            }
+
+            // (3) The resulting first-tick behavior in the connected production flow: rider-first provisional replacement over the prior selection and
+            // Hold; inside the route-bound carrier A's TickApproaching a stale command B admitted on the same agent (identical or different route) runs
+            // a nested approach that throws before A's transpiled forced call. A's first-tick decision proceeds on A's own delivery (no deferral),
+            // commits and moves the mount along A's path; the strike lands; B receives nothing.
+            foreach (var kase in new[] { "identical routes", "different routes" })
+            {
+                var identical = kase.StartsWith("identical");
+                var c = FirstTickPair(0.12f, 1f / 60f);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                PriorSelectionAndHold(c);
+                var agent = w.Horse.View.AgentASP;
+                UnitMoveTo stale = null, carrierA = null;
+                w.InsideApproachBeforeForcedCall = move =>
+                {
+                    carrierA = move;
+                    stale = new UnitMoveTo(move.ApproachPoint, 0.1f) { ForcedPath = new Pathfinding.ForcedPath(identical ? new List<Vector3>(move.ForcedPath.vectorPath) : new List<Vector3> { w.Horse.Position, w.Horse.Position + new Vector3(0f, 0f, 0.6f) }) };
+                    MountedCarrierApproachLedger.Admit(stale, agent);
+                    PatchMethods.MountedAttackApproachPrefix(stale);
+                    try { throw new InvalidOperationException("simulated nested TickApproaching failure"); } catch (InvalidOperationException) { }
+                };
+                var deferralsBefore = c.Combat.FirstTickDeferralCount;
+                var click = ClickTick(c, w.Target);
+                var p = c.Combat.FirstTickProposalForDiagnostics;
+                var order = w.Rider.Commands.Standard as MountedPairAttackCommand;
+                var start = w.Horse.Position;
+                for (var i = 0; i < 20 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                var decision = c.Combat.LastFirstTickDecision;
+                var deferrals = c.Combat.FirstTickDeferralCount - deferralsBefore;
+                var ok = click.Admitted && p != null && p.Replacement && carrierA != null && ReferenceEquals(carrierA, p.CarrierMove) && stale != null &&
+                    MountedCarrierApproachLedger.RequestCount(carrierA) == 1 && MountedCarrierApproachLedger.HasDelivery(carrierA) && MountedCarrierApproachLedger.MovedAlongDelivery(carrierA) &&
+                    MountedCarrierApproachLedger.RequestCount(stale) == 0 && !MountedCarrierApproachLedger.HasDelivery(stale) &&
+                    deferrals == 0 && decision.StartsWith("committed:replacement:") && order.StruckTargets.Count == 1 && order.DelegatedMoveStarts == 1 &&
+                    Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, w.Horse.Position) > 0f;
+                Check(ok, "Round 22 (R19-F5) first-tick flow, stale command with " + kase + " threw inside carrier A's approach before A's forced call: A requests " +
+                    MountedCarrierApproachLedger.RequestCount(carrierA) + ", delivered " + MountedCarrierApproachLedger.HasDelivery(carrierA) + ", moved along its delivery " + MountedCarrierApproachLedger.MovedAlongDelivery(carrierA) +
+                    "; stale B requests " + MountedCarrierApproachLedger.RequestCount(stale) + ", delivered " + MountedCarrierApproachLedger.HasDelivery(stale) + "; first-tick deferrals " + deferrals +
+                    ", decision " + decision.Substring(0, Math.Min(70, decision.Length)) + "; mount moved " + Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, w.Horse.Position).ToString("0.###") +
+                    " m; strikes " + (order == null ? 0 : order.StruckTargets.Count) + ", carriers " + (order == null ? -1 : order.DelegatedMoveStarts));
+            }
+
+            // (4) An unregistered actual issuer U whose route is identical to a stale admitted command S (whose own approach threw earlier this frame):
+            // U's transpiled forced call is delivered natively, and S receives no credit (nor does U, which is not admitted).
+            {
+                var horse = new UnitEntityData("horse-r22-stale");
+                var agent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
+                horse.View.AgentASP = agent;
+                var route = new List<Vector3> { Vector3.zero, new Vector3(1.5f, 0f, 0f) };
+                var staleS = new UnitMoveTo(new Vector3(1.5f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3>(route)) };
+                var issuerU = new UnitMoveTo(new Vector3(1.5f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3>(route)) };
+                MountedCarrierApproachLedger.Admit(staleS, agent);
+                PatchMethods.MountedAttackApproachPrefix(staleS);
+                try { throw new InvalidOperationException("simulated stale TickApproaching failure"); } catch (InvalidOperationException) { }
+                PatchMethods.MountedAttackApproachPrefix(issuerU);
+                TakePath(horse, issuerU);
+                var steered = agent.Path is Pathfinding.ForcedPath && ReferenceEquals(agent.PathOwner, issuerU);
+                var ok = steered && MountedCarrierApproachLedger.RequestCount(staleS) == 0 && !MountedCarrierApproachLedger.HasDelivery(staleS) &&
+                    MountedCarrierPathObserver.PhaseOf(staleS, agent) == MountedCarrierApproachPhase.AwaitingFirstRequest && MountedCarrierApproachLedger.RequestCount(issuerU) == 0 &&
+                    MountedCarrierPathObserver.CurrentForcedIssuer == null;
+                Check(ok, "Round 22 (R19-F5) unregistered actual issuer with a route identical to a stale admitted command: native delivered U's forced path " + steered +
+                    "; stale S requests " + MountedCarrierApproachLedger.RequestCount(staleS) + ", delivered " + MountedCarrierApproachLedger.HasDelivery(staleS) + ", phase " + MountedCarrierPathObserver.PhaseOf(staleS, agent) +
+                    "; U (not admitted) requests " + MountedCarrierApproachLedger.RequestCount(issuerU));
+                GC.KeepAlive(staleS); GC.KeepAlive(issuerU);
+            }
+
+            // (5) Exception, nesting, collection and teardown controls of the binding: a native exception inside the transpiled call propagates unchanged
+            // and leaves no issuer (the command is collectable afterwards); a nested call inside an outer call restores the outer issuer; ModDisable
+            // releases the issuer.
+            {
+                var horse = new UnitEntityData("horse-r22-controls");
+                var agent = new Kingmaker.View.UnitMovementAgent { Unit = horse };
+                horse.View.AgentASP = agent;
+                var thrown = new InvalidOperationException("simulated native failure");
+                var failing = new UnitMoveTo(new Vector3(1f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(1f, 0f, 0f) }) };
+                MountedCarrierApproachLedger.Admit(failing, agent);
+                ForcedCallBody = a => { throw thrown; };
+                Exception caught = null;
+                try { TakePath(horse, failing); } catch (Exception e) { caught = e; }
+                var propagatedUnchanged = ReferenceEquals(caught, thrown);
+                var issuerAfterThrow = MountedCarrierPathObserver.CurrentForcedIssuer;
+                var failingRequests = MountedCarrierApproachLedger.RequestCount(failing); var failingDelivered = MountedCarrierApproachLedger.HasDelivery(failing);
+                var weak = ThrowingForcedCall(horse);
+                GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                var collected = !weak.IsAlive;
+                var outer = new UnitMoveTo(new Vector3(2f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(2f, 0f, 0f) }) };
+                var inner = new UnitMoveTo(new Vector3(3f, 0f, 0f), 0.1f) { ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { Vector3.zero, new Vector3(3f, 0f, 0f) }) };
+                MountedCarrierApproachLedger.Admit(outer, agent); MountedCarrierApproachLedger.Admit(inner, agent);
+                object issuerInsideOuter = null, issuerInsideInner = null, issuerAfterInner = null;
+                ForcedCallBody = a =>
+                {
+                    issuerInsideOuter = MountedCarrierPathObserver.CurrentForcedIssuer;
+                    ForcedCallBody = b => { issuerInsideInner = MountedCarrierPathObserver.CurrentForcedIssuer; };
+                    TakePath(horse, inner);
+                    issuerAfterInner = MountedCarrierPathObserver.CurrentForcedIssuer;
+                };
+                TakePath(horse, outer);
+                var nestedOk = ReferenceEquals(issuerInsideOuter, outer) && ReferenceEquals(issuerInsideInner, inner) && ReferenceEquals(issuerAfterInner, outer) &&
+                    MountedCarrierPathObserver.CurrentForcedIssuer == null && MountedCarrierApproachLedger.RequestCount(outer) == 1 && MountedCarrierApproachLedger.RequestCount(inner) == 1 &&
+                    MountedCarrierApproachLedger.HasDelivery(inner);
+                var teardownReady = MountedServiceTeardownSequence.ModDisable(new ReadyModDisableSteps());
+                var ok = propagatedUnchanged && issuerAfterThrow == null && failingRequests == 1 && !failingDelivered && collected && nestedOk && teardownReady &&
+                    MountedCarrierPathObserver.CurrentForcedIssuer == null;
+                Check(ok, "Round 22 (R19-F5) binding controls: native exception propagated unchanged " + propagatedUnchanged + ", issuer after it " + Id(issuerAfterThrow) +
+                    " (the throwing call's own request " + failingRequests + ", delivered " + failingDelivered + "); failed command collected " + collected +
+                    "; nested: issuer inside outer " + ReferenceEquals(issuerInsideOuter, outer) + ", inside inner " + ReferenceEquals(issuerInsideInner, inner) + ", restored to outer " +
+                    ReferenceEquals(issuerAfterInner, outer) + ", none after " + (MountedCarrierPathObserver.CurrentForcedIssuer == null) + ", requests outer/inner " + MountedCarrierApproachLedger.RequestCount(outer) +
+                    "/" + MountedCarrierApproachLedger.RequestCount(inner) + "; production ModDisable ready " + teardownReady + ", issuer after teardown " + Id(MountedCarrierPathObserver.CurrentForcedIssuer));
+                GC.KeepAlive(failing);
             }
 
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits

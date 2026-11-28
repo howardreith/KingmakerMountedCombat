@@ -378,10 +378,35 @@ Check ($follow.Name -ceq 'FollowPrecomputedPath' -and $follow.DeclaringType.Full
     $follow.GetParameters()[0].Name -ceq 'p' -and $follow.GetParameters()[0].ParameterType.FullName -ceq 'Pathfinding.Path' -and
     $followText.StartsWith(';ldarg.0;ldarg.1;call set_RequestedPath;') -and $followText.Contains(';ldarg.0;ldarg.1;call OnPathComplete;') -and
     $tickApproachingText.Contains(';ldfld vectorPath;newobj .ctor;newobj .ctor;ldarg.0;call get_ApproachRadius;callvirt FollowPrecomputedPath;')) 'PR-2 round 19 follow-up: 060018B6 is UnitMovementAgent.FollowPrecomputedPath(Path p, float): it sets m_RequestedPath to p and completes it synchronously (OnPathComplete), with no PathTo; TickApproaching passes it a FRESH ForcedPath copy of the ticking command''s path (no command argument), so the issuer is the command whose TickApproaching is running, not a ForcedPath reference'
-$forcedHook = $patchMethodsType.GetMethod('CarrierForcedPathRequestPrefix', $any); $approachPostfix = $patchMethodsType.GetMethod('MountedAttackApproachPostfix', $any)
+$forcedHook = $patchMethodsType.GetMethod('CarrierForcedPathRequestPrefix', $any)
 $approachPrefixText = IlText ($patchMethodsType.GetMethod('MountedAttackApproachPrefix', $any))
 Check ($null -ne $forcedHook -and (@($forcedHook.GetParameters() | ForEach-Object { $_.ParameterType.Name + ' ' + $_.Name }) -join ',') -ceq 'UnitMovementAgent __instance,Path p' -and
-    (IlText $forcedHook).Contains(';call BeforeForcedRequest;') -and $null -ne $approachPostfix -and (IlText $approachPostfix).Contains(';call ExitApproach;') -and
-    $approachPrefixText.StartsWith(';ldarg.0;call EnterApproach;') -and (IlText ($observerType.GetMethod('BeforeForcedRequest', $any))).Contains(';call RecordRequest;') -and
-    $installText.Contains(';ldc.i4 100669622;') -and $installText.IndexOf(';ldc.i4 100669625;') -lt $installText.IndexOf(';ldc.i4 100669622;')) 'PR-2 round 19 follow-up: the product scopes the ticking command in its TickApproaching prefix (EnterApproach first) and postfix (ExitApproach), and its FollowPrecomputedPath prefix (PatchExact 060018B6, binding p by name) records the forced request for that command (MountedCarrierApproachLedger.RecordRequest); OnPathComplete then records the delivery'
+    (IlText $forcedHook).Contains(';call BeforeForcedRequest;') -and (IlText ($observerType.GetMethod('BeforeForcedRequest', $any))).Contains(';call RecordRequest;') -and
+    -not $approachPrefixText.Contains('EnterApproach') -and $null -eq $patchMethodsType.GetMethod('MountedAttackApproachPostfix', $any) -and
+    $installText.Contains(';ldc.i4 100669622;') -and $installText.IndexOf(';ldc.i4 100669625;') -lt $installText.IndexOf(';ldc.i4 100669622;')) 'PR-2 round 19 follow-up, round 22 (R19-F5): the product''s FollowPrecomputedPath prefix (PatchExact 060018B6, binding p by name) records the forced request for the exact issuer; the TickApproaching prefix keeps no scope (no EnterApproach, no scope postfix)'
+# ---- PR-2 round 22 (R19-F5): the exact caller binding at the TickApproaching -> FollowPrecomputedPath call site (installed IL and the product transpiler) ----
+Check (@([regex]::Matches($tickApproachingText, ';callvirt FollowPrecomputedPath;')).Count -eq 1 -and @([regex]::Matches($tickApproachingText, ';call FollowPrecomputedPath;')).Count -eq 0 -and
+    @([regex]::Matches($tickApproachingText, ';newobj \.ctor;ldarg\.0;call get_ApproachRadius;callvirt FollowPrecomputedPath;')).Count -eq 1) 'PR-2 round 22 (R19-F5): installed UnitCommand.TickApproaching (060027A6) makes exactly one FollowPrecomputedPath call, with the stack (agent, newobj ForcedPath, ldarg.0; call get_ApproachRadius)'
+$transpiler22 = $patchMethodsType.GetMethod('ForcedPathCallerTranspiler', $any)
+$ciType22 = $transpiler22.GetParameters()[0].ParameterType.GetGenericArguments()[0]
+$helper22 = $observerType.GetMethod('FollowPrecomputedPathFrom', $any)
+$radius22 = (GameType 'Kingmaker.UnitLogic.Commands.Base.UnitCommand').GetProperty('ApproachRadius', $any).GetGetMethod($true)
+$forcedType22 = $follow.GetParameters()[0].ParameterType.Assembly.GetType('Pathfinding.ForcedPath', $true)
+$vector22 = $pathTo.GetParameters()[1].ParameterType
+$forcedCtor22 = $forcedType22.GetConstructor([Type[]]@([System.Collections.Generic.List``1].MakeGenericType($vector22)))
+function New-Ci22($op, $operand) { [Activator]::CreateInstance($ciType22, @($op, $operand)) }
+function Invoke-Transpiler22([object[]]$Items) {
+    $list = [Activator]::CreateInstance([System.Collections.Generic.List``1].MakeGenericType($ciType22)); foreach ($item in $Items) { [void]$list.Add($item) }
+    try { , @($transpiler22.Invoke($null, [object[]]@(, $list)) | ForEach-Object { $_ }) } catch { $null }
+}
+function New-Site22 { @((New-Ci22 ([Reflection.Emit.OpCodes]::Newobj) $forcedCtor22), (New-Ci22 ([Reflection.Emit.OpCodes]::Ldarg_0) $null), (New-Ci22 ([Reflection.Emit.OpCodes]::Call) $radius22), (New-Ci22 ([Reflection.Emit.OpCodes]::Callvirt) $follow)) }
+$out22 = Invoke-Transpiler22 (New-Site22)
+$twice22 = Invoke-Transpiler22 (@(New-Site22) + @(New-Site22))
+$none22 = Invoke-Transpiler22 @((New-Ci22 ([Reflection.Emit.OpCodes]::Newobj) $forcedCtor22), (New-Ci22 ([Reflection.Emit.OpCodes]::Ldarg_0) $null), (New-Ci22 ([Reflection.Emit.OpCodes]::Call) $radius22))
+$shape22 = Invoke-Transpiler22 @((New-Ci22 ([Reflection.Emit.OpCodes]::Ldnull) $null), (New-Ci22 ([Reflection.Emit.OpCodes]::Ldarg_0) $null), (New-Ci22 ([Reflection.Emit.OpCodes]::Call) $radius22), (New-Ci22 ([Reflection.Emit.OpCodes]::Callvirt) $follow))
+Check ($null -ne $forcedCtor22 -and $null -ne $helper22 -and (@($helper22.GetParameters() | ForEach-Object { $_.ParameterType.Name }) -join ',') -ceq 'UnitMovementAgent,Path,Single,UnitCommand' -and
+    $null -ne $out22 -and $out22.Count -eq 5 -and $out22[0].opcode -eq [Reflection.Emit.OpCodes]::Newobj -and $out22[1].opcode -eq [Reflection.Emit.OpCodes]::Ldarg_0 -and
+    $out22[2].opcode -eq [Reflection.Emit.OpCodes]::Call -and $out22[3].opcode -eq [Reflection.Emit.OpCodes]::Ldarg_0 -and $out22[4].opcode -eq [Reflection.Emit.OpCodes]::Call -and
+    $out22[4].operand -eq $helper22 -and $null -eq $twice22 -and $null -eq $none22 -and $null -eq $shape22 -and
+    (IlText $helper22).Contains(';callvirt FollowPrecomputedPath;') -and @([regex]::Matches((IlText $helper22), 'FollowPrecomputedPath;')).Count -eq 1) 'PR-2 round 22 (R19-F5): the product transpiler (on the existing TickApproaching PatchExact) turns the installed site `newobj ForcedPath(List<Vector3>); ldarg.0; call get_ApproachRadius; callvirt FollowPrecomputedPath` into `...; ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(UnitMovementAgent, Path, float, UnitCommand)`, which makes the native call once; it refuses two sites, no site and a different argument shape (fail closed at install)'
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
