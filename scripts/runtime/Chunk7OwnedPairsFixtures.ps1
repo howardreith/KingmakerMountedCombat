@@ -431,7 +431,9 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCurrentSource($Selection,[string]$Persi
  Assert-KmcChunk7OwnerSeedCheckpointColdSource $request (Read-KmcJson $original.checkpointArtifactPath) $artifact
  if($parentCase-ceq'owned-schema1-resave-manual'){Assert-KmcOwnedSchema1ColdSource $request $original $artifact}
  if($parentCase-ceq'legacy-mounted-pending-tb-manual'){Assert-KmcOwnedSchema2ColdSource $request $original $artifact}
- $w=$artifact.observations.nativeWrite;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+ # PR #70 R13-F2 (round 16): the accepted parent's write carries its recorded writer (c); the child loads exactly that version (d).
+ $writer=Assert-KmcChunk7WriterSchema $artifact.observations.nativeSchema 'Current-format parent writer'
+ $w=$artifact.observations.nativeWrite;Assert-KmcOrdinaryInteger $w.sourceSchema $writer $writer
  $leaf=Get-KmcChunk7OwnedOutputLeaf $request $artifact.observations;$expected=Join-Path (Join-Path $set.profile 'Saved Games') $leaf
  Assert-KmcBootstrapInventoryString $w.path $expected
  Assert-KmcNotReparsePoint $w.path 'current-format native resave';Assert-KmcNotHardLink $w.path 'current-format native resave'
@@ -439,7 +441,7 @@ function Get-KmcChunk7OwnedPairsOwnerSeedCurrentSource($Selection,[string]$Persi
  if($output.Length-ne$w.length-or(Get-KmcSha256 $w.path)-cne$w.sha256){throw 'Current-format native resave bytes differ from the accepted parent.'}
  $stream=[IO.File]::Open($w.path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
  try{$actual=Get-KmcOwnedSchema1Members $stream}finally{$stream.Dispose()}
- if($actual.metadata.SchemaVersion-ne3-or(ConvertTo-KmcChunk7Canonical $actual.metadata)-cne(ConvertTo-KmcChunk7Canonical $w.archive)-or(Get-KmcSha256 $w.path)-cne$w.sha256-or(Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks-ne$output.LastWriteTimeUtc.Ticks){throw 'Current-format native metadata differs from its accepted readback or changed during qualification.'}
+ if($actual.metadata.SchemaVersion-ne$writer-or(ConvertTo-KmcChunk7Canonical $actual.metadata)-cne(ConvertTo-KmcChunk7Canonical $w.archive)-or(Get-KmcSha256 $w.path)-cne$w.sha256-or(Get-Item -LiteralPath $w.path).LastWriteTimeUtc.Ticks-ne$output.LastWriteTimeUtc.Ticks){throw 'Current-format native metadata differs from its accepted readback or changed during qualification.'}
  $descriptor=[pscustomobject]@{internalName=$w.nativeName;fileName=$leaf;sha256=$w.sha256;length=$w.length;lastWriteTimeUtcTicks=[long]$output.LastWriteTimeUtc.Ticks;gameId=$original.descriptor.gameId;gameName=$original.descriptor.gameName;area=$w.archive.AreaId}
  Assert-KmcChunk7OwnedPairsDescriptor ([pscustomobject]@{scenario='chunk7-owned-two-pair-campaign';runId='unassigned-owned-seed-current';ownedPairs=$Selection;persistenceCase=$PersistenceCase;persistenceLoad=$descriptor;fixture=$Fixture})
  Assert-KmcChunk7OwnedReceiptPins $set

@@ -758,7 +758,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  Assert-KmcChunk7Boolean $seed.nativeLoadVerifiedByHost $true;Assert-KmcChunk7Boolean $seed.fixtureSetupOnly $true;Assert-KmcChunk7Boolean $seed.acquisitionProof $false
  $c=$o.capability;Assert-KmcExactProperties $c @('archiveNativeEnabled','nativeWriterSchema','nativePairCapacity','workingSha256','inheritedManualSha256','ownerSeedSha256') 'owner-seed capability'
  Assert-KmcChunk7Boolean $c.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $c @('nativeWriterSchema','nativePairCapacity')
- if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
+ if(-not(Test-KmcChunk7WriterSchema $c.nativeWriterSchema)-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-seed capability differs or claims Working/inherited provenance.'}
  Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
  $u=$o.ownerSeedSetup
  # The mounted6 Manual producer (owner-made KMC seed): rider A's pre-owned Horse is verified, never built; only rider B is built.
@@ -769,7 +769,9 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($preOwned){
   $m6=Get-KmcChunk7Mounted6Seed;$e=$u.ownerMadeEmptyArchive
   Assert-KmcExactProperties $e @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'owner-made seed empty archive'
-  Assert-KmcOrdinaryInteger $e.schemaVersion 3 3;Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
+  # Round 19 (R18-F5): the owner-made seed's input format is independent (a schema-3 seed decoded by this build normalizes to its writer);
+  # the decoded graph's version is the same process's advertised writer capability.
+  $graph=Assert-KmcChunk7NormalizedGraphVersion $e.schemaVersion 'Owner-seed world';if($graph-ne(Assert-KmcChunk7WriterSchema $c.nativeWriterSchema 'Owner-seed writer capability')){throw 'Owner-made seed normalized graph version differs from the same process''s writer capability.'};Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
   foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $e.$key 0 0};Assert-KmcChunk7Boolean $e.combatPresent $false;Assert-KmcChunk7Boolean $e.nativeRestorationGrantedByDiagnostic $false
   $q=$u.preOwnedRiderA
   Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'mounted6 pre-owned rider A'
@@ -979,9 +981,10 @@ function Test-KmcChunk7DebtWithinClock($Before,$After,[double]$Elapsed){
  return $true
 }
 function Assert-KmcChunk7OwnerSeedManualArchive($Request,$Archive,[string[]]$Roles){
- Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'owner-seed Manual native archive'
+ # PR #70 R13-F2 (round 16): a writer graph (shared versioned field set); the caller binds it to the write's version.
+ [void](Assert-KmcChunk7WriterArchive $Archive 'owner-seed Manual native archive')
  $d=$Request.persistenceLoad
- if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$d.gameId-or$Archive.AreaId-cne$d.area-or
+ if($Archive.CampaignId-cne$d.gameId-or$Archive.AreaId-cne$d.area-or
     -not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or$Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
     $Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or
     $Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne4){throw 'Owner-seed Manual read-back omitted a pair, invented combat/retained state or changed version/policy/slots.'}
@@ -1029,8 +1032,12 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-cin@($d.sha256,$s.seedSha256)){throw 'Owner-seed Manual write hash is malformed or aliases the immutable seed.'}
  Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
  foreach($pair in @(@('fileName',$leaf),@('gameId',$d.gameId),@('gameName',$d.gameName),@('area',$d.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
- Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+ $writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Owner-seed Manual writer'
+ Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1
  Assert-KmcChunk7OwnerSeedManualArchive $Request $w.archive $roles
+ if($w.archive.SchemaVersion-ne$writer){throw 'Owner-seed Manual archive differs from its writer schema.'}
+ # R16-F5 (round 17): the advertised writer capability is the writer of this record's Manual.
+ Assert-KmcChunk7ManualWriterCapability $o.capability $w 'Owner-seed world'
  $m=$o.ownerSeedManual;Assert-KmcExactProperties $m (Get-KmcChunk7OwnerSeedManualFields) 'owner-seed-derived Manual receipt'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-manual-v1';Assert-KmcBootstrapInventoryString $m.ancestry 'owner-seed-derived'
  foreach($key in @('disclosedAssistance','setupCompletedBeforeSave','seedCopyUnchanged')){Assert-KmcChunk7Boolean $m.$key $true}
@@ -1357,7 +1364,9 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','newSlotBindings','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','loadedArchive') 'owner-seed checkpoint restored start'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-checkpoint-restored-start-v1';Assert-KmcBootstrapInventoryString $m.archivePhase 'all-pair-presentation-restored'
  foreach($key in @('restoredFromColdLoad','loadedEqualsProducerReadback','debtRetained')){Assert-KmcChunk7Boolean $m.$key $true}
- foreach($pair in @(@('nativeMountInputs',0),@('newSlotBindings',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
+ # R13-F2 (round 18): the restored start records its decoded (normalized) graph version: this build's writer.
+ [void](Assert-KmcChunk7NormalizedGraphVersion $m.schemaVersion 'Owner-seed checkpoint restored start');if($m.schemaVersion-ne$o.nativeSchema){throw 'The restored start graph version differs from the producer''s writer schema.'}
+ foreach($pair in @(@('nativeMountInputs',0),@('newSlotBindings',0),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId-or$m.processId-ne$o.processId){throw 'A same-process world cannot prove the restored mounted start.'}
  if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'The owner-seed checkpoint producer requires both restored pairs.'}
  if($single){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $o}
@@ -1391,7 +1400,8 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  if(@($Archive.Slots).Count-ne$(if($single){2}else{4})){throw 'The written checkpoint changed the restored control bindings.'}
  $comparisonSlots=if($areaFixture-or(Test-KmcChunk7ManticoreReturnArea $Request.ownedPairs)){$m.loadedArchive.Slots}else{$Archive.Slots}
  foreach($slot in @($m.slots|Where-Object{-not$single-or$_.actorId-ceq$roles[0]})){if(@($comparisonSlots|Where-Object{$_.ActorId-ceq$slot.actorId-and$_.Index-eq$slot.index-and$_.Kind-eq$slot.kind}).Count-ne1){throw 'The written checkpoint changed the restored control bindings.'}}}
- $l=$m.loadedArchive;if($null-eq$l-or$l.SchemaVersion-ne3-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
+ # R13-F2 (round 16): the restored start is this build's normalized graph: it carries the producer's writer version.
+ $l=$m.loadedArchive;if($null-eq$l-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or$l.SchemaVersion-ne$o.nativeSchema-or@($l.Pairs).Count-ne2-or@($l.Participations).Count-ne0-or$null-ne$l.Combat-or$l.AreaId-cne$Request.persistenceLoad.area-or$l.CampaignId-cne$Request.persistenceLoad.gameId){throw 'The restored start is not the exact two-pair exploration graph of the selected Manual copy.'}
  [void](Get-KmcChunk7OwnerSeedSnapshot $o 'before-native-save')
  $src=$o.ownerSeedCheckpointSource
  Assert-KmcExactProperties $src @('contract','role','ancestry','acquisitionProof','ordinaryProducerAncestry','manualProducerRunId','manualProducerArtifactSha256','manualSha256','acceptedConsumerRunId','acceptedConsumerArtifactSha256','seedId','seedSha256','checkpoint','candidates') 'owner-seed checkpoint source'
@@ -1399,6 +1409,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  Assert-KmcChunk7Boolean $src.acquisitionProof $false;Assert-KmcChunk7Boolean $src.ordinaryProducerAncestry $false;Assert-KmcBootstrapInventoryString $src.checkpoint $Request.persistenceCase
  foreach($pair in @(@('manualProducerRunId','sourceRunId'),@('manualProducerArtifactSha256','sourceArtifactSha256'),@('manualSha256','sourceArchiveSha256'),@('acceptedConsumerRunId','checkpointSourceRunId'),@('acceptedConsumerArtifactSha256','checkpointSourceArtifactSha256'),@('seedId','seedId'),@('seedSha256','seedSha256'))){Assert-KmcBootstrapInventoryString $src.($pair[0]) $s.($pair[1])}
  Assert-KmcChunk7OwnerSeedCandidates $Request $src.candidates
+ if($src.candidates.currentWriterSchema-ne$o.nativeSchema){throw 'The recorded current writer differs from the producer''s writer schema.'}
  if($areaFixture){Assert-KmcChunk7ManticoreFixtureObservation $Request $o $Archive}
 }
 function Get-KmcChunk7OwnerSeedSnapshot($Observations,[string]$Label){$rows=@($Observations.snapshots|Where-Object label -CEQ $Label);if($rows.Count-ne1){throw ('Exact '+$Label+' snapshot is missing or duplicated.')};$rows[0]}
@@ -1406,11 +1417,13 @@ function Get-KmcChunk7OwnerSeedSnapshot($Observations,[string]$Label){$rows=@($O
 function Assert-KmcChunk7OwnerSeedCandidates($Request,$Candidates){
  $c=$Candidates;$s=$Request.ownedPairs;Assert-KmcExactProperties $c @('contract','sameCandidate','crossCandidateAllowed','producer','current','consumerRunId','consumerArtifactSha256','manualSchema','currentWriterSchema') 'owner-seed-derived candidate identities'
  Assert-KmcBootstrapInventoryString $c.contract 'owner-seed-derived-candidate-identity-v1';Assert-KmcChunk7Boolean $c.crossCandidateAllowed $true;if($c.sameCandidate-isnot[bool]){throw 'Cross-candidate fact must be an observed boolean.'}
- Assert-KmcOrdinaryInteger $c.manualSchema 3 3;Assert-KmcOrdinaryInteger $c.currentWriterSchema 3 3
+ # R13-F2 (round 16): the Manual's version is its producer's writer; the current writer is this candidate's; one candidate has one writer.
+ [void](Assert-KmcChunk7WriterSchema $c.manualSchema 'Owner-seed Manual schema');[void](Assert-KmcChunk7WriterSchema $c.currentWriterSchema 'Owner-seed current writer schema')
  foreach($key in @('commit','dllSha256','dllMvid')){Assert-KmcBootstrapInventoryString $c.current.$key $Request.$key}
  if($c.producer.commit-isnot[string]-or$c.producer.commit-cnotmatch'^[a-f0-9]{40}$'-or$c.producer.dllSha256-isnot[string]-or$c.producer.dllSha256-cnotmatch'^[a-f0-9]{64}$'){throw 'Producer candidate identity is not recorded exactly.'}
  $same=$c.producer.commit-ceq$Request.commit-and$c.producer.dllSha256-ceq$Request.dllSha256-and$c.producer.dllMvid-ceq$Request.dllMvid
  if($same-ne$c.sameCandidate){throw 'The recorded cross-candidate fact differs from the two candidate identities.'}
+ if($same-and$c.manualSchema-ne$c.currentWriterSchema){throw 'One candidate recorded two writer schemas.'}
  Assert-KmcBootstrapInventoryString $c.producer.runId $s.sourceRunId;Assert-KmcBootstrapInventoryString $c.consumerRunId $s.checkpointSourceRunId;Assert-KmcBootstrapInventoryString $c.consumerArtifactSha256 $s.checkpointSourceArtifactSha256
 }
 # Runner post-run comparison of the checkpoint consumer with its producer's OWN recorded read-back
@@ -1432,12 +1445,14 @@ function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$ProducerArtifac
  }
  $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual';$control=$Request.persistenceCase-ceq'pending-schema3-control-manual';$pendingOnly=$legacy-or$control
  if($legacy){
-  Assert-KmcOwnedSchema2Migration $Request $c;Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema 3 3
+  # R13-F2 (round 16): the source is the producer's write (c); the child's migrated graph (b) carries the child's writer.
+  $sourceWriter=Assert-KmcChunk7WriterSchema $p.nativeSchema 'Checkpoint producer writer'
+  Assert-KmcOwnedSchema2Migration $Request $c;Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema $sourceWriter $sourceWriter
   Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1'
   Assert-KmcBootstrapInventoryString $c.schema2Migration.originalNativeArchiveSha256 $p.nativeWrite.sha256
   $projection=ConvertTo-KmcOwnedSchema2Metadata $p.nativeWrite.archive $Request
   if((ConvertTo-KmcChunk7Canonical $projection)-cne(ConvertTo-KmcChunk7Canonical $c.schema2Migration.nativeInputMetadata)){throw 'Historical schema2 input differs from its genuine current producer graph.'}
-  $legacyImported=ConvertFrom-KmcOwnedSchema2Metadata $projection $Request
+  $legacyImported=ConvertFrom-KmcOwnedSchema2Metadata $projection $Request (Assert-KmcChunk7WriterSchema $c.nativeSchema 'Schema-2 cold writer')
   if((ConvertTo-KmcChunk7Canonical $legacyImported)-cne(ConvertTo-KmcChunk7Canonical $c.loadedArchive)){throw 'Native schema2 migration changed more than deterministic historical owner custody.'}
  }else{Assert-KmcBootstrapInventoryString $p.nativeWrite.sha256 $Request.persistenceLoad.sha256;Assert-KmcOrdinaryInteger $p.nativeWrite.length $Request.persistenceLoad.length $Request.persistenceLoad.length}
  Assert-KmcOrdinaryInteger $p.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $c.processId 1 ([int]::MaxValue);if($p.processId-eq$c.processId){throw 'Owner-seed checkpoint cold proof did not run in a process separate from its producer.'}
@@ -1446,7 +1461,7 @@ function Assert-KmcChunk7OwnerSeedCheckpointColdSource($Request,$ProducerArtifac
  $legacy=$Request.persistenceCase-ceq'legacy-mounted-pending-tb-manual'
  if($pendingOnly){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $p (Get-KmcChunk7PersistenceSourceCase $Request.persistenceCase);Assert-KmcChunk7CombatArchive $c.loadedArchive $Request}
  if($legacy){Assert-KmcChunk7LegacyPendingMigration $projection $c.loadedArchive}
- if($control){Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema 3 3;Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1';if($null-ne$c.PSObject.Properties['schema2Migration']){throw 'Unconverted schema-3 control cannot claim schema-2 migration.'}}
+ if($control){$sourceWriter=Assert-KmcChunk7WriterSchema $p.nativeSchema 'Checkpoint producer writer';Assert-KmcOrdinaryInteger $p.nativeWrite.sourceSchema $sourceWriter $sourceWriter;Assert-KmcOrdinaryInteger $c.nativeSchema $sourceWriter $sourceWriter;Assert-KmcBootstrapInventoryString $p.nativeSourceContract 'owner-seed-current-pending-source-v1';if($null-ne$c.PSObject.Properties['schema2Migration']){throw 'Unconverted schema-3 control cannot claim schema-2 migration.'}}
  # Schema 2 stores no stable owner identity/generation: its explicit adapter
  # derives deterministic custody at generation one. Live preparation preserves
  # A; the cold process must restore this validated migrated graph exactly.
@@ -1478,7 +1493,8 @@ function Assert-KmcChunk7OwnerSeedDerivedCombatStart($Request,$Observations){
  Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','elapsedSeconds','debt','world') 'owner-seed-derived mounted start'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-mounted-start-v1';Assert-KmcBootstrapInventoryString $m.archivePhase 'all-pair-presentation-restored'
  foreach($key in @('restoredFromColdLoad','loadedEqualsProducerReadback','debtRetained')){Assert-KmcChunk7Boolean $m.$key $true}
- foreach($pair in @(@('nativeMountInputs',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
+ [void](Assert-KmcChunk7NormalizedGraphVersion $m.schemaVersion 'Owner-seed derived combat restored start') # R13-F2 (round 18): normalized graph version
+ foreach($pair in @(@('nativeMountInputs',0),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId){throw 'A same-process world cannot prove the restored mounted start.'}
  if(-not(Test-KmcChunk7FiniteNumber $m.elapsedSeconds)-or$m.elapsedSeconds-lt0){throw 'Mounted-start clock observation is invalid.'}
  if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'Owner-seed-derived combat requires both restored pairs.'}

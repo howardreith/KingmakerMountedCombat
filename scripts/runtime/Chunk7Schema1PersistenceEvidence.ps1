@@ -12,8 +12,9 @@ function Get-KmcChunk7Schema1Owner($Metadata) {
     return ([Guid]::new([byte[]]$bytes[0..15])).ToString('N')
 }
 function Assert-KmcChunk7Schema1Archive($Archive,$Request) {
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'schema-1 migrated native archive'
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or
+    # PR #70 R13-F2 (round 16): a writer graph (shared versioned field set); the observation binds it to the build's writer.
+    [void](Assert-KmcChunk7WriterArchive $Archive 'schema-1 migrated native archive')
+    if(
        $Archive.CampaignId-cne$Request.fixture.working.gameId-or$Archive.AreaId-cne$Request.fixture.working.area-or
        -not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
@@ -108,7 +109,7 @@ function Assert-KmcChunk7Schema1Observation($Request,$Artifact) {
     if($Artifact.status-cne'PASS'-or$o.checkpoint-cne$Request.persistenceCase-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
        $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'){throw 'Schema-1 native case/fixture identity differs.'}
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
-    if($o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or$o.processId-le0){throw 'Schema-1 deliberate native migration capability differs.'}
+    if(-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or$o.processId-le0){throw 'Schema-1 deliberate native migration capability differs.'}
     foreach($field in @('cold','nativeProgressionRequiresExternalWorkingRestoration')){Assert-KmcChunk7Boolean $o.$field $true}
     foreach($field in @('combatDebtProof','ordinaryRespecProven')){Assert-KmcChunk7Boolean $o.$field $false}
     Assert-KmcExactProperties $old @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Mounted','ProfileId','Rider','Mount','Slots') 'raw native schema-1 metadata'
@@ -119,6 +120,7 @@ function Assert-KmcChunk7Schema1Observation($Request,$Artifact) {
        (ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)-or
        (ConvertTo-KmcChunk7Canonical $o.loadedArchive)-cne(ConvertTo-KmcChunk7Canonical $imported)){throw 'Schema-1 input provenance or migrated graph differs.'}
     Assert-KmcChunk7Schema1Archive $imported $Request
+    if($imported.SchemaVersion-ne$o.nativeSchema){throw 'Schema-1 migrated graph is not normalized to the build''s writer schema.'}
     foreach($field in @('CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Slots')){if((ConvertTo-KmcChunk7Canonical $old.$field)-cne(ConvertTo-KmcChunk7Canonical $imported.$field)){throw 'Schema-1 migration lost native metadata.'}}
     $pair=$imported.Pairs[0]
     foreach($field in @('ProfileId','Rider','Mount')){if((ConvertTo-KmcChunk7Canonical $old.$field)-cne(ConvertTo-KmcChunk7Canonical $pair.$field)){throw 'Schema-1 migration changed an actor or profile.'}}
@@ -128,6 +130,7 @@ function Assert-KmcChunk7Schema1Observation($Request,$Artifact) {
     if($o.inputs-isnot[Array]-or$o.inputs.Count-ne0-or$o.movements-isnot[Array]-or$o.movements.Count-ne0){throw 'Schema-1 restoration replayed a native command.'}
     $write=$o.nativeWrite;$resaved=$write.archive
     Assert-KmcChunk7Schema1Archive $resaved $Request
+    if($resaved.SchemaVersion-ne$o.nativeSchema){throw 'Schema-1 resave differs from the build''s writer schema.'}
     foreach($field in @('CampaignId','AreaId','Policy','RulesId','Slots')){if((ConvertTo-KmcChunk7Canonical $imported.$field)-cne(ConvertTo-KmcChunk7Canonical $resaved.$field)){throw 'Schema-1 resave changed persistent identity/policy/slots.'}}
     foreach($field in @('PairId','Generation','ProfileId')){if($resaved.Pairs[0].$field-cne$pair.$field){throw 'Schema-1 resave replaced its owner.'}}
     foreach($role in @('Rider','Mount')){Assert-KmcChunk7Schema1Debt $resaved.Pairs[0].$role $pair.$role $resaved.GameTimeTicks $imported.GameTimeTicks}
@@ -136,9 +139,9 @@ function Assert-KmcChunk7Schema1Observation($Request,$Artifact) {
     Assert-KmcChunk7NativeCounters $o.saveRequested @('snapshotCount','gameTicks')
     foreach($field in @('nativeSaveAllowed','newSlot')){Assert-KmcChunk7Boolean $o.saveRequested.$field $true}
     Assert-KmcChunk7Boolean $write.nativeCallback $true
-    if($write.nativeType-cne'Manual'-or$write.nativeName-cne'KMC_C7_SCHEMA1'-or$write.operation-cne'None'-or$write.sourceSchema-ne3-or$write.snapshotCount-ne1-or
+    if($write.nativeType-cne'Manual'-or$write.nativeName-cne'KMC_C7_SCHEMA1'-or$write.operation-cne'None'-or$write.sourceSchema-ne$o.nativeSchema-or$write.snapshotCount-ne1-or
        $write.sha256-cnotmatch'^[0-9a-f]{64}$'-or$write.length-le0-or$write.length-gt256MB-or$o.saveRequested.nativeType-cne'Manual'-or
-       $o.saveRequested.nativeName-cne'KMC_C7_SCHEMA1'-or$o.saveRequested.snapshotCount-ne0){throw 'Schema-1 resave was not one completed native schema-3 Manual write.'}
+       $o.saveRequested.nativeName-cne'KMC_C7_SCHEMA1'-or$o.saveRequested.snapshotCount-ne0){throw 'Schema-1 resave was not one completed native writer-schema Manual write.'}
     foreach($spec in @(@('schema1-native-restored-before-resave',0),@('schema1-native-resave-complete',1))){
         $rows=@($o.snapshots|Where-Object label -CEQ $spec[0]);if($rows.Count-ne1){throw 'Schema-1 native checkpoint missing.'};$s=$rows[0]
         Assert-KmcChunk7NativeCounters $s @('semanticRestores','presentationRestores','nativePostLoads','snapshots','nativeCastRequests','gameTicks')

@@ -118,8 +118,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Require(request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion && (request.OwnedPairs != null || request.Fixture?.Working?.Sha256 == WorkingHash),
                     "The two-pair fixture requires the exact qualified disposable Working bytes.");
                 Require(world != null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
-                    NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity >= 2,
-                    "Reviewed native all-pair integration, schema 3 and at least two-pair capacity must be selected in source before this scenario.");
+                    NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && GameMountedRelationshipService.NativePairCapacity >= 2,
+                    "Reviewed native all-pair integration, the current archive schema and at least two-pair capacity must be selected in source before this scenario.");
                 var game = Game.Instance;
                 Require(game?.Player != null && SelectionManager.Instance != null && !game.Player.IsInCombat &&
                     game.Player.GameId == request.SelectedChunk7Fixture.GameId, "The exact loaded Working world must be idle outside combat.");
@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnableUnsafeMovementExperiment = true;
                 MovementScreenshotCaptureCoordinator.AcquireClosedUmmLeaseRetained(out ummLease);
                 mode = new NativeModeTransitionProbe(false); mode.DispatchTemporaryValueIfRequired();
-                evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = 3,
+                evidence["capability"] = new JObject { ["archiveNativeEnabled"] = true, ["nativeWriterSchema"] = NativeMountedSaveFormat.SelectedWriterSchema, // R16-F5 (round 17): the selected writer
                     ["nativePairCapacity"] = GameMountedRelationshipService.NativePairCapacity, ["workingSha256"] = inherited == null && !OwnerSeed && !OwnerSurfaceSpeed ? WorkingHash : null,
                     ["inheritedManualSha256"] = inherited == null ? null : request.OwnedPairs.SourceArchiveSha256 };
                 evidence["unityDevelopmentPlayer"] = UnityEngine.Debug.isDebugBuild;

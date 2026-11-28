@@ -175,6 +175,7 @@ namespace KingmakerMountedCombat.Integration
                 AreaId = game.CurrentlyLoadedArea.AssetGuidThreadSafe, GameTimeTicks = game.TimeController.GameTime.Ticks,
                 Policy = MountedSaveData.PairedPolicy, RulesId = MountedSaveData.Rules,
                 Slots = controls.CapturePersistentSlots(includeAbsentIntent: true), Combat = savedCombat,
+                StepTravel = SavedStepTravel.Detach(savedCombat?.Allocations),
                 Pairs = Enabled ? mounted.Select(g => {
                     var owner = g.Relationship.PairOwner;
                     if (!g.Relationship.IsCurrentPairOwner(owner))

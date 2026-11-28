@@ -46,7 +46,7 @@ function Assert-KmcChunk7SixPairCheckpointEvidence($Request,$Artifact,$Profile,$
  foreach($key in @('resourceWrites','xpWrites','moneyWrites','mountRequests','choiceRequests')){Assert-KmcOrdinaryInteger $o.$key 0 0}
  foreach($key in @('ordinaryAcquisitionProven','ordinaryProgressionProven','sixPairFixtureQualified','profileAdmissionChanged')){Assert-KmcChunk7Boolean $o.$key $false}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
- Assert-KmcOrdinaryInteger $o.archive.schemaVersion 3 3
+ [void](Assert-KmcChunk7NormalizedGraphVersion $o.archive.schemaVersion 'Six-pair checkpoint source')
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $o.archive.$key 0 0}
  foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $o.archive.$key $false}
  Assert-KmcBootstrapInventoryString $o.archive.campaignId $Request.persistenceLoad.gameId

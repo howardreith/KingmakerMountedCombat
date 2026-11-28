@@ -379,17 +379,17 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
  else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
  [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}
 }
-function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifact,[string]$Status='PASS'){
+function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifact,[string]$Status='PASS',$CandidateArtifact=$null){
  Assert-KmcChunk7ManualDerivedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-derived-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS Manual-derived result needs its PASS native artifact.'};if($Artifact.status-cne'PASS'){return}
  if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks')){
   Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-assisted-cold-inventory';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-assisted-cold-inventory-evidence'
  }else{Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-bootstrap-manual-seed';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-manual-seed-evidence'}
- Assert-KmcNativeAcquisitionProof $Request $Artifact $SourceArtifact $Request.manualDerived
+ Assert-KmcNativeAcquisitionProof $Request $Artifact $SourceArtifact $Request.manualDerived -CandidateArtifact $CandidateArtifact
 }
 # Shared raw native observation proof only. Each closed caller validates its own
 # exact descriptor, artifact kind and distinct source family before entering.
-function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative,$AssistedProjection=$null){
+function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative,$AssistedProjection=$null,$CandidateArtifact=$null){
  $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=Test-KmcManualDerivedPaidCase $s.case
  $sourceValues=$source.observations;$sourceWrite=$null;$sourceWorld=$null;$ownerSeed=$s.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $f09=$s.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
@@ -426,7 +426,19 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   Assert-KmcOrdinaryInteger $sourceValues.selectorProbe.goCount 0 0
   $sourceWorld=$sourceValues.loadedWorld;$sourceWrite=$Request.persistenceLoad
   $sourceValues=Get-KmcChunk7OwnerSeedAcquisitionProjection $source.observations
- }elseif($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld}
+ }elseif($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld
+  # Round 20 (R13-F2): the same-candidate Manual seed source and its cold inventory copy must carry the reflected hook identity themselves;
+  # the outer record's copies are compared with them, so agreeing copies cannot carry an identity the installed module cannot emit.
+  if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid
+   # Round 21/22 (R20-F3, R21-F1): this record and its same-candidate sources bind each method to one token of its module, across restoration
+   # and Manual save rows, and current-build product rows equal the candidate artifact's reflected bindings.
+   # Round 23 (R22-F3): the outer save rows, the supplied source's save rows and their copy pass the exact three-row validation first.
+   foreach($rows in @(,$o.nativeSave.hooks)+@(,$sourceValues.nativeSave.hooks)+@(,$o.sourceManualObservations.nativeSave.hooks)){Assert-KmcChunk7ManualSaveHookRows $rows $Request.dllMvid}
+   Assert-KmcChunk7SameModuleHookTokens $Request (@(,$o.noPreparation.hooks)+@(,$o.nativeSave.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks)+@(,$sourceValues.nativeSave.hooks)) (Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer') $CandidateArtifact
+   # Round 21 (R20-F2): the same-candidate Manual seed and cold-inventory processes decoded with the same build, so their normalized graphs
+   # carry this record's writer (its own Manual write). Their inputs' versions are independent and are not recorded.
+   $sameBuildWriter=Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer'
+   foreach($row in @($sourceValues.archive,$sourceValues.sourceColdInventory.archive)){if((Assert-KmcChunk7NormalizedGraphVersion $row.schemaVersion 'Manual-derived same-candidate source')-ne$sameBuildWriter){throw 'A same-candidate source normalized graph differs from the build''s writer.'}}}}
  if($null-ne$AssistedProjection){
   if(-not$Cumulative-or-not(Test-KmcAssistedCumulativeMode $s)){throw 'An assisted projection belongs only to the closed cumulative source mode.'}
   $sourceValues=$AssistedProjection;$sourceWrite=$source.observations.finalManual;$sourceWorld=$source.observations.settledWorld
@@ -505,7 +517,9 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  }
  $a=$o.archive
  if($ownerSeed){Assert-KmcBootstrapInventoryString $a.kind 'Missing';foreach($key in @('loadedArchivePresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}}
- else{Assert-KmcOrdinaryInteger $a.schemaVersion 3 3;foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
+ # Round 19 (R18-F5): the producer requires both the decoded graph and its own Manual write to equal MountedArchiveData.Schema, so in one
+ # process the normalized graph version is the selected writer's. The decoded input's own version is independent and is not recorded here.
+ else{$graph=Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual-derived';if($graph-ne(Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer')){throw 'Manual-derived normalized graph version differs from the same process''s Manual writer.'};foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
   foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
  foreach($key in @('profileAdmissionChanged','nativeFixtureCreated','poseQualified','ordinaryAcquisitionProven')){Assert-KmcChunk7Boolean $inventory.$key $false}
@@ -642,11 +656,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  foreach($key in @('installed','installationAttempted','complete')){Assert-KmcChunk7Boolean $p.$key $true}
  foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1}
  if($p.errors-isnot[Array]-or$p.errors.Count-ne0-or$p.events-isnot[Array]-or$p.events.Count-ne6-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne3){throw 'Manual save observer is incomplete.'}
- $methods=@('SaveRoutine','PrepareSave','RecordCompletedSave');$tokens=@('06008029','06008025')
- for($i=0;$i-lt3;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i]
-  if($i-lt2){Assert-KmcBootstrapInventoryString $h.type 'Kingmaker.EntitySystem.Persistence.SaveManager';Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}
-  else{Assert-KmcBootstrapInventoryString $h.type 'KingmakerMountedCombat.Integration.MountedPersistenceService';Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Manual completion hook token invalid.'}}
- }
+ Assert-KmcChunk7ManualSaveHookRows $p.hooks $Request.dllMvid
  $kinds=@('native-save-request','native-save-prepared','snapshot-starting','snapshot-staged','native-worker-completed','native-save-callback');$prior=$r.frame
  for($i=0;$i-lt6;$i++){$e=$p.events[$i];Assert-KmcBootstrapInventoryString $e.kind $kinds[$i];Assert-KmcOrdinaryInteger $e.sequence ($i+1) ($i+1);Assert-KmcOrdinaryInteger $e.frame $prior $O.settledWorld.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcOrdinaryInteger $e.$key $O.loadedWorld.$key $O.loadedWorld.$key}
@@ -675,7 +685,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  foreach($key in @('authorizedWrites','admittedWrites','completedWrites','snapshotCount')){Assert-KmcOrdinaryInteger $w.$key 1 1}
  foreach($key in @('nativeWorkerSettled','hasFileOnDisk','isActuallySaved','saveAfterFieldSelection','emptyMountedArchive')){Assert-KmcChunk7Boolean $w.$key $true}
  foreach($key in @('autoLevelup','slotProjectionEnabled')){Assert-KmcChunk7Boolean $w.$key $false}
- Assert-KmcOrdinaryInteger $w.schema 3 3;Assert-KmcOrdinaryInteger $w.descriptorCount 2 2
+ [void](Assert-KmcChunk7WriterSchema $w.schema 'Manual-derived output writer');Assert-KmcOrdinaryInteger $w.descriptorCount 2 2 # PR #70 R13-F2 (round 17): this build's write
  if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sha256-ceq$Request.fixture.working.sha256-or$w.sha256-ceq$Request.fixture.baseline.sha256){throw 'Manual output lacks fresh archive identity.'}
  Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
  Assert-KmcChunk7Boolean $O.slotProjection.initiallyEnabled $false;Assert-KmcChunk7Boolean $O.slotProjection.enabledForTerminalAuto $false;Assert-KmcOrdinaryInteger $O.slotProjection.maximumNativeWrites 1 1

@@ -326,7 +326,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 written.IsActuallySaved && written.HasFileOnDisk && written.OperationState == SaveInfo.StateType.None,
                 "Stock Mammoth Manual completion differs from its exact requested/prepared native descriptors.");
             var read = NativeMountedSaveStorage.ReadArchive(written.Saver); var archive = read.Data;
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && archive != null,
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && archive != null,
                 "Stock Mammoth native output lacks current schema-3 metadata readback.");
             Chunk7SmallFixtureScenario.RequireEmptyArchive(archive, request.PersistenceLoad.GameId, request.PersistenceLoad.Area);
             RequireStockMammoth(); var after = Arrangement();

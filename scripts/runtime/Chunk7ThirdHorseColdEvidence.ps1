@@ -167,7 +167,7 @@ function Assert-KmcChunk7ThirdHorseColdEvidence($Request,$Artifact,$SourceArtifa
  if($o.nativeLoad.events[0].frame-ne$o.nativeLoad.events[1].frame){throw 'Third-Horse native PostLoad did not return synchronously.'}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
  $archive=$o.archive;Assert-KmcAssistedObjectValue $archive @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'third-Horse empty mounted metadata'
- Assert-KmcOrdinaryInteger $archive.schemaVersion 3 3
+ [void](Assert-KmcChunk7NormalizedGraphVersion $archive.schemaVersion 'Third-Horse cold')
  Assert-KmcBootstrapInventoryString $archive.campaignId $Request.persistenceLoad.gameId
  Assert-KmcBootstrapInventoryString $archive.areaId $Request.persistenceLoad.area
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $archive.$key 0 0}

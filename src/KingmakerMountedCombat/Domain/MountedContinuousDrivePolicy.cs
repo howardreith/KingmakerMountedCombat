@@ -255,6 +255,15 @@ namespace KingmakerMountedCombat.Domain
 
         public bool IsBound => watch.IsBound;
 
+        // PR #70 R12-F4 (round 16): whether this exact command is the bound stick movement or one whose retirement is retained.
+        public bool OwnsCommand(object command)
+        {
+            if (command == null) return false;
+            if (ReferenceEquals(watch.Command, command)) return true;
+            foreach (var residue in residues) if (ReferenceEquals(residue.Command, command)) return true;
+            return false;
+        }
+
         public object Command => watch.Command;
 
         public object Agent => watch.Agent;

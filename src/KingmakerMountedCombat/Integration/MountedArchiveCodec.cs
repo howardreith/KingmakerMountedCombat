@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
             data.Validate();
+            SavedStepTravel.Attach(data.StepTravel, data.Combat?.Allocations);
             string json;
             using (var buffer = new StringWriter(CultureInfo.InvariantCulture))
             {
@@ -77,14 +78,31 @@ namespace KingmakerMountedCombat.Integration
                     result.Data = Migrate(old.Data);
                     return result;
                 }
-                if (schema != MountedArchiveData.Schema) throw new InvalidDataException("Unsupported historical schema.");
+                var historicalSingleValue = false;
+                if (schema == 3)
+                {
+                    // PR #70 R11-F1 (round 13): the explicit schema-3 reader. Schema 3 has exactly the schema-4 field set without StepTravel (a
+                    // schema-3 envelope carrying it is malformed); its allocation rows keep their stored single step value (legacy interpretation).
+                    if (root.Property("StepTravel") != null) throw new InvalidDataException("Schema 3 has no step travel member.");
+                    root["StepTravel"] = new JArray();
+                    root["SchemaVersion"] = MountedArchiveData.Schema;
+                    historicalSingleValue = true;
+                }
+                else if (schema != MountedArchiveData.Schema) throw new InvalidDataException("Unsupported historical schema.");
                 MountedSaveCodec.VerifyShape(root, typeof(MountedArchiveData), new HashSet<Type> {
-                    typeof(MountedArchiveData), typeof(SavedMountedPair), typeof(SavedPairParticipation) });
+                    typeof(MountedArchiveData), typeof(SavedMountedPair), typeof(SavedPairParticipation), typeof(SavedStepTravel) });
                 using (var reader = root.CreateReader())
                     result.Data = MountedSaveCodec.CreateSerializer().Deserialize<MountedArchiveData>(reader);
                 if (result.Data == null) throw new InvalidDataException("Empty mounted archive.");
                 result.Data.Validate();
-                result.SourceSchema = MountedArchiveData.Schema;
+                if (historicalSingleValue)
+                {
+                    // R13-F1 (round 14): the schema-3 rows' single value, migrated explicitly into the current two-commitment form.
+                    SavedStepTravel.MigrateSingleValue(result.Data.Combat?.Allocations);
+                    result.Data.StepTravel = SavedStepTravel.Detach(result.Data.Combat?.Allocations);
+                }
+                SavedStepTravel.Attach(result.Data.StepTravel, result.Data.Combat?.Allocations);
+                result.SourceSchema = (int)schema;
                 result.Kind = MountedSaveReadKind.Current;
                 return result;
             }
@@ -109,11 +127,13 @@ namespace KingmakerMountedCombat.Integration
             if (paired != null && paired.RiderId == null && paired.MountId == null &&
                 paired.PendingSplitId == null && paired.Activation == null) paired = null;
             if (copy.Combat != null) copy.Combat.Paired = null;
+            // R13-F1 (round 14): schema 1-2 rows stored one step value: explicit single-value migration into the current form.
+            SavedStepTravel.MigrateSingleValue(copy.Combat?.Allocations);
             var pairId = MigrationOwnerId(copy.CampaignId, copy.Rider?.Id, copy.Mount?.Id);
             var linked = copy.Mounted && SavedPairParticipation.BelongsToMountedPair(paired, copy.Rider.Id, copy.Mount.Id);
             var result = new MountedArchiveData { SchemaVersion = MountedArchiveData.Schema,
                 CampaignId = copy.CampaignId, AreaId = copy.AreaId, GameTimeTicks = copy.GameTimeTicks,
-                Policy = copy.Policy, RulesId = copy.RulesId, Slots = copy.Slots, Combat = copy.Combat,
+                Policy = copy.Policy, RulesId = copy.RulesId, Slots = copy.Slots, Combat = copy.Combat, StepTravel = SavedStepTravel.Detach(copy.Combat?.Allocations),
                 Pairs = copy.Mounted ? new[] { new SavedMountedPair { PairId = pairId, Generation = 1,
                     ProfileId = copy.ProfileId, Rider = copy.Rider, Mount = copy.Mount } } : new SavedMountedPair[0],
                 Participations = paired == null ? new SavedPairParticipation[0] : new[] {

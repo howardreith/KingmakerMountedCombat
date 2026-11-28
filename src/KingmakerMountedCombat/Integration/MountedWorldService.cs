@@ -183,7 +183,7 @@ namespace KingmakerMountedCombat.Integration
                     NativeControls?.HasUnsettledShellFor(pair.Relationship) == true ? "a Mount/Dismount command shell is unsettled" :
                     null,
                 () => !pair.Combat.ChargeAdmissionFenced && !participant.HasUnsettledPreparation &&
-                    NativeControls?.HasUnsettledShellFor(pair.Relationship) != true);
+                    NativeControls?.HasUnsettledShellFor(pair.Relationship) != true && !pair.Combat.HasOutstandingCleanup);
         }
 
         // Known issues Sprint 7 (U04, review of 292cd23c): transient pair presentation, released at each world boundary.
@@ -351,6 +351,15 @@ namespace KingmakerMountedCombat.Integration
             var ready = true;
             var errors = Visit(pair => { if (!pair.Combat.TryDrainChargeOwnership(reason)) ready = false; });
             return ready && errors.Length == 0;
+        }
+
+        // PR #70 R12-F4 (round 13): the lifecycle's teardown drain: one retry of every pair's outstanding owned cleanup; true when none remains.
+        internal bool SettleOutstandingPairCleanup()
+        {
+            var settled = true;
+            foreach (var pair in PairSnapshot)
+                if (pair.Combat != null && !pair.Combat.TrySettleOutstandingCleanup()) settled = false;
+            return settled;
         }
 
         internal bool SerializationBusy => ArchiveWorkerRunning() || pairs.Any(pair => pair.Relationship.SaveSerializationSuspended);

@@ -50,7 +50,7 @@ internal static class CurrentMigrationContractTests
         {
             var rider = new SavedNativeActor { Id = "11111111-1111-4111-8111-111111111111", ReactionsRemaining = 2 };
             var mount = new SavedNativeActor { Id = "22222222-2222-4222-8222-222222222222", ReactionsRemaining = 2 };
-            return new MountedArchiveData { SchemaVersion = 3, CampaignId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", AreaId = new string('a', 32),
+            return new MountedArchiveData { SchemaVersion = MountedArchiveData.Schema, StepTravel = new SavedStepTravel[0], CampaignId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", AreaId = new string('a', 32),
                 GameTimeTicks = 10000000, Policy = MountedSaveData.PairedPolicy, RulesId = MountedSaveData.Rules,
                 Pairs = new[] { new SavedMountedPair { PairId = new string('c', 32), Generation = 1, ProfileId = SupportedMountedProfiles.Horse.Id, Rider = rider, Mount = mount } },
                 Participations = new SavedPairParticipation[0], Slots = new[] { new SavedMountedSlot { ActorId = rider.Id, Index = 12, Kind = 2 }, new SavedMountedSlot { ActorId = rider.Id, Index = 13, Kind = 3 } } };
@@ -81,7 +81,7 @@ internal static class CurrentMigrationContractTests
                 [schema1 ? "schema1Migration" : "schema2Migration"] = new JObject { ["inputSchema"] = schema1 ? 1 : 2, ["resavedWorld"] = new JObject() },
                 ["nativeWrite"] = new JObject { ["path"] = Path.Combine(@"C:\KmcCurrentVirtual\Saved Games", child.PersistenceLoad.FileName),
                     ["sha256"] = child.PersistenceLoad.Sha256, ["length"] = child.PersistenceLoad.Length, ["nativeName"] = child.PersistenceLoad.InternalName,
-                    ["nativeType"] = "Manual", ["sourceSchema"] = 3, ["nativeCallback"] = true, ["operation"] = "None", ["snapshotCount"] = 1,
+                    ["nativeType"] = "Manual", ["sourceSchema"] = MountedArchiveData.Schema, ["nativeCallback"] = true, ["operation"] = "None", ["snapshotCount"] = 1,
                     ["archive"] = JObject.Parse(MountedArchiveCodec.Encode(archive)) } } };
     }
     public static int Main(string[] arguments)
@@ -130,7 +130,7 @@ internal static class CurrentMigrationContractTests
                     "Regression did not reproduce the parsed Double versus typed Single token mismatch.");
                 Chunk7PersistenceScenario.ValidateCurrentMigrationParent(parent, child, archive, 100);
             });
-            foreach (var problem in new[] { "save-parent", "wrong-parent-case", "wrong-run", "failed-parent", "parent-errors", "missing-migration", "wrong-historical-schema", "wrong-format", "wrong-hash", "wrong-length", "wrong-name", "wrong-leaf", "no-callback", "unfinished-write", "extra-snapshot", "same-process", "wrong-manual", "write-quota", "load-quota", "derivative-authority", "source-direction", "graph-change", "role-change", "campaign-change", "missing-resaved-world", "other-migration", "bad-candidate" })
+            foreach (var problem in new[] { "save-parent", "wrong-parent-case", "wrong-run", "failed-parent", "parent-errors", "missing-migration", "wrong-historical-schema", "wrong-format", "historical-schema3-write", "wrong-hash", "wrong-length", "wrong-name", "wrong-leaf", "no-callback", "unfinished-write", "extra-snapshot", "same-process", "wrong-manual", "write-quota", "load-quota", "derivative-authority", "source-direction", "graph-change", "role-change", "campaign-change", "missing-resaved-world", "other-migration", "bad-candidate" })
             {
                 var fault = problem;
                 Check(label + " current parent refuses " + fault, () => {
@@ -146,6 +146,7 @@ internal static class CurrentMigrationContractTests
                         case "missing-migration": ((JObject)o).Remove(schema1 ? "schema1Migration" : "schema2Migration"); break;
                         case "wrong-historical-schema": migration["inputSchema"] = 3; break;
                         case "wrong-format": write["sourceSchema"] = 2; break;
+                        case "historical-schema3-write": write["sourceSchema"] = 3; break;   // PR #70 R13-F2 (round 15): not the current writer's resave
                         case "wrong-hash": write["sha256"] = new string('d', 64); break;
                         case "wrong-length": write["length"] = 1235; break;
                         case "wrong-name": write["nativeName"] = "KMC_C7_SEED_CHECKPOINT"; break;

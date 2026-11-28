@@ -39,7 +39,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var read = NativeMountedSaveStorage.ReadArchive(schema1Input.Saver);
             schema1Imported = read.Data;
             Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 1 && read.HistoricalData?.Mounted == true &&
-                schema1Imported?.SchemaVersion == 3 && schema1Imported.Pairs.Length == 1 && schema1Imported.Combat == null &&
+                schema1Imported?.SchemaVersion == MountedArchiveData.Schema && schema1Imported.Pairs.Length == 1 && schema1Imported.Combat == null &&
                 schema1Imported.Participations.Length == 0 && read.HistoricalData.Combat == null,
                 "The native input is not one valid mounted schema-1 record with no invented combat participation.");
             saved = persistence.LoadedArchive;
@@ -133,7 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 savedDescriptor.HasFileOnDisk, "Schema-1 native resave did not settle its separately authorized output leaf.");
             if (OwnedSchema1ColdCase) ObserveOwnedSaveCompletion();
             var read = NativeMountedSaveStorage.ReadArchive(savedDescriptor.Saver); saved = read.Data;
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved?.Pairs.Length == 1 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && saved?.Pairs.Length == 1 &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == schema1Imported.CampaignId &&
                 saved.AreaId == schema1Imported.AreaId && saved.Policy == schema1Imported.Policy && saved.RulesId == schema1Imported.RulesId,
                 "Native resave did not deliberately rewrite the one-pair schema-1 graph as schema 3.");
@@ -230,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string rider, string mount, bool migrated)
         {
             Require(archive != null, "Owned schema-1 source archive is absent."); archive.Validate();
-            Require(archive.SchemaVersion == 3 && archive.CampaignId == campaign && archive.AreaId == area &&
+            Require(archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == campaign && archive.AreaId == area &&
                 archive.Pairs.Length == 1 && archive.Participations.Length == 0 && archive.Combat == null && archive.Slots.Length <= 128,
                 "Owned schema-1 projection cannot discard a second owner, combat, participation or slots.");
             var pair = archive.Pairs.Single();
@@ -315,15 +315,15 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void BeginOwnedSchema1Source()
         {
-            Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == 3,
-                "Owned schema-1 fixture source requires its closed normal schema-3 native writer.");
+            Require(OwnedSchema1SourceCase && inherited != null && NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema,
+                "Owned schema-1 fixture source requires its closed normal current-schema native writer.");
             if (OwnerSeedCheckpointSave) RequireOwnerSeedPreparedSlots(); else RememberOwners();
             AssertOwnedSchema1Owner(); PinOwnedSchema1OtherSlots();
             if (!OwnerSeedCheckpointSave) BindSlots();
             ownedSchema1FieldBaseline = CaptureOwnedSchema1Field("source-before-save");
             ownedSchema1Fields = new JArray(ownedSchema1FieldBaseline.DeepClone());
             evidence["ownedSchema1"] = new JObject { ["contract"] = "owned-schema1-fixture-v1", ["syntheticMetadata"] = false,
-                ["sourceArchiveSchema"] = 3, ["fields"] = ownedSchema1Fields };
+                ["sourceArchiveSchema"] = NativeMountedSaveFormat.SelectedWriterSchema, ["fields"] = ownedSchema1Fields }; // R13-F2 (round 17): the source save is this build's write
             Game.Instance.IsPaused = true;
             if (!OwnerSeedCheckpointSave) snapshots.Add(Capture("before-native-save"));
             RequestSave(); Next(4);

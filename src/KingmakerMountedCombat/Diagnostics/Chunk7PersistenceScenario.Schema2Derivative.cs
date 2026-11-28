@@ -73,7 +73,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)checkpoint["dllSha256"] == request.DllSha256 && (string)checkpoint["dllMvid"] == request.DllMvid &&
                 (string)source?["checkpoint"] == request.PersistenceCase && (bool?)source?["cold"] == false &&
                 (string)source?["nativeSourceContract"] == "owner-seed-current-pending-source-v1" && source?["legacyWriterScope"] == null &&
-                (int?)source?["nativeWrite"]?["sourceSchema"] == 3 &&
+                // PR #70 R13-F2 (round 15): the same-candidate producer's write is the current archive schema.
+                (int?)source?["nativeWrite"]?["sourceSchema"] == MountedArchiveData.Schema &&
                 (string)source?["inheritedManualSha256"] == request.OwnedPairs.SourceArchiveSha256,
                 "Owned pending source must be the exact same-candidate successful native current-format producer.");
             var original = source["nativeWrite"]?["archive"]?.ToObject<MountedArchiveData>(MountedSaveCodec.CreateSerializer());

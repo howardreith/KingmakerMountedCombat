@@ -320,11 +320,13 @@ function Assert-KmcChunk7RepeatedWorldObservation($Request,$Artifact) {
         if($null-ne$o.sourceWorkingSha256){throw 'Owned replay cannot claim the historical Working fixture.'}
     }elseif($o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or$o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'){throw 'Repeated legacy Working source differs.'}
     if($o.checkpoint-cne$Request.persistenceCase-or
-       $o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or$o.processId-le0-or@($o.inputs).Count-ne0-or@($o.movements).Count-ne0-or
+       -not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or$o.processId-le0-or@($o.inputs).Count-ne0-or@($o.movements).Count-ne0-or
        (ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)){throw 'Repeated-world fixture/candidate/source differs or replayed native input.'}
     Assert-KmcChunk7Boolean $o.cold $true;Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration (-not$owned)
     foreach($f in @('ordinaryRespecProven','combatDebtProof')){Assert-KmcChunk7Boolean $o.$f $false}
     $archive=$o.loadedArchive;Assert-KmcChunk7PersistenceArchive $archive $Request
+    # PR #70 R13-F2 (round 16): the normalized cold graph carries the build's writer version.
+    if($archive.SchemaVersion-ne$o.nativeSchema){throw 'Repeated-world graph is not normalized to the build''s writer schema.'}
     if($owned){Assert-KmcChunk7OwnedArchiveProfiles $Request $o $archive}
     foreach($f in @('requiredNativeLoads','requiredAreaTransfers','nativeLoadRequests','nativeWriteRequests')){Assert-KmcChunk7NativeCounters $r @($f)}
     foreach($f in @('performanceProof','diagnosticsOffProof','allocationRateProof')){Assert-KmcChunk7Boolean $r.$f $false}

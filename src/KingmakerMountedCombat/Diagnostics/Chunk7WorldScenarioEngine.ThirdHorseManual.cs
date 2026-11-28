@@ -129,8 +129,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Third-Horse Manual escaped its two-entry isolated native inventory.");
             var read = NativeMountedSaveStorage.ReadArchive(manualSaved.Saver);
             var saved = read.Data;
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 &&
-                saved != null && saved.SchemaVersion == 3 && saved.CampaignId == request.PersistenceLoad.GameId &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema &&
+                saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.CampaignId == request.PersistenceLoad.GameId &&
                 saved.AreaId == request.PersistenceLoad.Area && saved.Pairs.Length == 0 &&
                 saved.Participations.Length == 0 && saved.Slots.Length == 0 && saved.Combat == null &&
                 world.Registry.Owners.Length == 0 && persistence.SnapshotCount == manualSnapshotBefore + 1,

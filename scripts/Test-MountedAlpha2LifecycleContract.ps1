@@ -10,6 +10,8 @@ param([string]$Configuration = 'Release')
 #  3. Pre-start approach: native TickApproaching reaches the pair command's TickPreStartApproach; the command neither
 #     overrides CanStart nor sets IsIgnoreCooldown (native start gate untouched); each delegated move is announced before
 #     native Run; the start adopts the live carrier.
+#  4. Turn-based click: the IgnoreClick postfix decides through PairedAttackClickAdmissionPolicy with the click probe (the
+#     strike's production admission and the mount agent's native FindPath) and the mount's granted movement.
 #  5. Native target comparison: the installed Character_Brain actions and considerations (exact serialized bytes at pinned
 #     offsets of the pinned sharedassets1) and the brain context fields the proposal ranking reader reads.
 # Not covered: any game run.
@@ -86,10 +88,17 @@ Check ($slotters.Count -eq 1 -and $slotters[0] -eq $run) 'R1-F5: every native sl
 $patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
 $controller = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
 $observe = @(Method $controller 'ObserveAcceptedWork')[0]
-Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $observe) -eq 1 -and (Calls (@(Method $patches 'QueueAcceptedPostfix')[0]) $observe) -eq 1) 'R1-F5: accepted work is observed from the private Run postfix and the AddToQueueInternal postfix'
+# PR #70 R11-F8 (round 13): the private Run postfix observes through MountedAcceptedWorkRouting.Route (the actor's owner, plus a former owner that
+# still owes an outstanding operation on that exact actor).
+$routing = KmcType 'KingmakerMountedCombat.Integration.MountedAcceptedWorkRouting'
+$route = @(Method $routing 'Route')[0]
+$observeOutstanding = @(Method $controller 'ObserveOutstandingAssignment')[0]
+Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route $observe) -eq 1 -and (Calls $route $observeOutstanding) -eq 1 -and
+    (Calls $route (@(Method $controller 'ObservesOutstandingActor')[0])) -eq 1 -and (Calls $observe $observeOutstanding) -eq 1 -and
+    (Calls (@(Method $patches 'QueueAcceptedPostfix')[0]) $observe) -eq 1) 'R1-F5: accepted work is observed from the private Run postfix (through the accepted-work routing, R11-F8) and the AddToQueueInternal postfix'
 Check ((Calls (@(Method $controller 'AdmitPairCommandRun')[0]) $observe) -eq 0 -and (Calls (@(Method $patches 'UnitCommandRunPrefix')[0]) $observe) -eq 0) 'R1-F5: nothing is recorded before native acceptance (public Run prefix)'
 $contains = $commands.GetMethod('Contains', [Type[]]@($command))
-Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $contains) -ge 1) 'R1-F5: the Run postfix checks that native holds the command'
+Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route $contains) -ge 1) 'R1-F5: the Run postfix checks that native holds the command (in its accepted-work routing, round 13)'
 $patchStrings = @(@($patches.DeclaringType.GetMethods($any)) + @($patches.DeclaringType.GetConstructors($any)) + @($patches.DeclaringType.GetNestedTypes($any).GetMethods($any)) | ForEach-Object { Refs $_ } | Where-Object { $_.Text } | ForEach-Object { $_.Text })
 Check ($patchStrings -contains 'QueueAcceptedPostfix' -and $patchStrings -contains 'MoveActionHoldPrefix' -and $patchStrings -contains 'MoveActionHoldPostfix' -and $patchStrings -contains 'HoldPrefix') 'R1-F5/R1-F8: the queue-acceptance, carrier-Hold and Hold-input patches are registered'
 $ledger = KmcType 'KingmakerMountedCombat.Domain.MountedRetainedOrderLedger'
@@ -137,6 +146,68 @@ $canAct = (GameType 'Kingmaker.Controllers.Combat.UnitCombatState').GetProperty(
 $should = @(Method (GameType 'Kingmaker.Controllers.Units.UnitActionController') 'ShouldStartCommand')[0]
 $cooldowns = @(Method (GameType 'Kingmaker.Controllers.Combat.UnitCombatState') 'HasCooldownForCommand')
 Check ((Calls $should $canAct) -ge 1 -and (@($cooldowns | Where-Object { (Calls $should $_) -ge 1 }).Count) -ge 1) 'R3-F1: native ShouldStartCommand gates the start on CanActInCombat and the cooldown'
+
+# ---- 4. Turn-based click --------------------------------------------------------------------------------------------
+$participant = KmcType 'KingmakerMountedCombat.Integration.MountedPairTurnParticipant'
+$admit = @(Method $participant 'AdmitPairedAttackClick')[0]
+$policy = (KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('Decide')
+$probe = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('Evaluate', $any)
+$movementState = KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter'
+# PR #70 R14-F2 (round 15): the click's reader calls the priced overload (the grant with its step-counter classification from the same speed reads).
+$grantHelper = @(Method $participant 'PairedMountGrantedMetres' | Where-Object { @($_.GetParameters() | ForEach-Object { $_.Name }) -contains 'stepCounterBinds' })[0]
+$grantEntry = @(Method $participant 'PairedMountGrantedMetres' | Where-Object { @($_.GetParameters() | ForEach-Object { $_.Name }) -notcontains 'stepCounterBinds' })[0]
+Check ((Calls $grantEntry $grantHelper) -eq 1) 'R14-F2 (PR #70 round 15): the unpriced grant entry is the priced grant itself (one implementation)'
+# PR #70 round 2: the decision moved into the controller's AdmitTurnBasedAttackClick (spliced into the attack-path harness); the postfix
+# reads the native input and passes the shared mount grant as a reader (a closure calling PairedMountGrantedMetres).
+$admitCore = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCombatController') 'AdmitTurnBasedAttackClick')[0]
+$grantReaders = @($participant.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $grantHelper) -ge 1 })
+Check ((Calls $admit $admitCore) -eq 1 -and (Calls $admitCore $policy) -eq 1 -and (Calls $admitCore $probe) -eq 1 -and $grantReaders.Count -ge 1) 'R3-F2 (PR #70 round 2): the IgnoreClick postfix decides through the controller admission (the policy and the probe) with the shared mount grant passed as its reader'
+$canMoveHelper = @(Method $participant 'CanMovePairedMount')[0]
+foreach ($term in @(@(Method $participant 'PairedMovementContext')[0], $movementState.GetMethod('HasGrantedMovement', $any), @(Method $participant 'CanAddressActor')[0], (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetMethod('IsAbleToAct'))) {
+    Check ((Calls $grantHelper $term) -ge 1 -and (Calls $canMoveHelper $term) -ge 1) ('R3-F2: the click grant and paired execution share ' + $term.Name)
+}
+Check ((Calls $grantHelper ($movementState.GetMethod('RemainingOrderMetres', $any))) -eq 1 -and (Calls ($movementState.GetMethod('RemainingOrderMetres', $any)) ((KmcType 'KingmakerMountedCombat.Domain.MountedMovementState').GetMethod('RemainingAcrossOrder', [Type[]]@([single], [single], [single], [single], [bool], [bool], [bool], [bool], [bool])))) -eq 1) 'R3-F2/R6-F3: the click grant is the mount allocation''s distance across the order (same state Advance spends)'
+Check ((Calls $admit (@(Method $participant 'PairedMovementContext')[0])) -eq 0 -and (Calls $admit ((GameType 'TurnBased.Controllers.TurnController').GetProperty('EnabledFiveFootStep').GetGetMethod())) -eq 0) 'R3-F2: the click decision reads no rider-context step flags of its own'
+$findPath = (GameType 'Kingmaker.View.UnitMovementAgent').GetMethod('FindPath')
+$closeEnough = $command.GetMethod('IsUnitCloseEnough', [Reflection.BindingFlags]'Static,Public')
+$single = KmcType 'KingmakerMountedCombat.Integration.MountedPairSingleAttack'
+$evaluate = $single.GetMethod('EvaluateCurrentNativeAdmission', $any)
+$evaluateAt = $single.GetMethod('EvaluateNativeAdmissionAtMountPosition', $any)
+$walkerType = KmcType 'KingmakerMountedCombat.Domain.MountedRouteWalker'
+# PR #70 round 2: the native query is Query (classified by the path's native CompleteState: R1-F5), called for the mount-centred route and
+# for each bounded lateral query (R1-F4); the bounded walk over openings is TryApproach (R1-F3), the unbounded walk is the diagnostic only.
+$probeType = $probe.DeclaringType
+$query = @(Method $probeType 'Query')[0]
+$tryApproach = @(Method $probeType 'TryApproach')[0]
+$completeState = $findPath.ReturnType.GetProperty('CompleteState').GetGetMethod()
+function WalkCalls([Reflection.MethodBase]$m) { @(Refs $m | Where-Object { $_.Member -and $_.Member.Name -ceq 'Walk' -and $_.Member.DeclaringType -eq $walkerType }).Count }
+$walksRoute = (WalkCalls $tryApproach) -eq 1 -and (WalkCalls (@(Method $probeType 'DiagnosticReach')[0])) -eq 1 -and (Calls $probe $query) -eq 2 -and (Calls $probe $tryApproach) -eq 2 -and (Calls $query $completeState) -ge 2
+$admitsAlongRoute = @($probe.DeclaringType.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $evaluateAt) -ge 1 }).Count -ge 1
+Check ((Calls $query $findPath) -eq 1 -and (Calls $probe $evaluate) -eq 1 -and $walksRoute -and $admitsAlongRoute) 'R4-F1/R5-F2: the probe walks the mount agent''s native route with the production walker, bounded by the mount grant (and once unbounded for the diagnostic), until the strike''s production admission passes'
+$offset = (KmcType 'KingmakerMountedCombat.Domain.MountedCombatSpatialPolicy').GetMethod('TryCalculateNativeExecutorAdmissionRadius')
+Check ((Calls $evaluateAt $offset) -eq 1 -and (Calls $evaluateAt $closeEnough) -eq 1) 'R4-F1: admission along the route keeps the supported rider offset and the native command line of sight'
+$turnDegrees = (KmcType 'KingmakerMountedCombat.Domain.MountedHeading').GetMethod('TurnDegrees')
+$orientation = (GameType 'Kingmaker.EntitySystem.Entities.UnitEntityData').GetProperty('Orientation').GetGetMethod()
+Check ((Calls $evaluateAt $turnDegrees) -eq 1 -and (Calls $evaluateAt $orientation) -eq 1) 'R6-F2: admission along the route turns the rider and eye offsets from the mount''s current orientation to its heading on the segment'
+$setForced = $command.GetProperty('ForcedPath').GetSetMethod()
+$getForced = $command.GetProperty('ForcedPath').GetGetMethod()
+Check ((Calls (@(Method $pair 'BeginDelegatedMove')[0]) $setForced) -eq 1) 'R4-F1: the click-admitted order''s carrier follows the validated route (ForcedPath)'
+$nativeApproach = MemberAt 0x060027A6
+$currentPathForUnit = MemberAt 0x0600700F
+Check ((FirstOffset $nativeApproach $getForced) -ge 0 -and (FirstOffset $nativeApproach $getForced) -lt (FirstOffset $nativeApproach $currentPathForUnit)) 'R4-F1: native turn-based TickApproaching follows a ForcedPath before any visualizer path'
+$attachProof = @(Method $controller 'AttachClickProof')[0]
+Check ((Calls $admitCore (@(Method $controller 'RememberValidatedClickProof')[0])) -eq 1 -and (Calls $tryExecute $attachProof) -eq 1 -and (Calls $attachProof ($pair.GetField('ValidatedApproachRoute', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('RouteRevalidator', $any))) -ge 1 -and (Calls $attachProof ($pair.GetField('ClickPlan', $any))) -ge 1) 'R4-F1: an admitted click binds its order as route-bound with a revalidator'
+$revalidate = @(Method $controller 'RevalidateAdmittedClickRoute')[0]
+Check ((Calls $revalidate $probe) -eq 1 -and (Calls $revalidate $grantEntry) -eq 1 -and (Calls $revalidate ((KmcType 'KingmakerMountedCombat.Domain.PairedAttackClickAdmissionPolicy').GetMethod('RouteWithinGrant'))) -eq 1) 'R4-F1: every carrier proof is recomputed from the current origin and grant by the click''s own walk and rule'
+$invoke = [Func`2].MakeGenericType((KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+PlanIdentity'), (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe+Approach')).GetMethod('Invoke')
+$moveCtor = (GameType 'Kingmaker.UnitLogic.Commands.UnitMoveTo').GetConstructor([Type[]]@([UnityEngine.Vector3], [single]))
+$moveCtorOffsets = @(Refs (@(Method $pair 'BeginDelegatedMove')[0]) | Where-Object { $_.Member -eq $moveCtor } | ForEach-Object { $_.Offset })
+# PR-2 reconciliation: on PR-1's accepted source the ordinary carrier is built by NewApproachMove, so the route-bound point command is the
+# last (and only direct) UnitMoveTo(Vector3, float) construction in BeginDelegatedMove.
+Check ($moveCtorOffsets.Count -ge 1 -and $moveCtorOffsets[-1] -gt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -and $moveCtorOffsets[-1] -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R6-F1: a route-bound carrier is a new point command to the revalidated endpoint, built after revalidation and before its route is set'
+Check ((FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -ge 0 -and (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $invoke) -lt (FirstOffset (@(Method $pair 'BeginDelegatedMove')[0]) $setForced)) 'R4-F1: a route-bound carrier revalidates before its route is set; there is no unchecked fallback'
+$visual = @(Method (GameType 'Kingmaker.TurnBasedMode.PathVisualizer') 'CalculatePathForCommand')[0]
+Check ((Calls $visual $findPath) -eq 1) 'R3-F2: native path preview computes its route with the same UnitMovementAgent.FindPath'
 
 # ---- 5. Native target comparison --------------------------------------------------------------------------------------
 $assets = Join-Path $data 'sharedassets1.assets'
@@ -228,7 +299,8 @@ Check ((Calls (@(Method $controller 'Cancel')[0]) $cancelCore) -eq 1 -and (Calls
     (Calls (@(Method $controller 'RetireOrderIfTargetInvalid')[0]) ($controller.GetProperty('HasActiveCommand').GetGetMethod())) -ge 1) 'PR-1 R4-F1/R3-F1/R5-F1/R5-F2: a fresh click cancels through CancelCore; observed invalidation retires the generation''s exact wrapper, scoped to its generation while another generation''s command is active'
 $mountLeft = @(Method $controller 'MountCommandLeftToNative')[0]
 $cancelMove = @($cancelCore.GetMethodBody() | ForEach-Object { Refs $cancelCore } | Where-Object { $null -ne $_.Member -and $_.Member.Name -ceq 'CancelMountMovement' })
-Check ((Calls $cancelCore $mountLeft) -eq 1 -and $cancelMove.Count -eq 1 -and (FirstOffset $cancelCore $mountLeft) -lt $cancelMove[0].Offset -and (Calls $mountLeft $released) -eq 1) 'PR-1 R4-F1: on ordinary retargeting a delivered mount command is kept out of the mount-wide move interrupt (CancelMountMovement)'
+# PR-2 round 16 (R12-F4): CancelCore has two CancelMountMovement sites (the ordinary one and the mod-disable successor-yielding overload); both follow the guard.
+Check ((Calls $cancelCore $mountLeft) -eq 1 -and $cancelMove.Count -eq 2 -and @($cancelMove | Where-Object { $_.Offset -lt (FirstOffset $cancelCore $mountLeft) }).Count -eq 0 -and (Calls $mountLeft $released) -eq 1) 'PR-1 R4-F1: on ordinary retargeting a delivered mount command is kept out of the mount-wide move interrupt (CancelMountMovement; both round-16 sites after the guard)'
 Check ((Calls (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0]) (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1 -and (Calls (@(Method $controller 'ObserveAutomaticProposal')[0]) (@(Method $controller 'StationaryStrikeAdmissible')[0])) -eq 1 -and
     (Calls (@(Method $controller 'StationaryStrikeAdmissible')[0]) (@(Method $controller 'PlannedStrikeAdmissibleNow')[0])) -eq 1) 'PR-1 R5-F3: restricted automatic proposals and no-wrapper retirement use the planned mounted melee strike''s stationary admission'
 Check ((Calls (@(Method $controller 'DecideAutomaticOrderAdmission')[0]) (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0])) -eq 1 -and (Calls (@(Method $controller 'StockIntentStrikeAdmissibleNow')[0]) (@(Method $pair 'StrikeAdmissibleNow')[0])) -eq 1) 'PR-1 R4-F3/R12-F4: restricted automatic movement retires only a strike that is not admissible from the current position (the automatic decision''s stationary strike check)'
@@ -247,7 +319,7 @@ $observeAccepted = @(Method $controller 'ObserveAcceptedWork')[0]
 Check ((Calls (@(Method $controller 'ClearStockAttackIntent')[0]) ($ownership.GetMethod('ClearsOnRetirement'))) -eq 2 -and (Calls $observeAccepted ($ownership.GetMethod('ObserveForeignAssignment'))) -eq 1 -and
     (FirstOffset $observeAccepted ($ownership.GetMethod('ObserveForeignAssignment'))) -lt (FirstOffset $observeAccepted ($ledger.GetMethod('Classify'))) -and
     (Calls (@(Method $controller 'OwnManualTarget')[0]) ($ownership.GetMethod('RecordOwnWrite'))) -eq 1 -and
-    (Calls (@(Method $patches 'InternalRunPostfix')[0]) ((KmcType 'KingmakerMountedCombat.Domain.MountedAcceptedWorkRoutes').GetMethod('AfterRun'))) -eq 1) 'PR-1 R1-F11: ownership follows the actual assignment, observed before the competing classification; only an installed promotion is observed; retirement clears only a still-owned selection'
+    (Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route ((KmcType 'KingmakerMountedCombat.Domain.MountedAcceptedWorkRoutes').GetMethod('AfterRun'))) -eq 1) 'PR-1 R1-F11: ownership follows the actual assignment, observed before the competing classification; only an installed promotion is observed; retirement clears only a still-owned selection'
 $patchRoot = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController'
 $clickRegistered = $false
 foreach ($m in @($patchRoot.GetMethods($any)) + @($patchRoot.GetConstructors($any))) {
@@ -324,4 +396,150 @@ Check ($checkLos.MetadataToken -eq 0x06008555 -and (Calls $nativeLos $checkLos) 
     (Calls $admissionLost $currentRange) -eq 1 -and (Calls $admissionLost $readerCandidates) -eq 0 -and (Calls $currentRange $nativeGetRange) -eq 1 -and
     $decisionContextCtor.MetadataToken -eq 0x0600941F -and (Calls $currentRange $decisionContextCtor) -eq 1 -and
     (Calls $decideAdmission $admissionLost) -eq 1) 'PR-1 R9-F1/R10-F3: the automatic order''s decision rechecks native IsTargetValid''s restricted rule with the proposing action''s CURRENT range (BlueprintAiAction.GetRange on a fresh DecisionContext 0x0600941F for the rider), both bodies and GameHelper.CheckLOS 0x06008555, independent of the optional ranking reader'
+# ---- PR-2 R12-F4 (round 13): outstanding owned cleanup takes part in registry retention and teardown readiness before anything is unpatched ----
+# Round 15: the teardown ORDER is the production MountedServiceTeardownSequence (CompositionRoot.SetEnabled/UpdateCore/Dispose and
+# MountedLifecycleSubscriber.HandleModDisable delegate to it; the attack-path harness executes it). These checks bind each entry point to the
+# sequence, the sequence's order, and each step adapter to the exact service it stood for before the extraction.
+$lifecycleSubscriber = KmcType 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
+$worldService = KmcType 'KingmakerMountedCombat.Integration.MountedWorldService'
+$handleDisable = @(Method $lifecycleSubscriber 'HandleModDisable')[0]
+$settlePairs = @(Method $worldService 'SettleOutstandingPairCleanup')[0]
+$trySettle = @(Method $controller 'TrySettleOutstandingCleanup')[0]
+$outstandingGetter = $controller.GetProperty('HasOutstandingCleanup', $any).GetGetMethod($true)
+$retainedGetter = $controller.GetProperty('HasRetainedPairCommands', $any).GetGetMethod($true)
+$teardownReadyGetter = (KmcType 'KingmakerMountedCombat.Integration.GameMountedRelationshipService').GetProperty('AllTeardownOwnersReady', $any).GetGetMethod($true)
+$cleanupMethod = @(Method $lifecycleSubscriber 'Cleanup')[0]
+$teardownClosures = @($worldService.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $outstandingGetter) -ge 1 -and (Calls $_ ($controller.GetProperty('ChargeAdmissionFenced', $any).GetGetMethod($true))) -ge 1 })
+$sequence = KmcType 'KingmakerMountedCombat.Integration.MountedServiceTeardownSequence'
+$stepsType = $sequence.GetNestedType('ISteps', $any); $modStepsType = $sequence.GetNestedType('IModDisableSteps', $any)
+function StepMethod([Type]$Type, [string]$Name) { $m = $Type.GetMethod($Name, $any); if ($null -eq $m) { $m = $Type.GetProperty($Name, $any).GetGetMethod($true) }; $m }
+$seqModDisable = @(Method $sequence 'ModDisable')[0]; $seqBeginDisable = @(Method $sequence 'BeginDisable')[0]; $seqRetry = @(Method $sequence 'RetryWhileDisabled')[0]; $seqUnload = @(Method $sequence 'Unload')[0]
+$mDrain = StepMethod $modStepsType 'DrainOutstandingPairCleanup'; $mReady = StepMethod $modStepsType 'TeardownOwnersReady'; $mCleanup = StepMethod $modStepsType 'CleanupPairs'
+$modStepsImpl = $lifecycleSubscriber.GetNestedType('ModDisableSteps', $any)
+$modIl = $seqModDisable.GetMethodBody().GetILAsByteArray()
+$modDrainSites = @(Refs $seqModDisable | Where-Object { $_.Member -eq $mDrain })
+Check ((Calls $retainedGetter $outstandingGetter) -eq 1 -and (Calls $settlePairs $trySettle) -eq 1 -and $teardownClosures.Count -ge 1 -and
+    (Calls $handleDisable $seqModDisable) -eq 1 -and $modDrainSites.Count -eq 2 -and (Calls $seqModDisable $mReady) -ge 2 -and
+    (FirstOffset $seqModDisable $mDrain) -lt (FirstOffset $seqModDisable $mReady) -and
+    @(Refs $seqModDisable | Where-Object { $_.Member -eq $mReady } | Select-Object -Last 1)[0].Offset -gt (FirstOffset $seqModDisable $mCleanup) -and
+    $null -ne $modStepsImpl -and (Calls (@(Method $modStepsImpl 'DrainOutstandingPairCleanup')[0]) $settlePairs) -eq 1 -and
+    (Calls (@(Method $modStepsImpl 'get_TeardownOwnersReady')[0]) $teardownReadyGetter) -eq 1 -and (Calls (@(Method $modStepsImpl 'CleanupPairs')[0]) $cleanupMethod) -eq 1) 'PR-2 R12-F4 (round 13; sequence extracted in round 15): outstanding acceptance effects, retained carrier cleanup and an unfinished refused-request cleanup keep the pair owner registered (HasRetainedPairCommands) and the pair teardown not ready; HandleModDisable (run by disable and by unload before patches.Dispose) runs MountedServiceTeardownSequence.ModDisable: one drain (MountedWorldService.SettleOutstandingPairCleanup), refusal while work remains (AllTeardownOwnersReady), the lifecycle cleanup, a second drain for work the cancellation created, ready only when none remains'
+# ---- PR-2 R12-F4 (round 14): drain before readiness, a lifecycle-owned retry after ordinary updates stop, the drain's verdict consumed ----
+$root = KmcType 'KingmakerMountedCombat.CompositionRoot'
+$setEnabled = @(Method $root 'SetEnabled')[0]
+$updateCore = @(Method $root 'UpdateCore')[0]
+$rootDispose = @($root.GetMethods($any) | Where-Object { $_.Name -ceq 'Dispose' -and $_.GetParameters().Count -eq 0 })[0]
+$updatePairs = @(Method $worldService 'UpdatePairs')[0]
+$enabledGetter = $root.GetProperty('IsEnabled', $any).GetGetMethod($true)
+$persistenceType = KmcType 'KingmakerMountedCombat.Integration.MountedPersistenceService'
+$saveSuspended = $persistenceType.GetProperty('SaveSuspended', $any).GetGetMethod($true)
+$loadInFlight = $persistenceType.GetProperty('LoadInFlight', $any).GetGetMethod($true)
+$drainForTeardown = @(Method $persistenceType 'DrainForTeardown')[0]
+$patchDispose = @((KmcType 'KingmakerMountedCombat.Integration.MountedPatchController').GetMethods($any) | Where-Object { $_.Name -ceq 'Dispose' -and $_.GetParameters().Count -eq 0 })[0]
+$sDrain = StepMethod $stepsType 'DrainOutstandingPairCleanup'; $sReady = StepMethod $stepsType 'TeardownOwnersReady'; $sSave = StepMethod $stepsType 'SaveSuspended'
+$sLoad = StepMethod $stepsType 'LoadInFlight'; $sWorker = StepMethod $stepsType 'ActiveSaveWorkerRunning'; $sArea = StepMethod $stepsType 'AreaTransitionPending'
+$sRestore = StepMethod $stepsType 'CombatRestorationPending'; $sEnabled = StepMethod $stepsType 'IsEnabled'; $sHandle = StepMethod $stepsType 'HandleModDisable'
+$sOwnedWorker = StepMethod $stepsType 'OwnedWorkerCanStillCommit'; $sRelease = StepMethod $stepsType 'ReleaseForUnload'; $sRemove = StepMethod $stepsType 'RemoveHooksAndServices'
+$rootSteps = $root.GetNestedType('TeardownSteps', $any)
+Check ($null -ne $rootSteps -and (Calls (@(Method $rootSteps 'DrainOutstandingPairCleanup')[0]) $settlePairs) -eq 1 -and (Calls (@(Method $rootSteps 'get_TeardownOwnersReady')[0]) $teardownReadyGetter) -eq 1 -and
+    (Calls (@(Method $rootSteps 'get_LoadInFlight')[0]) $loadInFlight) -eq 1 -and (Calls (@(Method $rootSteps 'get_SaveSuspended')[0]) $saveSuspended) -eq 1 -and
+    (Calls (@(Method $rootSteps 'get_IsEnabled')[0]) $enabledGetter) -eq 1 -and (Calls (@(Method $rootSteps 'OwnedWorkerCanStillCommit')[0]) $drainForTeardown) -eq 1 -and
+    (Calls (@(Method $rootSteps 'HandleModDisable')[0]) $handleDisable) -eq 1 -and (Calls (@(Method $rootSteps 'RemoveHooksAndServices')[0]) $patchDispose) -eq 1) 'PR-2 R12-F4/R14-F5 (round 15): CompositionRoot.TeardownSteps binds the sequence''s steps to the services the root called before the extraction (MountedWorldService.SettleOutstandingPairCleanup, AllTeardownOwnersReady, the persistence fences, IsEnabled, DrainForTeardown, MountedLifecycleSubscriber.HandleModDisable, patches.Dispose)'
+Check ((Calls $setEnabled $seqBeginDisable) -eq 1 -and (Calls $setEnabled $settlePairs) -eq 0 -and (Calls $setEnabled $handleDisable) -eq 0 -and
+    (FirstOffset $seqBeginDisable $sDrain) -lt (FirstOffset $seqBeginDisable $sReady) -and
+    (FirstOffset $seqBeginDisable $sSave) -lt (FirstOffset $seqBeginDisable $sDrain) -and (FirstOffset $seqBeginDisable $sLoad) -lt (FirstOffset $seqBeginDisable $sDrain) -and
+    (FirstOffset $seqBeginDisable $sWorker) -lt (FirstOffset $seqBeginDisable $sDrain) -and
+    @(Refs $seqBeginDisable | Where-Object { $_.Member -eq $sLoad } | Select-Object -Last 1)[0].Offset -lt (FirstOffset $seqBeginDisable $sHandle)) 'PR-2 R12-F4 (round 14; round 15 sequence): CompositionRoot.SetEnabled(false) runs MountedServiceTeardownSequence.BeginDisable: outstanding owned pair cleanup is drained once, outside the save/load fences, BEFORE the AllTeardownOwnersReady check, and HandleModDisable runs only after the owned-load refusal (a refusal leaves everything patched and retryable)'
+Check ((Calls $updateCore $seqRetry) -eq 1 -and (Calls $updateCore $settlePairs) -eq 0 -and (FirstOffset $updateCore $seqRetry) -lt (FirstOffset $updateCore $updatePairs) -and
+    (FirstOffset $seqRetry $sEnabled) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sLoad) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sSave) -lt (FirstOffset $seqRetry $sDrain) -and
+    (FirstOffset $seqRetry $sWorker) -lt (FirstOffset $seqRetry $sDrain) -and (FirstOffset $seqRetry $sArea) -lt (FirstOffset $seqRetry $sDrain) -and
+    (FirstOffset $seqRetry $sRestore) -lt (FirstOffset $seqRetry $sDrain) -and (Calls $seqRetry $sDrain) -eq 1) 'PR-2 R12-F4 (round 14; round 15 sequence): UpdateCore retries outstanding owned pair cleanup through MountedServiceTeardownSequence.RetryWhileDisabled, which drains only while IsEnabled is false (after PerformFailureCleanup or a refused disable stopped the ordinary pair update), ahead of the ordinary gates and outside the save/load/area/restoration fences'
+Check ($modDrainSites.Count -eq 2 -and @($modDrainSites | Where-Object { $modIl[$_.Offset + 5] -eq 0x26 }).Count -eq 0) 'PR-2 R12-F4 (round 14; round 15 sequence): HandleModDisable''s sequence (MountedServiceTeardownSequence.ModDisable) consumes both drain verdicts (before the readiness check and after the cancellation its own cleanup performs); neither result is discarded'
+# ---- PR-2 R14-F5 (round 15): the owned-load fence precedes every drain, cancellation and unpatch on the unload path ----
+Check ((Calls $rootDispose $seqUnload) -eq 1 -and (Calls $rootDispose $handleDisable) -eq 0 -and (Calls $rootDispose $drainForTeardown) -eq 0 -and (Calls $rootDispose $patchDispose) -eq 0 -and
+    (Calls $rootDispose $settlePairs) -eq 0 -and (Calls $seqUnload $sLoad) -eq 1 -and @(Refs $seqUnload | Where-Object { $_.Member -and $_.Member.DeclaringType -eq $stepsType } | Select-Object -First 1)[0].Member -eq $sLoad -and
+    (FirstOffset $seqUnload $sLoad) -lt (FirstOffset $seqUnload $sOwnedWorker) -and (FirstOffset $seqUnload $sOwnedWorker) -lt (FirstOffset $seqUnload $sHandle) -and
+    (FirstOffset $seqUnload $sHandle) -lt (FirstOffset $seqUnload $sRelease) -and (FirstOffset $seqUnload $sRelease) -lt (FirstOffset $seqUnload $sRemove) -and (Calls $seqUnload $sDrain) -eq 0) 'PR-2 R14-F5 (round 15): CompositionRoot.Dispose (UMM unload) runs MountedServiceTeardownSequence.Unload, whose FIRST step is the owned-load fence (LoadInFlight) before the bounded owned-worker wait, HandleModDisable (the only drain/cancellation), the Mounted Shield release and patches.Dispose; Dispose itself calls none of them directly'
+# ---- PR-2 R12-F4 (round 16): the production disable/unload cleanup reaches the relationship Dismount, the coordinator and the runtime's
+# movement-authority restoration, which consults the pair's exact mount-command ownership before it stops the mount (the attack-path harness
+# executes this chain with the spliced members; these checks bind the compiled wiring the harness stands in for: the constructor binding).
+$relationshipType = KmcType 'KingmakerMountedCombat.Integration.GameMountedRelationshipService'
+$runtimeType = KmcType 'KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime'
+$coordinatorType = KmcType 'KingmakerMountedCombat.Domain.MountedRelationshipCoordinator'
+$runtimeInterface = KmcType 'KingmakerMountedCombat.Domain.IMountedPairRuntime'
+$commandOwnedSetter = $runtimeType.GetProperty('MountCommandOwned', $any).GetSetMethod($true)
+$commandOwnedByPair = @(Method $relationshipType 'MountCommandOwnedByPair')[0]
+# The delegate is created with ldftn (FE 06 <token>), which the one-byte call-site scan above does not decode.
+function LoadsFunction([Reflection.MethodBase]$Method, [Reflection.MethodBase]$Target) { $il = $Method.GetMethodBody().GetILAsByteArray(); for ($i = 0; $i -le $il.Length - 6; $i++) { if ($il[$i] -eq 0xFE -and $il[$i + 1] -eq 0x06 -and [BitConverter]::ToInt32($il, $i + 2) -eq $Target.MetadataToken) { return $true } }; $false }
+$relationshipCtors = @($relationshipType.GetConstructors($any) | Where-Object { (Calls $_ $commandOwnedSetter) -eq 1 -and (LoadsFunction $_ $commandOwnedByPair) })
+$ownsMotion = @(Method $controller 'OwnsMountMotionCommand')[0]
+$driveOwnsCommand = (KmcType 'KingmakerMountedCombat.Domain.MountedContinuousDriveOwner').GetMethod('OwnsCommand', $any)
+$restoreMovement = @(Method $runtimeType 'RestoreMovementAuthority')[0]
+$preserves = @(Method $runtimeType 'PreservesMountSuccessor')[0]
+# Round 17 (R16-F1): CancelMountMovement(trigger) and PreservesMountSuccessor both read the steering successor (MountSuccessor).
+$mountSuccessor = @(Method $runtimeType 'MountSuccessor')[0]
+$commandOwnedGetter = $runtimeType.GetProperty('MountCommandOwned', $any).GetGetMethod($true)
+$interruptMove = @(Method (GameType 'Kingmaker.UnitLogic.Commands.UnitCommands') 'InterruptMove')[0]
+$relationshipDismount = @(Method $relationshipType 'Dismount')[0]
+$cleanupOwner = @(Method $lifecycleSubscriber 'CleanupOwner')[0]
+$coordinatorCleanup = @(Method $coordinatorType 'Cleanup')[0]
+Check ($relationshipCtors.Count -ge 1 -and (Calls $commandOwnedByPair $ownsMotion) -eq 1 -and (Calls $commandOwnedByPair $driveOwnsCommand) -eq 1 -and
+    (Calls $ownsMotion (@(Method $controller 'OwnsExactPairedNativeCommand')[0])) -eq 1 -and (Calls $ownsMotion (@(Method $controller 'IsOwnDelegatedMove')[0])) -eq 1 -and
+    (Calls $restoreMovement $preserves) -eq 1 -and (FirstOffset $restoreMovement $preserves) -lt (FirstOffset $restoreMovement $interruptMove) -and (Calls $restoreMovement $interruptMove) -eq 2 -and
+    (Calls $cleanupMethod $cleanupOwner) -ge 1 -and (Calls $cleanupOwner $relationshipDismount) -eq 1 -and
+    (Calls $relationshipDismount ($coordinatorType.GetMethod('Dismount', $any))) -eq 1 -and (Calls $coordinatorCleanup ($runtimeInterface.GetMethod('RestoreMovementAuthority'))) -eq 1) 'PR-2 R12-F4 (round 16): the ModDisable cleanup reaches CleanupOwner -> relationship Dismount -> coordinator Cleanup -> RestoreMovementAuthority, which consults PreservesMountSuccessor before either InterruptMove; the relationship constructor binds MountCommandOwned to MountCommandOwnedByPair (combat OwnsMountMotionCommand: exact paired native commands and own carriers; stick-movement OwnsCommand)'
+$handleDismounting = @(Method $controller 'HandleDismounting')[0]; $cancelCore = @(Method $controller 'CancelCore')[0]
+$cancelMountTrigger = @($runtimeType.GetMethods($any) | Where-Object { $_.Name -ceq 'CancelMountMovement' -and $_.GetParameters().Count -eq 1 })[0]
+$cancelMountPlain = @($runtimeType.GetMethods($any) | Where-Object { $_.Name -ceq 'CancelMountMovement' -and $_.GetParameters().Count -eq 0 })[0]
+Check ((Calls $handleDismounting $cancelCore) -eq 1 -and (Calls $cancelCore (@(Method $controller 'ReleaseRiderTurnGroundMovementForModDisable')[0])) -eq 1 -and
+    (Calls $cancelCore (@(Method $controller 'CancelRiderTurnGroundMovement')[0])) -eq 1 -and (Calls $cancelCore $cancelMountTrigger) -eq 1 -and (Calls $cancelCore $cancelMountPlain) -eq 1 -and
+    (Calls $cancelMountTrigger $mountSuccessor) -eq 1 -and (Calls $cancelMountTrigger $interruptMove) -eq 0) 'PR-2 R12-F4 (round 16): the combat owner''s Dismounting handler reaches CancelCore, which at mod disable releases the admitted ground order''s accounting (no interrupt) and cancels mount movement through the successor-yielding CancelMountMovement(trigger)'
+# ---- PR-2 round 17: R16-F1 the mod-disable successor includes an unowned approaching command outside the Move slot; R13-F3 the exact carrier's
+# movement fact is recorded at the delegated movement debit and read by the approach termination ----
+$approachSteers = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCarrierCleanup') 'ApproachSteers')[0]
+$ledgerType = KmcType 'KingmakerMountedCombat.Domain.MountedCarrierApproachLedger'
+$tickDelegatedMethod = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter') 'TickDelegated')[0]
+$acquiredGetter = (KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackCommand').GetProperty('CarrierAcquiredPath', $any).GetGetMethod($true)
+Check ((Calls $preserves $mountSuccessor) -eq 1 -and (Calls $mountSuccessor $approachSteers) -eq 1 -and (Calls $mountSuccessor $commandOwnedGetter) -ge 2 -and
+    (Calls (@(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCarrierCleanup') 'OtherCommandSteers')[0]) $approachSteers) -eq 1) 'PR-2 round 17: MountSuccessor (read by PreservesMountSuccessor and CancelMountMovement(trigger)) takes an unowned Move-slot command or an unowned approaching command in another slot by the exact-carrier cleanup''s ApproachSteers (R16-F1); the round-17 Move-slot positive-tick marker (R13-F3) is replaced in round 19 (below)'
+# ---- PR-2 round 18: R17-F1 the delivery fact is recorded on entry to the delegated movement hook; R16-F1 with an unowned live command on the
+# mount the mod-disable paths interrupt only the pair's own commands (never native InterruptMove) and the cleanup keeps an unstarted IsMoveUnit command's motion ----
+$holdsUnowned = @(Method $runtimeType 'MountHoldsUnownedCommand')[0]; $interruptOwned = @(Method $runtimeType 'InterruptOwnedMountCommands')[0]
+$isMoveUnitGetter = (GameType 'Kingmaker.UnitLogic.Commands.Base.UnitCommand').GetProperty('IsMoveUnit', $any).GetGetMethod($true)
+Check ((Calls $restoreMovement $holdsUnowned) -eq 1 -and (Calls $restoreMovement $interruptOwned) -eq 1 -and (FirstOffset $restoreMovement $holdsUnowned) -lt (FirstOffset $restoreMovement $interruptMove) -and
+    (Calls $cancelMountTrigger $holdsUnowned) -eq 1 -and (Calls $cancelMountTrigger $interruptOwned) -eq 1 -and (Calls $mountSuccessor $isMoveUnitGetter) -ge 1 -and
+    (Calls (@(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCarrierCleanup') 'OtherCommandSteers')[0]) $isMoveUnitGetter) -ge 1) 'PR-2 round 18: (the round-18 delivered-Path marker on entry to TickDelegated (R17-F1) is replaced in round 19, below) RestoreMovementAuthority and CancelMountMovement(trigger) decide MountHoldsUnownedCommand before any interruption and then interrupt only the pair''s own commands, MountSuccessor and the exact-carrier cleanup read IsMoveUnit (R16-F1)'
+# ---- PR-2 round 19 (R17-F1, R18-F2): one issuance/delivery record per exact carrier, written at the native boundaries; no Move-slot marker ----
+$commandType19 = KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+$observerType19 = KmcType 'KingmakerMountedCombat.Integration.MountedCarrierPathObserver'
+$ledgerWriters = @('Admit','RecordRequest','RecordCompletion') | ForEach-Object { $ledgerType.GetMethod($_) }
+Check ($null -eq $kmc.GetType('KingmakerMountedCombat.Domain.MountedCarrierMovementLedger', $false) -and
+    (Calls $tickDelegatedMethod ($ledgerType.GetMethod('RecordMovement'))) -eq 1 -and @($ledgerWriters | Where-Object { (Calls $tickDelegatedMethod $_) -ne 0 }).Count -eq 0 -and
+    (Calls $acquiredGetter ($ledgerType.GetMethod('HasDelivery'))) -eq 1 -and (Calls $acquiredGetter ($ledgerType.GetMethod('MovedAlongDelivery'))) -eq 0 -and (Calls $acquiredGetter ($ledgerType.GetMethod('PhaseOf'))) -eq 0 -and
+    (Calls (@(Method $commandType19 'NoteCarrierIssued')[0]) ($ledgerType.GetMethod('Admit'))) -eq 1 -and
+    (Calls (@(Method $observerType19 'AfterRequest')[0]) ($ledgerType.GetMethod('RecordRequest'))) -eq 1 -and (Calls (@(Method $observerType19 'AfterCompletion')[0]) ($ledgerType.GetMethod('RecordCompletion'))) -eq 1 -and
+    $null -eq $commandType19.GetField('pathAtCarrierIssue', $any) -and $null -eq $commandType19.GetField('pathRequestPendingCarrier', $any)) 'PR-2 round 19 (R17-F1, R18-F2): the exact carrier''s issuance and delivery are written only by the PathTo/OnPathComplete observer (MountedCarrierApproachLedger.RecordRequest/RecordCompletion) for a carrier the command admitted at issue; TickDelegated writes no issuance or delivery and credits its positive tick only to the carrier whose own delivered path moved (RecordMovement); CarrierAcquiredPath reads the delivery (not the movement fact); the round-17/18 Move-slot markers and the rider-sampled baseline heuristics are gone'
+# ---- PR-2 round 20 (R18-F2, R19-F2, R19-F5): the exact carrier's delivery at both decision points; forced-path scope release ----
+$controller20 = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
+$evaluate20 = @(Method $controller20 'EvaluateFirstTickDecision')[0]; $decide20 = @(Method $controller20 'DecideFirstTickProposal')[0]
+$phaseOf20 = $observerType19.GetMethod('PhaseOf', $any); $tryRead20 = (KmcType 'KingmakerMountedCombat.Integration.MountedAgentSteering').GetMethod('TryRead', $any)
+$inPlace20 = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('EvaluateFirstTick', $any)
+$endIfNative20 = @(Method $commandType19 'EndIfNativeTurnBasedApproachEnded')[0]; $endIfProvisional20 = @(Method $commandType19 'EndIfProvisionalApproachEnded')[0]
+$appliesGetter20 = $commandType19.GetProperty('NativeTurnBasedDispositionApplies', $any).GetGetMethod($true)
+$distance20 = @((GameType 'Kingmaker.Utility.GeometryUtils').GetMethods($any) | Where-Object { $_.Name -ceq 'MechanicsDistance' })
+$teardownModDisable20 = (KmcType 'KingmakerMountedCombat.Integration.MountedServiceTeardownSequence').GetMethod('ModDisable', $any)
+Check ((Calls $evaluate20 $phaseOf20) -eq 1 -and (FirstOffset $evaluate20 $inPlace20) -lt (FirstOffset $evaluate20 $phaseOf20) -and (FirstOffset $evaluate20 $phaseOf20) -lt (FirstOffset $evaluate20 $tryRead20) -and
+    [Enum]::GetNames((KmcType 'KingmakerMountedCombat.Domain.MountedFirstTickVerdict')) -contains 'Defer' -and
+    @($distance20 | Where-Object { (Calls $acquiredGetter $_) -ne 0 }).Count -eq 0 -and (Calls $acquiredGetter ($ledgerType.GetMethod('HasDelivery'))) -eq 1 -and
+    (Calls $endIfNative20 $endIfProvisional20) -eq 1 -and (FirstOffset $endIfNative20 $endIfProvisional20) -lt (FirstOffset $endIfNative20 $appliesGetter20) -and
+    (Calls $endIfProvisional20 ($commandType19.GetProperty('CarrierApproachPhase', $any).GetGetMethod($true))) -eq 1 -and
+    (Calls $teardownModDisable20 ($observerType19.GetMethod('ReleaseForcedIssuer', $any))) -eq 1) 'PR-2 round 20 (R18-F2, R19-F2, R19-F5): the first-tick decision reads the exact carrier''s phase after the independently legal in-place check and before reading the agent''s path (anything but its own delivery defers: MountedFirstTickVerdict.Defer); CarrierAcquiredPath is the carrier''s own delivery only (no displacement criterion); a provisional order''s ended own delivery is settled (EndIfProvisionalApproachEnded) before the accepted-order disposition and the drift re-path; the teardown ModDisable releases the forced-path issuer (round 22: the scope is retired)'
+# ---- PR-2 round 22 (R19-F5): the exact caller binding replaces the scope stack and the route comparison; the helper is the only writer ----
+$issuerField22 = $observerType19.GetField('activeForcedCall', $any)
+function StoresStatic22([Reflection.MethodBase]$Method, [Reflection.FieldInfo]$Field) { $il = $Method.GetMethodBody().GetILAsByteArray(); for ($i = 0; $i -le $il.Length - 5; $i++) { if ($il[$i] -eq 0x80 -and [BitConverter]::ToInt32($il, $i + 1) -eq $Field.MetadataToken) { return $true } }; $false }
+$writers22 = @(@($observerType19.GetMethods($any)) | Where-Object { $_.GetMethodBody() -ne $null -and (StoresStatic22 $_ $issuerField22) } | ForEach-Object { $_.Name } | Sort-Object)
+$forcedBefore22 = $observerType19.GetMethod('RecordForcedRequestAtAssignment', $any)
+Check ($null -ne $issuerField22 -and ($writers22 -join ',') -ceq 'FollowPrecomputedPathFrom,ReleaseForcedIssuer' -and
+    (Calls $forcedBefore22 $issuerField22) -eq 1 -and (Calls $forcedBefore22 ($ledgerType.GetMethod('IsAdmittedOn'))) -eq 1 -and (Calls $forcedBefore22 ($ledgerType.GetMethod('RecordRequest'))) -eq 1 -and
+    @(@('EnterApproach','ExitApproach','ForcedPathIssuer','SameRoute','DiscardStaleScopes','ReleaseScopes') | Where-Object { $null -ne $observerType19.GetMethod($_, $any) }).Count -eq 0) 'PR-2 round 22 (R19-F5): the forced-path issuer is written only by the transpiled call site''s helper FollowPrecomputedPathFrom (set and restored in its own try/finally) and the teardown release; the forced request is recorded at native''s assignment (RecordForcedRequestAtAssignment, round 23) for that exact issuer only when it is admitted on the agent; the scope stack, the route comparison and the frame-stale logic are gone'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

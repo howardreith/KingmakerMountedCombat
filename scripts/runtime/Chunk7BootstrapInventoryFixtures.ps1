@@ -12,7 +12,7 @@ function Read-KmcChunk7BootstrapInventorySelectionFile([string]$Path,[string]$Ru
 function Assert-KmcChunk7BootstrapEmptyMetadata($Descriptor,$Header,$Archive){
  foreach($pair in @(@('Name','internalName'),@('GameId','gameId'),@('GameName','gameName'),@('Area','area'))){Assert-KmcBootstrapInventoryString $Header.($pair[0]) $Descriptor.($pair[1])}
  Assert-KmcBootstrapInventoryString $Header.Type 'Auto';Assert-KmcOrdinaryInteger $Header.CompatibilityVersion 1 1
- Assert-KmcChunk7Boolean $Header.IsAutoLevelupSave $false;Assert-KmcOrdinaryInteger $Archive.SchemaVersion 3 3
+ Assert-KmcChunk7Boolean $Header.IsAutoLevelupSave $false;[void](Assert-KmcChunk7WriterArchive $Archive 'bootstrap inventory metadata')
  Assert-KmcBootstrapInventoryString $Archive.CampaignId $Descriptor.gameId;Assert-KmcBootstrapInventoryString $Archive.AreaId $Descriptor.area
  foreach($key in @('Pairs','Participations','Slots')){if($Archive.$key-isnot[Array]-or$Archive.$key.Count-ne0){throw 'Bootstrap inventory source contains mounted or native-slot ownership.'}}
  if($null-ne$Archive.Combat){throw 'Bootstrap inventory source contains combat ownership.'}

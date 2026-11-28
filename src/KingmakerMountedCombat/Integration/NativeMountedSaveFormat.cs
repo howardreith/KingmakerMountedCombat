@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Integration
         internal static bool CanRestore(MountedArchiveReadResult read) => ArchiveNativeSupportEnabled && read != null &&
             read.Kind == MountedSaveReadKind.Current && read.Data?.SchemaVersion == MountedArchiveData.Schema &&
             read.Data.Pairs != null && read.Data.Pairs.Length <= NativePairCapacity &&
-            (read.SourceSchema == 1 || read.SourceSchema == 2 || read.SourceSchema == MountedArchiveData.Schema);
+            (read.SourceSchema == 1 || read.SourceSchema == 2 || read.SourceSchema == 3 || read.SourceSchema == MountedArchiveData.Schema);
 
         internal static string CaptureOrPreserve(MountedArchiveReadResult loaded, Func<MountedArchiveData> capture)
         {

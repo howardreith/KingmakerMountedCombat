@@ -470,8 +470,8 @@
             "postfix": "PrepareAfter"
           },
           {
-            "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-            "method": "NewRound",
+            "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+            "method": "OnNewRound",
             "token": "0600939D",
             "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
             "prefix": "RoundBefore",
@@ -988,8 +988,8 @@
               "postfix": "PrepareAfter"
             },
             {
-              "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-              "method": "NewRound",
+              "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+              "method": "OnNewRound",
               "token": "0600939D",
               "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
               "prefix": "RoundBefore",
@@ -1429,8 +1429,8 @@
                 "postfix": "PrepareAfter"
               },
               {
-                "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-                "method": "NewRound",
+                "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+                "method": "OnNewRound",
                 "token": "0600939D",
                 "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
                 "prefix": "RoundBefore",
@@ -3316,7 +3316,7 @@
           {
             "type": "KingmakerMountedCombat.Integration.MountedPersistenceService",
             "method": "RecordCompletedSave",
-            "token": "0600A777",
+            "token": "06001234",
             "moduleMvid": "33333333-3333-4333-8333-333333333333"
           }
         ],
@@ -3780,8 +3780,8 @@
             "postfix": "PrepareAfter"
           },
           {
-            "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-            "method": "NewRound",
+            "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+            "method": "OnNewRound",
             "token": "0600939D",
             "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
             "prefix": "RoundBefore",
@@ -4221,8 +4221,8 @@
               "postfix": "PrepareAfter"
             },
             {
-              "declaringType": "Kingmaker.UnitLogic.UnitCombatState",
-              "method": "NewRound",
+              "declaringType": "Kingmaker.Controllers.Combat.UnitCombatState",
+              "method": "OnNewRound",
               "token": "0600939D",
               "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7",
               "prefix": "RoundBefore",

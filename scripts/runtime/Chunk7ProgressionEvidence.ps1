@@ -436,12 +436,13 @@ function Assert-KmcProgressionWrite($Write,$Request,$Source){
     if($Write.path-isnot[string]-or$Write.path-cne(Join-Path $root $leaf)-or$Write.leaf-cne$leaf-or$Write.type-cne$saveType-or$Write.operation-cne'None'-or
        $Write.sha256-isnot[string]-or$Write.sha256-cnotmatch'^[a-f0-9]{64}$'-or$Write.sha256-ceq$s.sourceArchiveSha256-or$Write.name-isnot[string]-or[string]::IsNullOrWhiteSpace($Write.name)-or
        $Write.gameId-cne$fixture.gameId-or$Write.gameName-cne$fixture.gameName-or$Write.area-cne$fixture.area){throw 'Native progression Auto1 identity differs.'}
-    Assert-KmcOrdinaryInteger $Write.length 1 268435456;Assert-KmcOrdinaryInteger $Write.schema 3 3
+    Assert-KmcOrdinaryInteger $Write.length 1 268435456;$writer=Assert-KmcChunk7WriterSchema $Write.schema 'Progression writer'
     foreach($key in @('snapshotCount','completedWrites')){Assert-KmcOrdinaryInteger $Write.$key 1 1}
     Assert-KmcChunk7Boolean $Write.nativeAutoLevelup (-not$owned);Assert-KmcChunk7Boolean $Write.nativeCallbackSupplied $owned
-    $a=$Write.archive;Assert-KmcExactProperties $a @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'progression native output archive'
+    # PR #70 R13-F2 (round 17): the native output is a writer graph of exactly the recorded write's version.
+    $a=$Write.archive;if((Assert-KmcChunk7WriterArchive $a 'progression native output archive')-ne$writer){throw 'Progression native output differs from its writer schema.'}
     Assert-KmcProgressionTexts $a @('CampaignId','AreaId','Policy','RulesId')
-    Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3;Assert-KmcOrdinaryInteger $a.GameTimeTicks $Source.GameTimeTicks
+    Assert-KmcOrdinaryInteger $a.GameTimeTicks $Source.GameTimeTicks
     if($a.CampaignId-cne$Source.CampaignId-or$a.AreaId-cne$Source.AreaId-or$a.Policy-cne$Source.Policy-or$a.RulesId-cne$Source.RulesId-or$a.Pairs-isnot[Array]-or$a.Pairs.Count-ne$(if((Get-KmcChunk7ProgressionOperation $s.case)-ceq'horse-native-level'){2}else{1})-or
        $a.Participations-isnot[Array]-or$a.Participations.Count-ne0-or$null-ne$a.Combat-or$a.Slots-isnot[Array]-or$a.Slots.Count-gt4){throw 'Progression native archive invented ownership/combat or policy.'}
     Assert-KmcOrdinaryInteger $Write.pairs $a.Pairs.Count $a.Pairs.Count

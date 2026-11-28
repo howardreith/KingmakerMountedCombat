@@ -192,7 +192,7 @@ namespace KingmakerMountedCombat.Diagnostics
             RequireReplayAuthority(cleanupOnly); RequireReplayInput();
             Require(ReplayNativeBoundaryIdle() && ordinal >= 1 && ordinal <= (RepeatedAreaCase ? 1 : 3), "Repeated loaded graph is not at an admissible native boundary.");
             var data = persistence.LoadedArchive;
-            Require(data != null && data.SchemaVersion == 3 && data.Pairs.Length == 2 && data.Participations.Length == 0 && data.Combat == null &&
+            Require(data != null && data.SchemaVersion == MountedArchiveData.Schema && data.Pairs.Length == 2 && data.Participations.Length == 0 && data.Combat == null &&
                 data.CampaignId == request.PersistenceLoad.GameId && data.AreaId == request.PersistenceLoad.Area &&
                 Game.Instance.Player.GameId == data.CampaignId && Game.Instance.Player.MainCharacter.Value.CharacterName == request.PersistenceLoad.GameName &&
                 Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe == data.AreaId && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",

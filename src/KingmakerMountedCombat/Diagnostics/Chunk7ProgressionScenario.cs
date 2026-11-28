@@ -85,8 +85,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void BeginBeforeLoad()
         {
             Require(!beforeLoad && Game.Instance?.CurrentlyLoadedArea == null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
-                NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity == 6,
-                "Progression cold observation must precede native load under explicit schema 3/six-pair capacity.");
+                NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && GameMountedRelationshipService.NativePairCapacity == 6,
+                "Progression cold observation must precede native load under the explicit current archive schema/six-pair capacity.");
             RequireAuthority(true); beforeLoadGame = Game.Instance; beforeLoad = true;
             restoration = new NativeArchiveRestorationProbe(persistence, world);
             restoration.Install();
@@ -127,7 +127,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Progression requires exact idle native exploration without an unexpected dialog.");
             ReadSources();
             var archive = persistence.LoadedArchive;
-            Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == request.SelectedChunk7Fixture.GameId &&
+            Require(archive != null && archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == request.SelectedChunk7Fixture.GameId &&
                 archive.AreaId == request.SelectedChunk7Fixture.Area && archive.Pairs.Length == 2 && archive.Participations.Length == 0 && archive.Combat == null &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && persistence.SemanticRestoreCount == 4 &&
                 persistence.PresentationRestoreCount == 2 && persistence.ArchivePostLoadObservedCount == 4 &&

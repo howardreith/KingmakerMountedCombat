@@ -110,9 +110,13 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256){throw 'Third-Horse native Manual hash is missing or aliases the source.'}
     Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
     foreach($pair in @(@('fileName',$leaf),@('nativeType','Manual'),@('nativeName',$name),@('gameId',$Request.persistenceLoad.gameId),@('gameName',$Request.persistenceLoad.gameName),@('area',$Request.persistenceLoad.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
-    Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+    # PR #70 R13-F2 (round 16): the Manual is the producing build's write: its read-back version is that writer (exact versioned shape).
+    $writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Third-Horse Manual writer'
+    Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1
     $a=$w.archive
-    Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3
+    if((Assert-KmcChunk7WriterArchive $a 'third-Horse native Manual archive')-ne$writer){throw 'Third-Horse Manual archive differs from its writer schema.'}
+    # R16-F5 (round 17): the advertised writer capability is the writer of this record's Manual.
+    Assert-KmcChunk7ManualWriterCapability $o.capability $w 'Third-Horse world'
     Assert-KmcBootstrapInventoryString $a.CampaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $a.AreaId $Request.persistenceLoad.area
     foreach($key in @('Pairs','Participations','Slots')){if($a.$key-isnot[Array]-or$a.$key.Count-ne0){throw ('Third-Horse unmounted save carries unexpected '+$key+'.')}}
     if($null-ne$a.Combat){throw 'Third-Horse unmounted save carries combat ownership.'}
@@ -1024,7 +1028,7 @@ function Assert-KmcChunk7OwnerSurfaceSpeedEvidence($Request,$Observations){
     foreach($key in @('characterLevel','rangerLevel','experience','readyLevel')){Assert-KmcOrdinaryInteger $q.$key 0 1000000000}
     $c=$o.capability;Assert-KmcExactProperties $c @('archiveNativeEnabled','nativeWriterSchema','nativePairCapacity','workingSha256','inheritedManualSha256','ownerSeedSha256') 'owner-surface capability'
     Assert-KmcChunk7Boolean $c.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $c @('nativeWriterSchema','nativePairCapacity')
-    if($c.nativeWriterSchema-ne3-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-surface capability differs or claims Working/inherited provenance.'}
+    if(-not(Test-KmcChunk7WriterSchema $c.nativeWriterSchema)-or$c.nativePairCapacity-lt2-or$null-ne$c.workingSha256-or$null-ne$c.inheritedManualSha256){throw 'Owner-surface capability differs or claims Working/inherited provenance.'}
     Assert-KmcBootstrapInventoryString $c.ownerSeedSha256 $s.seedSha256
     Assert-KmcChunk7ExactIds @($o.partyBefore) @($s.partyIds)
     $r=@($o.partyBefore|Where-Object id -CEQ $rider);$m=@($o.partyBefore|Where-Object id -CEQ $horse)
@@ -1334,7 +1338,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
         Assert-KmcChunk7InheritedEvidence $Request $o
         $roles=Get-KmcChunk7OwnedPairIds $Request;$first=$roles[0];$mammoth=$roles[1];$second=$roles[2];$horse=$roles[3];$actors=@($roles);$original=@($Request.ownedPairs.partyIds)
         Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true;Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
-        if($o.capability.nativeWriterSchema-ne3-or$o.capability.nativePairCapacity-lt2-or$null-ne$o.capability.workingSha256){throw 'Inherited world capability differs or claims Working provenance.'}
+        if(-not(Test-KmcChunk7WriterSchema $o.capability.nativeWriterSchema)-or$o.capability.nativePairCapacity-lt2-or$null-ne$o.capability.workingSha256){throw 'Inherited world capability differs or claims Working provenance.'}
         Assert-KmcBootstrapInventoryString $o.capability.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
         foreach($party in @($o.partyBefore,$o.partyWithHorse)){
             Assert-KmcChunk7ExactIds @($party) $original
@@ -1345,7 +1349,7 @@ function Assert-KmcChunk7WorldEvidence($Request,$Artifact,[string]$Status) {
     $o=$Artifact.observations; Assert-KmcChunk7Boolean $o.capability.archiveNativeEnabled $true; $first='b6628a77-4962-47a4-a17c-88d9836fc9d5';$mammoth='d79a4f6c-b74e-4868-95bd-533899131acb';$second='d17c8fd0-6627-40c4-bf9a-024cf001c1f7'
     Assert-KmcChunk7WorldCounters $o.capability @('nativeWriterSchema','nativePairCapacity')
     $original=@($first,$mammoth,$second)
-    if($o.capability.archiveNativeEnabled-ne$true-or$o.capability.nativeWriterSchema-ne3-or$o.capability.nativePairCapacity-lt2-or
+    if($o.capability.archiveNativeEnabled-ne$true-or-not(Test-KmcChunk7WriterSchema $o.capability.nativeWriterSchema)-or$o.capability.nativePairCapacity-lt2-or
         $o.capability.workingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or
         $o.capability.workingSha256-cne$Request.fixture.working.sha256){throw 'World native capability or fixture receipt differs.'}
     Assert-KmcChunk7ExactIds @($o.partyBefore) $original

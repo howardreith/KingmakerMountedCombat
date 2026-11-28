@@ -304,6 +304,7 @@ namespace KingmakerMountedCombat.Integration
             var participant = Find(context);
             return participant == null || participant.ShouldRunNativeIgnoreClick(context, ref result);
         }
+        internal void AdmitPairedAttackClick(TurnController context, ref bool result) => Find(context)?.AdmitPairedAttackClick(context, ref result);
         internal bool PrepareNativeInputPrediction(TurnController context) => Find(context)?.PrepareNativeInputPrediction(context) ?? true;
         internal bool IsPartnerContext(TurnController turn) => Find(turn)?.IsPartnerContext(turn) ?? false;
         internal bool IsPairedResume(TurnController turn) => Find(turn)?.IsPairedResume(turn) ?? false;
@@ -363,6 +364,8 @@ namespace KingmakerMountedCombat.Integration
         internal void CapturePersistence(SavedCombatData saved)
         {
             CaptureSharedPersistence(saved);
+            // PR #70 R11-F1 (round 13): the legacy schema-2 writer has one step field per row.
+            MountedMovementPersistenceRows.FoldForSingleFieldFormat(saved.Allocations);
             var states = participants.Select(p => p.CaptureParticipation()).Where(p => p != null).ToArray();
             if (states.Length > 1) throw new InvalidOperationException("The legacy native adapter cannot capture multiple pair participations.");
             saved.Paired = states.SingleOrDefault();
@@ -374,6 +377,8 @@ namespace KingmakerMountedCombat.Integration
         }
         internal void RestorePersistence(SavedCombatData saved, IDictionary<string, UnitEntityData> actors)
         {
+            // PR #70 R13-F1 (round 14): the legacy schema-2 adapter's rows hold one step value: explicit single-value migration.
+            SavedStepTravel.MigrateSingleValue(saved?.Allocations);
             RestoreSharedPersistence(saved, actors);
             Primary.RestoreParticipation(saved.Paired, actors, saved.TurnBased);
         }

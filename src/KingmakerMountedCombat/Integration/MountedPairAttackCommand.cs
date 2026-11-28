@@ -419,6 +419,82 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal UnitMoveTo DelegatedMove => delegatedMove;
+        // R13-F4 (round 14): the installed WantsToMove of the mount's agent (Path != null || RequestedPath != null), read only for a live carrier
+        // that has already moved the mount (its one approach was issued and followed).
+        internal int NativeApproachEndedCount { get; private set; }
+        // PR #70 R13-F3 (round 16), R17-F1/R18-F2 (round 19): an ISSUED approach is distinguished from a carrier still awaiting its first path
+        // by the exact carrier's own native issuance/delivery record (MountedCarrierApproachLedger), written at the installed boundaries
+        // themselves (MountedCarrierPathObserver): UnitMovementAgent.PathTo (060018A3) records the request this carrier's own TickApproaching
+        // issued, and OnPathComplete (060018B9) records that request's delivery (native made it the agent's Path, a pooled Path object
+        // included; a failed or not-found completion is not a delivery). The record is written when native issues and delivers, before any
+        // later movement tick, so neither native denial route (the paired movement prefix returning to native before the delegated adapter,
+        // or the adapter's zero tick: CanMoveInTurnBased -> CompleteMovement clears Path and RequestedPath) can erase it, and a carrier that
+        // merely holds the Move slot while a predecessor's path remains acquires nothing. The rider's samples are not an issuance fact (a path
+        // can be delivered, used and lost between them). A forced approach (the route-bound carrier's ForcedPath, which native follows through
+        // FollowPrecomputedPath without PathTo) is attributed to the exact command whose TickApproaching issued it (round 19 follow-up). The
+        // route-bound override carrier also keeps its earlier displacement criterion unchanged (it moved the mount from its origin along its
+        // validated ForcedPath).
+        internal int CarrierPathObservations { get; private set; }
+        private UnitMoveTo observedDeliveredCarrier;
+
+        // The carrier this command issues to the mount's Move slot is admitted to the record before native Run sees it.
+        private void NoteCarrierIssued() => MountedCarrierApproachLedger.Admit(delegatedMove, mount?.View?.AgentASP);
+
+        internal MountedCarrierApproachPhase CarrierApproachPhase => MountedCarrierPathObserver.PhaseOf(delegatedMove, mount?.View?.AgentASP);
+
+        // Diagnostic only: the rider's tick observed the live carrier holding its own delivered path (counted once per carrier).
+        private void ObserveCarrierPath()
+        {
+            var carrier = delegatedMove;
+            if (carrier == null || carrier.IsFinished || ReferenceEquals(observedDeliveredCarrier, carrier) ||
+                CarrierApproachPhase != MountedCarrierApproachPhase.Delivered) return;
+            observedDeliveredCarrier = carrier;
+            CarrierPathObservations++;
+        }
+
+        // The carrier acquired its path: native delivered its own request (whatever happened to that path since). R18-F2 (round 20): the
+        // route-bound displacement criterion is removed: a forced approach is now attributed to the exact command whose TickApproaching issued it,
+        // so the delivery covers the route-bound carrier, and displacement from its origin can be a predecessor's steering. A carrier with only an
+        // outstanding or undelivered request, or none, is still awaiting its first path.
+        internal bool CarrierAcquiredPath => delegatedMove != null && MountedCarrierApproachLedger.HasDelivery(delegatedMove);
+
+        // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed
+        // CompleteMovement/Stop cleared Path and RequestedPath) while UnitMoveTo has not yet reported finished.
+        private bool MountAgentStoppedAfterCarrierMoved()
+        {
+            var agent = mount?.View?.AgentASP;
+            return delegatedMove != null && !delegatedMove.IsFinished && agent != null && !agent.WantsToMove && CarrierAcquiredPath;
+        }
+
+
+        // PR #70 R8-F1 (round 11): the revalidated approach the exact route-bound carrier was made from (its untruncated native route and
+        // destination arc length), for that carrier's first-debit revalidation.
+        private PairedAttackClickProbe.Approach carrierApproach;
+        private UnitMoveTo carrierApproachMove;
+        internal PairedAttackClickProbe.Approach ApproachOf(UnitMoveTo carrier) =>
+            carrier != null && ReferenceEquals(carrier, carrierApproachMove) ? carrierApproach : null;
+
+        // PR #70 R6-F7 (rounds 11-12): the exact carrier whose cleanup this command began and what of it is done (interruption, removal from the
+        // mount's Move slot, motion), independently of native Result/IsFinished. Round 12 (R11-F7): the record is its own object
+        // (MountedCarrierCleanup), so terminal settlement can retain the unfinished obligation without holding this wrapper.
+        private MountedCarrierCleanup cleanup;
+        internal MountedCarrierCleanup CarrierCleanupRecord => cleanup;
+        internal UnitMoveTo CarrierCleanupMove => cleanup?.Carrier;
+        internal bool CarrierCleanupPending => cleanup != null && cleanup.Pending;
+        internal string CarrierCleanupState => cleanup == null ? "none" : cleanup.State;
+
+        // PR #70 R6-F7 (round 11): the one cleanup path for an exact carrier of this command, resumed by the controller's sweep after a fault in
+        // any caller. A carrier whose cleanup this command never began is begun here (interrupted only while it still holds the Move slot);
+        // otherwise only the unfinished steps run. Returns true once every step is settled; a fault propagates and leaves the rest owned.
+        internal bool SettleCarrierCleanup(UnitMoveTo carrier)
+        {
+            if (carrier == null || chargeMode) return true;
+            if (cleanup == null || !ReferenceEquals(cleanup.Carrier, carrier)) cleanup = new MountedCarrierCleanup(carrier, mount);
+            var settled = cleanup.Settle(this);
+            if (ReferenceEquals(delegatedMove, carrier) && settled) delegatedMove = null;
+            return settled;
+        }
+
 
         // Review R3-F3: every exact delegated move this command submits (the first, each repath replacement and each pre-start
         // move) is announced before native Run sees it, so the controller recognizes the order's own movement by identity.
@@ -447,6 +523,56 @@ namespace KingmakerMountedCombat.Integration
         // IsTargetValid restricted rule with the action's current range) is retired by the controller, which ends this command once, so
         // no destination is produced at any approach step (pre-start, native start, repath, carrier creation) or strike before delivery.
         internal Func<MountedPairAttackCommand, bool> AutomaticOrderAdmissionLost;
+        // Review R4-F1: set for a turn-based order whose click KMC admitted over native's refusal. Every carrier of such an
+        // order is created only on a route revalidated from the CURRENT origin and grant (RouteRevalidator: the click probe's
+        // production walk); when that proof cannot be established the approach ends cleanly instead of falling back to
+        // native routing.
+        internal System.Collections.Generic.List<Vector3> ValidatedApproachRoute;
+        // PR #70 R1-F9: the plan identity the click proved; every revalidation receives this order's own plan at dispatch.
+        internal PairedAttackClickProbe.PlanIdentity ClickPlan;
+        internal Func<PairedAttackClickProbe.PlanIdentity, PairedAttackClickProbe.Approach> RouteRevalidator;
+        // PR #70 R1-F6 (round 7): a carrier made from a route revalidated in the first-tick state (Approach.FirstTick) is reported once it holds
+        // the mount's Move slot; its first movement tick is then decided by the controller (MountedMovementStateAdapter.FirstTickGate).
+        internal Action<UnitMoveTo> FirstTickCarrierIssued;
+        // PR #70 R8-F3 (round 9): asked before a route-bound carrier is created; false (its first-tick request was refused) ends the order
+        // without issuing one. R8-F4: told when this command released its own carrier because its strike became admissible where it stands.
+        internal Func<bool> FirstTickCarrierPermitted;
+        internal Action CarrierReleasedForStrike;
+        // PR #70 R1-F6 (round 7): a provisional order (the click is not yet an accepted order) carries no manual-target write, and its strike starts
+        // only after the controller committed it (a strike reached without a decided tick commits only in place).
+        internal bool ProvisionalOrder { get; private set; }
+        internal Func<bool> ProvisionalStrikeGate;
+        internal void MarkProvisionalOrder() { ProvisionalOrder = true; DeferManualTargetWrite(true); }
+        internal void CommitProvisionalOrder() { ProvisionalOrder = false; DeferManualTargetWrite(false); }
+        // PR #70 R1-F9 (round 3): the plan native would build for this order NOW (UnitAttack.OnStart re-plans against the actual actor
+        // state), from an unrun attack of the same executor, target and mode; this order's own plan was built when it was run.
+        private PairedAttackClickProbe.PlanIdentity CurrentPlanIdentity()
+        {
+            var plan = new MountedPairSingleAttack(attackTarget, rider, mount, true, IsSingleAttack);
+            plan.Init(rider);
+            return PairedAttackClickProbe.PlanIdentity.Of(plan);
+        }
+
+        // PR #70 R1-F9 (round 4): before a carrier is issued or a strike starts, THREE plans must agree: the click's admitted plan, the
+        // plan this live wrapper was initialized with (its own PlannedAttack, which supplies the reach approach and strike admission use)
+        // and the plan native would build from the current state. Either disagreement ends the order cleanly before movement or attack.
+        private string ClickPlanDisagreement()
+        {
+            if (!RouteBound || !ClickPlan.Valid) return null;
+            if (!ClickPlan.Matches(PairedAttackClickProbe.PlanIdentity.Of(this))) return "live wrapper plan changed";
+            if (!ClickPlan.Matches(CurrentPlanIdentity())) return "click plan changed";
+            return null;
+        }
+        internal bool RouteBound => ValidatedApproachRoute != null;
+        // PR #70 R7-F2 (round 8): the same three-plan comparison, asked by the first-tick decision before any commit.
+        internal string LivePlanDisagreement() => ClickPlanDisagreement();
+        internal int RouteRevalidationCount { get; private set; }
+        // Review R6-F1: a route-bound carrier is a point command to the proof's destination (inside the admissible opening) with
+        // the proof's arrival radius: every position native's proximity rule accepts as arrival admits the strike.
+        internal int RouteProofExpiredCount { get; private set; }
+        // Native proximity would complete the carrier at once although the strike is not admitted: never re-issued.
+        internal int RouteArrivalContradictionCount { get; private set; }
+        internal bool ValidatedRouteFollowed { get; private set; }
         private bool preStartApproachAllowed;
         // Review R3-F1: a horse strike waiting to start approaches with native's own UnitAttack approach (the horse executes).
         private bool nativePreStartApproaching;
@@ -742,6 +868,7 @@ namespace KingmakerMountedCombat.Integration
             AnnounceOwnMove(move);
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
+            NoteCarrierIssued();
             delegatedMoveDrivenByStockController = true;
             mountMoveSlotRestoredAfterApproach = false;
             commands.Run(move);
@@ -1560,6 +1687,59 @@ namespace KingmakerMountedCombat.Integration
             if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null) return;
         }
 
+        // PR #70 R13-F3/R13-F4 (rounds 14-15): an accepted ordinary turn-based player order follows the installed disposition once its one
+        // issued approach can no longer bring the strike into reach. Installed UnitCommand.TickApproaching issues ONE turn-based path
+        // (NextApproachTime = MaxValue: no re-path); when movement is exhausted or denied, UnitMovementAgent.CanMoveInTurnBased (060018A9)
+        // completes the movement (CompleteMovement -> Stop/InterruptMovement: Path and RequestedPath cleared), so WantsToMove (060018BE:
+        // Path != null || RequestedPath != null) and UnitEntityView.IsMoving become false, and UnitActionController.TickCommandTurnBased
+        // (0600911D) force-finishes the approaching command that is not close enough (ForceFinishForTurnBased, then TickCommand returns
+        // before UpdateCooldowns: no strike, no Standard; the movement debited stays spent). The mounted order therefore ends, without a
+        // further carrier, when its carrier finished out of reach or the mount's agent no longer wants to move after the carrier moved it.
+        // Round 15 (R13-F3): both supported ordinary entries: the override entry (route-bound, its validated route followed) and the
+        // native-accepted rider click (a player-origin order without an override route whose carrier was issued). Only an ACCEPTED order: a
+        // provisional or refused first-tick request keeps its own refusal path; the charge, real-time and automatic orders keep their handling.
+        private bool NativeTurnBasedDispositionApplies =>
+            delegatedMove != null && !chargeMode && !ProvisionalOrder && (RouteBound ? ValidatedRouteFollowed : !IsAutomaticOrigin && delegatedMoveStartCount > 0) &&
+            (FirstTickCarrierPermitted == null || FirstTickCarrierPermitted()) && TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
+
+        // PR #70 R19-F2 (round 20): asked when native ended this provisional carrier's own delivered approach out of reach before its deciding tick;
+        // true: the pending replacement was settled through its refusal path (the controller's sweep retires it and the previous order resumes).
+        internal Func<string, bool> ProvisionalApproachEnded;
+        internal int ProvisionalApproachEndedCount { get; private set; }
+
+        // The exact ended-delivery observation: the provisional carrier's own delivery is EndedByNative and the agent has no path or request. A
+        // carrier still awaiting its first path keeps waiting; a strike admissible where the pair stands keeps the in-place path.
+        private bool EndIfProvisionalApproachEnded()
+        {
+            if (!ProvisionalOrder || chargeMode || delegatedMove == null || ProvisionalApproachEnded == null) return false;
+            var agent = mount?.View?.AgentASP;
+            if (agent == null || agent.WantsToMove || CarrierApproachPhase != MountedCarrierApproachPhase.EndedByNative) return false;
+            if (StrikeAdmissibleNow()) return false;
+            if (!ProvisionalApproachEnded("native-ended-first-approach(carrier " + (delegatedMove.IsFinished ? "finished" : "live") + ")")) return false;
+            ProvisionalApproachEndedCount++;
+            return true;
+        }
+
+        private bool EndIfNativeTurnBasedApproachEnded()
+        {
+            ObserveCarrierPath();
+            if (EndIfProvisionalApproachEnded()) return true;
+            if (!NativeTurnBasedDispositionApplies) return false;
+            // Round 16 (R13-F3): BOTH supported entries end on a finished carrier or on a live carrier whose issued approach has ended (it acquired
+            // its path, and the agent no longer wants to move). A live carrier still awaiting its first path is not an ended approach.
+            if (!delegatedMove.IsFinished && !MountAgentStoppedAfterCarrierMoved()) return false;
+            var admission = childAttack.EvaluateCurrentNativeAdmission();
+            ObserveNativeAdmission(admission);
+            if (admission == MountedPairNativeAdmissionState.Admitted) return false;
+            NativeApproachEndedCount++;
+            var detail = "native turn-based approach ended out of reach (carrier " + (delegatedMove.IsFinished ? "finished" : "live, agent no longer wants to move") +
+                ";admission=" + admission + ";entry=" + (RouteBound ? "override-route" : "native-accepted") + "): TickCommandTurnBased force-finish disposition, no re-path";
+            if (!transaction.IsTerminal) transaction.Cancel("The accepted turn-based approach ended out of reach; native issues no second path.");
+            RecordEndCause(MountedAttackEndCause.Cancelled, detail);
+            Interrupt();
+            return true;
+        }
+
         private void TickApproach()
         {
             // PR-1 review R4-F4: no carrier is issued, adopted or replaced for a superseded unreleased generation.
@@ -1570,6 +1750,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             ObserveApproachInvariants();
+            ObserveCarrierPath();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
             // PR-1 review R3-F3: revoked movement cancels only an approach that still needs movement; a strike admissible from the
@@ -1661,11 +1842,17 @@ namespace KingmakerMountedCombat.Integration
                 {
                     return;
                 }
+                // PR #70 R8-F4 (round 9): the verified transition to a stationary strike settles this carrier's first-tick request.
+                if (!chargeMode) CarrierReleasedForStrike?.Invoke();
 
                 return;
             }
 
             if (EndIfAutomaticOrderNotAdmitted()) return;
+            // PR #70 R13-F3 (round 15): the loss of the issued ordinary turn-based approach is resolved FIRST, before the target-drift re-path
+            // below (which could release the ended carrier and issue another): an approach that already ended out of reach takes the installed
+            // force-finish disposition, whatever the target did since.
+            if (EndIfNativeTurnBasedApproachEnded()) return;
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
@@ -1710,6 +1897,9 @@ namespace KingmakerMountedCombat.Integration
                 }
             }
 
+            // PR #70 R13-F3/R13-F4 (rounds 14-15): the issued approach's end after this tick's drive (EndIfNativeTurnBasedApproachEnded); the
+            // other orders (provisional requests, charges, real time, automatic orders) keep the re-path below.
+            if (EndIfNativeTurnBasedApproachEnded()) return;
             if (delegatedMove.IsFinished)
             {
                 var finishedMoveAdmission = childAttack.EvaluateCurrentNativeAdmission();
@@ -1838,9 +2028,65 @@ namespace KingmakerMountedCombat.Integration
                 chargeCarrierAgent = mount.View?.AgentASP;
                 chargeCarrierMotionOwned = true;
             }
+            // Review R4-F1: every carrier of a click-admitted turn-based order follows a route revalidated from the current origin
+            // and grant (native TickApproaching follows a ForcedPath before any visualizer path); when no proof exists, or native
+            // would complete the carrier at once without admitting the strike (review R6-F1), the approach ends cleanly instead
+            // of falling back to native routing.
+            var routeBoundCarrier = false;
+            if (RouteBound && !chargeMode && TurnBased.Controllers.CombatController.IsInTurnBasedCombat())
+            {
+                var plansDisagree = ClickPlanDisagreement();
+                if (plansDisagree != null)
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan no longer matches its click (" + plansDisagree + ").");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
+                    Interrupt();
+                    return false;
+                }
+                if (FirstTickCarrierPermitted != null && !FirstTickCarrierPermitted())
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The first-tick decision for this order was refused; no further carrier is issued.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "first-tick request refused");
+                    Interrupt();
+                    return false;
+                }
+                RouteRevalidationCount++;
+                var approach = RouteRevalidator?.Invoke(CurrentPlanIdentity());
+                routeBoundCarrier = true;
+                var route = approach?.Route;
+                var arrived = route != null && route.Count >= 2 && approach.ArrivalRadius > 0f && !route[0].Equals(route[route.Count - 1]) &&
+                    Kingmaker.Utility.GeometryUtils.SqrMechanicsDistance(route[route.Count - 1], mount.Position) <= approach.ArrivalRadius * approach.ArrivalRadius;
+                if (arrived) RouteArrivalContradictionCount++;
+                if (route == null || route.Count < 2 || !(approach.ArrivalRadius > 0f) || arrived)
+                {
+                    RouteProofExpiredCount++;
+                    delegatedMove = null;
+                    if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based approach is no longer a legal route within the mount's movement.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "validated approach expired");
+                    Interrupt();
+                    return false;
+                }
+                var endpoint = route[route.Count - 1];
+                delegatedMoveApproachRadius = approach.ArrivalRadius;
+                delegatedMove = new UnitMoveTo(endpoint, approach.ArrivalRadius)
+                {
+                    CreatedByPlayer = true,
+                    ShowTargetMarker = false,
+                    NeedLoS = false
+                };
+                delegatedMove.ForcedPath = new Pathfinding.ForcedPath(new System.Collections.Generic.List<Vector3>(route));
+                ValidatedRouteFollowed = true;
+                carrierApproach = approach;
+                carrierApproachMove = delegatedMove;
+            }
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
+            NoteCarrierIssued();
             delegatedMoveDrivenByStockController =
                 !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == mount;
@@ -1874,6 +2120,10 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException(
                     "Exact delegated mount movement did not acquire only the active Move slot.");
             }
+            // PR #70 R1-F6 (rounds 7-8): only now, with the exact carrier holding the mount's Move slot, is its first-tick decision bound to it.
+            // Round 8 (R7-F1): every route-bound turn-based carrier is bound, whatever mode its revalidation saw, so the movement mode in force
+            // at its first debit decides.
+            if (routeBoundCarrier && !chargeMode) FirstTickCarrierIssued?.Invoke(delegatedMove);
 
             if (ObserveChargeStep(MountedChargeTransactionStep.CarrierOwnershipProven))
             {
@@ -1952,20 +2202,7 @@ namespace KingmakerMountedCombat.Integration
             return false;
         }
 
-        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove)
-        {
-            if (commands == null) return false;
-            foreach (var command in commands.Raw)
-            {
-                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, this) ||
-                    command is UnitMoveTo) continue;
-                bool close;
-                try { close = command.IsUnitEnoughClose; }
-                catch (Exception) { close = false; }
-                if (!command.IsStarted && !close) return true;
-            }
-            return false;
-        }
+        private bool SuccessorSteersMount(UnitCommands commands, UnitMoveTo exactMove) => MountedCarrierCleanup.OtherCommandSteers(commands, exactMove, this);
 
         private void StopDelegatedMove(bool requireSuccess)
         {
@@ -1985,6 +2222,10 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var exactMove = delegatedMove;
+            // PR #70 R6-F7 (round 11): the exact carrier's cleanup progress is recorded on this command, whichever caller runs it (native
+            // interruption's OnEnded, the order's own release, the controller's sweep), so a fault leaves the unfinished steps owned and a resume
+            // (SettleCarrierCleanup) does only those, with the same successor checks.
+            if (cleanup == null || !ReferenceEquals(cleanup.Carrier, exactMove)) cleanup = new MountedCarrierCleanup(exactMove, mount);
             var commands = mount.Commands;
             var rawMoveSlot = commands?.GetCommand(UnitCommand.CommandType.Move);
             var exactSlotOrStockRemoved = commands != null &&
@@ -1998,27 +2239,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 exactMove.Interrupt(false);
             }
+            cleanup.Interrupted = true;
             if (requireSuccess && exactMove.Result != ResultType.Success)
             {
                 throw new InvalidOperationException(
                     "Exact delegated Mammoth move did not finish successfully before rider attack admission.");
             }
             delegatedMoveFinishedSuccessfully |= exactMove.Result == ResultType.Success;
-            if (commands != null && commands.Contains(exactMove))
-            {
-                commands.RemoveFinishedAndUpdateQueue();
-            }
+            cleanup.SettleSlot();
             mountMoveSlotRestoredAfterApproach = commands != null &&
                 commands.GetCommand(UnitCommand.CommandType.Move) == null &&
                 !commands.Contains(exactMove) && commands.Queue.Count == 0;
-            // Reviews R1-F7/R2-F5: a newer order that replaced the carrier keeps its own movement; only an unreplaced
-            // carrier's motion is stopped.
-            // PR-1 review R1-F6: native also steers the mount from an unstarted, out-of-range command in another slot (a Standard
-            // approaching its target), including one the sweep just promoted; such a successor keeps its movement.
-            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
-            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, exactMove) ||
-                SuccessorSteersMount(commands, exactMove);
-            if (!successorSteers) mount.View?.StopMoving();
+            cleanup.SettleMotion(this);
             delegatedMove = null;
         }
 
@@ -2043,6 +2275,30 @@ namespace KingmakerMountedCombat.Integration
             if (EndIfAutomaticOrderNotAdmitted()) return;
             if (EndIfSupersededBeforeDelivery()) return;
             if (TerminateIfActionActorBlocked()) return;
+            // PR #70 R1-F9: a click-admitted order strikes only with the plan its click proved, also when it reaches the strike without a
+            // carrier (in range at dispatch, or the target came into range before dispatch).
+            var plansDisagree = ClickPlanDisagreement();
+            if (plansDisagree != null)
+            {
+                RouteProofExpiredCount++;
+                if (!transaction.IsTerminal) transaction.Cancel("The admitted turn-based order's attack plan changed after its click (" + plansDisagree + ").");
+                RecordEndCause(MountedAttackEndCause.Cancelled, plansDisagree);
+                Interrupt();
+                return;
+            }
+            // PR #70 R1-F6 (round 7), R7-F2 (round 8): a provisional order strikes only once the controller committed it (in place, when no tick
+            // decided it), and only after the three plans agreed above. R9-F2 (round 10): an accepted route-bound order's own first-tick request
+            // is asked too (the current in-place admission, the rider's entitlement included); a refused one starts no child.
+            if (ProvisionalOrder ? ProvisionalStrikeGate == null || !ProvisionalStrikeGate() || ProvisionalOrder : ProvisionalStrikeGate != null && !ProvisionalStrikeGate())
+            {
+                if (!IsFinished)
+                {
+                    if (!transaction.IsTerminal) transaction.Cancel("The provisional turn-based order was not accepted before its strike.");
+                    RecordEndCause(MountedAttackEndCause.Cancelled, "provisional order not accepted");
+                    Interrupt();
+                }
+                return;
+            }
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");
@@ -2472,6 +2728,77 @@ namespace KingmakerMountedCombat.Integration
             var dx = first.x - second.x;
             var dz = first.z - second.z;
             return Mathf.Sqrt((dx * dx) + (dz * dz));
+        }
+    }
+
+    // PR #70 R6-F7 / R11-F7 (round 12): one exact carrier's cleanup obligations (interruption, removal from the mount's slots, motion), shared by the
+    // command that began it and, after that command's terminal, by the controller that retains the unfinished record. The successor rule is the
+    // normal release's: a live Move-slot successor, or an unstarted out-of-range command in another slot (a Standard approaching its target,
+    // including one the slot cleanup itself promoted from the queue), keeps its movement; otherwise the motion is stopped once.
+    internal sealed class MountedCarrierCleanup
+    {
+        internal readonly UnitMoveTo Carrier;
+        internal readonly UnitEntityData Mount;
+        internal bool Interrupted, SlotRemoved, MotionSettled;
+        internal MountedCarrierCleanup(UnitMoveTo carrier, UnitEntityData mount) { Carrier = carrier; Mount = mount; }
+        internal bool Pending => !(Interrupted && SlotRemoved && MotionSettled);
+        internal string State => "interrupted=" + Interrupted + ",slotRemoved=" + SlotRemoved + ",motionSettled=" + MotionSettled;
+
+        internal void SettleSlot()
+        {
+            if (SlotRemoved) return;
+            var commands = Mount?.Commands;
+            if (commands != null && commands.Contains(Carrier) && Carrier.IsFinished) commands.RemoveFinishedAndUpdateQueue();
+            SlotRemoved = commands == null || !commands.Contains(Carrier);
+        }
+
+        internal void SettleMotion(UnitCommand except)
+        {
+            if (MotionSettled || !SlotRemoved) return;
+            var commands = Mount?.Commands;
+            var successor = commands?.GetCommand(UnitCommand.CommandType.Move);
+            var successorSteers = successor != null && !successor.IsFinished && !ReferenceEquals(successor, Carrier) || OtherCommandSteers(commands, Carrier, except);
+            if (!successorSteers) Mount?.View?.StopMoving();
+            MotionSettled = true;
+        }
+
+        // The unfinished steps only; interruption only while the exact carrier still holds the mount's Move slot. A fault propagates.
+        internal bool Settle(UnitCommand except)
+        {
+            if (!Interrupted)
+            {
+                var commands = Mount?.Commands;
+                if (!Carrier.IsFinished && commands != null && ReferenceEquals(commands.GetCommand(UnitCommand.CommandType.Move), Carrier)) Carrier.Interrupt(false);
+                Interrupted = true;
+            }
+            SettleSlot();
+            SettleMotion(except);
+            return !Pending;
+        }
+
+        internal static bool OtherCommandSteers(UnitCommands commands, UnitMoveTo exactMove, UnitCommand except)
+        {
+            if (commands == null) return false;
+            foreach (var command in commands.Raw)
+            {
+                if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, except) ||
+                    command is UnitMoveTo) continue;
+                if (ApproachSteers(command)) return true;
+                // PR #70 R16-F1 (round 18): a fresh proximity result cannot show that native released a newer command's approach: an unstarted
+                // command that is not the pair's and still carries IsMoveUnit (native TickApproaching's mark) keeps its motion.
+                if (!command.IsStarted && command.IsMoveUnit && !(command is MountedPairAttackCommand) && !(command is MountedPairSingleAttack)) return true;
+            }
+            return false;
+        }
+
+        // An unfinished, unstarted command that is not close enough: native TickApproaching steers its executor toward it. PR #70 R16-F1
+        // (round 17): also the mod-disable restoration's reading of a steering successor outside the Move slot.
+        internal static bool ApproachSteers(UnitCommand command)
+        {
+            bool close;
+            try { close = command.IsUnitEnoughClose; }
+            catch (Exception) { close = false; }
+            return !command.IsStarted && !close;
         }
     }
 }

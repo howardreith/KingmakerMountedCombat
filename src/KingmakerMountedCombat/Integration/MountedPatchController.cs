@@ -36,6 +36,23 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
+    // PR #70 R11-F8 (round 13): the routing of a command native actually accepted (the private Run overload's postfix). The actor's pair owner
+    // classifies it as before; every other controller of the world that still owes an outstanding deferred operation on this exact actor (a
+    // retired order's target clear after dismount or owner retirement) observes its manual-target assignment until that operation settles.
+    internal static class MountedAcceptedWorkRouting
+    {
+        internal static void Route(MountedCombatController primary, IEnumerable<MountedCombatController> others, UnitCommands container, UnitCommand cmd, bool fromQueue)
+        {
+            var route = MountedAcceptedWorkRoutes.AfterRun(fromQueue, container.Contains(cmd), container.Queue.Contains(cmd));
+            if (!route.HasValue) return;
+            primary?.ObserveAcceptedWork(container, cmd, route.Value);
+            if (others == null) return;
+            foreach (var other in others)
+                if (other != null && !ReferenceEquals(other, primary) && other.ObservesOutstandingActor(container))
+                    other.ObserveOutstandingAssignment(container, cmd, route.Value);
+        }
+    }
+
     internal sealed class MountedPatchController : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
@@ -127,6 +144,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(Kingmaker.Controllers.Clicks.Handlers.ClickUnitHandler), "OnClick", 0x060093ED,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
                     nameof(PatchMethods.ClickUnitPrefix), nameof(PatchMethods.ClickUnitPostfix), nameof(PatchMethods.ClickAssignmentTranspiler));
+                // PR #70 R1-F7 (round 4): the input dispatch that evaluates IgnoreClick and runs the click's handler (observation only).
+                PatchExact(typeof(PointerController), "Tick", 0x060093BA, Type.EmptyTypes, null, null, nameof(PatchMethods.PointerTickTranspiler));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeEnqueuePrefix), nameof(PatchMethods.QueueAcceptedPostfix));
                 // Review R1-F8: the one native Hold write of a completed move (player-faction executor, real-time combat).
@@ -160,8 +179,9 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, nameof(PatchMethods.ChargeReasonPrefix));
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
                     new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
+                // PR #70 R19-F5 (round 22): the transpiler carries the executing command across the single FollowPrecomputedPath call.
                 PatchExact(typeof(UnitCommand), "TickApproaching", 0x060027A6, Type.EmptyTypes,
-                    nameof(PatchMethods.MountedAttackApproachPrefix));
+                    nameof(PatchMethods.MountedAttackApproachPrefix), null, nameof(PatchMethods.ForcedPathCallerTranspiler));
                 PatchExact(typeof(UnitAttack), "UpdateTarget", 0x06002683, Type.EmptyTypes,
                     nameof(PatchMethods.MountedAttackTargetPrefix));
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
@@ -285,6 +305,15 @@ namespace KingmakerMountedCombat.Integration
                     null, nameof(PatchMethods.FamiliarTeleportPostfix));
                 PatchUnitClick();
                 PatchExact(typeof(UnitMovementAgent), "CanMoveInTurnBased", 0x060018A9, new[] { typeof(float).MakeByRefType() }, nameof(PatchMethods.MountMovementPrefix));
+                // PR #70 R17-F1/R18-F2 (round 19): the exact carrier's issuance (PathTo 060018A3, the request m_RequestedPath 0400118E) and delivery
+                // (OnPathComplete 060018B9), observed for the issuance/delivery record (MountedCarrierPathObserver); observation only.
+                if (!MountedCarrierPathObserver.RequestedPathContractHolds(0x0400118E))
+                    throw new MissingFieldException(typeof(UnitMovementAgent).FullName, "m_RequestedPath exact token 0400118E (Pathfinding.Path)");
+                PatchExact(typeof(UnitMovementAgent), "PathTo", 0x060018A3,
+                    new[] { typeof(UnitCommand), typeof(UnityEngine.Vector3), typeof(float), typeof(float), typeof(UnitMovementAgentBase) },
+                    nameof(PatchMethods.CarrierPathRequestPrefix), nameof(PatchMethods.CarrierPathRequestPostfix));
+                PatchExact(typeof(UnitMovementAgent), "OnPathComplete", 0x060018B9, new[] { typeof(Pathfinding.Path) },
+                    nameof(PatchMethods.CarrierPathCompletePrefix), nameof(PatchMethods.CarrierPathCompletePostfix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
                 PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));
@@ -345,7 +374,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, nameof(PatchMethods.TurnPreparePrefix), nameof(PatchMethods.TurnPreparePostfix), nameof(PatchMethods.PairedPreparationTranspiler));
                 PatchExact(typeof(TurnController), "Tick", 0x06000C34, Type.EmptyTypes, nameof(PatchMethods.PairedTickPrefix), null, nameof(PatchMethods.PairedActivityTranspiler));
                 PatchExact(typeof(TurnController), "UpdateActionPredictions", 0x06000C6E, Type.EmptyTypes, nameof(PatchMethods.PairedInputPredictionPrefix));
-                PatchExact(typeof(TurnController), "IgnoreClick", 0x06000C2F, Type.EmptyTypes, nameof(PatchMethods.PairedIgnoreClickPrefix));
+                PatchExact(typeof(TurnController), "IgnoreClick", 0x06000C2F, Type.EmptyTypes, nameof(PatchMethods.PairedIgnoreClickPrefix),
+                    nameof(PatchMethods.PairedIgnoreClickPostfix));
                 PatchExact(typeof(UnitCombatState), "get_IsFullAttackRestrictedBecauseOfMoveAction", 0x06009391,
                     Type.EmptyTypes, null, null, nameof(PatchMethods.PairedFullAttackInputTranspiler));
                 PatchExact(typeof(CombatController), "ModifyMovementLimitOn", 0x06000BDF, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedControllerInputTranspiler));
@@ -475,6 +505,16 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.Presentation = null;
             disposed = true;
         }
+
+        // PR #70 R4-F2 (round 5): the admission-aware direct input's scoped dispatch (the same bracket as native PointerController.Tick).
+        // PR #70 R5-F2 (round 6): the scope is bound to the target its handler will receive and to the turn it was opened in, so an override
+        // proven for the highlighted/predicted hostile can only reach a handler call on that same hostile in that same turn.
+        internal static void BeginScopedInputDispatch(UnitEntityData target, object turn)
+        {
+            PatchMethods.PointerTickPrefix();
+            PatchMethods.BindScopedDispatchTarget(target, turn);
+        }
+        internal static void EndScopedInputDispatch() => PatchMethods.PointerTickPostfix();
 
         // Known issues M04 closeout (review of b1a88b4e, R1): only the cannot-attack approach's own submission is guarded.
         // Its own method so the composition regression (Test-GunslingerClickComposition.ps1) runs this exact registration.
@@ -919,13 +959,63 @@ namespace KingmakerMountedCombat.Integration
                 {
                     // Review R5-F5: native's own fromQueue marks promotion of an already accepted (queued) command.
                     // PR-1 review R1-F11: a promotion counts only if it actually installed the command (a refused promotion did not).
-                    var route = MountedAcceptedWorkRoutes.AfterRun(fromQueue, __instance.Contains(cmd), __instance.Queue.Contains(cmd));
-                    if (route.HasValue) PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, route.Value);
+                    // PR #70 R11-F8 (round 13): the actor's pair owner observes it, and so does a former owner that still owes an outstanding
+                    // deferred operation on this exact actor (the world's own pair services; no global subscription).
+                    var pairs = PatchBridge.Pairs;
+                    MountedAcceptedWorkRouting.Route(PatchBridge.CombatFor(__instance), pairs == null ? null : pairs.Select(pair => pair?.Combat), __instance, cmd, fromQueue);
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Accepted pair work was not observed", error); }
                 if (cmd is UnitMoveContiniously) return;
                 try { PatchBridge.Owner(__instance)?.ObserveOrderDuringContinuousDrive(__instance, cmd); }
                 catch (Exception error) { ReportGroupPaceFault("Mounted stick movement: an admitted order was not observed", error); }
+            }
+
+            // PR #70 R1-F7 (rounds 4-5): the pointer dispatch bracket. Every pair's controller is told. The transpiler makes the native body
+            // `PointerTickPrefix(); try { <body, each ret -> leave> } finally { PointerTickPostfix(); }` (the WrapRespawn pattern), so the
+            // dispatch ends on a normal return AND when the body throws (Harmony 1.2 has no finalizers; an ordinary postfix would be skipped).
+            internal static void PointerTickPrefix()
+            {
+                try { foreach (var combat in ClickControllers()) combat.BeginPointerDispatch(); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch was not observed", error); }
+            }
+
+            // PR #70 R5-F2 (round 6): the direct input's dispatch target and turn (native PointerController.Tick binds none).
+            internal static void BindScopedDispatchTarget(UnitEntityData target, object turn)
+            {
+                try { foreach (var combat in ClickControllers()) combat.BindDispatchTarget(target, turn); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Scoped input dispatch target was not bound", error); }
+            }
+
+            internal static int PointerDispatchClosures;
+            internal static void PointerTickPostfix()
+            {
+                PointerDispatchClosures++;
+                try { foreach (var combat in ClickControllers()) combat.EndPointerDispatch(); }
+                catch (Exception error) { PatchBridge.Logger?.Exception("Pointer dispatch end was not observed", error); }
+            }
+
+            internal static IEnumerable<CodeInstruction> PointerTickTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
+            {
+                var done = generator.DefineLabel();
+                var output = new List<CodeInstruction> { new CodeInstruction(OpCodes.Call, typeof(PatchMethods).GetMethod(nameof(PointerTickPrefix), BindingFlags.Static | BindingFlags.NonPublic)) };
+                var begin = new CodeInstruction(OpCodes.Nop);
+                begin.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.BeginExceptionBlock, null));
+                output.Add(begin);
+                foreach (var instruction in instructions)
+                {
+                    if (instruction.opcode != OpCodes.Ret) { output.Add(instruction); continue; }
+                    var leave = new CodeInstruction(OpCodes.Leave, done);
+                    leave.labels.AddRange(instruction.labels); leave.blocks.AddRange(instruction.blocks);
+                    output.Add(leave);
+                }
+                var finish = new CodeInstruction(OpCodes.Call, typeof(PatchMethods).GetMethod(nameof(PointerTickPostfix), BindingFlags.Static | BindingFlags.NonPublic));
+                finish.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.BeginFinallyBlock, null));
+                output.Add(finish);
+                var end = new CodeInstruction(OpCodes.Nop);
+                end.blocks.Add(new Harmony12.ILCopying.ExceptionBlock(Harmony12.ILCopying.ExceptionBlockType.EndExceptionBlock, null));
+                output.Add(end);
+                var ret = new CodeInstruction(OpCodes.Ret); ret.labels.Add(done); output.Add(ret);
+                return output;
             }
 
             // PR-1 review R1-F11: the click bracket. Every pair's controller is told; each attributes only its own actors' selection.
@@ -971,8 +1061,15 @@ namespace KingmakerMountedCombat.Integration
                 return code;
             }
 
+            // PR #70 R6-F1 (round 7): the assignment for a pending provisional order of this exact click (the rider, its clicked target) is deferred
+            // to that order's acceptance, which applies it once (MountedCombatController.DefersClickTargetAssignment); every other assignment is
+            // native's, unchanged.
             internal static void ClickManualTargetAssignment(UnitCombatState combatState, UnitEntityData target)
             {
+                var deferred = false;
+                try { foreach (var combat in ClickControllers()) deferred |= combat.DefersClickTargetAssignment(combatState, target); }
+                catch (Exception error) { deferred = false; PatchBridge.Logger?.Exception("Provisional manual-target deferral failed; the native assignment stands", error); }
+                if (deferred) return;
                 combatState.ManualTarget = target;   // the native assignment, unchanged
                 try { foreach (var combat in ClickControllers()) combat.ObserveClickTargetAssignment(combatState, target); }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Manual-target click assignment was not observed", error); }
@@ -1544,6 +1641,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchBridge.UnifiedTurn?.PrepareNativeInputPrediction(__instance) ?? true;
             internal static bool PairedIgnoreClickPrefix(TurnController __instance, ref bool __result) =>
                 PatchBridge.UnifiedTurn == null || PatchBridge.UnifiedTurn.ShouldRunNativeIgnoreClick(__instance, ref __result);
+            internal static void PairedIgnoreClickPostfix(TurnController __instance, ref bool __result) =>
+                PatchBridge.UnifiedTurn?.AdmitPairedAttackClick(__instance, ref __result);
             internal static bool PairedPreserveSelection(TurnController turn) => PatchBridge.UnifiedTurn?.PreservePartnerSelection(turn) ?? false;
             internal static TurnController PairedInputContext(TurnController turn) => PatchBridge.UnifiedTurn?.SelectedNativeInputContext(turn) ?? turn;
             internal static UnitEntityData PairedPathInputUnit() =>
@@ -2001,9 +2100,65 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
+            // PR #70 R17-F1/R18-F2 (round 19): an exact carrier's request and its delivery, recorded where native issues and delivers them
+            // (MountedCarrierPathObserver, MountedCarrierApproachLedger). Each prefix hands its own observation to its own postfix (__state).
+            internal static void CarrierPathRequestPrefix(UnitMovementAgent __instance, out Pathfinding.Path __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeRequest(__instance);
+            }
+
+            internal static void CarrierPathRequestPostfix(UnitMovementAgent __instance, UnitCommand command, Pathfinding.Path __state)
+            {
+                MountedCarrierPathObserver.AfterRequest(__instance, command, __state);
+            }
+
+            internal static void CarrierPathCompletePrefix(UnitMovementAgent __instance, Pathfinding.Path p, out int __state)
+            {
+                __state = MountedCarrierPathObserver.BeforeCompletion(__instance, p);
+            }
+
+            internal static void CarrierPathCompletePostfix(UnitMovementAgent __instance, Pathfinding.Path p, int __state)
+            {
+                MountedCarrierPathObserver.AfterCompletion(__instance, p, __state);
+            }
+
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
             {
                 return PatchBridge.CombatFor(__instance?.Unit?.EntityData)?.TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance) != true;
+            }
+
+            // PR #70 R19-F5 (round 22): installed UnitCommand.TickApproaching (060027A6) makes exactly one FollowPrecomputedPath (060018B6) call, with
+            // the stack (agent, new ForcedPath(copy), ApproachRadius): `newobj ForcedPath::.ctor; ldarg.0; call get_ApproachRadius; callvirt
+            // FollowPrecomputedPath`. That one instruction becomes `ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(agent, p,
+            // radius, this)`, which makes the same native call once. Any other occurrence count, argument shape, label on the call or helper
+            // signature refuses the installation (fail closed).
+            internal static IEnumerable<CodeInstruction> ForcedPathCallerTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var follow = typeof(UnitMovementAgent).GetMethod("FollowPrecomputedPath", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new[] { typeof(Pathfinding.Path), typeof(float) }, null);
+                if (follow == null || follow.MetadataToken != 0x060018B6) throw new MissingMethodException(typeof(UnitMovementAgent).FullName, "FollowPrecomputedPath exact token 060018B6");
+                var radius = typeof(UnitCommand).GetProperty("ApproachRadius", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetGetMethod(true);
+                var forcedCtor = typeof(Pathfinding.ForcedPath).GetConstructor(new[] { typeof(List<UnityEngine.Vector3>) });
+                var helper = typeof(MountedCarrierPathObserver).GetMethod(nameof(MountedCarrierPathObserver.FollowPrecomputedPathFrom), BindingFlags.Static | BindingFlags.NonPublic);
+                var helperParameters = helper?.GetParameters();
+                if (radius == null || forcedCtor == null || helperParameters == null || helperParameters.Length != 4 || helperParameters[0].ParameterType != typeof(UnitMovementAgent) ||
+                    helperParameters[1].ParameterType != typeof(Pathfinding.Path) || helperParameters[2].ParameterType != typeof(float) || helperParameters[3].ParameterType != typeof(UnitCommand))
+                    throw new InvalidOperationException("TickApproaching forced-path binding: the helper or the native argument members differ.");
+                var code = instructions.ToList();
+                var sites = new List<int>();
+                for (var i = 0; i < code.Count; i++)
+                    if ((code[i].opcode == OpCodes.Callvirt || code[i].opcode == OpCodes.Call) && Equals(code[i].operand, follow)) sites.Add(i);
+                if (sites.Count != 1)
+                    throw new InvalidOperationException("TickApproaching forced-path binding: expected exactly one FollowPrecomputedPath call, found " + sites.Count + ".");
+                var site = sites[0];
+                if (site < 3 || code[site].opcode != OpCodes.Callvirt || code[site].labels.Count != 0 ||
+                    !(code[site - 1].opcode == OpCodes.Call || code[site - 1].opcode == OpCodes.Callvirt) || !Equals(code[site - 1].operand, radius) ||
+                    code[site - 2].opcode != OpCodes.Ldarg_0 || code[site - 3].opcode != OpCodes.Newobj || !Equals(code[site - 3].operand, forcedCtor))
+                    throw new InvalidOperationException("TickApproaching forced-path binding: the call site's argument shape differs (expected newobj ForcedPath, ldarg.0, call get_ApproachRadius, callvirt FollowPrecomputedPath).");
+                code[site].opcode = OpCodes.Call;
+                code[site].operand = helper;
+                code.Insert(site, new CodeInstruction(OpCodes.Ldarg_0));
+                return code;
             }
 
             internal static void IsUnitEnoughClosePostfix(UnitCommand __instance, ref bool __result)

@@ -200,6 +200,7 @@
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\MountedDoorApproachPolicy.cs" />
+    <Compile Include="Domain\MountedCarrierApproachLedger.cs" />
     <Compile Include="Domain\MountedDoorOccupancyPolicy.cs" />
     <Compile Include="Domain\MountedDoorSettlementLifecycle.cs" />
     <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />
@@ -517,8 +518,11 @@
     <Compile Include="Domain\MountedStockAttack.cs" />
     <Compile Include="Domain\MountedMovePrepayment.cs" />
     <Compile Include="Domain\MountedMovementState.cs" />
+    <Compile Include="Domain\MountedFirstTickGate.cs" />
+    <Compile Include="Domain\MountedStateSnapshot.cs" />
     <Compile Include="Domain\PairedMovementInputPolicy.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
+    <Compile Include="Integration\MountedAgentSteering.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.RangedMovement.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
     <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />
@@ -567,12 +571,15 @@
     <Compile Include="Diagnostics\PairedReactionScenario.cs" />
     <Compile Include="Diagnostics\ActorAllocationConservationProbe.cs" />
     <Compile Include="Domain\AnimatedSaddlePosition.cs" />
+    <Compile Include="Domain\PairedAttackClickAdmissionPolicy.cs" />
     <Compile Include="Domain\MountedPreStartApproachPolicy.cs" />
+    <Compile Include="Domain\MountedRouteWalker.cs" />
+    <Compile Include="Domain\MountedHeading.cs" />
     <Compile Include="Domain\MountedRetainedOrderLedger.cs" />
     <Compile Include="Domain\MountedHoldProvenance.cs" />
     <Compile Include="Integration\NativeBrainRankingReader.cs" />
+    <Compile Include="Integration\PairedAttackClickProbe.cs" />
     <Compile Include="Domain\MountedEngagementDiagnostic.cs" />
-    <Compile Include="Domain\MountedHeading.cs" />
     <Compile Include="Domain\OptionalPublicPropertyReader.cs" />
     <Compile Include="Domain\PairedCommandScheduler.cs" />
     <Compile Include="Domain\UnifiedMountedTurn.cs" />
@@ -653,6 +660,7 @@
     <Compile Include="Integration\SupportedMountedProfile.cs" />
     <Compile Include="Integration\ReactiveBooleanValueReader.cs" />
     <Compile Include="Integration\MountedLifecycleSubscriber.cs" />
+    <Compile Include="Integration\MountedServiceTeardownSequence.cs" />
     <Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs" />
     <Compile Include="Integration\MountedAnimationAdapter.cs" />
     <Compile Include="Integration\MountedDollRoomIkAdapter.cs" />
@@ -665,6 +673,7 @@
     <Compile Include="Integration\MountedCombatController.cs" />
     <Compile Include="Integration\MountedDoorInteractionCommand.cs" />
     <Compile Include="Integration\NativeSingleAttackWeaponResolver.cs" />
+    <Compile Include="Integration\MountedCarrierPathObserver.cs" />
     <Compile Include="Integration\MountedPairAttackCommand.cs" />
     <Compile Include="Integration\MountedPairSingleAttack.cs" />
     <Compile Include="Integration\NativeActorCapability.cs" />

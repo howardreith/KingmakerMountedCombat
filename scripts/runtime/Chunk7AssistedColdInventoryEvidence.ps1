@@ -454,7 +454,7 @@ function Assert-KmcChunk7AssistedColdInventoryEvidence($Request,$Artifact,$Sourc
  if($load.events[0].frame-ne$load.events[1].frame){throw 'Assisted cold PostLoad callback did not return synchronously in the observed frame.'}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
  $archive=$o.archive;Assert-KmcAssistedObjectValue $archive @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'assisted cold empty mounted archive'
- Assert-KmcOrdinaryInteger $archive.schemaVersion 3 3;Assert-KmcBootstrapInventoryString $archive.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $archive.areaId $Request.persistenceLoad.area
+ [void](Assert-KmcChunk7NormalizedGraphVersion $archive.schemaVersion 'Assisted cold inventory');Assert-KmcBootstrapInventoryString $archive.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $archive.areaId $Request.persistenceLoad.area
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $archive.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $archive.$key $false}
  Assert-KmcAssistedColdProfile $o.nativeProfileInventory $w
  Assert-KmcOrdinaryInteger $o.nativeProfileInventory.ordinaryAcquisitionPrerequisites.nativeMoney $money $money
@@ -539,7 +539,7 @@ function Assert-KmcChunk7SmallFixtureColdEvidence($Request,$Artifact,$SourceArti
  if($o.nativeLoad.events[0].frame-ne$o.nativeLoad.events[1].frame){throw 'F09 native PostLoad did not return synchronously.'}
  Assert-KmcAssistedColdNoPreparation $o.noPreparation $Request
  $archive=$o.archive;Assert-KmcAssistedObjectValue $archive @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'F09 empty mounted metadata'
- Assert-KmcOrdinaryInteger $archive.schemaVersion 3 3
+ [void](Assert-KmcChunk7NormalizedGraphVersion $archive.schemaVersion 'Assisted cold inventory')
  Assert-KmcBootstrapInventoryString $archive.campaignId $Request.persistenceLoad.gameId
  Assert-KmcBootstrapInventoryString $archive.areaId $Request.persistenceLoad.area
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $archive.$key 0 0}

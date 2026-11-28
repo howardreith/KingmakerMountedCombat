@@ -264,7 +264,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["authority"] = ManualAuthority() };
             // Read the schema-3 metadata back from the written bytes and bind it to the live runtime.
             var read = NativeMountedSaveStorage.ReadArchive(manualSaved.Saver); var saved = read.Data;
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 2 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == 2 &&
                 saved.Participations.Length == 0 && saved.Combat == null && saved.CampaignId == input.GameId && saved.AreaId == input.Area,
                 "Owner-seed native Manual readback did not retain the entire two-pair exploration world.");
             AssertBoth();

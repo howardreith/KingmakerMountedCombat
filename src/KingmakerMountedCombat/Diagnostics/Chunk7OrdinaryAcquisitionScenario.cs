@@ -278,7 +278,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Native terminal autosave lacks exact causal, authority, completion or descriptor proof.");
             NativePersistenceIsolation.RequireOwnedWrite(save);
             var file = new FileInfo(save.FolderName); var archive = NativeMountedSaveStorage.ReadArchive(save.Saver);
-            Require(archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
+            Require(archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == MountedArchiveData.Schema && archive.Data != null &&
                 archive.Data.Pairs.Length == 0 && archive.Data.Participations.Length == 0,
                 "Ordinary unmounted native autosave readback contains unsupported or invented mounted ownership.");
             evidence["nativeWrite"] = new JObject { ["path"] = file.FullName, ["leaf"] = save.FileName, ["length"] = file.Length,

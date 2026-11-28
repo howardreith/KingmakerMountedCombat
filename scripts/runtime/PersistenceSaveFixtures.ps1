@@ -99,8 +99,9 @@ function Get-KmcPersistenceSource {
     if($NativeCase-ceq'prepare-removal'){
         $actual=Read-KmcCampaignArchiveMembers $path
         $schema=Get-KmcOptionalMember $actual.kmc 'SchemaVersion'
-        if(-not(Test-KmcExactJsonInteger $schema)-or$schema-cnotin@(2,3)){throw 'Prepare-removal source requires its actual historical schema2 or qualified current schema3 metadata.'}
-        if($schema-eq3){
+        # PR #70 R13-F2 (round 15): the current writer's schema 4, or schema 3 written by an earlier build; both use the current P07 reader.
+        if(-not(Test-KmcExactJsonInteger $schema)-or$schema-cnotin@(2,3,4)){throw 'Prepare-removal source requires its actual historical schema2 or qualified current-format (schema3/schema4) metadata.'}
+        if($schema-ge3){
             Assert-KmcCurrentRemovalSource $SourceRunId $ExpectedSha256 $Fixture $ArtifactRole
         }
     }
@@ -2274,8 +2275,8 @@ function Assert-KmcAreaPersistenceEvidence {
     }
 }
 
-# Sprint 1 UPG-01: the one native Manual resave after the cold load of the retained older Quick. The current product
-# writes the schema-3 archive member; the restored pair, area and campaign must be the retained input's, and the
+# Sprint 1 UPG-01: the one native Manual resave after the cold load of the retained older Quick. The product writes
+# its writer's archive member (schema 4 in this candidate, schema 3 in earlier builds); the restored pair, area and campaign must be the retained input's, and the
 # written bytes must differ from it (a new archive, never the input rewritten).
 function Assert-KmcUpgradeResaveEvidence {
     param($Request,$Rows,[string]$Root)
@@ -2288,9 +2289,28 @@ function Assert-KmcUpgradeResaveEvidence {
     if($w.ordinal-ne1-or$w.path-cne$archive-or$w.nativeType-cne'Manual'-or$w.nativeCallback-ne$true-or$w.operation-cne'None'-or
         $w.sha256-cnotmatch'^[0-9a-f]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sourceSha256-cne$Request.persistenceLoad.sha256-or
         -not(Test-Path -LiteralPath $archive -PathType Leaf)-or(Get-KmcSha256 $archive)-cne$w.sha256-or(Get-Item -LiteralPath $archive).Length-ne$w.length-or
-        $w.snapshot.SchemaVersion-ne3-or$w.snapshot.AreaId-cne$Request.persistenceLoad.area-or$w.snapshot.CampaignId-cne$Request.persistenceLoad.gameId-or
+        -not(Test-KmcChunk7WriterSchema $w.snapshot.SchemaVersion)-or$w.snapshot.AreaId-cne$Request.persistenceLoad.area-or$w.snapshot.CampaignId-cne$Request.persistenceLoad.gameId-or
         $pairs.Count-ne1-or$pairs[0].Rider.Id-cne$initial[0].rider.Id-or$pairs[0].Mount.Id-cne$initial[0].mount.Id){
         throw 'UPG-01 resave is not one new native Manual carrying the restored mounted pair in the retained area and campaign.'
     }
     if(@(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne2){throw 'UPG-01 producer root holds other than the retained Quick and its resave.'}
+    # R17-F4 (round 18): the snapshot is the decoded (normalized) graph; the written format is the archive member of the hash-verified file.
+    # R18-F4 (round 19): the member is decoded strictly by the product codec before any lossy parse (duplicate names, shape, bounds and
+    # the versioned StepTravel rule are the codec's); its ACTUAL source schema is kept and compared separately from the snapshot version.
+    $member=Read-KmcChunk7MountedArchiveMember $archive $w.sha256 $w.length 'UPG-01 resave'
+    # The retained identity expectations apply to the real member, not only to the snapshot: area, campaign, the one restored pair, the
+    # complete reported slot rows, and the independent step travel actually written (schema 4) or absent from the bytes (schema 3).
+    $g=$member.graph;$mp=@($g.Pairs)
+    if($g.AreaId-cne$Request.persistenceLoad.area-or$g.CampaignId-cne$Request.persistenceLoad.gameId){throw 'UPG-01 resave archive member is not in the retained area and campaign.'}
+    if($mp.Count-ne1-or$mp[0].Rider.Id-cne$initial[0].rider.Id-or$mp[0].Mount.Id-cne$initial[0].mount.Id){throw 'UPG-01 resave archive member does not carry exactly the restored mounted pair.'}
+    # R19-F4 (round 20): the producer (MountedPersistenceService.World via CapturePersistentSlots) writes the toolbar rows of every authoring
+    # player character, not only the restored pair's, and the archive validator admits any valid actor; the observation is the complete
+    # decoded graph. So the complete slot rows of the member must equal the reported rows, row for row, whatever actor owns them.
+    if((ConvertTo-KmcChunk7NumericCanonical @($g.Slots))-cne(ConvertTo-KmcChunk7NumericCanonical @($w.snapshot.Slots))){throw 'UPG-01 resave archive member slot rows are not the reported rows.'}
+    $written=if($member.sourceSchema-eq(Get-KmcChunk7CurrentWriterSchema)){@($member.raw.StepTravel)}elseif($null-eq$member.raw.PSObject.Properties['StepTravel']){@()}else{throw 'UPG-01 resave schema-3 member carries step travel.'}
+    $reported=if($null-ne$w.snapshot.PSObject.Properties['StepTravel']){@($w.snapshot.StepTravel)}else{@()}
+    if((ConvertTo-KmcChunk7NumericCanonical $written)-cne(ConvertTo-KmcChunk7NumericCanonical $reported)){throw 'UPG-01 resave archive member step travel differs from the reported snapshot.'}
+    # The complete decoded member against the snapshot (explicit version view only), with the written version compared on its own.
+    $onDisk=Assert-KmcChunk7ArchiveMemberSnapshot $member $w.snapshot 'UPG-01 resave'
+    if($null-ne$w.PSObject.Properties['sourceSchema']-and$w.sourceSchema-ne$onDisk){throw 'UPG-01 recorded source schema differs from its on-disk archive member.'}
 }

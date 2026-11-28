@@ -21,9 +21,13 @@ public static class Chunk7PersistenceTests
         InCombat = true, Prepared = true, AiActions = new SavedAiAction[0], DisengageTargets = new string[0] };
     private static SavedTurnContext Turn(string id) => new SavedTurnContext { ActorId = id, Status = 3,
         Movement = new SavedMovementValues { TimeMoved = 1f }, SmartIndex = -1 };
-    private static MountedSaveData Historical()
+    // Other tests reach Historical() by reflection with no arguments: it keeps its exact parameterless signature.
+    private static MountedSaveData Historical() => HistoricalFor(null, null);
+    private static MountedSaveData HistoricalFor(string riderId, string mountId)
     {
         var rider = Actor(); var mount = Actor();
+        // PR #70 R11-F1 (round 15): the harness binds the envelope to its live world actors' identities.
+        if (riderId != null) rider.Id = riderId; if (mountId != null) mount.Id = mountId;
         return new MountedSaveData { SchemaVersion = 2, CampaignId = Guid.NewGuid().ToString("N"),
             AreaId = new string('a',32), GameTimeTicks = 1000000,
             Policy = MountedSaveData.PairedPolicy, RulesId = MountedSaveData.Rules,
@@ -45,16 +49,26 @@ public static class Chunk7PersistenceTests
                         Mount = new SavedParticipation { Granted = true, Prepared = true, MoveObserved = 3.125f } } }
             } };
     }
-    private static MountedArchiveData Archive(int pairs)
+    // PR #70 R13-F1 (round 14): a test that rebuilds a current archive's allocations rebuilds their step travel coverage (single-value rows).
+    private static void SyncStepTravel(MountedArchiveData data)
+    {
+        SavedStepTravel.MigrateSingleValue(data.Combat?.Allocations);
+        data.StepTravel = SavedStepTravel.Detach(data.Combat?.Allocations);
+    }
+    // PR #70 R11-F1 (round 14): the connected attack-path harness builds its archive envelope with this builder.
+    internal static MountedArchiveData ArchiveForHarness(int pairs) => Archive(pairs);
+    // R11-F1 (round 15): one pair whose rider and mount carry the given (live) actor identities.
+    internal static MountedArchiveData ArchiveForHarness(string riderId, string mountId) => Archive(1, riderId, mountId);
+    private static MountedArchiveData Archive(int pairs, string riderId = null, string mountId = null)
     {
         var seed = Historical();
-        var all = Enumerable.Range(0,pairs).Select(i => Historical()).ToArray();
+        var all = Enumerable.Range(0,pairs).Select(i => i == 0 ? HistoricalFor(riderId, mountId) : Historical()).ToArray();
         var data = MountedArchiveCodec.Decode(MountedSaveCodec.Encode(seed)).Data;
         data.Pairs = new SavedMountedPair[pairs]; data.Participations = new SavedPairParticipation[pairs];
         data.Slots = new SavedMountedSlot[0];
         data.Combat.Actors = all.SelectMany(x => x.Combat.Actors).ToArray();
         data.Combat.Roster = all.SelectMany(x => x.Combat.Roster).ToArray();
-        data.Combat.Allocations = all.SelectMany(x => x.Combat.Allocations).ToArray();
+        data.Combat.Allocations = all.SelectMany(x => x.Combat.Allocations).ToArray(); SyncStepTravel(data);
         data.Combat.Current = all[0].Combat.Current;
         for (var i = 0; i < pairs; i++)
         {
@@ -66,6 +80,65 @@ public static class Chunk7PersistenceTests
         }
         return data;
     }
+    // PR #70 R13-F1 (round 15): the step-travel codec controls (schema-4 round trip, the explicit schema-3 historical read, malformed and future
+    // shapes, and the missing-one-of-two coverage on decode and encode), also invoked by the connected attack-path harness so the focused gate
+    // log records them on the candidate.
+    internal static void RunStepTravelControls()
+    {
+        // PR #70 R11-F1 (round 13): archive schema 4 stores the settled physical step travel independently of the native counter, through the
+        // real codec. Newly written rows round-trip both commitments; a schema-3 envelope is read by its explicit historical reader (no travel:
+        // legacy interpretation) and refuses the new member; malformed travel rows are refused.
+        var stepArchive = Archive(1);
+        var stepRow = stepArchive.Combat.Allocations[0];
+        stepRow.Movement.TimeStepped = 0.05f; stepRow.Movement.TimeMoved = Math.Max(stepRow.Movement.TimeMoved, 0.05f); stepRow.Movement.MetresStepped = 0.45f;
+        stepRow.StepTravelled = 0.42426f;
+        stepArchive.StepTravel = SavedStepTravel.Detach(stepArchive.Combat.Allocations);
+        var stepJson = MountedArchiveCodec.Encode(stepArchive);
+        var stepRead = MountedArchiveCodec.Decode(stepJson);
+        var readRow = stepRead.Data == null ? null : stepRead.Data.Combat.Allocations.Single(a => a.ActorId == stepRow.ActorId);
+        Check(stepRead.Kind == MountedSaveReadKind.Current && stepRead.SourceSchema == 4 && MountedArchiveData.Schema == 4 && readRow != null &&
+            readRow.Movement.MetresStepped == 0.45f && readRow.StepTravelled == 0.42426f && readRow.GrantId == stepRow.GrantId && readRow.Round == stepRow.Round &&
+            stepRead.Data.Pairs[0].PairId == stepArchive.Pairs[0].PairId && JObject.Parse(stepJson)["StepTravel"].Count() == 1 && MountedArchiveCodec.Encode(stepRead.Data) == stepJson,
+            "schema4 round-trips the native step counter (0.45) and the independent physical step travel (0.42426) with actor, grant, round and pair identities");
+        var schema3 = JObject.Parse(stepJson); schema3["SchemaVersion"] = 3; schema3.Remove("StepTravel");
+        var schema3Json = schema3.ToString(Formatting.None);
+        var schema3Read = MountedArchiveCodec.Decode(schema3Json);
+        var schema3Row = schema3Read.Data == null ? null : schema3Read.Data.Combat.Allocations.Single(a => a.ActorId == stepRow.ActorId);
+        Check(schema3Read.Kind == MountedSaveReadKind.Current && schema3Read.SourceSchema == 3 && schema3Read.Data.SchemaVersion == 4 && schema3Row != null &&
+            schema3Row.Movement.MetresStepped == 0.45f && schema3Row.StepTravelled == 0.45f && schema3Read.Data.StepTravel.Length == schema3Read.Data.Combat.Allocations.Length &&
+            schema3Read.OriginalJson == schema3Json,
+            "schema3 is read by its explicit historical reader and migrated explicitly: its single stored step value becomes both commitments, original preserved");
+        Check(NativeMountedSaveFormat.CanRestore(schema3Read) && NativeMountedSaveFormat.CanRestore(stepRead),
+            "a historical schema-3 archive and a schema-4 archive both remain restorable by the native adapter");
+        var schema3WithTravel = JObject.Parse(stepJson); schema3WithTravel["SchemaVersion"] = 3;
+        Reject(schema3WithTravel.ToString(Formatting.None), "schema3 refuses the schema-4 StepTravel member");
+        Func<Action<JObject>, string> stepWith = mutate => { var o = JObject.Parse(stepJson); mutate(o); return o.ToString(Formatting.None); };
+        Reject(stepWith(o => o.Remove("StepTravel")), "schema4 refuses a missing StepTravel member");
+        Reject(stepWith(o => ((JObject)o["StepTravel"][0]).Add("Extra", 1)), "schema4 refuses an unknown step travel field");
+        Reject(stepWith(o => o["StepTravel"][0]["ActorId"] = Guid.NewGuid().ToString("N")), "schema4 refuses step travel naming no movement allocation");
+        Reject(stepWith(o => ((JArray)o["StepTravel"]).Add(o["StepTravel"][0].DeepClone())), "schema4 refuses duplicated step travel rows");
+        Reject(stepWith(o => o["StepTravel"][0]["MetresStepTravelled"] = -0.1), "schema4 refuses a negative step travel");
+        Reject(stepWith(o => o["StepTravel"][0]["MetresStepTravelled"] = "0.4"), "schema4 refuses a step travel of the wrong primitive type");
+        Reject(stepWith(o => { o["Combat"] = JValue.CreateNull(); o["Participations"] = new JArray(); }), "schema4 refuses step travel without a combat snapshot");
+        Check(MountedArchiveCodec.Decode(stepWith(o => o["SchemaVersion"] = 5)).Kind == MountedSaveReadKind.Future, "a schema newer than 4 is preserved as future data");
+        // R13-F1 (round 14): a current archive must cover every allocation with a travel row, on decode and on encode.
+        var multi = Archive(2);
+        multi.Combat.Allocations[0].StepTravelled = 0.6f; multi.Combat.Allocations[0].Movement.MetresStepped = 0.3f;
+        multi.Combat.Allocations[0].Movement.TimeStepped = 0.05f; multi.Combat.Allocations[0].Movement.TimeMoved = Math.Max(multi.Combat.Allocations[0].Movement.TimeMoved, 0.05f);
+        multi.StepTravel = SavedStepTravel.Detach(multi.Combat.Allocations);
+        var multiJson = MountedArchiveCodec.Encode(multi);
+        var multiRead = MountedArchiveCodec.Decode(multiJson);
+        Check(multi.Combat.Allocations.Length == 2 && multiRead.Kind == MountedSaveReadKind.Current && multiRead.Data.StepTravel.Length == 2 &&
+            multiRead.Data.Combat.Allocations[0].StepTravelled == 0.6f && multiRead.Data.Combat.Allocations[0].Movement.MetresStepped == 0.3f,
+            "schema4 with two allocations round-trips unequal counters (0.3 native / 0.6 physical) with full travel coverage");
+        var missingTravel = JObject.Parse(multiJson); ((JArray)missingTravel["StepTravel"]).RemoveAt(1);
+        Reject(missingTravel.ToString(Formatting.None),
+            "schema4 refuses an archive missing one current allocation's step travel row (decode, before any restoration)");
+        var uncovered = MountedArchiveCodec.Decode(multiJson).Data; uncovered.StepTravel = new[] { uncovered.StepTravel[0] };
+        var encodeRefused = false; try { MountedArchiveCodec.Encode(uncovered); } catch (InvalidDataException) { encodeRefused = true; }
+        Check(encodeRefused, "schema4 encode refuses an archive missing one current allocation's step travel row");
+    }
+
     public static void Run()
     {
         var old = Historical(); var json = MountedSaveCodec.Encode(old);
@@ -152,7 +225,7 @@ public static class Chunk7PersistenceTests
         retained.Combat.Allocations = retained.Combat.Allocations.Concat(new[] { new SavedMovementAllocation {
             ActorId = spent.Rider.Id, Round = retained.Combat.Round,
             RoundStartTicks = retained.Combat.RoundStartTicks, GrantId = mountGrant.GrantId,
-            Prepared = true, Movement = new SavedMovementValues() } }).ToArray();
+            Prepared = true, Movement = new SavedMovementValues() } }).ToArray(); SyncStepTravel(retained);
         Check(RetainedNativeReentryPolicy.SpentPendingRiders(retained).SequenceEqual(new[] { spent.Rider.Id }) &&
             !RetainedNativeReentryPolicy.SpentPendingRiders(retained).Contains(retained.Pairs[1].Rider.Id),
             "retained pending split protects only the exact spent rider, not its mount or neighboring pair");
@@ -252,7 +325,7 @@ public static class Chunk7PersistenceTests
             ActorId = a.Native.Id, Round = 2, Prepared = true, MoveObserved = 3.125f, StandardCommitted = true,
             GrantId = Guid.NewGuid().ToString("N") + ":" + long.MaxValue,
             Movement = new SavedMovementValues { TimeMoved = 3.125f, TimeForced = 1f, TimeStepped = 0.75f, MetresStepped = 1.25f }
-        }).ToArray();
+        }).ToArray(); SyncStepTravel(maximum);
         maximum.Combat.Engagements = maximum.Combat.Actors.Select((a,i) => new SavedEngagement {
             From = a.Native.Id, To = maximum.Combat.Actors[(i+1)%maximum.Combat.Actors.Length].Native.Id, SinceTicks = 20 }).ToArray();
         maximum.Slots = maximum.Combat.Actors.SelectMany(a => new[] {
@@ -302,7 +375,7 @@ public static class Chunk7PersistenceTests
             Check(!NativeMountedSaveFormat.CanRestore(native) && native.Data==null && kept==source && captures==0,
                 "native adapter preserves schema3 without any one-pair capture or partial restore");
         }
-        var future=encoded.Replace("\"SchemaVersion\":3","\"SchemaVersion\":99");
+        var future=encoded.Replace("\"SchemaVersion\":"+MountedArchiveData.Schema,"\"SchemaVersion\":99");
         Check(MountedArchiveCodec.Decode(future).Kind==MountedSaveReadKind.Future &&
             NativeMountedSaveFormat.CaptureOrPreserve(NativeMountedSaveFormat.Decode(future),()=>old)==future,
             "future payload remains opaque and unchanged");
@@ -315,8 +388,8 @@ public static class Chunk7PersistenceTests
         Check(!NativeMountedSaveFormat.CanRestore(misleading) && NativeMountedSaveFormat.CaptureOrPreserve(misleading,()=>old)==encoded,
             "Current status alone cannot authorize a newer native format");
         var selectedNativeSupport = NativeMountedSaveFormat.ArchiveNativeSupportEnabled;
-        Check(selectedNativeSupport && NativeMountedSaveFormat.NativePairCapacity == 6 && NativeMountedSaveFormat.SelectedWriterSchema == 3,
-            "reviewed world integration deliberately selects six-pair schema3 native support");
+        Check(selectedNativeSupport && NativeMountedSaveFormat.NativePairCapacity == 6 && NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && MountedArchiveData.Schema == 4,
+            "reviewed world integration deliberately selects six-pair archive native support (schema 4 since PR #70 round 13)");
         NativeMountedSaveFormat.ArchiveNativeSupportEnabled = false;
         Check(!NativeMountedSaveFormat.CanRestore(round),
             "successful archive decoding does not select native support by itself");
@@ -329,7 +402,7 @@ public static class Chunk7PersistenceTests
         {
             var selectedJson = MountedArchiveCodec.Encode(Archive(NativeMountedSaveFormat.NativePairCapacity));
             var selected = MountedArchiveCodec.Decode(selectedJson);
-            Check(NativeMountedSaveFormat.SelectedWriterSchema == 3 && NativeMountedSaveFormat.CanRestore(selected) &&
+            Check(NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && NativeMountedSaveFormat.CanRestore(selected) &&
                 NativeMountedSaveFormat.CaptureOrPreserve((MountedArchiveReadResult)null, () => selected.Data) == selectedJson,
                 "selected all-pair native adapter accepts and writes the entire selected-capacity schema3 graph");
             // Seven pairs are invalid at the codec as well as beyond native
@@ -432,6 +505,8 @@ public static class Chunk7PersistenceTests
         Reject(f2With(f2Old, 1, 7), "F2 archive refuses a placement record off index 0");
         Reject(f2With(f2Removed, 128, 6), "F2 archive refuses a control slot past 127");
         Reject(f2With(f2Removed, 9, 8), "F2 archive refuses an unknown slot kind");
+        RunStepTravelControls();
+
         Console.WriteLine("CHUNK7 PERSISTENCE PASS="+count+" FAIL=0 (primitive production codec/native format boundary; no game saves)");
     }
 }

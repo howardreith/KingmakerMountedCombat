@@ -372,7 +372,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var owners = world.Registry.Owners.Where(value => value.State == MountedPairOwnershipState.Active).ToArray();
             Require(world.Registry.Owners.Length == owners.Length && owners.Length == (IsRespec ? 1 : 2) &&
                 (IsRespec ? world.Registry.FindOwner(rider) == null : ReferenceEquals(world.Registry.FindActive(rider), originalOwner)) &&
-                archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
+                archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == MountedArchiveData.Schema && archive.Data != null &&
                 archive.Data.Combat == null && archive.Data.Participations.Length == 0 && archive.Data.Pairs.Length == owners.Length &&
                 owners.All(owner => archive.Data.Pairs.Count(pair => pair.PairId == owner.Id.ToString("N") && pair.Generation == owner.Generation &&
                     ArchiveActorMatchesOwner(pair.Rider.Id, owner.RiderId, owner.Rider) &&
@@ -487,7 +487,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var owners = world.Registry.Owners.Where(value => value.State == MountedPairOwnershipState.Active).ToArray();
             Require(world.Registry.Owners.Length == owners.Length && owners.Length == (IsRespec ? 1 : 2) &&
                 (IsRespec ? world.Registry.FindOwner(rider) == null : ReferenceEquals(world.Registry.FindActive(rider), originalOwner)) &&
-                archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == 3 && archive.Data != null &&
+                archive.Kind == MountedSaveReadKind.Current && archive.SourceSchema == MountedArchiveData.Schema && archive.Data != null &&
                 archive.Data.Combat == null && archive.Data.Participations.Length == 0 && archive.Data.Pairs.Length == owners.Length &&
                 owners.All(owner => archive.Data.Pairs.Count(pair => pair.PairId == owner.Id.ToString("N") &&
                     pair.Generation == owner.Generation &&

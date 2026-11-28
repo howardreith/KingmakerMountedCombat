@@ -277,7 +277,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["archive"] = written == null ? null : JObject.FromObject(written, MountedSaveCodec.CreateSerializer()) };
             snapshots.Add(Capture("native-write-complete"));
             ObserveOwnedSaveCompletion();
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && written != null && written.SchemaVersion == 3 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && written != null && written.SchemaVersion == MountedArchiveData.Schema &&
                 written.Pairs.Length == 1 && written.Participations.Length == 0 && written.Combat == null &&
                 written.CampaignId == request.PersistenceLoad.GameId && written.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea,
                 "Capital Manual readback is not exactly one mounted exploration pair in the capital.");
@@ -313,7 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["gameId"] = descriptor.GameId, ["gameName"] = descriptor.GameName, ["area"] = descriptor.Area };
             evidence["coldRestoration"] = restoration.Capture();
             evidence["capitalColdBoundary"] = CaptureCapitalBoundary();
-            Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == 1 && saved.Participations.Length == 0 && saved.Combat == null &&
+            Require(saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == 1 && saved.Participations.Length == 0 && saved.Combat == null &&
                 saved.Slots.Length == 2 && saved.CampaignId == request.PersistenceLoad.GameId && saved.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea &&
                 persistence.ArchiveRestorePhase == "all-pair-presentation-restored" && game.CurrentlyLoadedArea.IsCapital &&
                 game.CurrentlyLoadedArea.AssetGuidThreadSafe == Chunk7OwnedPairsSelection.CapitalArrivalArea,

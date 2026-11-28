@@ -310,7 +310,7 @@ function Assert-KmcChunk7SixPairStressEvidence($Request,$O){
  foreach($key in @('performanceAccepted','requestFreeControlsProven')){Assert-KmcChunk7Boolean $s.$key $false};Assert-KmcChunk7Boolean $s.identityScopeReleased $true
  # Each settled cycle reproduced every native rider parent's exact child order.
  Assert-KmcOrdinaryInteger $s.riderParents 1 6;Assert-KmcOrdinaryInteger $s.riderParentChildren 6 ([int]::MaxValue);Assert-KmcOrdinaryInteger $s.siblingOrderVerifiedCycles 3 3
- Assert-KmcChunk7Boolean $O.capability.archiveNativeEnabled $true;Assert-KmcOrdinaryInteger $O.capability.nativeWriterSchema 3 3;Assert-KmcOrdinaryInteger $O.capability.nativePairCapacity 6 6
+ Assert-KmcChunk7Boolean $O.capability.archiveNativeEnabled $true;[void](Assert-KmcChunk7WriterSchema $O.capability.nativeWriterSchema 'Six-pair stress writer capability');Assert-KmcOrdinaryInteger $O.capability.nativePairCapacity 6 6
  Assert-KmcBootstrapInventoryString $O.capability.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
  if($null-ne$O.capability.workingSha256){throw 'Six-pair fixture cannot claim legacy Working ancestry.'}
  $specs=@(for($cycle=1;$cycle-le3;$cycle++){foreach($mount in @($true,$false)){for($i=0;$i-lt6;$i++){

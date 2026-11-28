@@ -151,7 +151,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var data = persistence.LoadedArchive;
                 Require(selection.UsesOwnerSeedCold
                     ? data == null && persistence.LoadedArchiveKind == MountedSaveReadKind.Missing && !persistence.LoadedArchiveCanRestore
-                    : data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+                    : data != null && data.SchemaVersion == MountedArchiveData.Schema && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                       data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source differs from its qualified empty or missing mounted metadata.");
                 var trace = restoration.Capture();

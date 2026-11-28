@@ -237,7 +237,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ObserveSixPairCold()
         {
             saved = persistence.LoadedArchive;
-            Require(saved != null && saved.SchemaVersion == 3 && saved.Pairs.Length == SixPairCount && saved.Participations.Length == 0 &&
+            Require(saved != null && saved.SchemaVersion == MountedArchiveData.Schema && saved.Pairs.Length == SixPairCount && saved.Participations.Length == 0 &&
                 saved.Combat == null && saved.Slots.Length == SixPairCount * 2 && saved.CampaignId == request.PersistenceLoad.GameId &&
                 saved.AreaId == ExpectedArchiveArea && persistence.ArchiveRestorePhase == "all-pair-presentation-restored",
                 "Entire six-pair exploration schema 3 graph was not restored from the selected native archive: " + persistence.Feedback);

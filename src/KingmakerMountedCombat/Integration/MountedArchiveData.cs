@@ -9,7 +9,8 @@ namespace KingmakerMountedCombat.Integration
     // One combat snapshot still owns roster, current turn, clock and allocations.
     internal sealed class MountedArchiveData
     {
-        internal const int Schema = 3;
+        // PR #70 R11-F1 (round 13): schema 4 adds StepTravel (independent step commitments); schema 3 is read by an explicit historical reader.
+        internal const int Schema = 4;
         internal const int MaximumPairs = 6;
         internal const int MaximumParticipations = 12;
         public int SchemaVersion { get; set; }
@@ -22,6 +23,7 @@ namespace KingmakerMountedCombat.Integration
         public SavedPairParticipation[] Participations { get; set; }
         public SavedMountedSlot[] Slots { get; set; }
         public SavedCombatData Combat { get; set; }
+        public SavedStepTravel[] StepTravel { get; set; }
 
         internal void Validate()
         {
@@ -37,6 +39,8 @@ namespace KingmakerMountedCombat.Integration
                 Policy == MountedSaveData.PairedPolicy && RulesId == MountedSaveData.Rules,
                 "Mounted archive identity, clock or policy is invalid.");
             Combat?.Validate(GameTimeTicks);
+            Require(StepTravel != null && StepTravel.Length <= 64 && (StepTravel.Length == 0 || Combat != null),
+                "Saved step travel is unbounded or has no combat snapshot.");
             ValidateSlots();
             var pairIds = new HashSet<Guid>();
             var activeActors = new Dictionary<Guid, SavedMountedPair>();

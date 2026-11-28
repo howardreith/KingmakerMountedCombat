@@ -133,11 +133,19 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if(-not(Test-Path -LiteralPath $path -PathType Leaf) -or (Get-KmcSha256 $path) -cne (Text (P $d 'sha256')) -or (Get-Item -LiteralPath $path).Length -ne (Int (P $d 'length') 'write length') -or
      (Text (P $d 'sha256')) -ceq [string]$Request.persistenceLoad.sha256){ Fail ('write '+$Ordinal+' bytes differ from its observation or alias the input') }
   $s=P $d 'snapshot'; $pairs=@(P $s 'Pairs')
-  if((P $s 'SchemaVersion') -ne 3 -or (Text (P $s 'AreaId')) -cne [string]$Request.persistenceLoad.area -or (Text (P $s 'CampaignId')) -cne [string]$Request.persistenceLoad.gameId -or
-     $pairs.Count -ne 1 -or (Text (P (P $pairs[0] 'Rider') 'Id')) -cne $riderId -or (Text (P (P $pairs[0] 'Mount') 'Id')) -cne $mountId){ Fail ('write '+$Ordinal+' does not carry the restored mounted pair in schema 3') }
+  if(-not(Test-KmcChunk7WriterSchema (P $s 'SchemaVersion')) -or (Text (P $s 'AreaId')) -cne [string]$Request.persistenceLoad.area -or (Text (P $s 'CampaignId')) -cne [string]$Request.persistenceLoad.gameId -or
+     $pairs.Count -ne 1 -or (Text (P (P $pairs[0] 'Rider') 'Id')) -cne $riderId -or (Text (P (P $pairs[0] 'Mount') 'Id')) -cne $mountId){ Fail ('write '+$Ordinal+' does not carry the restored mounted pair in a writer schema') }
   RowsAre (P $s 'Slots') $ExpectRows ('write '+$Ordinal+' archive')
+  # R18-F3 (round 19): the retained file itself. Its mounted member, strictly decoded by the product codec, must carry the restored pair,
+  # area, campaign and exactly the expected slot rows, and its complete decoded state must be the reported snapshot. The snapshot is the
+  # producer's normalized read of its own write, so its version is the producer's writer; the member's actual source schema must equal it.
+  $m=$null; try { $m=Read-KmcChunk7MountedArchiveMember $path (P $d 'sha256') (P $d 'length') ('write '+$Ordinal+' '+$Leaf) } catch { Fail $_.Exception.Message }
+  $mp=@($m.graph.Pairs)
+  if($m.graph.AreaId -cne [string]$Request.persistenceLoad.area -or $m.graph.CampaignId -cne [string]$Request.persistenceLoad.gameId -or $mp.Count -ne 1 -or $mp[0].Rider.Id -cne $riderId -or $mp[0].Mount.Id -cne $mountId){ Fail ('write '+$Ordinal+': its archive member does not carry the restored mounted pair in the retained area and campaign') }
+  RowsAre @($m.graph.Slots) $ExpectRows ('write '+$Ordinal+' archive member')
+  try { [void](Assert-KmcChunk7ArchiveMemberSnapshot $m $s ('write '+$Ordinal)) } catch { Fail $_.Exception.Message }
   if((Int (P (P $d 'scan') 'publicHits') 'public hits') -ne 0 -or (Int (P (P $d 'scan') 'members') 'scanned members') -lt 1){ Fail ('write '+$Ordinal+': a native archive member names the public control, or nothing was scanned') }
-  $d
+  [pscustomobject]@{detail=$d;member=$m}
  }
  function Shots($Complete,[string[]]$Names){
   $shots=@(P (P $Complete 'detail') 'shots')
@@ -237,11 +245,13 @@ function Assert-KmcFinalize2UpgradeEvidence {
   $keptRows=@(($riderId+'|'+$chosen+'|6'),($riderId+'|0|7')); RowsAre (P $kept 'rows') $keptRows 'kept rows before save'
   $writes=@($Rows | Where-Object kind -CEQ 'native-write-complete'); if($writes.Count -ne 2 -or @($Rows | Where-Object kind -CEQ 'f2-write-requested').Count -ne 2){ Fail 'not exactly two native Manual writes' }
   $w1=Archive $writes[0] 1 'KMC_P01' $ids.keptLeaf $keptRows $chosen
-  if(((MainBar ([pscustomobject]@{bar=@(P $w1 'barBeforeSave')})) -join '|') -cne ($sa -join '|')){ Fail 'the kept archive''s bar differs from the swapped bar' }
+  if(((MainBar ([pscustomobject]@{bar=@(P $w1.detail 'barBeforeSave')})) -join '|') -cne ($sa -join '|')){ Fail 'the kept archive''s bar differs from the swapped bar' }
   $removedRow=(One 'f2-removed-before-save').detail; Watch (P $removedRow 'watch') 'removed before save' 30
   RowsAre (P $removedRow 'rows') @($riderId+'|0|7') 'removed rows before save'
   $w2=Archive $writes[1] 2 $ids.removedName $ids.removedLeaf @($riderId+'|0|7') -1
-  $removedBar=MainBar ([pscustomobject]@{bar=@(P $w2 'barBeforeSave')})
+  $removedBar=MainBar ([pscustomobject]@{bar=@(P $w2.detail 'barBeforeSave')})
+  # One producer build wrote both files: both members carry the same actual source schema (its writer).
+  if($w1.member.sourceSchema -ne $w2.member.sourceSchema){ Fail 'the producer''s two archive members were written in different formats' }
   if((Text $removedBar[$chosen]) -cne ''){ Fail 'the removed archive''s bar still holds the control slot' }
   $zks=@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks'); if($zks.Count -ne 3){ Fail 'the producer root does not hold exactly the input and the two outputs' }
   if((Get-KmcSha256 (Join-Path $root $Request.persistenceLoad.fileName)) -cne [string]$Request.persistenceLoad.sha256){ Fail 'the producer changed its input archive' }
@@ -263,7 +273,30 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if(@($source.rows | Where-Object processId -EQ $GameResult.processId).Count -ne 0){ Fail 'the consumer is the producer''s process' }
   $chosen=[int](Int (P $pw[0].detail 'controlIndex') 'producer kept index')
   $keptRows=@(($riderId+'|'+$chosen+'|6'),($riderId+'|0|7'))
-  if((Int (P $c 'sourceSchema') 'source schema') -ne 3){ Fail 'the consumer input is not the current schema' }
+  # R13-F2 (round 18), R18-F3 (round 19): the consumer's inputs are the producer's two resaves, read from the hash-verified files the
+  # consumer selected (its request's descriptors, staged in its own root). Each mounted member is strictly decoded by the product codec;
+  # its complete decoded state must be the producer's reported snapshot of that write, and its area, campaign, pair and slot rows the
+  # consumer's. The member's ACTUAL source schema is what was written. The cold observation's 'sourceSchema' field is the consumer's
+  # archiveData.SchemaVersion, i.e. its normalized graph version (the consumer build's own writer), never the written format.
+  $inputs=@()
+  foreach($x in @(@($Request.persistenceLoad,$pw[0],'kept',$keptRows),@($Request.persistenceAlternate,$pw[1],'removed',@($riderId+'|0|7')))){
+   $descriptor=$x[0]; $m=$null
+   try { $m=Read-KmcChunk7MountedArchiveMember (Join-Path $root ([string]$descriptor.fileName)) $descriptor.sha256 $descriptor.length ('consumer '+$x[2]+' input') } catch { Fail $_.Exception.Message }
+   if((Text (P $x[1].detail 'sha256')) -cne $m.sha256 -or (Int (P $x[1].detail 'length') 'producer write length') -ne $m.length){ Fail ('the consumer '+$x[2]+' input is not its producer''s write') }
+   try { [void](Assert-KmcChunk7ArchiveMemberSnapshot $m (P $x[1].detail 'snapshot') ('consumer '+$x[2]+' input against its producer write')) } catch { Fail $_.Exception.Message }
+   $mp=@($m.graph.Pairs)
+   if($m.graph.AreaId -cne [string]$descriptor.area -or $m.graph.CampaignId -cne [string]$descriptor.gameId -or $mp.Count -ne 1 -or $mp[0].Rider.Id -cne $riderId -or $mp[0].Mount.Id -cne $mountId){ Fail ('the consumer '+$x[2]+' input member does not carry the loaded pair in its selected area and campaign') }
+   RowsAre @($m.graph.Slots) $x[3] ('consumer '+$x[2]+' input member')
+   $inputs+=$m
+  }
+  $written=$inputs[0].sourceSchema
+  if($inputs[1].sourceSchema -ne $written){ Fail 'the consumer''s two inputs were written in different formats' }
+  $normalized=Int (P $c 'sourceSchema') 'consumer normalized graph version'
+  if(-not(Test-KmcChunk7WriterSchema $normalized)){ Fail 'the consumer normalized graph version is not a writer schema' }
+  # Same candidate: the consumer build is the producer build, so it normalizes to exactly the writer that produced the bytes. The one
+  # declared bridge: the pinned producer wrote schema 3 and the pinned consumer build normalizes to its own writer, 3.
+  if($normalized -ne $written){ Fail 'the consumer''s normalized graph version differs from the format its producer actually wrote' }
+  if(($source.request.commit -cne $Request.commit -or $source.request.dllSha256 -cne $Request.dllSha256) -and $written -ne 3){ Fail 'the bridged pinned producer wrote schema 3' }
   RowsAre (P $c 'savedRows') $keptRows 'consumer saved rows'; RowsAre (P $c 'liveRows') $keptRows 'consumer live rows'
   if(@(P $coldActor 'indices').Count -ne 1 -or [int]@(P $coldActor 'indices')[0] -ne $chosen -or (P $coldActor 'placementRecorded') -ne $true){ Fail 'the control is not restored at its saved slot with its record' }
   $cc=P $coldActor 'counters'

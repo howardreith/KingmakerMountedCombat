@@ -80,6 +80,55 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount == activation.Partner;
         }
 
+        // MMR-02 (review R3-F2): the mount movement a click may rely on, in paired execution's own terms: the same
+        // eligibility as CanMovePairedMount (addressable partner, able to act, able to move) and the same effective mount
+        // context (PairedMovementContext: the mirrored step / single-move choice), then the remaining granted distance of the
+        // mount's allocation for that mode. A prone horse that must first stand (a Move) grants no approach here.
+        // PR #70 R8-F5 (round 9): movementInput, when given, is the input context the executing movement adapter debits with; otherwise the
+        // current PairedMovementContext is read as before.
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, TurnController movementInput = null)
+        {
+            bool stepCounterBinds;
+            return PairedMountGrantedMetres(turn, out step, out singleMove, out reason, out stepCounterBinds, movementInput);
+        }
+
+        // PR #70 R14-F2 (round 15): the grant with its step-counter classification from the same speed observations (RemainingOrderMetres).
+        internal float PairedMountGrantedMetres(TurnController turn, out bool step, out bool singleMove, out string reason, out bool stepCounterBinds,
+            TurnController movementInput = null)
+        {
+            step = false; singleMove = false; stepCounterBinds = false;
+            var mount = activation?.Partner;
+            if (!CanAddressActor(mount, turn)) { reason = "mount-not-addressable"; return 0f; }
+            if (PartnerCanGetUp) { reason = "mount-must-stand"; return 0f; }
+            if (!mount.IsAbleToAct()) { reason = "mount-cannot-act"; return 0f; }
+            if (!mount.Descriptor.State.CanMove) { reason = "mount-cannot-move"; return 0f; }
+            var input = movementInput ?? PairedMovementContext(turn);
+            step = input.EnabledFiveFootStep;
+            singleMove = input.EnabledSingleActionMove;
+            if (!movementState.HasGrantedMovement(mount, step, singleMove)) { reason = "mount-movement-spent"; return 0f; }
+            // PR #70 R1-F6 (round 6): the restricted single-action move grants exactly ONE engine tick (MountedMovementState.FirstTickOnly),
+            // whose length no click can know. The native ceiling (the remaining time at that tick's clamp) only bounds the click's route
+            // search; the click becomes a provisional request whose carrier's first tick decides with the actual allowance
+            // (MountedCombatController.DecideFirstTickProposal) before any debit or retirement.
+            if (movementState.FirstTickOnly(mount, step, singleMove))
+            {
+                reason = "single-move-first-tick";
+                return movementState.RemainingGrantedMetres(mount, step, singleMove);
+            }
+            reason = "granted";
+            return movementState.RemainingOrderMetres(mount, step, singleMove, out stepCounterBinds);
+        }
+
+        // PR #70 R12-F1 (round 13): the paired mount's step tick of this length makes the native step counter final.
+        internal bool PairedMountStepCounterFinal(float tick) => movementState.StepCounterFinal(activation?.Partner, tick);
+
+        // PR #70 R1-F6 (round 6): a provisional replacement request binds (and releases) its first-tick gate on the mount's movement adapter.
+        internal void BindMountFirstTickGate(IMountedFirstTickGate gate, bool bind)
+        {
+            if (bind) movementState.FirstTickGate = gate;
+            else if (ReferenceEquals(movementState.FirstTickGate, gate)) movementState.FirstTickGate = null;
+        }
+
         internal bool CanMovePairedMount(TurnController turn)
         {
             var mount = activation?.Partner;

@@ -27,13 +27,17 @@ function ConvertTo-KmcOwnedSchema2Metadata($Archive,$Request){
  $combat.Paired=$part.State|ConvertTo-Json -Depth 32 -Compress|ConvertFrom-Json
  [pscustomobject][ordered]@{SchemaVersion=2;CampaignId=$Archive.CampaignId;AreaId=$Archive.AreaId;GameTimeTicks=$Archive.GameTimeTicks;Policy=$Archive.Policy;RulesId=$Archive.RulesId;Mounted=$true;ProfileId=$pair.ProfileId;Rider=$pair.Rider;Mount=$pair.Mount;Slots=$Archive.Slots;Combat=$combat}
 }
-function ConvertFrom-KmcOwnedSchema2Metadata($Metadata,$Request){
+# PR #70 R13-F2 (round 16): the deterministic schema-2 migration normalized to the reading build's writer (b): schema 4 carries the codec's
+# explicit single-value StepTravel (one row per allocation with movement, MetresStepTravelled = Movement.MetresStepped); schema 3 has none.
+function ConvertFrom-KmcOwnedSchema2Metadata($Metadata,$Request,$Writer){
+ $writer=Assert-KmcChunk7WriterSchema $Writer 'Schema-2 migration writer'
  Assert-KmcOwnedSchema1Object $Metadata @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Mounted','ProfileId','Rider','Mount','Slots','Combat') 'owned historical schema2 metadata'
  Assert-KmcOrdinaryInteger $Metadata.SchemaVersion 2 2;Assert-KmcChunk7Boolean $Metadata.Mounted $true
  $owner=Get-KmcChunk7Schema1Owner $Metadata
  $combat=$Metadata.Combat|ConvertTo-Json -Depth 64 -Compress|ConvertFrom-Json;$combat.Paired=$null
  $state=$Metadata.Combat.Paired|ConvertTo-Json -Depth 32 -Compress|ConvertFrom-Json
- $result=[pscustomobject][ordered]@{SchemaVersion=3;CampaignId=$Metadata.CampaignId;AreaId=$Metadata.AreaId;GameTimeTicks=$Metadata.GameTimeTicks;Policy=$Metadata.Policy;RulesId=$Metadata.RulesId;Pairs=@([pscustomobject][ordered]@{PairId=$owner;Generation=1;ProfileId=$Metadata.ProfileId;Rider=$Metadata.Rider;Mount=$Metadata.Mount});Participations=@([pscustomobject][ordered]@{OwnerId=$owner;Generation=1;MountedPairId=$owner;State=$state});Slots=$Metadata.Slots;Combat=$combat}
+ $result=[pscustomobject][ordered]@{SchemaVersion=$writer;CampaignId=$Metadata.CampaignId;AreaId=$Metadata.AreaId;GameTimeTicks=$Metadata.GameTimeTicks;Policy=$Metadata.Policy;RulesId=$Metadata.RulesId;Pairs=@([pscustomobject][ordered]@{PairId=$owner;Generation=1;ProfileId=$Metadata.ProfileId;Rider=$Metadata.Rider;Mount=$Metadata.Mount});Participations=@([pscustomobject][ordered]@{OwnerId=$owner;Generation=1;MountedPairId=$owner;State=$state});Slots=$Metadata.Slots;Combat=$combat}
+ if($writer-eq(Get-KmcChunk7CurrentWriterSchema)){$result|Add-Member NoteProperty StepTravel @(@($combat.Allocations)|Where-Object{$null-ne$_-and$null-ne$_.Movement}|ForEach-Object{[pscustomobject][ordered]@{ActorId=$_.ActorId;MetresStepTravelled=$_.Movement.MetresStepped}})}
  Assert-KmcChunk7CombatArchive $result $Request;Assert-KmcChunk7LegacyPendingMigration $Metadata $result
  $result
 }

@@ -95,8 +95,9 @@ function Assert-KmcChunk7CapitalOneOwner($Snapshot,$MainPair) {
 }
 # The one-pair capital archive: exactly the main pair with its two controls, in the capital.
 function Assert-KmcChunk7CapitalArchive($Archive,$Request,$MainPair,$MainSlots,$PolicyArchive) {
-    Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'capital native archive'
-    if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$Request.persistenceLoad.gameId-or
+    # PR #70 R13-F2 (round 16): a writer graph (shared versioned field set); the observations bind it to their writer.
+    [void](Assert-KmcChunk7WriterArchive $Archive 'capital native archive')
+    if($Archive.CampaignId-cne$Request.persistenceLoad.gameId-or
        $Archive.AreaId-cne(Get-KmcChunk7CapitalArrivalArea)-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
        $Archive.Policy-cne$PolicyArchive.Policy-or$Archive.RulesId-cne$PolicyArchive.RulesId-or$Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne1-or
        $Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or$Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne2){
@@ -272,7 +273,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     Assert-KmcExactProperties $o $required 'capital arrival observations'
     Assert-KmcChunk7CapitalInheritedEvidence $Request $o $false
     Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcChunk7Boolean $o.cold $true
-    if($null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital arrival capability or process identity differs.'}
+    if($null-ne$o.sourceWorkingSha256-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital arrival capability or process identity differs.'}
     Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     foreach($key in @('nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof')){Assert-KmcChunk7Boolean $o.$key $false}
     if(@($o.inputs).Count-ne0-or@($o.movements).Count-ne0){throw 'Capital arrival issued a Mount, Dismount or movement input.'}
@@ -280,6 +281,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     $sourceRequest=Get-KmcChunk7CapitalInputRequest $Request;$loaded=$o.loadedArchive
     if($null-eq$loaded-or$null-eq$loaded.PSObject.Properties['AreaId']-or$loaded.AreaId-ceq(Get-KmcChunk7CapitalArrivalArea)){throw 'Capital arrival input was already in the capital.'}
     Assert-KmcChunk7PersistenceArchive $loaded $sourceRequest
+    if($loaded.SchemaVersion-ne$o.nativeSchema){throw 'Capital arrival input graph is not normalized to the build''s writer schema.'}
     if((ConvertTo-KmcChunk7Canonical $o.loadedDescriptor)-cne(ConvertTo-KmcChunk7Canonical $Request.persistenceLoad)){throw 'Capital arrival loaded another Manual.'}
     $cold=Get-KmcChunk7CapitalSnapshot $o 'cold-restored-before-input';Assert-KmcChunk7PersistenceSnapshot $cold $loaded 'cold-restored-before-input'
     if($cold.semanticRestores-ne4-or$cold.presentationRestores-ne2-or$cold.nativePostLoads-ne4-or$cold.snapshots-ne0-or$cold.nativeCastRequests-ne0-or$cold.archivePhase-cne'all-pair-presentation-restored'){throw 'Capital arrival cold start replayed input or restored inexactly.'}
@@ -308,6 +310,7 @@ function Assert-KmcChunk7CapitalArrivalObservation($Request,$Artifact) {
     Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.length 1 268435456
     if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256){throw 'Capital Manual identity is malformed or aliases its input.'}
     Assert-KmcChunk7CapitalArchive $w.archive $Request $main $mainSlots $loaded
+    if($w.archive.SchemaVersion-ne$o.nativeSchema){throw 'Capital native write differs from the build''s writer schema.'}
     # PowerShell names are case-insensitive: the save row must never shadow $Request.
     $save=$o.saveRequested;Assert-KmcExactProperties $save @('nativeType','nativeName','gameTicks','snapshotCount','nativeSaveAllowed','newSlot') 'capital save request'
     Assert-KmcBootstrapInventoryString $save.nativeType 'Manual';Assert-KmcBootstrapInventoryString $save.nativeName (Get-KmcChunk7CapitalArrivalManualName);Assert-KmcOrdinaryInteger $save.snapshotCount 0 0
@@ -330,7 +333,7 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     Assert-KmcExactProperties $o $required 'capital cold observations'
     Assert-KmcChunk7CapitalInheritedEvidence $Request $o $true
     Assert-KmcBootstrapInventoryString $o.checkpoint $Request.persistenceCase;Assert-KmcChunk7Boolean $o.cold $true
-    if($null-ne$o.sourceWorkingSha256-or$o.nativeSchema-ne3-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital cold capability or process identity differs.'}
+    if($null-ne$o.sourceWorkingSha256-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or-not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Capital cold capability or process identity differs.'}
     Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
     foreach($key in @('nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof')){Assert-KmcChunk7Boolean $o.$key $false}
     if(@($o.inputs).Count-ne0-or@($o.movements).Count-ne0){throw 'Capital cold consumer issued a Mount, Dismount or movement input.'}
@@ -351,6 +354,7 @@ function Assert-KmcChunk7CapitalColdObservation($Request,$Artifact) {
     # controls and the fixed archive policy. The archive is never its own reference.
     $reference=[pscustomobject]@{PairId=$main.PairId;Generation=$live.generation;ProfileId=$row[0].profileId;Rider=[pscustomobject]@{Id=$roles[0]};Mount=[pscustomobject]@{Id=$roles[1]}}
     Assert-KmcChunk7CapitalArchive $loaded $Request $reference $liveSlots ([pscustomobject]@{Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1'})
+    if($loaded.SchemaVersion-ne$o.nativeSchema){throw 'Capital cold graph is not normalized to the build''s writer schema.'}
     Assert-KmcChunk7CapitalSnapshotDebt $snapshot $loaded
     Assert-KmcChunk7CapitalRestorationProbe $o.coldRestoration $Request @($roles[0],$roles[1]) @($roles)
     foreach($event in @($o.coldRestoration.events|Where-Object kind -CEQ 'restore-debt-after')){

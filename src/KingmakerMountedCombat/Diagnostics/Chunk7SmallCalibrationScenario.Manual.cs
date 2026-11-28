@@ -131,7 +131,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Game.Instance.UI.CharacterBuildController.LevelUpController == null && Game.Instance.UI.CharacterBuildController.Unit == null,
                 "The exact loaded Small Manual needs an idle native field and closed builder.");
             var data = persistence.LoadedArchive; var saved = request.PersistenceLoad;
-            Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+            Require(data != null && data.SchemaVersion == MountedArchiveData.Schema && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                 data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null &&
                 persistence.SnapshotCount == 0 && persistence.CompletedSaveCount == 0 && persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 &&
                 controls.NativeCastRequestCount == 0 && controls.CapturePersistentSlots().Length == 0 &&

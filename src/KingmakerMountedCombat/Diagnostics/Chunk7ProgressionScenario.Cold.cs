@@ -80,7 +80,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)terminal[0]["petId"] == selection.PetId &&
                 (int?)terminal[0]["level"] == 5 && (int?)terminal[0]["xp"] == 15000 &&
                 (int?)terminal[0]["petLevel"] != null && (int?)terminal[0]["money"] != null &&
-                saved != null && (int?)saved["SchemaVersion"] == 3 &&
+                saved != null && (int?)saved["SchemaVersion"] == MountedArchiveData.Schema &&
                 (string)inventory["runId"] == selection.InventoryRunId &&
                 (string)inventory["status"] == "PASS" &&
                 (string)inventory["commit"] == request.Commit &&
@@ -88,7 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)inventory["dllMvid"] == request.DllMvid,
                 "Small level cold source lacks its exact same-candidate producer, mounted inventory and native Manual.");
             var archive = persistence.LoadedArchive;
-            Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == request.PersistenceLoad.GameId &&
+            Require(archive != null && archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == request.PersistenceLoad.GameId &&
                 archive.AreaId == request.PersistenceLoad.Area && archive.Pairs.Length == 2 &&
                 archive.Participations.Length == 0 && archive.Combat == null &&
                 JToken.DeepEquals(saved, JObject.FromObject(archive, MountedSaveCodec.CreateSerializer())) &&
@@ -262,13 +262,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 (int?)terminal[0]["level"] == (selection.IsMediumRetrainColdSource ? 10 : 4) &&
                 (int?)terminal[0]["petLevel"] == (selection.IsMediumRetrainColdSource ? 6 : 2) &&
                 (int?)terminal[0]["xp"] != null && (int?)terminal[0]["money"] != null &&
-                saved != null && (int?)saved["SchemaVersion"] == 3 &&
+                saved != null && (int?)saved["SchemaVersion"] == MountedArchiveData.Schema &&
                 (string)inventory["runId"] == selection.InventoryRunId &&
                 (string)inventory["status"] == "PASS" && (string)inventory["commit"] == request.Commit &&
                 (string)inventory["dllSha256"] == request.DllSha256 && (string)inventory["dllMvid"] == request.DllMvid,
                 "Retrain cold source lacks its exact same-candidate producer, mounted inventory and native Manual.");
             var archive = persistence.LoadedArchive;
-            Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == request.PersistenceLoad.GameId &&
+            Require(archive != null && archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == request.PersistenceLoad.GameId &&
                 archive.AreaId == request.PersistenceLoad.Area && archive.Pairs.Length == 1 &&
                 archive.Participations.Length == 0 && archive.Combat == null &&
                 JToken.DeepEquals(saved, JObject.FromObject(archive, MountedSaveCodec.CreateSerializer())) &&

@@ -136,7 +136,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     world.Pairs.All(pair => pair.Relationship.State == RelationshipState.Unmounted && pair.Relationship.PairOwner == null && pair.Relationship.Runtime.NoPreparedPairResidue),
                     "Inherited source already has mounted custody or preparation obligations.");
                 var archive = persistence.LoadedArchive;
-                Require(archive != null && archive.SchemaVersion == 3 && archive.CampaignId == input.GameId && archive.AreaId == input.Area &&
+                Require(archive != null && archive.SchemaVersion == MountedArchiveData.Schema && archive.CampaignId == input.GameId && archive.AreaId == input.Area &&
                     archive.Pairs.Length == 0 && archive.Participations.Length == 0 && archive.Slots.Length == 0 && archive.Combat == null &&
                     persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 && controls.NativeCastRequestCount == 0 &&
                     persistence.SnapshotCount == 0, "Inherited source is not the native-loaded empty mounted graph.");
@@ -275,7 +275,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)setup?["contract"] == "small-source-third-native-horse-setup-v1" &&
                 (string)write?["sha256"] == input.Sha256 && (string)write?["fileName"] == input.FileName &&
                 (string)write?["gameId"] == input.GameId && (string)write?["gameName"] == input.GameName &&
-                (string)write?["area"] == input.Area && (int?)write?["archive"]?["SchemaVersion"] == 3 &&
+                (string)write?["area"] == input.Area && (int?)write?["archive"]?["SchemaVersion"] == MountedArchiveData.Schema &&
                 (string)manual?["contract"] == "small-third-horse-manual-producer-v1" &&
                 manual?["setupCompletedBeforeSave"]?.Value<bool>() == true &&
                 setup?["fixtureSetupOnly"]?.Value<bool>() == true &&

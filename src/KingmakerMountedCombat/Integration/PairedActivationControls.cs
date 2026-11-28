@@ -4,6 +4,7 @@ using Kingmaker.EntitySystem.Entities;
 using KingmakerMountedCombat.Domain;
 using Kingmaker.TurnBasedMode;
 using Kingmaker.TurnBasedMode.Controllers;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UI.Selection;
 using Kingmaker.UI.TurnBasedMode;
@@ -209,6 +210,73 @@ namespace KingmakerMountedCombat.Integration
             result = addressed.IgnoreClick();
             return false;
         }
+
+        private static readonly System.Reflection.FieldInfo NativeNeedNewPredictions =
+            ResolveField(typeof(TurnController), "m_NeedNewPredictions", 0x04000691);
+        // The commands native IgnoreClick's simulated click ran (swapped back into this field when its Temporary disposed).
+        private static readonly System.Reflection.FieldInfo NativePredictionCommands =
+            ResolveField(typeof(TurnController), "m_PredictionCommands", 0x0400066E);
+
+        // MMR-02 (reviews R1-F3, R3-F2). After native IgnoreClick on the rider's own paired context: when native dropped the
+        // exact predicted plain melee UnitAttack of the selected, addressable rider on the highlighted hostile, KMC admits the
+        // click only if it can prove the order legal by its own rule (PairedAttackClickAdmissionPolicy): the strike already
+        // admissible from where the pair stands, or a complete native route of the MOUNT's own agent whose cost is within the
+        // mount's granted movement for the player's current step/single-move mode and whose endpoint admits the strike
+        // (PairedAttackClickProbe). Every other drop keeps native's refusal, so the previous order is untouched. The step and
+        // single-move flags are the player's input mode (mirrored onto the mount's context); the allowance is the mount's.
+        internal void AdmitPairedAttackClick(TurnController context, ref bool result)
+        {
+            if (activation == null || context == null || !ReferenceEquals(context, activation.Boundary)) return;
+            var combat = relationship.CombatOwner;
+            // PR #70 R1-F7: a click native accepts carries native's own route; no earlier override proof may pass to it.
+            if (!result) { combat?.DiscardPendingClickProof("native-accepted click"); return; }
+            // PR #70 R4-F2 (round 5): an override is applied only inside an input dispatch that carries its proof to that dispatch's handler
+            // (native PointerController.Tick, or the admission-aware direct input's own scoped dispatch). An unscoped IgnoreClick read keeps
+            // native's result, so no handler can run an unbound order from it.
+            if (combat == null || !combat.InPointerDispatch) { LastAttackClickDecision = "NativeDecision:outside-input-dispatch"; return; }
+            var rider = activation.Principal;
+            var mount = activation.Partner;
+            var target = NativeHighlightedUnit.GetValue(context) as UnitEntityData;
+            // PR #70 R5-F2 (round 6): a scoped direct input dispatches its own target in its own turn; an override proven for another
+            // highlighted/predicted hostile (or in another turn) keeps native's refusal, so its handler never runs on that order.
+            if (!combat.DispatchCarriesOverrideFor(target, Game.Instance?.TurnBasedCombatController?.CurrentTurn))
+            {
+                LastAttackClickDecision = "NativeDecision:dispatch-target-mismatch";
+                return;
+            }
+            var predicted = (NativePredictionCommands.GetValue(context) as UnitCommands)?.GetCommand(UnitCommand.CommandType.Standard) as UnitAttack;
+            var weapon = rider?.GetFirstWeapon();
+            var meleeOnTarget = rider != null && mount != null && predicted != null && predicted.GetType() == typeof(UnitAttack) && target != null &&
+                predicted.TargetUnit == target && !target.Descriptor.State.IsDead && rider.IsEnemy(target) &&
+                weapon?.Blueprint != null && !weapon.Blueprint.IsRanged;
+            var riderSelected = SelectionManager.Instance?.SingleSelectedUnit == rider;
+            var riderAddressable = rider != null && CanAddressActor(rider, context);
+            var predictionsCurrent = !(bool)NativeNeedNewPredictions.GetValue(context);
+            var abilitySelected = Game.Instance?.SelectedAbilityHandler?.Ability != null;
+            var riderCommandsEmpty = rider != null && rider.Commands.Empty;
+            var inputCandidate = meleeOnTarget && riderSelected && riderAddressable && predictionsCurrent && !abilitySelected &&
+                riderCommandsEmpty && !context.IsOverTerrain;
+            string reason = "no-combat-owner", trace = "<none>";
+            var decision = combat == null ? PairedAttackClickAdmission.NativeDecision :
+                combat.AdmitTurnBasedAttackClick(target, context, inputCandidate, riderAddressable, riderSelected, riderCommandsEmpty,
+                    predictionsCurrent, context.IsOverTerrain, abilitySelected, meleeOnTarget,
+                    (out bool step, out bool singleMove, out string grantReason, out bool stepCounterBinds) =>
+                        PairedMountGrantedMetres(context, out step, out singleMove, out grantReason, out stepCounterBinds),
+                    PairedAttackClickProbe.PlanIdentity.Of(predicted), out reason, out trace);
+            if (decision != PairedAttackClickAdmission.NativeDecision)
+            {
+                result = false;
+                AdmittedAttackClickCount++;
+            }
+            if (!meleeOnTarget) return;
+            LastAttackClickDecision = decision + ":" + reason;
+            logger.Info("Turn-based rider melee attack click dropped by native's path check: decision=" + decision + "; reason=" + reason +
+                "; rider=" + rider.UniqueId + "; target=" + target.UniqueId + "; " + trace +
+                "; nativeApproachRadius=" + predicted.ApproachRadius.ToString("R") + ".");
+        }
+
+        internal int AdmittedAttackClickCount { get; private set; }
+        internal string LastAttackClickDecision { get; private set; }
 
         internal bool PrepareNativeInputPrediction(TurnController context)
         {

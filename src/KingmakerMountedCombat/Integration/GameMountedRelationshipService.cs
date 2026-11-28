@@ -37,8 +37,15 @@ namespace KingmakerMountedCombat.Integration
             runtime = new KingmakerMountedPairRuntime(logger, settings);
             continuousDrive = CreateContinuousDrive();
             runtime.MountOverrideOwner = continuousDrive.OwnsMountOverride;
+            runtime.MountCommandOwned = MountCommandOwnedByPair;
             coordinator = new MountedRelationshipCoordinator(runtime);
         }
+
+        // PR #70 R12-F4 (round 16): the mount command ownership the runtime's mod-disable restoration reads (PreservesMountSuccessor). Without a
+        // combat owner every command counts as the pair's; otherwise the combat owner's exact mount-motion ownership and the stick movement's
+        // bound or retained command decide.
+        private bool MountCommandOwnedByPair(Kingmaker.UnitLogic.Commands.Base.UnitCommand command) =>
+            CombatOwner == null || CombatOwner.OwnsMountMotionCommand(command) || continuousDrive.OwnsCommand(command);
 
         public RelationshipState State => coordinator.State;
 

@@ -42,16 +42,18 @@ function Bind-RemovalResult($v){
  Write-KmcJsonAtomic (Join-Path $e 'runtime-result.json') $result
  $v|Add-Member manifest $manifest -Force;$v|Add-Member game $game -Force
 }
-function New-CurrentRemovalFixture([string]$RunId=$null){
+function New-CurrentRemovalFixture([string]$RunId=$null,[int]$Schema=4){
  $id=if($RunId){$RunId}else{'synthetic-current-removal-'+[Guid]::NewGuid().ToString('N')};$script:removalRoot=Join-Path $script:ownedRemovalLab ('runtime-staging/persistence-'+$id+'/Saved Games');[IO.Directory]::CreateDirectory($script:removalRoot)|Out-Null
  $input=Join-Path $script:removalRoot 'Manual_299_KMC_AUTOMATION_WORKING.zks';[IO.File]::WriteAllBytes($input,[byte[]]@(1,2,3,4))
  $fixture=[pscustomobject]@{baseline=[pscustomobject]@{sha256=('b'*64)};working=[pscustomobject]@{internalName='KMC_AUTOMATION_WORKING';fileName=[IO.Path]::GetFileName($input);sha256=(Get-KmcSha256 $input);length=4;lastWriteTimeUtcTicks=(Get-Item -LiteralPath $input).LastWriteTimeUtc.Ticks;gameId='90909090-9090-4090-8090-909090909090';gameName='Generated fixture';area=('a'*32)}}
  $r=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='prepare-removal';runId=$id;fixture=$fixture;commit=('1'*40);dllSha256=('2'*64);dllMvid='33333333-3333-4333-8333-333333333333';branch='codex/private-reader-test';productVersion='generated';transactionToken=('f'*64);evidenceRoot=(Join-Path $script:ownedRemovalLab ('runtime-evidence/'+$id))}
  $rider='10101010-1010-4010-8010-101010101010';$mount='20202020-2020-4020-8020-202020202020'
- $a=[pscustomobject][ordered]@{SchemaVersion=3;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;GameTimeTicks=100000;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1';Pairs=@([pscustomobject]@{PairId=('c'*32);Generation=1;ProfileId='medium-humanoid-mammoth-v1';Rider=(New-RemovalNative $rider);Mount=(New-RemovalNative $mount)});Participations=@();Slots=@([pscustomobject]@{ActorId=$rider;Index=10;Kind=2},[pscustomobject]@{ActorId=$rider;Index=11;Kind=3});Combat=$null}
+ $a=[pscustomobject][ordered]@{SchemaVersion=$Schema;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;GameTimeTicks=100000;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1';Pairs=@([pscustomobject]@{PairId=('c'*32);Generation=1;ProfileId='medium-humanoid-mammoth-v1';Rider=(New-RemovalNative $rider);Mount=(New-RemovalNative $mount)});Participations=@();Slots=@([pscustomobject]@{ActorId=$rider;Index=10;Kind=2},[pscustomobject]@{ActorId=$rider;Index=11;Kind=3});Combat=$null}
+ # PR #70 R13-F2 (round 15): the current writer's schema 4 carries its StepTravel member (empty without combat); schema 3 is an earlier build's evidence.
+ if($Schema-eq4){$a|Add-Member StepTravel @()}
  $c=Copy-RemovalValue $a;$c.Pairs=@();$c.Slots=@();$c.GameTimeTicks=200000
- $open=[pscustomobject]@{ordinal=1;path=(Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks');sha256=('0'*64);length=1;nativeType='Manual';nativeCallback=$true;operation='None';snapshot=(New-RemovalProjection $a $true);nativeSourceSchema=3;snapshotProjection='schema3-single-pair-observation-v1';nativeArchive=$a}
- $clean=[pscustomobject]@{path=(Join-Path $script:removalRoot 'Manual_301_KMC_CLEANUP.zks');leaf='Manual_301_KMC_CLEANUP.zks';sha256=('0'*64);length=1;nativeType='Manual';internalName='KMC_CLEANUP';gameId=$fixture.working.gameId;area=$fixture.working.area;operation='None';kmcMember='Current';snapshot=(New-RemovalProjection $c $false);nativeSourceSchema=3;snapshotProjection='schema3-single-pair-observation-v1';nativeArchive=$c}
+ $open=[pscustomobject]@{ordinal=1;path=(Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks');sha256=('0'*64);length=1;nativeType='Manual';nativeCallback=$true;operation='None';snapshot=(New-RemovalProjection $a $true);nativeSourceSchema=$Schema;snapshotProjection='schema3-single-pair-observation-v1';nativeArchive=$a}
+ $clean=[pscustomobject]@{path=(Join-Path $script:removalRoot 'Manual_301_KMC_CLEANUP.zks');leaf='Manual_301_KMC_CLEANUP.zks';sha256=('0'*64);length=1;nativeType='Manual';internalName='KMC_CLEANUP';gameId=$fixture.working.gameId;area=$fixture.working.area;operation='None';kmcMember='Current';snapshot=(New-RemovalProjection $c $false);nativeSourceSchema=$Schema;snapshotProjection='schema3-single-pair-observation-v1';nativeArchive=$c}
  $script:firstSha=$open.sha256
  $rows=@([pscustomobject]@{kind='initial';checkpoint='prepare-removal';stage=0;relationship='Mounted';rider=[pscustomobject]@{Id=$rider};mount=[pscustomobject]@{Id=$mount};detail=$null},[pscustomobject]@{kind='native-write-complete';checkpoint='prepare-removal';stage=1000;relationship='Mounted';rider=[pscustomobject]@{Id=$rider};mount=[pscustomobject]@{Id=$mount};detail=$open},
   (New-KmcRemovalRow 'removal-refused' 1000 'Mounted' @{state='Refused';assessments=1;refusals=1;beganRefused=$true;spawnedId='horse-x';spawnedBlueprint='4016c7db400ab721ff125aef9e65e202';references=@('unit Horse [horse-x] is the KMC Horse');reasons=@('Permanent KMC Horse remains.')}),
@@ -83,7 +85,9 @@ function New-OwnerStockRemovalReaderFixture([string]$RunId=$null){
  Bind-RemovalResult $v
  $v
 }
-Check 'current P07 full native schema3 opening and cleanup plus continuation' {$v=New-CurrentRemovalFixture;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
+Check 'current P07 full native schema4 opening and cleanup plus continuation (source schema 4, normalized 4: accepted)' {$v=New-CurrentRemovalFixture;if($v.rows[1].detail.nativeArchive.SchemaVersion-ne4-or$v.rows[1].detail.nativeSourceSchema-ne4){throw 'Fixture is not schema 4.'};Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
+Check 'historical P07 evidence of an earlier build (native schema3 graph without StepTravel, source schema 3: accepted by its version-specific shape)' {$v=New-CurrentRemovalFixture -Schema 3;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
+Check 'refuses a schema3 graph carrying the schema-4 StepTravel member' {$v=New-CurrentRemovalFixture -Schema 3;$v.rows[1].detail.nativeArchive|Add-Member StepTravel @();Sync-RemovalArchive $v $false $null;Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game} $true
 Check 'owner stock P07 synthetic public reader uses distinct input and mounted305/cleanup306 graph' {$v=New-OwnerStockRemovalReaderFixture;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game}
 Check 'owner stock P07 public reader rejects a missing mounted305 despite valid cleanup306' {$v=New-OwnerStockRemovalReaderFixture;$v.rows[1].detail.path=Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks';Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game} $true
 Check 'owner stock P07 public reader rejects Working ancestry relabelled as its stock input' {$v=New-OwnerStockRemovalReaderFixture;$v.request.ownerStockRemoval=$false;Bind-RemovalResult $v;Assert-KmcPersistenceScenarioEvidence $v.request $v.manifest 'PASS' $v.game} $true
@@ -124,7 +128,10 @@ $faults=[ordered]@{
  'schema2 called native current'={param($v)$v.rows[1].detail.nativeSourceSchema=2}
  'current schema string'={param($v)$v.rows[5].detail.cleanup.nativeSourceSchema='3'}
  'native graph omitted'={param($v)$v.rows[5].detail.cleanup.PSObject.Properties.Remove('nativeArchive')}
- 'future native schema'={param($v)$v.rows[5].detail.cleanup.nativeArchive.SchemaVersion=4}
+ 'future native schema'={param($v)$v.rows[5].detail.cleanup.nativeArchive.SchemaVersion=5}
+ 'schema4 graph without StepTravel'={param($v)$v.rows[5].detail.cleanup.nativeArchive.PSObject.Properties.Remove('StepTravel')}
+ 'schema4 step travel without combat'={param($v)$v.rows[1].detail.nativeArchive.StepTravel=@([pscustomobject]@{ActorId=$v.rows[1].detail.nativeArchive.Pairs[0].Mount.Id;MetresStepTravelled=0.5})}
+ 'schema4 graph labelled with a schema3 source'={param($v)$v.rows[1].detail.nativeSourceSchema=3}
  'projection masquerades as native3'={param($v)$v.rows[1].detail.snapshot.SchemaVersion=3}
  'Kind5 projection not representable'={param($v)$v.rows[1].detail.nativeArchive.Slots[0].Kind=5}
  'native ZIP differs from recorded graph'={param($v)$v.rows[1].detail.nativeArchive.GameTimeTicks++}
@@ -141,7 +148,7 @@ foreach($key in $faults.Keys){$faultAction=$faults[$key];Check ('refuses '+$key)
 foreach($key in @('source failed','source un-restored','source manifest changed','source observations changed','source foreign candidate')){Check ('public current source refuses '+$key){$v=New-CurrentRemovalFixture;$e=$v.request.evidenceRoot
  switch($key){'source failed'{$p=Join-Path $e 'runtime-result.json';$x=Read-KmcJson $p;$x.status='FAIL';Write-KmcJsonAtomic $p $x}'source un-restored'{$p=Join-Path $e 'runtime-result.json';$x=Read-KmcJson $p;$x.baselineImmutable=$false;Write-KmcJsonAtomic $p $x}'source manifest changed'{[IO.File]::AppendAllText((Join-Path $e 'runtime-artifacts.json'),' ')}'source observations changed'{[IO.File]::AppendAllText((Join-Path $e 'persistence-observations.jsonl'),' ')}'source foreign candidate'{$p=Join-Path $e 'runtime-result.json';$x=Read-KmcJson $p;$x.commit=('9'*40);Write-KmcJsonAtomic $p $x}}
  Get-KmcPersistenceSource $v.request.runId $v.rows[5].detail.cleanup.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
-foreach($key in @('schema1','schema string','future schema')){Check ('public current source refuses '+$key){$v=New-CurrentRemovalFixture;$rec=$v.rows[5].detail.cleanup;$rec.nativeArchive.SchemaVersion=switch($key){'schema1'{1}'schema string'{'3'}'future schema'{4}};Sync-RemovalArchive $v $true $null;Bind-RemovalResult $v
+foreach($key in @('schema1','schema string','future schema')){Check ('public current source refuses '+$key){$v=New-CurrentRemovalFixture;$rec=$v.rows[5].detail.cleanup;$rec.nativeArchive.SchemaVersion=switch($key){'schema1'{1}'schema string'{'4'}'future schema'{5}};Sync-RemovalArchive $v $true $null;Bind-RemovalResult $v
  Get-KmcPersistenceSource $v.request.runId $rec.sha256 $v.request.fixture -NativeCase prepare-removal -ArtifactRole cleanup-manual|Out-Null} $true}
 # Run plan gate G7 (a): row 32's no-DLL source is batch65 (history) or the same candidate's settled final r31.
 . (Join-Path $reader 'Chunk7OwnerStockRemovalFixtures.ps1')

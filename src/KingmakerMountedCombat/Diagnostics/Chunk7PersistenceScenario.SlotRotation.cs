@@ -167,7 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !persistence.HasActiveSaveScope && !persistence.HasSaveAdmissionFence && !NativeSaveWorkerBoundary.WorkerHeld,
                 "The overwrite did not release its serialization holds or spent other than exactly one further native write.");
             var read = NativeMountedSaveStorage.ReadArchive(written.Saver);
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && read.Data?.Pairs.Length == 2 && read.Data.Participations.Length == 0 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && read.Data?.Pairs.Length == 2 && read.Data.Participations.Length == 0 &&
                 read.Data.Combat == null && read.Data.CampaignId == request.SelectedChunk7Fixture.GameId && read.Data.AreaId == ExpectedArchiveArea,
                 "The overwritten archive did not retain the entire two-pair exploration world.");
             saved = read.Data; savedDescriptor = written;
