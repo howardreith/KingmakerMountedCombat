@@ -395,9 +395,17 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 round 16 (R13-F5, R15-F1, R15-F2): the step-executable duration of the current tick, read from the agent's own path, cursor and
         // installed steering facts (MoveDirection, m_CombatAngularSpeed, m_Speed for skipping, m_FollowPrecomputedPath) and the shift's speed
         // (MaxSpeed): PairedAttackClickProbe.StepExecutableDuration (the installed tick at each candidate duration, SimulateTick). False (no
-        // bound) when the agent has no readable path or its end lies within the physical remainder (any completion is affordable). Steering that
+        // bound) when the agent has no readable path (round 21: an end within the physical remainder is searched as well, below). Steering that
         // cannot be read, or is not the turn-based combat steering, gives no executable movement (0): the shift cannot be predicted. Round 17
         // follow-up: the steering facts are the tick's single read (ReadSteeringFacts in TickDelegated), never read again here.
+        // Round 21 (R20-F1): an end within the physical remainder no longer exempts the tick. The tick still steers to the waypoint native selects
+        // (an interior waypoint can carry the mount farther than the end is from it), and a duration limited by the nearly exhausted native
+        // counter can round its stop back onto the origin; so the same search runs (its settled-displacement check: the float-representable
+        // stop of the selected waypoint at the returned duration displaces at least the 0.01 mm floor and no more than the physical remainder,
+        // the completion margin kept; the permitted duration already holds the native counter's own limit). An affordable completion is
+        // executable (its snapped travel is within the remainder) and the permitted duration is then returned as it is; with no representable
+        // legal move the duration is zero (native's denial ends the step). Unsupported steering keeps its former disposition for an affordable
+        // end (no bound: the shift cannot be predicted) and zero otherwise.
         internal static bool StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, MountedSteeringFacts steering, Vector3 position, float physicalLeft, float speed, float permitted,
             out float executable, out string detail)
         {
@@ -406,9 +414,10 @@ namespace KingmakerMountedCombat.Integration
             if (agent == null || !(speed > 0f) || !MountedAgentSteering.TryRead(agent, out path, out cursor, out waypoint) || path == null || path.Count == 0) return false;
             var end = path[path.Count - 1];
             var toEnd = Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, end);
-            if (toEnd <= physicalLeft) return false;
+            var affordableEnd = toEnd <= physicalLeft;
             if (!steering.Readable || steering.ForceMode || !steering.InCombat || !(steering.CombatAngularSpeed > 0f))
             {
+                if (affordableEnd) return false;
                 executable = 0f;
                 detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";steering-unsupported;tick=0)";
                 return true;
@@ -419,7 +428,7 @@ namespace KingmakerMountedCombat.Integration
                 steering.CombatAngularSpeed, steering.FollowPrecomputedPath, physicalLeft, permitted, out selected, out evaluated);
             detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";cursor=" + cursor + ";permitted=" + permitted.ToString("R") +
                 ";tick=" + executable.ToString("R") + ";selected=" + selected + ";settledTravel=" +
-                Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + ")";
+                Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + (affordableEnd ? ";affordableEnd" : "") + ")";
             return true;
         }
 
