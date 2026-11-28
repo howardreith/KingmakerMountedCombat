@@ -769,7 +769,9 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($preOwned){
   $m6=Get-KmcChunk7Mounted6Seed;$e=$u.ownerMadeEmptyArchive
   Assert-KmcExactProperties $e @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'owner-made seed empty archive'
-  [void](Assert-KmcChunk7NormalizedGraphVersion $e.schemaVersion 'Owner-seed world');Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
+  # Round 19 (R18-F5): the owner-made seed's input format is independent (a schema-3 seed decoded by this build normalizes to its writer);
+  # the decoded graph's version is the same process's advertised writer capability.
+  $graph=Assert-KmcChunk7NormalizedGraphVersion $e.schemaVersion 'Owner-seed world';if($graph-ne(Assert-KmcChunk7WriterSchema $c.nativeWriterSchema 'Owner-seed writer capability')){throw 'Owner-made seed normalized graph version differs from the same process''s writer capability.'};Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
   foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $e.$key 0 0};Assert-KmcChunk7Boolean $e.combatPresent $false;Assert-KmcChunk7Boolean $e.nativeRestorationGrantedByDiagnostic $false
   $q=$u.preOwnedRiderA
   Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'mounted6 pre-owned rider A'
