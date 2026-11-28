@@ -5,6 +5,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/PersistenceProfileProtection.ps1')
 $root=Assert-KmcChildPath (Join-Path (Get-KmcRepositoryRoot) ('obj/profile-protection-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path (Get-KmcRepositoryRoot) 'obj') 'profile test'
+# Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
+[void](Use-KmcTestReservationConvention $root)
 $profile=Join-Path $root 'profile'
 $game=Join-Path $root 'game'
 $state=Join-Path $root 'state'
@@ -332,6 +334,9 @@ try{
     }
     # b210 c3: post-transaction profile recovery admits only a completed transaction recovery for the run's own token, with
     # no lock held and no prior receipt; the restore then binds the snapshot to that token under a fresh profile-recovery lock.
+    # These post-transaction cases open their own transactions while the outer test lock stays held: they model an
+    # independent run, so they use a separate private reservation (the outer lock releases to its own).
+    [void](Use-KmcTestReservationConvention (Join-Path $root 'pt-reservation'))
     $ptRun='post-transaction-test';$ptToken=('ab'*32);$ptState=Join-Path $root 'pt-state';$ptEvidence=Join-Path $root 'pt-evidence'
     foreach($dir in @((Join-Path $ptState 'run-transactions'),(Join-Path $ptState 'transactions'),(Join-Path $ptState 'save-transactions'),(Join-Path $ptEvidence $ptRun))){[void][IO.Directory]::CreateDirectory($dir)}
     $ptSnapshot=[pscustomobject]@{runId=$ptRun;token=$ptToken}
@@ -404,6 +409,8 @@ try{
     $staleLock=Open-KmcRuntimeLock -StateRoot $ptState -RunId $ptRun -Purpose 'profile-recovery';$staleLock.Stream.Dispose()
     try{
         $payload=Get-Content -Raw $ptLockPath|ConvertFrom-Json;$payload.ownerProcessId=999999;[IO.File]::WriteAllText($ptLockPath,($payload|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+        # The crashed holder's reservation names a process that is gone, as its lock does.
+        $reservationRecord=Get-Content -Raw $staleLock.Reservation.Convention.RecordPath|ConvertFrom-Json;$reservationRecord.holderProcessId=999999;[IO.File]::WriteAllText($staleLock.Reservation.Convention.RecordPath,($reservationRecord|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
         $adopted=Adopt-KmcStaleRuntimeLock $ptState -ExpectedPurpose 'profile-recovery'
         try{
             if($adopted.RunId-cne$ptRun-or$adopted.Purpose-cne'profile-recovery'){throw 'The stale profile-recovery lock was not adopted exactly.'};$passes++

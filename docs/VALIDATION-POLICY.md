@@ -160,6 +160,20 @@ the pre-run snapshot until verified restoration there is a no-deployment window:
 human game session, no second executor, and no other project installing into those
 paths. Other projects may keep editing and building elsewhere.
 
+Exclusion against other Kingmaker labs' native automation is the Kingmaker native-test
+reservation (`docs/NATIVE-RESERVATION.md`): `Open-KmcRuntimeLock` and
+`Adopt-KmcStaleRuntimeLock` take it (a lease record under `%ProgramData%`, written only
+under the `Global\KingmakerNativeTest.Reservation.v1` mutex) before KMC's own
+`active-transaction.lock`, `Close-KmcRuntimeLock` releases it after the lock, and
+`Abandon-KmcRuntimeLock` keeps it for recovery. Every runtime entrypoint (the scenario
+runner and manual review, fixture requalification and recovery, and the `Recover-*`
+tools) goes through those functions. Recovery adopts only KMC's own record whose writer
+is gone; another lab's record, a live holder's or an unreadable one refuses and is left
+alone. A lost record fails the close. The existing process, lock and journal checks
+stay. `scripts/Test-NativeReservation.ps1` proves it with separate contender processes
+on stand-in roots (both arrival orders, simultaneous arrivals, recovery admission, a lab
+alone); self-tests use a private reservation, never the machine-wide one.
+
 An unexpected write that reaches the staged tree during a run is preserved
 byte-exact in that run's quarantine, the live tree is returned to its pre-run
 snapshot so the human installation stays coherent, and the run is reported as

@@ -9,6 +9,8 @@ $repoRoot = Get-KmcRepositoryRoot
 $currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
 $testParent = [IO.Path]::GetFullPath((Join-Path $repoRoot 'obj\harness-tests'))
 $testRoot = Assert-KmcChildPath (Join-Path $testParent ([Guid]::NewGuid().ToString('N'))) $testParent 'harness test root'
+# Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
+$testReservation = Use-KmcTestReservationConvention $testRoot
 $runtimeEvidenceParent = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence'))
 $runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent ('harness-test-' + [Guid]::NewGuid().ToString('N'))) $runtimeEvidenceParent 'harness runtime-evidence test root'
 $passed = 0
@@ -47,6 +49,21 @@ function Invoke-HarnessTest {
         $script:failed++
         Write-Host "FAIL $Name`: $($_.Exception.Message)"
     }
+    finally { Clear-TestReservation }
+}
+
+# Each test starts with the private reservation free (a test that abandons a lock leaves its reservation behind).
+function Clear-TestReservation {
+    if (Test-Path -LiteralPath $testReservation.RecordPath) { Remove-Item -LiteralPath $testReservation.RecordPath -Force }
+}
+
+# Stand-in for a dead transaction process: the reservation it left names a process that no longer runs.
+function Set-TestReservationHolderDead {
+    if (-not (Test-Path -LiteralPath $testReservation.RecordPath)) { return }
+    $record = Read-KmcJson $testReservation.RecordPath
+    if ([string]$record.lab -cne 'KingmakerMountedCombat') { return }
+    $record.holderProcessId = 2147483646
+    Write-KmcJsonAtomic -Path $testReservation.RecordPath -Value $record
 }
 
 function Assert-Test([bool]$Condition, [string]$Message) {
@@ -160,6 +177,8 @@ function New-TestRawSaveArchive {
 
 function New-TestPendingWorkingRequalification {
     param([Parameter(Mandatory = $true)][string]$Name)
+    # Each stand-in fixture is an independent transaction: it starts with the private reservation free.
+    Clear-TestReservation
     $root = Join-Path $testRoot ('working-requalification-' + $Name)
     $saveRoot = Join-Path $root 'saves'
     $fixtureStateRoot = Join-Path $root 'state'
@@ -360,6 +379,7 @@ function Set-TestRuntimeLockOwnerDead {
     $payload = Read-KmcJson $Path
     $payload.ownerProcessId = 2147483646
     Write-KmcJsonAtomic -Path $Path -Value $payload
+    Set-TestReservationHolderDead
 }
 
 function Select-TestObjectProperties {
@@ -2423,6 +2443,7 @@ try {
         $payload = Read-KmcJson $path
         $payload.ownerProcessId = 2147483646
         Write-KmcJsonAtomic $path $payload
+        Set-TestReservationHolderDead
         $adopted = Adopt-KmcStaleRuntimeLock $stateRoot
         try { Assert-Test ([string]$adopted.Token -ceq [string]$payload.token) 'adopted lock token changed' }
         finally { Close-KmcRuntimeLock $adopted }

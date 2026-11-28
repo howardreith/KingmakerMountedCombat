@@ -38,6 +38,12 @@ remove UnifiedMountedTurnCoordinator while active movement accounting uses it.
   preview pins as the current restoration target. Preserve the owner's actual
   installation. Never hot-replace DLLs, alter foreign mods, interrupt a human
   session or kill unrelated processes.
+- Every runtime transaction first acquires the machine-wide Kingmaker native-test
+  reservation (`docs/NATIVE-RESERVATION.md`), then KMC's own runtime lock, and
+  releases the reservation only when the transaction closes restored; an abandoned
+  transaction keeps it until KMC's recovery adopts and closes it. It is a neutral
+  convention other Kingmaker labs implement independently: KMC needs no other lab
+  to exist and no lab depends on KMC.
 - KMC_AUTOMATION_BASELINE and all human saves are protected. Use only the
   qualified disposable Working fixture or explicitly authorized run-scoped
   isolated save roots; preserve strict older-scenario guards. Mod-absent controls

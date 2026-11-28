@@ -6,6 +6,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/PersistenceProfileProtection.ps1')
 $testRoot=Assert-KmcChildPath (Join-Path (Get-KmcRepositoryRoot) ('obj/base-game-isolation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path (Get-KmcRepositoryRoot) 'obj') 'base-game isolation tests'
 [void][IO.Directory]::CreateDirectory($testRoot)
+# Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
+[void](Use-KmcTestReservationConvention $testRoot)
 $passed=0;$failed=0
 function Check([string]$Name,[scriptblock]$TestBody){try{&$TestBody;$script:passed++;Write-Host ('PASS '+$Name)}catch{$script:failed++;Write-Host ('FAIL '+$Name+': '+$_.Exception.Message)}}
 function Reject([string]$Name,[scriptblock]$RejectedBody){Check $Name { $rejected=$false;try{&$RejectedBody}catch{$rejected=$true};if(!$rejected){throw 'unsafe input was accepted'} }}
