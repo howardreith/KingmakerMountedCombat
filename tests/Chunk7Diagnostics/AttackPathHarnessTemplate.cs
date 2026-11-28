@@ -9362,7 +9362,12 @@ namespace Harness
             // left: every scan sample from 8.9 mm down to 0.9 mm of shift would snap 50.6 mm; the interval below the last sample is resolved: a
             // positive duration (about 0.4 mm of shift) leaves the mount outside the completion margins, unsnapped, both balances within the step.
             // (b) 45 mm from the end (already inside the 50 mm completion radius): every positive tick would snap 45 mm > 8.9 mm: zero.
-            foreach (var gap in new[] { 0.0506f, 0.05015f, 0.045f })
+            // Round 19 (R18-F1): (c) 50.112 mm from the end: the lawful shifts lie between the 0.01 mm displacement floor and the 0.1 mm
+            // completion margin (about 0.010-0.012 mm); the round-18 bisection sampled 0.014067 mm (too long) then 0.007033 mm (too short) and
+            // discarded that interval. Every case records the returned duration, the actual unsnapped displacement, the floor and margin
+            // compliance, both balances (physical step travel and native step counter) and the order disposition after the following frames:
+            // a step tick that has no executable displacement meeting the floor returns zero, and native's denial ends the step promptly.
+            foreach (var gap in new[] { 0.0506f, 0.05015f, 0.050112f, 0.045f })
             {
                 var inside = gap < 0.05f;
                 var c = FirstTickPair(0.095f, 1f / 60f, false, false, true);
@@ -9407,15 +9412,33 @@ namespace Harness
                     var physicalAfter = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
                     var nativeAfter = c.Pair.movementState.AllocationMetresStepped(w.Horse);
                     var returned = ParseFloat(returnedOf(tickLine));
+                    var floorMet = travel >= PairedAttackClickProbe.StepMinimumDisplacementMetres;
+                    var marginMet = toEndAfter >= PairedAttackClickProbe.NativeLastSegmentArrivalMetres + PairedAttackClickProbe.StepMarginMetres;
+                    // the following frames until the order ends (at most 6): each later tick's returned duration, then the disposition
+                    var later = new List<string>();
+                    for (var i = 0; i < 6 && !order.IsFinished && order.StruckTargets.Count == 0; i++)
+                    {
+                        var beforeLater = w.Horse.Position;
+                        Frame(c);
+                        later.Add(returnedOf(w.LastMountTick ?? "") + " s/" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(beforeLater, w.Horse.Position) * 1000f).ToString("0.######") + " mm");
+                    }
+                    var disposition = order.StruckTargets.Count > 0 ? "strike" : !order.IsFinished ? "live" : "ended (" + order.EndCause + "; native force-finish disposition " + order.NativeApproachEndedCount + ")";
+                    var nativeEnded = order.IsFinished && order.StruckTargets.Count == 0 && order.NativeApproachEndedCount == 1;
                     ok = firstDebit.StartsWith("committed:order:") && tickLine.Contains("stepExecutable(") && physicalAfter <= 1.524f + 1e-5f && nativeAfter <= 1.524f + 1e-5f && (inside
                         ? returned == 0f && travel < 1e-7f && physicalAfter == physicalBefore && nativeAfter == nativeBefore
                         : returned > 0f && travel > 0f && travel < 0.0006f && toEndAfter > PairedAttackClickProbe.NativeLastSegmentArrivalMetres + PairedAttackClickProbe.StepMarginMetres - 1e-5f);
+                    // both balances advance by this tick alone (physical by the settled travel, native by the returned duration x MaxSpeed 9), and native's
+                    // denial ends the order without a strike once no executable displacement meeting the floor remains
+                    ok &= Math.Abs((physicalAfter - physicalBefore) - travel) < 1e-6f && Math.Abs((nativeAfter - nativeBefore) - returned * 9f) < 1e-6f && nativeEnded;
+                    if (gap == 0.050112f) ok &= returned > 0f && floorMet && marginMet && toEndAfter > 1e-4f;
                     detail = "pose " + pose + " (" + (gap * 1000f).ToString("0.#") + " mm before the end " + end + "), 8.9 mm of physical step travel left, 9 m/s: returned duration " + returned.ToString("R") +
-                        " s; stop " + after + " (travel " + (travel * 1000f).ToString("0.####") + " mm, " + (toEndAfter * 1000f).ToString("0.####") + " mm from the end, " + (toEndAfter < 1e-4f ? "snapped" : "unsnapped") +
+                        " s; stop " + after + " (travel " + (travel * 1000f).ToString("0.######") + " mm, " + (toEndAfter * 1000f).ToString("0.######") + " mm from the end, " + (toEndAfter < 1e-4f ? "snapped" : "unsnapped") +
                         "); physical step travel " + physicalBefore.ToString("0.######") + " -> " + physicalAfter.ToString("0.######") + " m, native counter " + nativeBefore.ToString("0.######") + " -> " +
-                        nativeAfter.ToString("0.######") + " m [" + tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))) + "]";
+                        nativeAfter.ToString("0.######") + " m (physical +" + ((physicalAfter - physicalBefore) * 1000f).ToString("0.######") + " mm, native +" + ((nativeAfter - nativeBefore) * 1000f).ToString("0.######") +
+                        " mm, returned x 9 m/s = " + (returned * 9f * 1000f).ToString("0.######") + " mm); floor 0.01 mm met " + floorMet + ", completion margin 50.1 mm met " + marginMet +
+                        "; later frames [" + string.Join("; ", later.ToArray()) + "]; disposition " + disposition + " [" + tickLine.Substring(Math.Max(0, tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal))) + "]";
                 }
-                Check(ok, "R16-F3 (round 17) later delegated step tick, " + (inside ? "inside the completion radius (every positive tick overspends)" : "lawful interval below the last scan sample, " + (gap * 1000f).ToString("0.##") + " mm") + ": " + detail);
+                Check(ok, "R16-F3 (round 17), R18-F1 (round 19) later delegated step tick, " + (inside ? "inside the completion radius (every positive tick overspends)" : "lawful interval below the last scan sample, " + (gap * 1000f).ToString("0.###") + " mm") + ": " + detail);
             }
 
             // ===== round 18 (R16-F3, R17-F2) =====
