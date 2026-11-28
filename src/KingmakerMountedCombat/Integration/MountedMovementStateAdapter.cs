@@ -227,15 +227,18 @@ namespace KingmakerMountedCombat.Integration
             // delta (UnitMoveController.Tick passes TimeController.DeltaTime). Its allowance is what Advance would grant for it under the
             // selected limit (MountedMovementState.Remaining, clamped by the tick); the request decides BEFORE any debit. A refusal (or a
             // commit in place) zeroes the tick, so nothing moves and nothing is debited.
+            // Round 10 (R9-F3/R9-F4/R9-F5): the agent's own speed (MaxSpeed) converts time and distance for the allowance, the step ledger and the
+            // debit, as native's shift does; a speed that cannot be read (a throwing getter included) is contained here: a gated carrier is then
+            // refused by its decision and any other tick gets no movement (never an assumed speed).
+            var physicalSpeed = PhysicalSpeedOf(mount);
             var gate = FirstTickGate;
             if (gate != null && gate.Carrier != null && ReferenceEquals(mount.Commands?.GetCommand(UnitCommand.CommandType.Move), gate.Carrier))
             {
-                var gateRemaining = allocation.Movement.Remaining(mount.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+                var gateRemaining = allocation.Movement.Remaining(physicalSpeed > 0f ? physicalSpeed : 0f, TurnController.MetersOfFiveFootStep,
                     Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                     mount.IsMoveActionRestricted(), inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove);
                 // Round 9 (R8-F6): the installed shift is MaxSpeed x the delta this hook returns (MountedAgentSteering), so distance is measured
                 // with the agent's own speed; unreadable speed gives NaN and the decision refuses any moving commit.
-                var physicalSpeed = MountedAgentSteering.PhysicalSpeed(mount.View?.AgentASP);
                 var allowedMetres = Math.Max(0f, Math.Min(deltaTime, gateRemaining)) * physicalSpeed;
                 string gateDetail;
                 float grantedMetres;
@@ -252,6 +255,12 @@ namespace KingmakerMountedCombat.Integration
                         ";allowedMetres=" + allowedMetres.ToString("R") + ";" + gateDetail;
                 }
             }
+            if (!(physicalSpeed > 0f))
+            {
+                var tick = deltaTime;
+                deltaTime = 0f;
+                return "mountMove=speed-unreadable;tick=" + tick.ToString("R");
+            }
             var cooldown = mount.CombatState.Cooldown;
             var before = cooldown.MoveAction;
             // Within a prepared allocation native time passing must not turn an
@@ -262,7 +271,7 @@ namespace KingmakerMountedCombat.Integration
             var requested = deltaTime;
             var agent = mount.View.AgentASP;
             var forced = (bool)ForceModeField.GetValue(agent);
-            deltaTime = allocation.Movement.Advance(deltaTime, mount.CurrentSpeedMps,
+            deltaTime = allocation.Movement.Advance(deltaTime, physicalSpeed,
                 TurnController.MetersOfFiveFootStep, used, standardUsed, mount.IsMoveActionRestricted(),
                 inputTurn.EnabledFiveFootStep, inputTurn.EnabledSingleActionMove,
                 forced, agent.NearTheEnd,
@@ -291,6 +300,13 @@ namespace KingmakerMountedCombat.Integration
                 ";physicalDelta=" + requested.ToString("R") + "->" + deltaTime.ToString("R");
         }
 
+        // The agent's own speed (MaxSpeed), contained; NaN when unreadable.
+        internal static float PhysicalSpeedOf(UnitEntityData actor)
+        {
+            try { return MountedAgentSteering.PhysicalSpeed(actor?.View?.AgentASP); }
+            catch (Exception) { return float.NaN; }
+        }
+
         internal void CopyGrantedMovementToContext(TurnController turn)
         {
             if (turn == null || !allocations.ContainsKey(turn.Unit)) return;
@@ -309,9 +325,11 @@ namespace KingmakerMountedCombat.Integration
         {
             Allocation allocation;
             if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return 0f;
-            return allocation.Movement.Remaining(actor.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+            var speed = PhysicalSpeedOf(actor);
+            if (!(speed > 0f)) return float.NaN;
+            return allocation.Movement.Remaining(speed, TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
-                allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) * actor.CurrentSpeedMps;
+                allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove) * speed;
         }
 
         // Review R6-F3: the distance the same allocation grants across one order (into the Standard conversion when the
@@ -320,10 +338,14 @@ namespace KingmakerMountedCombat.Integration
         {
             Allocation allocation;
             if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return 0f;
-            return allocation.Movement.RemainingAcrossOrder(actor.CurrentSpeedMps, TurnController.MetersOfFiveFootStep,
+            // Round 10 (R9-F3/R9-F4): physical metres for an ordinary Move (time x the agent's own speed); a step's remaining distance is a
+            // distance (Remaining converts it to time with the same speed, so the product is the distance, never scaled by a speed ratio).
+            var speed = PhysicalSpeedOf(actor);
+            if (!(speed > 0f)) return float.NaN;
+            return allocation.Movement.RemainingAcrossOrder(speed, TurnController.MetersOfFiveFootStep,
                 Math.Max(allocation.MoveUsed, actor.CombatState.Cooldown.MoveAction),
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove,
-                SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * actor.CurrentSpeedMps;
+                SettingsRoot.Instance.AutoStopAfterFirstMoveAction.CurrentValue) * speed;
         }
 
         // PR #70 R1-F6: the allocation is in the state where native grants exactly one frame's tick (MountedMovementState.FirstTickOnly).

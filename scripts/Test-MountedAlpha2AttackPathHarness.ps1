@@ -158,6 +158,7 @@ $members=[ordered]@{
  'CONTROLLER_RUN_KEEPS_HOLD'=(Extract $controller 'internal bool NativeRunKeepsHold(UnitEntityData owner, UnitCommand command, bool fromQueue, bool doNotClearQueue)')
  'CONTROLLER_COMMIT_PROVISIONAL'=(Extract $controller 'private bool CommitAcceptedProvisional(')
  'PAIR_ELIGIBLE'=(Extract $lifecycle 'internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)')
+ 'ADAPTER_PHYSICAL_SPEED'=(Extract $adapter 'internal static float PhysicalSpeedOf(UnitEntityData actor)')
  'CONTROLLER_APPLY_EFFECTS'=(Extract $controller 'private void ApplyAcceptanceEffects(FirstTickProposal p)')
  'PAIR_REMEMBER_INPUT'=(Extract $controls 'internal void RememberPairedMovementInput()')
  'PAIR_MOVEMENT_INPUT'=(ExtractExpression $controls 'private TurnController MovementInputContext(TurnController turn) =>')

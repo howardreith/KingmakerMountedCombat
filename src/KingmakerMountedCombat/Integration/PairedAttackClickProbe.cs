@@ -230,6 +230,136 @@ namespace KingmakerMountedCombat.Integration
             return result;
         }
 
+        // PR #70 R8-F6 (round 10): the installed combat steering of one movement tick at the delta returned to native movement (see
+        // MountedAgentSteering): direction RotateTowards(m, Lerp(m, d, 0.5), angular x delta x Deg2Rad, 1) with Unity's RotateTowards (rotate the
+        // direction by at most the angle, move the magnitude by at most 1, MoveTowards when either vector is near zero or they are parallel),
+        // the angular speed raised on the last segment when the turn would outlast the arrival; shift = new direction x speed x delta.
+        internal static Vector2 NativeCombatShift(Vector2 moveDirection, Vector2 toWaypoint, float distance, bool onLastSegment, float speed,
+            float combatAngularDegrees, float delta, out Vector2 newDirection)
+        {
+            var target = new Vector2((moveDirection.x + toWaypoint.x) * 0.5f, (moveDirection.y + toWaypoint.y) * 0.5f);
+            var angular = combatAngularDegrees;
+            if (onLastSegment)
+            {
+                var turnTime = Angle(moveDirection, target) / angular;
+                var arrivalTime = distance / Math.Max(speed, 0.01f);
+                if (turnTime * 2f > arrivalTime) angular *= 2f * turnTime / arrivalTime;
+            }
+            newDirection = RotateTowards(moveDirection, target, angular * delta * (float)(Math.PI / 180d), 1f);
+            return new Vector2(newDirection.x * speed * delta, newDirection.y * speed * delta);
+        }
+
+        private static float Length(Vector2 v) => (float)Math.Sqrt(v.x * v.x + v.y * v.y);
+
+        // Installed TickMovement: on the last segment a position this close to the path's end completes the movement (0.05 m).
+        internal const float NativeLastSegmentArrivalMetres = 0.05f;
+
+        // Unity Vector3.Angle (degrees; 0 when either vector is near zero).
+        internal static float Angle(Vector2 a, Vector2 b)
+        {
+            var denominator = Math.Sqrt((a.x * a.x + a.y * a.y) * (double)(b.x * b.x + b.y * b.y));
+            if (denominator < 1e-15) return 0f;
+            var dot = Math.Max(-1d, Math.Min(1d, (a.x * b.x + a.y * b.y) / denominator));
+            return (float)(Math.Acos(dot) * 180d / Math.PI);
+        }
+
+        private static Vector2 MoveTowards(Vector2 current, Vector2 target, float maxDelta)
+        {
+            var dx = target.x - current.x; var dy = target.y - current.y; var d = (float)Math.Sqrt(dx * dx + dy * dy);
+            if (d <= maxDelta || d < 1e-12f) return target;
+            return new Vector2(current.x + dx / d * maxDelta, current.y + dy / d * maxDelta);
+        }
+
+        // Unity Vector3.RotateTowards restricted to the horizontal plane.
+        internal static Vector2 RotateTowards(Vector2 current, Vector2 target, float maxRadians, float maxMagnitude)
+        {
+            var currentLength = Length(current); var targetLength = Length(target);
+            if (currentLength > 1e-5f && targetLength > 1e-5f)
+            {
+                var dot = (current.x * target.x + current.y * target.y) / (currentLength * targetLength);
+                if (dot > 1f - 1e-6f) return MoveTowards(current, target, maxMagnitude);
+                var angle = (float)Math.Acos(Math.Max(-1f, Math.Min(1f, dot)));
+                var step = Math.Min(maxRadians, angle);
+                var sign = current.x * target.y - current.y * target.x >= 0f ? 1f : -1f;
+                var cos = (float)Math.Cos(step * sign); var sin = (float)Math.Sin(step * sign);
+                var ux = current.x / currentLength; var uy = current.y / currentLength;
+                var magnitude = currentLength + Math.Max(-maxMagnitude, Math.Min(maxMagnitude, targetLength - currentLength));
+                return new Vector2((ux * cos - uy * sin) * magnitude, (ux * sin + uy * cos) * magnitude);
+            }
+            return MoveTowards(current, target, maxMagnitude);
+        }
+
+        // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
+        // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
+        // (allowedMetres / speed); a shift that would pass the waypoint the agent steers to is shortened (the delta returned is smaller), and
+        // a waypoint native would skip at that delta is not predicted (refused, conservative). The stop is where this tick leaves the mount
+        // (it moves no further under the single-action limit), judged with the production admission under the new direction. On success
+        // Route is [origin, stop], RouteMetres the granted time x speed (the adapter returns that delta to native movement).
+        internal static Result EvaluateFirstTickNative(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, IList<Vector3> agentPath, int cursor,
+            float allowedMetres, float speed, Vector2 moveDirection, float combatAngular, float currentAgentSpeed, bool followPrecomputedPath)
+        {
+            var result = new Result();
+            if (rider?.View == null || mount?.View == null || target?.View == null || agentPath == null) { result.Detail = "unavailable"; return result; }
+            var probe = new MountedPairSingleAttack(target, rider, mount, true, false);
+            probe.Init(rider);
+            result.Plan = PlanIdentity.Of(probe);
+            result.PairRadius = probe.PairApproachRadius;
+            var origin = mount.Position;
+            if (cursor < 0 || cursor >= agentPath.Count) { result.Detail = "agent-cursor-outside-path"; return result; }
+            var waypoint = agentPath[cursor];
+            var onLast = cursor >= agentPath.Count - 1;
+            var toWaypoint = new Vector2(waypoint.x - origin.x, waypoint.z - origin.z);
+            var distance = Length(toWaypoint);
+            var fullDelta = speed > 0f ? allowedMetres / speed : 0f;
+            if (!(fullDelta > 0f) || !(distance > 1e-6f)) { result.Detail = "no-movement(allowed=" + allowedMetres.ToString("R") + ")"; return result; }
+            if (followPrecomputedPath && !onLast && distance < currentAgentSpeed * fullDelta)
+            {
+                result.Detail = "native-waypoint-skip(cursor=" + cursor + ";distance=" + distance.ToString("R") + ";agentSpeed=" + currentAgentSpeed.ToString("R") + ")";
+                return result;
+            }
+            var unit = new Vector2(toWaypoint.x / distance, toWaypoint.y / distance);
+            Vector2 newDirection;
+            var delta = fullDelta;
+            var shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection);
+            var stopsAtWaypoint = false;
+            if (Length(shift) > distance)
+            {
+                stopsAtWaypoint = true;
+                float low = 0f, high = fullDelta;
+                for (var i = 0; i < 40; i++)
+                {
+                    var mid = (low + high) * 0.5f;
+                    Vector2 ignored;
+                    if (Length(NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, mid, out ignored)) > distance) high = mid; else low = mid;
+                }
+                delta = low;
+                shift = NativeCombatShift(moveDirection, unit, distance, onLast, speed, combatAngular, delta, out newDirection);
+            }
+            var stop = new Vector3(origin.x + shift.x, origin.y, origin.z + shift.y);
+            // Installed TickMovement after the move: on the last segment, a waypoint passed (plane test against the previous point) or within
+            // 0.05 m completes the movement in turn-based combat by moving the agent onto the path's end (Move(path.Last - position)).
+            var previous = cursor > 0 ? agentPath[cursor - 1] : origin;
+            var passed = distance <= 0.0001f || (waypoint.x - previous.x) * (waypoint.x - stop.x) + (waypoint.z - previous.z) * (waypoint.z - stop.z) < 0f;
+            var snapped = onLast && (passed || GeometryUtils.MechanicsDistance(stop, waypoint) < NativeLastSegmentArrivalMetres);
+            if (snapped) stop = new Vector3(waypoint.x, origin.y, waypoint.z);
+            var heading = new Vector3(newDirection.x, 0f, newDirection.y);
+            var admitted = Length(newDirection) > 1e-6f &&
+                probe.EvaluateNativeAdmissionAtMountPosition(stop, heading) == MountedPairNativeAdmissionState.Admitted;
+            var turn = Angle(moveDirection, new Vector2((moveDirection.x + unit.x) * 0.5f, (moveDirection.y + unit.y) * 0.5f));
+            result.Detail = "first-tick(origin=" + origin + ";waypoint#" + cursor + "=" + waypoint + (onLast ? "(end)" : "(interior)") + ";segment=" +
+                distance.ToString("R") + ";delta=" + delta.ToString("R") + ";shift=" + Length(shift).ToString("R") + ";travel=" + GeometryUtils.MechanicsDistance(origin, stop).ToString("R") +
+                ";snapped=" + snapped + ";stop=" + stop + ";stopX=" + stop.x.ToString("R") +
+                ";stopZ=" + stop.z.ToString("R") + ";turnToTarget=" + turn.ToString("R") + ";turnCapacity=" + (combatAngular * delta).ToString("R") +
+                ";direction=(" + newDirection.x.ToString("R") + "," + newDirection.y.ToString("R") + ");" + (stopsAtWaypoint ? (onLast ? "reaches-route-end" : "stops-at-waypoint") : "interior") +
+                ";admitted=" + admitted + ")";
+            if (!admitted) return result;
+            result.Path = PathOutcome.Complete;
+            result.Route = new List<Vector3> { origin, stop };
+            result.RouteMetres = delta * speed;
+            result.ArrivalRadius = ArrivalRadii[ArrivalRadii.Length - 1];
+            return result;
+        }
+
         // PR #70 R8-F1 (round 9): the route the agent will execute from its live position (its own path from its cursor) and the strike's
         // admission at its arrival: the proven arrival disc around the path's end with the current target and sight, under the last segment's
         // heading. Route is [current position, remaining points]; RouteMetres its length; RouteProven only when the arrival admits the strike.
@@ -249,8 +379,14 @@ namespace KingmakerMountedCombat.Integration
             Func<Vector3, Vector3, Vector3, bool> admits = (point, from, to) =>
                 probe.EvaluateNativeAdmissionAtMountPosition(point, to - from) == MountedPairNativeAdmissionState.Admitted;
             var end = remaining[remaining.Count - 1];
-            var admitted = arrivalRadius > 0f && DiscAdmits(end, arrivalRadius, remaining[remaining.Count - 2], end, admits);
             var length = RouteLength(remaining);
+            // Round 10 (R8-F1): every reachable stopping position of the remaining route inside the arrival disc (native proximity can finish the
+            // carrier there), each with its own segment heading (RouteInsideDiscAdmits, the click's own 1 mm sampling), and the disc under the final
+            // heading (DiscAdmits, whose outer ring at the full radius also covers the disc's edge). The in-route samples stop BoundaryMarginMetres
+            // inside that edge, below the sampling resolution, so float noise at a centre the click placed exactly at opening + radius cannot
+            // refuse the route the click and the revalidation proved.
+            var admitted = arrivalRadius > 0f && DiscAdmits(end, arrivalRadius, remaining[remaining.Count - 2], end, admits) &&
+                RouteInsideDiscAdmits(remaining, length, end, Math.Max(0f, arrivalRadius - BoundaryMarginMetres), admits);
             result.Detail = "remaining-route(cursor=" + cursor + ";routeMetres=" + length.ToString("R") + ";end=" + end + ";arrivalDisc=" + arrivalRadius.ToString("R") +
                 ";admitted=" + admitted + ")";
             if (!admitted) return result;

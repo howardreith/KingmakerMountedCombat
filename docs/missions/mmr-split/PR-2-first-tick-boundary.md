@@ -1,6 +1,6 @@
 # PR-2 first-tick replacement boundary (R1-F6)
 
-Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7, 8 and 9. Sections 2-5 describe the round-7 path; sections 6 and 7 record the
+Owner instructions 2026-11-27d and 2026-11-27e (sections 3 and 4); review rounds 7 to 10 (owner instruction 2026-11-27f for round 10). Sections 2-5 describe the round-7 path; sections 6 and 7 record the
 round-8 and round-9 changes, which supersede any earlier passage they contradict (marked *superseded* below). This note records how the restricted single-action approach is decided
 and how a click reaches that decision, checked against the installed assemblies. Round 7 replaces round 6's bare mount carrier with a
 **provisional order on the rider** (R1-F6, R5-F3, R6-F1..R6-F7). The round-5 TwoActions workaround stays removed; the player's single-action
@@ -157,7 +157,7 @@ refuses dispatch (labelled as not player-reachable).
 - **Residual limit.** A first restricted tick toward a nearby intermediate waypoint is capped at that waypoint (conservative: refused unless
   that stop admits the strike).
 
-## 7. Round 9 corrections (final state)
+## 7. Round 9 corrections (partly superseded by section 8)
 
 - **R6-F7 (exception-safe transfer).** `CommitAcceptedProvisional` runs in three phases. (1) Staging: every fallible read, the native order
   effect and the idle preconditions (no charge, door interaction, door settlement, carried approach or rider ground move); a failure changes
@@ -198,3 +198,65 @@ refuses dispatch (labelled as not player-reachable).
   native `CanMoveInTurnBased`'s denial branch ends a zeroed carrier; how often a native first tick starts with the agent already aligned (if
   rarely, restricted first-tick approaches are mostly refused, never spent); the turn being Acting after a refused provisional order (no
   action spent).
+
+## 8. Round 10 corrections (owner instruction 2026-11-27f, section 3) and the current state
+
+- **R6-F7 (cleanup obligations, real rollback evidence).** A refused request's cleanup is a set of obligations tracked on the request,
+  independently of native `Result`/`IsFinished`: the command's terminal interruption (issued once; never replayed once native stamped it),
+  the carrier's, the carrier's removal from the mount's Move slot, and (after a faulted attempt) the mount's motion stop while no successor
+  holds the Move slot. A failure keeps the request owned with its gate refusing; the next sweep does only the unfinished work. The transfer
+  fault point now follows the actual retirement mutations (`stockIntent.Cancel`, the ledger cleared, ownership released); the harness records
+  that state at the fault before asserting the exact restoration.
+- **R8-F1.** `EvaluateRemainingRoute` applies `RouteInsideDiscAdmits` (the click's 1 mm sampling, each segment with its own heading) to the
+  live remaining subpath, besides `DiscAdmits` under the final heading. The in-route samples stop `BoundaryMarginMetres` (0.2 mm, below the
+  sampling resolution) inside the disc edge, whose ring `DiscAdmits` checks at the full radius; without it, float noise at a centre the click
+  placed exactly at opening + radius refused two previously accepted controls (R1-F10 changed grant, R2-F2 path end).
+- **R8-F6 (installed shift at the returned delta).** The one-degree cutoff is gone. `PairedAttackClickProbe.EvaluateFirstTickNative`
+  predicts the restricted tick with the installed combat steering rule (traced in IL and asserted by the native contract): waypoint skip while
+  (follow-precomputed, not last) distance < `m_Speed x delta`; target `Lerp(MoveDirection, toWaypoint, 0.5)`; `RotateTowards` by
+  `m_CombatAngularSpeed x delta` with the last-segment raise; speed `MaxSpeed` (TB combat: `SlowDown` returns at once, `m_MinSpeed` 1);
+  shift = new direction x speed x delta; after the move, on the last segment, a waypoint passed or within 0.05 m puts the agent on the
+  path's end. `delta` is the time returned to native movement (shortened so the shift does not pass the waypoint the agent steers to); a
+  waypoint native would skip at that delta is refused. The harness stand-in runs the same native rule independently with the delta the
+  production hook returns. Inputs that cannot be read (or a forced/non-combat agent) refuse.
+- **R9-F3/R9-F4 (movement units).** The adapter converts time and distance with the agent's own `MaxSpeed` everywhere it does so (allowance,
+  `RemainingOrderMetres`/`RemainingGrantedMetres`, `MountedMovementState.Advance`), so click admission, carrier revalidation (the same
+  `PairedMountGrantedMetres`) and the debit price an ordinary Move identically, and a step's remaining distance stays a distance (never scaled).
+  Installed `TurnController.TickMovement` counts a step as `delta x CurrentSpeedMps` (nominal); the paired allocation counts `MaxSpeed x delta`,
+  the distance native shifts; the two differ only under a `MaxSpeedOverride`. This does not claim native step behaviour under an override.
+- **R9-F1.** Actual assignments of either actor's manual target observed after the commit (installed-command hook, click hook; the same
+  target included) supersede that actor's outstanding deferred write or clear.
+- **R9-F2.** An ordinary carrier's stationary release uses the current in-place admission decision (rider entitlement included), and
+  `StartChildAttack` asks the order's own first-tick request for accepted route-bound orders too; a refused one starts no child.
+- **R9-F5.** The `MaxSpeed` read is contained at the production movement entry (`PhysicalSpeedOf`, `MountedAgentSteering.PhysicalSpeed`): an
+  unreadable speed refuses a gated carrier through the existing refusal and exact cleanup and gives an ungated tick no movement.
+
+### Developer matrix (owner section 4), with the cases that exercise each cell
+
+| Mode | Click | Revalidation | First debit | Subsequent debit | Initial strike |
+|---|---|---|---|---|---|
+| Ordinary Move (time) | R9-F4 0.1 s / 6 m/s refused; 18 m/s admitted | same grant reader (R9-F4 18 m/s through strike) | R8-F1 bent/closed/passed-waypoint; R7-F1 lifted; R8-F2 | R9-F4 18 m/s through strike | R8-F4, R9-F2 |
+| Step (distance) | R9-F3 affordable step | same reader | R9-F3 2 m switched to 1.524 m refused | R9-F3 ledger = travel through strike | R9-F3 affordable step strike |
+| Restricted first tick | R1-F6 groups | R6-F4 | R8-F6 turn cases, R6-F2, R8-F5 | R8-F5 (no second debit) | R6-F3, R6-F6, R9-F2 |
+
+| Failure phase | Cases |
+|---|---|
+| Before mutation | R6-F7 entitlement read, native order effect, staged read; R6-F7 installation failure |
+| After mutation | R6-F7 transfer fault after `stockIntent.Cancel` (mutation recorded, exact restoration) |
+| After native completion | R6-F7 slot cleanup failure after the wrapper and carrier finished (retry; intervening successor; repeated sweeps) |
+| Deferred-write retry | R6-F7 Hold write; R9-F1 rider and mount, newer different/same target, and the successful-retry control |
+
+Ownership exercised: attack generation (R5-F3, R6-F5, R6-F7), exact carrier (R6-F6, R8-F3, R8-F4), rider target (R6-F1, R9-F1), mount target
+(R9-F1), newer compatible work (R7-F3, R8-F2, R9-F1). Not separately exercised: a step click under a speed override that is refused
+(the ordinary refused click and the affordable step use the same reader); a mount-target rollback after the transfer mutation (the snapshot
+covers both ownership records; the case records the rider's).
+
+### Verified, open, pending
+
+- Verified by review (kept unchanged in round 10): R1-F6, R5-F1, R5-F2, R5-F3, R6-F1..R6-F6, R7-F1..R7-F5, R8-F2..R8-F5, R8-F7.
+- Corrected in round 10 with offline evidence (open until reviewed): R6-F7, R8-F1, R8-F6, R9-F1..R9-F5.
+- Remaining source questions: the native first-tick `MoveDirection` of a freshly issued carrier (a zero direction halves the first shift
+  under the rule; the product reads the actual value); `m_FollowPrecomputedPath` for a ForcedPath carrier (the product reads it).
+- Pending native observation (owner playtest N02/N03): restricted first ticks in the game (how often the agent starts turned), the turn
+  controller's registration order, native's denial branch ending a zeroed carrier, and the turn staying Acting after a refused provisional
+  order (no action spent).

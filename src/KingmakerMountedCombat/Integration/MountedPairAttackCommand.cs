@@ -2164,8 +2164,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             // PR #70 R1-F6 (round 7), R7-F2 (round 8): a provisional order strikes only once the controller committed it (in place, when no tick
-            // decided it), and only after the three plans agreed above.
-            if (ProvisionalOrder && (ProvisionalStrikeGate == null || !ProvisionalStrikeGate() || ProvisionalOrder))
+            // decided it), and only after the three plans agreed above. R9-F2 (round 10): an accepted route-bound order's own first-tick request
+            // is asked too (the current in-place admission, the rider's entitlement included); a refused one starts no child.
+            if (ProvisionalOrder ? ProvisionalStrikeGate == null || !ProvisionalStrikeGate() || ProvisionalOrder : ProvisionalStrikeGate != null && !ProvisionalStrikeGate())
             {
                 if (!IsFinished)
                 {
