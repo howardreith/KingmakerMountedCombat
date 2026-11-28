@@ -128,7 +128,7 @@ function Assert-KmcChunk7OrdinaryEvidence($Request,$Artifact,[string]$Status='PA
     $w=$o.nativeWrite;Assert-KmcOrdinarySaveDescriptorBinding $probe $w
     if($w.path-isnot[string]-or$w.path-cne(Join-Path $root 'Auto_1.zks')-or$w.leaf-cne'Auto_1.zks'-or$w.type-cne'Auto'-or$w.operation-cne'None'-or
        $w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.gameId-cne$Request.fixture.working.gameId-or$w.gameName-cne$Request.fixture.working.gameName-or$w.area-cne$Request.fixture.working.area){throw 'Exact completed native ordinary archive identity differs.'}
-    Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.schema 3 3
+    Assert-KmcOrdinaryInteger $w.length 1 268435456;[void](Assert-KmcChunk7WriterSchema $w.schema 'Ordinary autosave writer') # PR #70 R13-F2 (round 17): this build's write
     foreach($field in @('authorizedWrites','admittedWrites','completedWrites','snapshotCount')){Assert-KmcOrdinaryInteger $w.$field 1 1}
     Assert-KmcChunk7Boolean $w.autoLevelup $true;Assert-KmcChunk7Boolean $w.nativeCallbackSupplied $false;Assert-KmcChunk7Boolean $w.saveBeforeFieldSelection $paid
     $f=$o.field

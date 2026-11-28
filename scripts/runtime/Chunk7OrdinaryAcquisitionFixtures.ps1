@@ -104,8 +104,11 @@ function Assert-KmcChunk7OrdinaryNativeArchive($Request,$Artifact) {
         Assert-KmcChunk7Boolean $header.IsAutoLevelupSave $true
         $reader.Dispose();$reader=[IO.StreamReader]::new($states[0].Open(),[Text.UTF8Encoding]::new($false,$true));$metadata=$reader.ReadToEnd()
         Assert-KmcJsonObjectMembersUnique -Json $metadata -Description 'ordinary native mounted metadata';$archive=$metadata|ConvertFrom-Json
-        # PR #70 R13-F2 (round 17): the run's own native autosave is a writer graph (exact versioned shape).
-        [void](Assert-KmcChunk7WriterArchive $archive 'ordinary native autosave metadata')
+        # PR #70 R13-F2 (round 17): the run's own native autosave carries a writer version; this reader checks named members only (it never
+        # required the full member list), so the versioned rule here is the StepTravel member: required and validated for 4, absent for 3.
+        $schema=Assert-KmcChunk7WriterSchema $archive.SchemaVersion 'Ordinary native autosave version'
+        if(($schema-eq(Get-KmcChunk7CurrentWriterSchema))-ne($null-ne$archive.PSObject.Properties['StepTravel'])){throw 'Ordinary native autosave StepTravel member does not match its version.'}
+        if($schema-eq(Get-KmcChunk7CurrentWriterSchema)){Assert-KmcChunk7StepTravel $archive}
         if($archive.CampaignId-cne$Request.fixture.working.gameId-or$archive.AreaId-cne$Request.fixture.working.area-or
            $archive.Pairs-isnot[Array]-or$archive.Pairs.Count-ne0-or$archive.Participations-isnot[Array]-or$archive.Participations.Count-ne0-or$null-ne$archive.Combat){throw 'Ordinary unmounted autosave invented mounted/combat ownership or changed campaign/area.'}
     }finally{if($reader){$reader.Dispose()};if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}

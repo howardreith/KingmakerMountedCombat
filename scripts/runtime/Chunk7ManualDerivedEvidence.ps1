@@ -675,7 +675,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  foreach($key in @('authorizedWrites','admittedWrites','completedWrites','snapshotCount')){Assert-KmcOrdinaryInteger $w.$key 1 1}
  foreach($key in @('nativeWorkerSettled','hasFileOnDisk','isActuallySaved','saveAfterFieldSelection','emptyMountedArchive')){Assert-KmcChunk7Boolean $w.$key $true}
  foreach($key in @('autoLevelup','slotProjectionEnabled')){Assert-KmcChunk7Boolean $w.$key $false}
- Assert-KmcOrdinaryInteger $w.schema 3 3;Assert-KmcOrdinaryInteger $w.descriptorCount 2 2
+ [void](Assert-KmcChunk7WriterSchema $w.schema 'Manual-derived output writer');Assert-KmcOrdinaryInteger $w.descriptorCount 2 2 # PR #70 R13-F2 (round 17): this build's write
  if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.sha256-ceq$Request.fixture.working.sha256-or$w.sha256-ceq$Request.fixture.baseline.sha256){throw 'Manual output lacks fresh archive identity.'}
  Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
  Assert-KmcChunk7Boolean $O.slotProjection.initiallyEnabled $false;Assert-KmcChunk7Boolean $O.slotProjection.enabledForTerminalAuto $false;Assert-KmcOrdinaryInteger $O.slotProjection.maximumNativeWrites 1 1
