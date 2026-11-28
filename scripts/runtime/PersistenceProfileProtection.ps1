@@ -435,7 +435,13 @@ function Assert-KmcCompletedTransactionRecovery {
         $combined.saveWriteAllowlistPassed-isnot[bool]-or-not$combined.saveWriteAllowlistPassed-or$errors.Count-ne0){
         throw 'Post-transaction profile recovery has no completed transaction recovery for this run and token.'
     }
-    foreach($part in @(@('Mods',(Get-KmcTransactionStatePath $StateRoot $RunId)),@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId)))){
+    # A no-save transaction created no Working-save child: its exact save-inventory proof is the combined receipt's
+    # restored digest equal to its recorded before digest. Save-backed transactions keep the child receipt check.
+    $parts=@(,@('Mods',(Get-KmcTransactionStatePath $StateRoot $RunId)))
+    if([string]$combined.mode-ceq'no-save-v1'){
+        if([string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery of a no-save transaction has no exact save-inventory proof.'}
+    }else{$parts+=,@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId))}
+    foreach($part in $parts){
         if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt.')}
         $value=Read-KmcJson $part[1]
         if([string]$value.runId-cne$RunId-or[string]$value.token-cne[string]$Snapshot.token-or[string]$value.phase-cne'restored'){
@@ -452,6 +458,7 @@ function Restore-KmcPersistenceStartupSettings {
     param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver,[switch]$BaseGameOnly,
         [string]$RecoveredTransactionToken)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @([string]$Snapshot.profile,[string]$Snapshot.paramsPath)
     # A post-transaction profile recovery holds its own fresh 'profile-recovery' lock for the run; the snapshot then binds to the
     # completed transaction's token (Assert-KmcCompletedTransactionRecovery) instead of the lock's.
     $purpose=$Lock.PSObject.Properties['Purpose']
@@ -514,15 +521,18 @@ function Restore-KmcPersistenceStartupSettings {
         [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now -EmptyNewLeaf Defer)
         # Both resolved absolute roots and the exact four contents were checked.
         # Same-volume rename keeps evidence intact; no recursive delete is used.
+        [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
         [IO.Directory]::Move($source,$destination)
         $verified=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
         if((Get-KmcPersistenceProfileDigest $verified)-cne$Snapshot.profileDigest){throw 'Profile differs after exact cache quarantine.'}
     }
     if($restoreParams){
+        [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
         [IO.File]::WriteAllBytes($expectedParams,[IO.File]::ReadAllBytes($saved))
         [IO.File]::SetLastWriteTimeUtc($expectedParams,[IO.File]::GetLastWriteTimeUtc($saved))
     }
     if($changes.Count-ne0){
+        [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
         $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
         try{
             if($null-eq$key){throw 'Exact PlayerPrefs key disappeared.'}

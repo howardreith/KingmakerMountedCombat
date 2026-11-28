@@ -3,6 +3,11 @@ param(
     [Parameter(Mandatory = $true)][string]$StateRoot,
     [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,60}$')][string]$Name,
     [Parameter(Mandatory = $true)][string]$Signals,
+    # Open: a fresh transaction. Recovery: takes over the stale lock of -RunId and closes it keeping the reservation for
+    # the owed profile recovery. FollowUp: that profile recovery (-RunId, -RunToken), with one 'restore' section.
+    [ValidateSet('Open','Recovery','FollowUp')][string]$Mode = 'Open',
+    [string]$RunId,
+    [string]$RunToken,
     # When set, the contender signals <Name>.ready once its harness is loaded and attempts admission only when this
     # file appears (a common start for simultaneous arrivals).
     [string]$StartBarrier
@@ -30,7 +35,19 @@ if (-not [string]::IsNullOrWhiteSpace($StartBarrier)) {
     }
 }
 
-try { $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId "contender-$Name" }
+try {
+    if ($Mode -ceq 'Recovery') {
+        $lock = Adopt-KmcStaleRuntimeLock -StateRoot $StateRoot -ExpectedRunId $RunId
+        Close-KmcRuntimeLock $lock -KeepFor 'profile-recovery'
+        Write-Signal 'handed-off'
+        exit 0
+    }
+    if ($Mode -ceq 'FollowUp') {
+        $session = Enter-KmcFollowUpReservation -StateRoot $StateRoot -RunId $RunId -RunToken $RunToken -FollowUp 'profile-recovery'
+        $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId $RunId -Purpose 'profile-recovery' -Reservation $session
+    }
+    else { $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId "contender-$Name" }
+}
 catch {
     Write-Signal 'refused' $_.Exception.Message
     exit 3
@@ -38,7 +55,7 @@ catch {
 $mutations = Join-Path $StateRoot 'mutations'
 [void][IO.Directory]::CreateDirectory($mutations)
 try {
-    foreach ($phase in @('prepare', 'run', 'restore')) {
+    foreach ($phase in $(if ($Mode -ceq 'FollowUp') { @('restore') } else { @('prepare', 'run', 'restore') })) {
         [IO.File]::WriteAllText((Join-Path $mutations "$Name.$phase"), 'mutation section entered')
         Write-Signal $phase
         $go = Join-Path $Signals "$Name.$phase.go"

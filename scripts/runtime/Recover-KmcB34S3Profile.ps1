@@ -118,6 +118,10 @@ function Assert-ExactAreasDelta($Snapshot,[string]$Quarantine){
 $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){throw 'Recovery requires the actual Howie profile and HKCU identity.'}
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
+# read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -Purpose 'recovery-one-run'
+trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/snapshot.json')) $backupRoot 'exact run profile snapshot'
 $quarantine=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/Areas-after')) $backupRoot 'exact Areas quarantine'
@@ -157,11 +161,11 @@ $allHeld=@($expectedFiles|Where-Object {-not(Test-Path -LiteralPath (Join-Path $
 $startup=Get-ExactStartupState $snapshot $saved $params $allHeld
 if(-not$PSCmdlet.ShouldProcess($runId,'quarantine seven exact native Areas writes, restore this run profile/settings, release lock')){
     Write-Host 'B34S3 PROFILE RECOVERY WHATIF PASS; seven pinned Areas files and three startup preferences; no mutation.'
-    return
+    Exit-KmcUnlockedNativeReservation $nativeReservation;return
 }
 $lock=$null
 try{
-    $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+    $lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedRunId $runId -Reservation $nativeReservation
     if($lock.RunId-cne$runId-or$lock.Token-cne$snapshot.token){throw 'Adopted lock differs from exact failed run.'}
     [void](Assert-KmcRuntimeLockOwner $lock)
     $state=Read-KmcRunTransactionState -StatePath (Get-KmcRunTransactionStatePath $stateRoot $runId) -Lock $lock

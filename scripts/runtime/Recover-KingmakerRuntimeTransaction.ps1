@@ -40,13 +40,15 @@ elseif(Test-Path -LiteralPath $legacyModsStatePath -PathType Leaf){
     $legacyMode=$true
 }
 else{throw 'Stale lock has no matching combined or legacy durable transaction state; automatic recovery is unsafe.'}
-# The Kingmaker native-test reservation naming exactly this run and lock is taken over before the shared reads below
-# (live Mods, saves); without it (missing, foreign, mismatched or live) recovery refuses and leaves the state for the
-# owner. -WhatIf never acquires it (read-only).
-$nativeReservation=$null
-if(-not$requestedWhatIf){
-    $nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId ([string]$raw.runId) -ExpectedLockToken ([string]$raw.token) -Purpose 'transaction-recovery'
-}
+# The recovery's own journal fixes the transaction identity before any ownership change: its token must be the stale
+# lock's. The Kingmaker native-test reservation naming exactly that run and lock is then taken over before the shared
+# reads below (live Mods, saves), for a -WhatIf preview too; without it (missing, foreign, mismatched or live) recovery
+# refuses and leaves the state for the owner. Any exit before the lock is held leaves the lease resumable for a retry.
+$journalToken=if($legacyMode){[string](Read-KmcJson $legacyModsStatePath).token}else{[string]$combined.token}
+if($journalToken-cne[string]$raw.token){throw 'The recovery journal token differs from the stale lock token; recovery refuses.'}
+$lock=$null
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId ([string]$raw.runId) -ExpectedLockToken $journalToken -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
+trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
 $liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
 $beforeMods=$null
 if($liveModsExistedBefore){
@@ -102,10 +104,10 @@ if(-not$PSCmdlet.ShouldProcess($target,"recover exact KMC transaction $($raw.run
         throw 'Recovery WhatIf purity failed.'
     }
     Write-Host 'Recovery WhatIf purity PASS; durable state was validated and no external state changed.'
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read; the lease stays resumable
     return
 }
 $WhatIfPreference=$false
-$lock=$null
 try{
     $lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation
     if($legacyMode){
@@ -127,8 +129,20 @@ try{
     if(-not$restoration.modsRestored-or-not$restoration.saveProtectionPassed-or@($restoration.errors).Count-ne0){
         throw "Combined recovery remains incomplete: $(@($restoration.errors) -join '; ')"
     }
-    Close-KmcRuntimeLock $lock
+    # Base-game staging: the installed loader dependencies are verified against their files, as the launcher does.
+    $modsStatePath=Get-KmcTransactionStatePath $stateRoot ([string]$raw.runId)
+    if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
+        $modsState=Read-KmcJson $modsStatePath
+        if([int]$modsState.schemaVersion-eq4){[void](Assert-KmcRuntimeLockOwner $lock);Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies -VerifyFiles}
+    }
+    # A run that snapshotted the persistence profile still owes Recover-KmcPersistenceProfile.ps1
+    # -AfterTransactionRecovery: the lock closes, but the lease (bound to this run and token) is kept for that recovery
+    # and released only after its profile verification. Nothing else can continue it.
+    $profilePending=(Test-Path -LiteralPath (Join-Path $backupRoot ('profile-'+[string]$raw.runId+'/snapshot.json')) -PathType Leaf)-and
+        -not(Test-Path -LiteralPath (Join-Path $labRoot ('runtime-evidence/'+[string]$raw.runId+'/profile-recovery.json')) -PathType Leaf)
+    if($profilePending){Close-KmcRuntimeLock $lock -KeepFor 'profile-recovery'}else{Close-KmcRuntimeLock $lock}
     $lock=$null
+    if($profilePending){Write-Host "Reservation kept for Recover-KmcPersistenceProfile.ps1 -AfterTransactionRecovery -RunId $($raw.runId)."}
     Write-Host "PASS recovered transaction $($raw.runId); Mods=$($restoration.restoredModsDigest); saves=$($restoration.restoredSaveInventoryDigest); baseline immutable; Working restored; allowlist passed."
 }
 finally{

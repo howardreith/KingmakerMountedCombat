@@ -354,6 +354,21 @@ try{
     & $writeState (& $newCombined) (& $newPart) (& $newPart)
     $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
     if([string]$admitted.token-cne$ptToken){throw 'The completed transaction recovery was not admitted for its own token.'};$passes++
+    # A no-save (base-game mod-load-smoke) transaction has no Working-save child: its combined receipt's exact save
+    # inventory proof admits the profile follow-up; a save-backed transaction without its child receipt still refuses.
+    $noSave=& $newCombined;$noSave.schemaVersion=1;$noSave.mode='no-save-v1'
+    foreach($name in @('qualificationSuiteSnapshotPath','qualificationSuiteId','qualificationSuiteSnapshotSha256')){$noSave.Remove($name)}
+    $savePart=Join-Path $ptState ('save-transactions/'+$ptRun+'.json')
+    & $writeState $noSave (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
+    $noSaveAdmitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
+    if([string]$noSaveAdmitted.mode-cne'no-save-v1'){throw 'A no-save transaction was not admitted from its exact inventory proof.'};$passes++
+    $noSave.restoredSaveInventoryDigest=('9'*64);& $writeState $noSave (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'A no-save transaction without an exact save-inventory proof was admitted.'};$passes++
+    & $writeState (& $newCombined) (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'A save-backed transaction without its save receipt was admitted.'};$passes++
+    & $writeState (& $newCombined) (& $newPart) (& $newPart)
     $ptLockPath=Join-Path $ptState 'active-transaction.lock';$ptReceipt=Join-Path $ptEvidence ($ptRun+'/profile-recovery.json')
     $ptCases=@(
         @{name='lock held';setup={[IO.File]::WriteAllText($ptLockPath,'{}')};undo={[IO.File]::Delete($ptLockPath)}},
@@ -455,8 +470,8 @@ try{
     }finally{Close-KmcRuntimeLock $fixtureLock}
     # Line-ending agnostic: the checkout may use CRLF.
     $recoverText=$recoverText.Replace("`r`n","`n")
-    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery'}")-or
-        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery'}")-or
+    if(-not$recoverText.Contains("else{`$lock=Open-KmcRuntimeLock -StateRoot `$stateRoot -RunId `$RunId -Purpose 'profile-recovery' -Reservation `$nativeReservation}")-or
+        -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery' -Reservation `$nativeReservation}")-or
         -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
         -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."

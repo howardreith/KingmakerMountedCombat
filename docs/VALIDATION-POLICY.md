@@ -164,46 +164,43 @@ paths. Other projects may keep editing and building elsewhere.
 
 Exclusion against other Kingmaker labs' native automation is the Kingmaker native-test
 reservation (`docs/NATIVE-RESERVATION.md`): a lease record under `%ProgramData%`, written
-only under the `Global\KingmakerNativeTest.Reservation.v1` mutex. KMC participates only
-through its runtime lock:
+only under the `Global\KingmakerNativeTest.Reservation.v1` mutex. Peer records are recognized
+on the common protocol fields only (their token and timestamp formats are their own); KMC's
+lease additionally names its runtime-state root, run, run token, lock token, an owed
+follow-up recovery and whether a recovery left it resumable. Every takeover verifies that
+identity and the exact current token under the mutex; a start time without a zone counts as
+a live writer.
 
-- `Open-KmcRuntimeLock` writes the lease before creating `active-transaction.lock`; the lease
-  names the KMC run, the runtime-state root and the token of the lock it creates. If the lock
-  is never created, the lease is released (lock then lease). The scenario launcher takes the
-  lease earlier, after workflow admission and before its first baseline read, and releases it
-  on any refusal, declined confirmation or exception before the lock exists; `-WhatIf` takes
-  none (it only reads and publishes nothing).
-- Every existing ownership boundary (`Assert-KmcRuntimeLockOwner`) checks the pair, KMC's lock
-  and the lease; launch and the shared Mods activation, restore and Working-save restore moves
-  are each preceded by that check. A lost lease stops the path before its next shared write and
-  records the first observation once in `native-reservation-incidents/<run>.first.json`,
-  independent of every journal.
-- `Close-KmcRuntimeLock` (called only after the caller's existing verification) removes the
-  lock, then the lease; `Abandon-KmcRuntimeLock` keeps both.
-- `Adopt-KmcStaleRuntimeLock` reads the stale lock without holding it, takes over only the lease
-  that names exactly that run, root and lock token and whose writer is demonstrably gone, then
-  opens the lock exclusively and revalidates the same identity. `Recover-KingmakerRuntimeTransaction.ps1`
-  does the first step before its Mods/save reads. Lease records are parsed strictly (every
-  protocol field present and typed, exact protocol, round-trip timestamps) before any liveness
-  decision; an indeterminate writer counts as alive.
+Participating entrypoints (each reserves before its first shared read, `-WhatIf` previews
+included, and releases only after its last shared read or verified close):
 
-Not participating: the read-only preparation and preview paths (`-WhatIf` previews, the
-suite-snapshot and protected-save authority producers, the fixture guard's audit and
-initialization, the closed scoped preflight) only read shared files and write KMC-private
-outputs; every transaction re-derives its baselines under its own lock. They are unchanged
-from the base of this change.
+| Entrypoint | Reservation |
+| --- | --- |
+| `Invoke-KingmakerRuntimeScenario.ps1` (manual review, F1 finish) | after workflow admission; carried into the lock; released on a verified close (Mods, saves, profile, game exit, installed dependencies), kept with an abandoned lock; a preview or declined run releases after its final purity scans |
+| `Recover-KingmakerRuntimeTransaction.ps1` | its journal token must equal the stale lock's, then the lease naming that lock is taken over before the Mods/save reads; installed dependencies are verified against their files; when the run snapshotted the profile the lock closes but the lease is kept, owing `profile-recovery` |
+| `Recover-KmcPersistenceProfile.ps1` | `-AfterTransactionRecovery` continues only the lease owed to it for that run and run token (`Enter-KmcFollowUpReservation`); stale mode takes over the run's stale lock; released after profile verification |
+| `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fresh before the save audit; ownership rechecked before each Working move, copy and rollback move; a repair interrupted after its prepared journal is continued by rerunning with its `-RunId` (identity-bound takeover, derived destinations, unaffected saves and quarantined bytes verified before any write, `ShouldProcess`), anything ambiguous is left in place |
+| `Test-KmcFixtureGuard.ps1` | every mode; initialization refuses a stale local lock |
+| suite snapshot, protected-save authority producers | held from the first shared read until the authority is published (ownership rechecked immediately before publishing) |
+| `Invoke-Chunk7ScopedPreflight.ps1` | own minimal participation (it loads no harness): before its first write-denying shared handle; released only when every handle settled, otherwise left for the owner |
+| one-run `Recover-*` tools | before their first shared read, bound to their own fixed run |
 
-Unresolved state stays reserved for the owner. An abandoned transaction, an interrupted
-release, a lease without its lock (a process stopped between writing the lease and creating
-the lock), a missing, foreign, malformed or mismatched lease: nothing is repaired automatically.
-Manual procedure: confirm that no Kingmaker, Wrath or UnityModManager process runs and that no
-lab's native automation is active; recover the KMC transaction with its own recovery entrypoint
-if `active-transaction.lock` exists (the lease naming it is taken over and released on a
-verified close); otherwise, when the lease names `KingmakerMountedCombat` and this runtime-state
-root and no KMC lock exists, the owner removes `%ProgramData%\KingmakerNativeTest\reservation.v1.json`.
-A record naming another lab is left to that lab. An interrupted qualified-fixture repair is not
-resumable (as before this change); the owner restores Working from its journal and quarantine.
-Evidence: `scripts/Test-NativeReservationGate.ps1`.
+An exit before a lock is held releases a fresh reservation and leaves a taken-over one
+resumable (exact token verified) so its own recovery can continue from any process; an
+abandoned lock leaves its lease resumable the same way. A lost lease stops the path before its
+next shared write and records the first observation once in
+`native-reservation-incidents/<run>.first.json` (initial differences, restoration performed,
+remaining differences and resources released are recorded there and in later separate files),
+independent of every journal. Self-tests use a private reservation that is refused for this lab's
+runtime-state and for any non-disposable shared surface.
+
+Unresolved state stays reserved. `Complete-KmcInterruptedReservation -StateRoot -RunId
+-LeaseToken` (owner-invoked) completes only an acquisition interrupted before its lock or a
+release interrupted after its verified unlink: it needs the exact lease token, KMC's lease for
+that root and run with no owed follow-up, a writer that is gone (or a resumable lease), no KMC
+lock and no unresolved journal for the run, and rechecks the exact token under the mutex at
+removal. Everything else (a foreign, malformed or mismatched lease, an owed follow-up, an
+ambiguous fixture repair) is left for the owner. Evidence: `scripts/Test-NativeReservationGate.ps1`.
 
 An unexpected write that reaches the staged tree during a run is preserved
 byte-exact in that run's quarantine, the live tree is returned to its pre-run

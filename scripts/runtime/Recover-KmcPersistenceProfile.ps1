@@ -35,6 +35,14 @@ if($AfterTransactionRecovery){
         $state.token-cne$raw.token-or$state.phase-cne'restored'){throw 'Profile recovery has no exact otherwise-restored transaction.'}
     $runToken=[string]$raw.token
 }
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md), before the shared reads below (Mods, saves, settings,
+# profile), for -WhatIf too: the reservation the transaction recovery kept for this run and token, or the one naming
+# this run's stale lock. Without it recovery refuses; any exit before the lock is held leaves it resumable.
+$lock=$null
+if($AfterTransactionRecovery-and-not$staleProfileLock){$nativeReservation=Enter-KmcFollowUpReservation -StateRoot $stateRoot -RunId $RunId -RunToken $runToken -FollowUp 'profile-recovery'}
+elseif($AfterTransactionRecovery){$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $RunId -ExpectedRunToken $runToken -ExpectedPurpose 'profile-recovery' -Purpose 'profile-recovery'}
+else{$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $RunId -ExpectedLockToken $runToken -Purpose 'profile-recovery'}
+trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
 if((Get-KmcDirectoryManifest $state.liveModsRoot).digest-cne$state.restoredModsDigest-or
     (Get-KmcSaveMetadataInventory $state.saveRoot).digest-cne$state.restoredSaveInventoryDigest){
     throw 'Current Mods or saves differ from the completed transaction; refusing stale recovery.'
@@ -73,14 +81,14 @@ if($removalObserver){Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAll
 # ids come from the run's own durable Mods transaction state (Get-KmcRunRetainedDependencyIds), exactly as the restore step reads them.
 else{Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -BaseGameOnly:$baseGameOnly -WithObserver:$withObserver -StagedModIds $(if($baseGameOnly){Get-KmcRunRetainedDependencyIds $RunId}else{$null})}
 if($dryRun-or-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read; the lease stays resumable
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return
 }
-$lock=$null
 try{
     if($AfterTransactionRecovery){
-        if($staleProfileLock){$lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedPurpose 'profile-recovery'}
-        else{$lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId $RunId -Purpose 'profile-recovery'}
+        if($staleProfileLock){$lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedPurpose 'profile-recovery' -Reservation $nativeReservation}
+        else{$lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId $RunId -Purpose 'profile-recovery' -Reservation $nativeReservation}
         if($lock.RunId-cne$RunId){throw 'The adopted profile-recovery lock belongs to another run.'}
         # Every admission check again, now under the held lock.
         $held=Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot -EvidenceRoot (Join-Path $lab 'runtime-evidence') -RunId $RunId -Snapshot $snapshot -HeldLock $lock
@@ -89,7 +97,7 @@ try{
             throw 'The completed transaction or its Mods/saves changed before profile restoration.'
         }
     }
-    else{$lock=Adopt-KmcStaleRuntimeLock $stateRoot}
+    else{$lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation}
     if($areasPending){
         $areas=Restore-KmcPersistenceAreasIsolation -Lock $lock -Snapshot $snapshot -BackupRoot $backups -RecoveredTransactionToken $runToken
         Write-KmcJsonAtomic (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-areas-isolation.json')) ([ordered]@{

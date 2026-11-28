@@ -36,6 +36,10 @@ function Get-F1CreatorPreferenceRestoration([string]$Before,[string]$Observed,[s
 }
 if($ContractOnly){return}
 $lab=Get-KmcLabRoot;$run='20261105-finalize-f1c-owner-creator-01';$stateRoot=Join-Path $lab 'runtime-state'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
+# read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -Purpose 'recovery-one-run'
+trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidence=Join-Path $lab ('runtime-evidence/'+$run);$backup=Join-Path $lab ('runtime-backups/profile-'+$run)
 $snapshotPath=Join-Path $backup 'snapshot.json';$saved=Join-Path $backup 'Params.xml'
 $receipt=Join-Path $evidence 'reviewed-preferences-restoration.json'
@@ -72,10 +76,10 @@ function Assert-F1Recovery($HeldLock=$null) {
 }
 if(Test-Path $receipt){throw 'Append-only recovery receipt already exists.'}
 Assert-F1Recovery
-if($dry-or-not$PSCmdlet.ShouldProcess($run,'restore only pinned creation/session preferences and captured UMM settings, preserving native FAIL')){Write-Host 'PASS exact F1 preference recovery WhatIf; no mutation.';return}
+if($dry-or-not$PSCmdlet.ShouldProcess($run,'restore only pinned creation/session preferences and captured UMM settings, preserving native FAIL')){Write-Host 'PASS exact F1 preference recovery WhatIf; no mutation.';Exit-KmcUnlockedNativeReservation $nativeReservation;return}
 $lock=$null
 try {
- $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+ $lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedRunId $run -Reservation $nativeReservation
  Assert-F1Recovery -HeldLock $lock
  [void](Assert-KmcRuntimeLockOwner $lock)
  if((Get-KmcPersistencePlayerPrefs)-cne$prefs){throw 'Preference race before restoration.'}

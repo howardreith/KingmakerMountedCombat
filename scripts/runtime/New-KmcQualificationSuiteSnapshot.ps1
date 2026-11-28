@@ -19,6 +19,11 @@ $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.js
 $stateRoot=Join-Path $labRoot 'runtime-state'
 $saveRoot=[string]$intake.requestedLayout.kingmakerSaveRoot
 $modsRoot=[string]$intake.requestedLayout.kingmakerModsRoot
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before the first shared read (saves, Mods), -WhatIf
+# included, held until the snapshot is published; released afterwards (no lock is taken).
+Assert-KmcReservationCoversSurface -Path @($saveRoot,$modsRoot)
+$preparationReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-suite-snapshot') -Purpose 'preparation-suite-snapshot'
+try{
 $PackagePath=[IO.Path]::GetFullPath($PackagePath);$manifestPath=$PackagePath+'.manifest.json'
 $manifest=Assert-KmcPackageManifest $PackagePath $manifestPath
 [void](Assert-KmcQualificationAdmissionQuiescent -StateRoot $stateRoot -ModsRoot $modsRoot)
@@ -90,6 +95,7 @@ if (-not $PSCmdlet.ShouldProcess($snapshotPath,'create append-only stable qualif
 $WhatIfPreference=$false
 if (-not (Test-Path -LiteralPath $snapshotRoot -PathType Container)) { New-Item -ItemType Directory -Path $snapshotRoot | Out-Null }
 Assert-KmcNotReparsePoint $snapshotRoot 'qualification-suite snapshot root'
+Assert-KmcNativeReservationHeld -Session $preparationReservation -Context 'publish'  # still reserved immediately before publishing
 Write-KmcJsonCreateNewDurable -Path $snapshotPath -Value $record
 $snapshotSha=Get-KmcSha256 $snapshotPath
 $validated=Read-KmcQualificationSuiteSnapshot -Path $snapshotPath -StateRoot $stateRoot -ExpectedSuiteId $SuiteId -ExpectedSha256 $snapshotSha
@@ -99,3 +105,4 @@ $modsAfter=Get-KmcQualificationTreeInventory -Root $modsRoot -Scope mods-root
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $saveSecond -Actual $saveAfter -Description 'qualification-suite committed save inventory')
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $modsSecond -Actual $modsAfter -Description 'qualification-suite committed Mods inventory')
 [pscustomobject]@{suiteId=$SuiteId;path=$snapshotPath;sha256=$snapshotSha;saveDigest=[string]$saveAfter.digest;modsDigest=[string]$modsAfter.digest;packageSha256=[string]$record.package.sha256;manifestSha256=[string]$record.package.manifestSha256;dllSha256=[string]$record.package.dllSha256;dllMvid=[string]$record.package.dllMvid}|ConvertTo-Json -Compress
+}finally{Exit-KmcUnlockedNativeReservation $preparationReservation}

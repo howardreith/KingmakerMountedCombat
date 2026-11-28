@@ -96,6 +96,10 @@ if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){
     throw 'Exact profile recovery requires the original Howie identity.'
 }
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backups=Join-Path $lab 'runtime-backups'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
+# read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -Purpose 'recovery-one-run'
+trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidence=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backups ('profile-'+$runId+'/snapshot.json')) $backups 'exact batch75 snapshot'
 $saved=Assert-KmcChildPath (Join-Path $backups ('profile-'+$runId+'/Params.xml')) $backups 'exact batch75 UMM parameters'
@@ -140,11 +144,11 @@ Assert-KmcBaseGameSettingsAuthority -State $modsState -RunId $runId -Token $snap
 $startup=Get-ExactStartupDelta $snapshot
 if(-not$PSCmdlet.ShouldProcess($runId,'restore exact startup settings; retain one pinned native cache addition; release the otherwise-restored run lock')){
     Write-Host 'B75S1 PROFILE RECOVERY WHATIF PASS; no mutation.'
-    return
+    Exit-KmcUnlockedNativeReservation $nativeReservation;return
 }
 $lock=$null
 try{
-    $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+    $lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedRunId $runId -Reservation $nativeReservation
     if($lock.RunId-cne$runId-or$lock.Token-cne$snapshot.token){throw 'Adopted lock differs from exact batch75 run.'}
     [void](Assert-KmcRuntimeLockOwner $lock)
     $state=Read-KmcRunTransactionState -StatePath (Get-KmcRunTransactionStatePath $stateRoot $runId) -Lock $lock

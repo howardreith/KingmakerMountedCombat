@@ -454,15 +454,13 @@ $workflowHeartbeatAt=[DateTime]::UtcNow
 # caller's context; the error itself propagates unchanged.
 $nativeReservation=$null
 trap { try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{}; try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
-# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md): a native run acquires it here, before its first shared
-# read (installed loader dependencies, protected saves and fixture continuity, live Mods), so every baseline it records
-# is derived under ownership; it then takes the KMC lock with it and releases it only when the transaction closes
-# restored. A refusal before the lock exists releases it (the trap above). -WhatIf never acquires it: a WhatIf run only
-# reads, publishes no baseline and proves its own purity; a native run re-derives everything under the reservation.
-if(-not$requestedWhatIf){
-    $actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
-    $nativeReservation=Enter-KmcNativeReservation -StateRoot $runtimeState -RunId $actualRunId -Purpose 'runtime-scenario'
-}
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md), taken here before the first shared read (installed
+# loader dependencies, protected saves and fixture continuity, live Mods), by native runs and -WhatIf previews alike, so
+# every observation is made under ownership. A native run takes the KMC lock with it and releases it only when the
+# transaction closes restored; a preview or declined run releases it after its last shared read; a refusal before the
+# lock exists releases it through the trap above.
+$actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
+$nativeReservation=Enter-KmcNativeReservation -StateRoot $runtimeState -RunId $actualRunId -Purpose $(if($requestedWhatIf){'runtime-preview'}else{'runtime-scenario'})
 $f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
 $f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
 $f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
@@ -615,8 +613,6 @@ $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
-    # A declined confirmation ends the run before any lock: its fresh reservation is released here (WhatIf took none).
-    Exit-KmcUnlockedNativeReservation $nativeReservation
     # Historical archives are compared only by this purity check. Live runs
     # still snapshot every current Mods byte and retain all save/restore guards.
     $scopedArchiveBefore=$null
@@ -665,17 +661,18 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     if($DevelopmentScopedAudit){
         # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
         Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
+        Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read of the preview
         Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
         return
     }
     Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read of the preview or declined run
     Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
     return
 }
 $WhatIfPreference=$false
 $ConfirmPreference='None'
 $steamSafety=Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState:$BootstrapOfflineCloudEvidence
-if($null-eq$nativeReservation){$actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}}
 $evidenceRoot=Assert-KmcChildPath (Join-Path $runtimeEvidence $actualRunId) $runtimeEvidence 'runtime evidence directory'
 if(Test-Path -LiteralPath $evidenceRoot){throw "Runtime evidence ID already exists: $actualRunId"}
 $startedAt=[DateTimeOffset]::UtcNow

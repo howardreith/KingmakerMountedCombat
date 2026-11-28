@@ -85,6 +85,7 @@ function Enter-KmcPersistenceAreasIsolation {
     Write-KmcJsonCreateNewDurable -Path $paths.state -Value $state
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.live) 'Areas immediately before isolation'
+    [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
     [IO.Directory]::Move($paths.live,$paths.original)
     $state.stage='original-held';Write-KmcJsonAtomic $paths.state $state
     [void](Copy-KmcDirectoryTreeExact -SourceRoot $paths.copy -DestinationRoot $paths.live)
@@ -100,6 +101,7 @@ function Enter-KmcPersistenceAreasIsolation {
 function Restore-KmcPersistenceAreasIsolation {
     param($Lock,$Snapshot,[string]$BackupRoot,[string]$RecoveredTransactionToken='')
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @([string]$Snapshot.profile)
     $paths=Get-KmcPersistenceAreasIsolationPaths $Lock $Snapshot $BackupRoot -RecoveredTransactionToken $RecoveredTransactionToken
     if(-not(Test-Path -LiteralPath $paths.state -PathType Leaf)){return $null}
     Assert-KmcRecoveryLeafNoLinks $paths.state 'Areas isolation state'
@@ -131,6 +133,7 @@ function Restore-KmcPersistenceAreasIsolation {
             if((Get-KmcDirectoryManifest $paths.live).digest-cne$generated.digest){
                 throw 'Disposable Areas changed during quarantine preflight.'
             }
+            [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
             [IO.Directory]::Move($paths.live,$paths.generated)
             $state.generatedDigest=[string]$generated.digest
             $state.stage='quarantined';Write-KmcJsonAtomic $paths.state $state
@@ -148,6 +151,7 @@ function Restore-KmcPersistenceAreasIsolation {
         if((Get-KmcDirectoryManifest $paths.original).digest-cne$state.originalDigest){
             throw 'Held original Areas changed immediately before restoration.'
         }
+        [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
         [IO.Directory]::Move($paths.original,$paths.live)
     }elseif(-not$hasLive-or
         ($hasGenerated-and$state.stage-cnotin @('quarantined','restored'))-or

@@ -19,6 +19,10 @@ $newUpdateCheck='2026-10-19T05:31:20.3193157-04:00'
 $kmcEntry='<Mod Id="KingmakerMountedCombat" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'
 $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
+# read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -Purpose 'recovery-one-run'
+trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $backupRoot=Join-Path $lab 'runtime-backups'
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $receipt=Join-Path $evidenceRoot 'profile-recovery-exact-p07.json'
@@ -87,12 +91,12 @@ if(($changes.name|Sort-Object)-join'|' -cne
 }
 if(-not$PSCmdlet.ShouldProcess($runId,'restore pinned UMM parameters and three native PlayerPrefs changes; release otherwise-restored lock')){
     Write-Host 'P07 PROFILE RECOVERY WHATIF PASS; exact two-field UMM delta and three native preference keys; no mutation.'
-    return
+    Exit-KmcUnlockedNativeReservation $nativeReservation;return
 }
 
 $lock=$null
 try{
-    $lock=Adopt-KmcStaleRuntimeLock $stateRoot
+    $lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedRunId $runId -Reservation $nativeReservation
     [void](Assert-KmcRuntimeLockOwner $lock)
     if($lock.RunId-cne$runId-or$lock.Token-cne$snapshot.token){
         throw 'Adopted lock is not the exact failed P07 transaction.'

@@ -1697,7 +1697,9 @@ function Invoke-KmcWorkingFixtureRequalificationTransaction {
         [scriptblock]$AfterReplacementWriteBeforeStateProbe,
         [scriptblock]$PostWriteProbe,
         [scriptblock]$AfterCommittedStateProbe,
-        [scriptblock]$BeforeRollbackProbe
+        [scriptblock]$BeforeRollbackProbe,
+        # The reservation the entrypoint took before its first shared read (Test-KmcFixtureGuard.ps1).
+        $Reservation
     )
     $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
     $fullQualificationPath = [IO.Path]::GetFullPath($QualificationPath)
@@ -1708,7 +1710,7 @@ function Invoke-KmcWorkingFixtureRequalificationTransaction {
     }
     # The caller performs every pure preflight before ShouldProcess. Opening the
     # exclusive runtime lock is deliberately this transaction's first mutation.
-    $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId $RunId -Purpose 'fixture-requalification'
+    $lock = Open-KmcRuntimeLock -StateRoot $StateRoot -RunId $RunId -Purpose 'fixture-requalification' -Reservation $Reservation
     $writeAttempted = $false
     $replacementProven = $false
     $state = $null
@@ -2505,7 +2507,9 @@ function Invoke-KmcWorkingFixtureRequalificationRecovery {
         [scriptblock]$AfterPurposeBoundBackupProbe,
         [scriptblock]$BeforeRestoreProbe,
         [scriptblock]$AfterRecoveryBytesBeforeTimestampProbe,
-        [scriptblock]$BeforeRecoveryStateWriteProbe
+        [scriptblock]$BeforeRecoveryStateWriteProbe,
+        # The identity-bound reservation the entrypoint took over before its first shared read.
+        $Reservation
     )
     Assert-KmcPathsDoNotOverlap -First $SaveRoot -Second $StateRoot -Description 'KMC save and runtime-state roots'
     $initialPlan = Get-KmcWorkingFixtureRequalificationRecoveryPlan `
@@ -2522,7 +2526,7 @@ function Invoke-KmcWorkingFixtureRequalificationRecovery {
             statePath = [string]$initialPlan.statePath
         }
     }
-    $lock = Adopt-KmcStaleRuntimeLock -StateRoot $StateRoot -ExpectedPurpose 'fixture-requalification'
+    $lock = Adopt-KmcStaleRuntimeLock -StateRoot $StateRoot -ExpectedPurpose 'fixture-requalification' -ExpectedRunId $RunId -Reservation $Reservation
     try {
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
@@ -3025,6 +3029,7 @@ function Enter-KmcWorkingSaveTransaction {
         [Parameter(Mandatory = $true)][string]$Scenario
     )
     [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($SaveRoot)
     Assert-KmcNoGameProcesses
     $runId = [string]$Lock.RunId
     $maximumWrites = Get-KmcRuntimeArchiveWriteLimit $Scenario
@@ -3124,6 +3129,7 @@ function Restore-KmcWorkingSaveTransaction {
         [Parameter(Mandatory = $true)][string]$StagingRoot
     )
     [void](Assert-KmcRuntimeLockOwner $Lock)
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($SaveRoot)
     Assert-KmcNoGameProcesses
     $state = Read-KmcJson $StatePath
     $required = @(
@@ -3456,11 +3462,10 @@ function Assert-KmcRuntimeLockOwner {
 # participating Kingmaker lab implements independently. A named mutex in the Global namespace guards a lease record
 # under %ProgramData% that any lab creates on demand; neither names nor needs any lab installation.
 #
-# KMC participates only through its runtime lock: Open-KmcRuntimeLock writes the lease (naming the KMC run, the
-# runtime-state root and the token of the lock it is about to create) before creating active-transaction.lock;
-# Close-KmcRuntimeLock removes the lock and then the lease; Abandon-KmcRuntimeLock keeps both; Adopt-KmcStaleRuntimeLock
-# takes over a stale lock only together with the lease that names exactly that lock. Anything unresolved or ambiguous
-# stays reserved for the owner (docs/VALIDATION-POLICY.md, manual procedure).
+# KMC's lease carries its transaction: the runtime-state root (stateRoot), the run and its token (runId, kmcRunToken),
+# the KMC lock it covers (kmcLockToken), an owed follow-up recovery (kmcPendingFollowUp) and, when a recovery left it
+# before taking its lock, kmcResumable. Every takeover is verified against these and the exact current token under the
+# mutex. Anything unresolved or ambiguous stays reserved for the owner (docs/VALIDATION-POLICY.md).
 $script:KmcReservationProtocol = 'kingmaker-native-test-reservation/1'
 $script:KmcReservationLab = 'KingmakerMountedCombat'
 $script:KmcReservationTestRootVariable = 'KMC_NATIVE_RESERVATION_TEST_ROOT'
@@ -3485,6 +3490,10 @@ function Test-KmcPathBelow([string]$Path, [string[]]$Parents) {
     return $false
 }
 
+# Disposable stand-in locations a private (self-test) reservation may cover: the system temporary directory, this
+# repository's obj\ and the lab's analysis-cache.
+function Get-KmcDisposableStandInRoots { return @([IO.Path]::GetTempPath(), (Join-Path (Get-KmcHarnessRepositoryRoot) 'obj'), (Join-Path (Get-KmcHarnessLabRoot) 'analysis-cache')) }
+
 # Self-tests only: a private reservation whose record and mutex derive from a disposable root (below the system
 # temporary directory or this repository's obj\). It is selected through an environment variable, so child scripts
 # and processes of the test inherit it; the caller restores the previous value (Restore-KmcTestReservationConvention).
@@ -3504,20 +3513,33 @@ function Restore-KmcTestReservationConvention {
 }
 
 # The convention a reservation for $StateRoot uses: production unless a self-test selected a private one. A private
-# convention is accepted only with its record below a disposable root and only for a disposable stand-in state root
-# (system temporary directory, this repository's obj\ or the lab's analysis-cache, where the offline stand-ins live).
+# convention is accepted only with its record below a disposable root and only for disposable stand-in state; the
+# shared surfaces an operation then touches are bound to stand-ins too (Assert-KmcReservationCoversSurface).
 function Get-KmcReservationConvention {
     param([Parameter(Mandatory = $true)][string]$StateRoot)
     $testRoot = [Environment]::GetEnvironmentVariable($script:KmcReservationTestRootVariable, 'Process')
     if ([string]::IsNullOrEmpty($testRoot)) { return Get-KmcDefaultReservationConvention }
     $full = [IO.Path]::GetFullPath($testRoot).TrimEnd('\')
     if (-not (Test-KmcPathBelow $full @([IO.Path]::GetTempPath(), (Join-Path (Get-KmcHarnessRepositoryRoot) 'obj')))) { throw "The test reservation root is not a disposable root: $full" }
-    if (-not (Test-KmcPathBelow $StateRoot @([IO.Path]::GetTempPath(), (Join-Path (Get-KmcHarnessRepositoryRoot) 'obj'), (Join-Path (Get-KmcHarnessLabRoot) 'analysis-cache')))) {
-        throw "A test reservation covers only disposable stand-in state, not: $StateRoot"
-    }
+    if (-not (Test-KmcPathBelow $StateRoot (Get-KmcDisposableStandInRoots))) { throw "A test reservation covers only disposable stand-in state, not: $StateRoot" }
     return [pscustomobject]@{
         MutexName = 'Global\KingmakerNativeTest.KmcSelfTest.' + (Get-KmcTextSha256 $full.ToLowerInvariant()).Substring(0, 32)
         RecordPath = Join-Path $full 'reservation\reservation.v1.json'
+        Private = $true
+    }
+}
+
+# A shared surface (live Mods, save root, profile, loader settings) touched under a lock: with a private self-test
+# reservation it must itself be a disposable stand-in, so a private reservation never covers a real shared resource.
+function Assert-KmcReservationCoversSurface {
+    param($Lock, [Parameter(Mandatory = $true)][string[]]$Path)
+    $session = $null
+    if ($null -ne $Lock -and $null -ne $Lock.PSObject.Properties['Reservation']) { $session = $Lock.Reservation }
+    $private = [Environment]::GetEnvironmentVariable($script:KmcReservationTestRootVariable, 'Process')
+    if (($null -ne $session -and $null -ne $session.Convention.PSObject.Properties['Private']) -or -not [string]::IsNullOrEmpty($private)) {
+        foreach ($surface in $Path) {
+            if (-not (Test-KmcPathBelow $surface (Get-KmcDisposableStandInRoots))) { throw "A private test reservation cannot cover the shared surface: $surface" }
+        }
     }
 }
 
@@ -3539,15 +3561,18 @@ function Invoke-KmcUnderReservationMutex {
     }
 }
 
-function Test-KmcRoundTripUtc([object]$Value) {
-    if ($Value -isnot [string]) { return $false }
-    $parsed = [DateTime]::MinValue
-    return [DateTime]::TryParseExact($Value, 'o', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsed)
+# A UTC instant with an explicit designator (Z or a numeric offset); a time without a zone is ambiguous.
+function ConvertTo-KmcUtcInstant([object]$Value) {
+    if ($Value -isnot [string] -or $Value -notmatch '(Z|[+-]\d{2}:?\d{2})$') { return $null }
+    $parsed = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse($Value, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$parsed)) { return $null }
+    return $parsed.UtcDateTime
 }
 
-# The lease record, or $null when the resources are free. Every protocol field must be present and well typed (exact
-# protocol, 32-hex token, positive integer PID, round-trip UTC timestamps) before the record is used for anything;
-# otherwise it is ambiguous: it refuses and is never removed. Additional peer fields are tolerated.
+# The lease record, or $null when the resources are free. Recognition uses only the common protocol fields (exact
+# protocol; non-empty lab, run and token; a positive integer PID; UTC instants with a zone); peers may format their
+# token and timestamps freely and add fields. Anything else is ambiguous: it refuses (naming what it can) and is never
+# removed.
 function Read-KmcReservationRecord {
     param([Parameter(Mandatory = $true)]$Convention)
     $path = [string]$Convention.RecordPath
@@ -3560,14 +3585,17 @@ function Read-KmcReservationRecord {
         $valid = @(@('protocol','lab','runId','purpose','token','holderProcessId','holderStartUtc','host','createdUtc') | Where-Object { $names -cnotcontains $_ }).Count -eq 0
         if ($valid) {
             $valid = ($record.protocol -is [string]) -and ($record.protocol -ceq $script:KmcReservationProtocol) -and
-                ($record.lab -is [string]) -and ($record.lab -cmatch '^[A-Za-z][A-Za-z0-9.-]{0,63}$') -and
-                ($record.runId -is [string]) -and ($record.runId.Length -gt 0) -and ($record.purpose -is [string]) -and ($record.host -is [string]) -and
-                ($record.token -is [string]) -and ($record.token -cmatch '^[0-9a-f]{32}$') -and
+                ($record.lab -is [string]) -and ($record.lab.Length -gt 0) -and ($record.runId -is [string]) -and ($record.runId.Length -gt 0) -and
+                ($record.token -is [string]) -and ($record.token.Length -gt 0) -and ($record.purpose -is [string]) -and ($record.host -is [string]) -and
                 (($record.holderProcessId -is [int]) -or ($record.holderProcessId -is [long])) -and ($record.holderProcessId -gt 0) -and
-                (Test-KmcRoundTripUtc $record.holderStartUtc) -and (Test-KmcRoundTripUtc $record.createdUtc)
+                ($null -ne (ConvertTo-KmcUtcInstant $record.holderStartUtc)) -and ($null -ne (ConvertTo-KmcUtcInstant $record.createdUtc))
         }
     }
-    if (-not $valid) { throw "The Kingmaker native-test reservation record is unreadable, malformed or of an unknown protocol; it is left for the owner: $path" }
+    if (-not $valid) {
+        $named = ''
+        if ($record -is [pscustomobject]) { foreach ($field in @('lab','runId')) { $p = $record.PSObject.Properties[$field]; if ($null -ne $p) { $named += " $field=$($p.Value)" } } }
+        throw "The Kingmaker native-test reservation record is unreadable, malformed or of an unknown protocol$(if ($named) { ' (' + $named.Trim() + ')' }); it is left for the owner: $path"
+    }
     return $record
 }
 
@@ -3576,15 +3604,31 @@ function Get-KmcReservationHolderText {
     return "$($Record.lab) run $($Record.runId) ($($Record.purpose); process $($Record.holderProcessId); since $($Record.createdUtc))"
 }
 
-# Whether a strictly parsed record's writer may still run: gone only when no process has that PID, or one does but
-# demonstrably started at another instant (a reused PID); an inconclusive lookup counts as alive.
+# Whether a recognized record's writer may still run: gone only when no process has that PID, or one does but
+# demonstrably started at another instant (a reused PID); a start without a zone or an inconclusive lookup counts as
+# alive.
 function Test-KmcReservationHolderAlive {
     param([Parameter(Mandatory = $true)]$Record)
-    $recorded = [DateTime]::MinValue
-    if (-not [DateTime]::TryParseExact([string]$Record.holderStartUtc, 'o', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$recorded)) { return $true }
+    $recorded = ConvertTo-KmcUtcInstant $Record.holderStartUtc
+    if ($null -eq $recorded) { return $true }
     $process = Get-Process -Id ([int]$Record.holderProcessId) -ErrorAction SilentlyContinue
     if ($null -eq $process) { return $false }
-    try { return ($process.StartTime.ToUniversalTime() -eq $recorded.ToUniversalTime()) } catch { return $true }
+    try { return ($process.StartTime.ToUniversalTime() -eq $recorded) } catch { return $true }
+}
+
+# The KMC fields of a lease, or $null when the record is not a well-formed KMC lease for $StateRoot.
+function Get-KmcLeaseIdentity {
+    param([Parameter(Mandatory = $true)]$Record, [Parameter(Mandatory = $true)][string]$StateRoot)
+    if ([string]$Record.lab -cne $script:KmcReservationLab -or [string]$Record.token -cnotmatch '^[0-9a-f]{32}$') { return $null }
+    $fields = @{}
+    foreach ($name in @('stateRoot','kmcRunToken','kmcLockToken','kmcPendingFollowUp','kmcResumable')) { $p = $Record.PSObject.Properties[$name]; $fields[$name] = if ($null -ne $p) { $p.Value } else { $null } }
+    if ($fields.stateRoot -isnot [string] -or -not [IO.Path]::GetFullPath([string]$fields.stateRoot).TrimEnd('\').Equals([IO.Path]::GetFullPath($StateRoot).TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) { return $null }
+    if ($fields.kmcRunToken -isnot [string] -or [string]$fields.kmcRunToken -cnotmatch '^[0-9a-f]{64}$') { return $null }
+    if ($null -ne $fields.kmcLockToken -and ($fields.kmcLockToken -isnot [string] -or [string]$fields.kmcLockToken -cnotmatch '^[0-9a-f]{64}$')) { return $null }
+    if ($null -ne $fields.kmcPendingFollowUp -and [string]$fields.kmcPendingFollowUp -cne 'profile-recovery') { return $null }
+    if ($null -ne $fields.kmcResumable -and $fields.kmcResumable -isnot [bool]) { return $null }
+    return [pscustomobject]@{ RunId = [string]$Record.runId; RunToken = [string]$fields.kmcRunToken; LockToken = $fields.kmcLockToken
+        PendingFollowUp = $fields.kmcPendingFollowUp; Resumable = ($fields.kmcResumable -eq $true) }
 }
 
 function Write-KmcReservationRecord {
@@ -3600,26 +3644,36 @@ function Write-KmcReservationRecord {
     else { [IO.File]::Move($temporary, [string]$Convention.RecordPath) }
 }
 
-# A lease KMC writes: the protocol fields plus the KMC transaction it covers (runtime-state root and lock token).
 function New-KmcReservationRecordValue {
-    param([string]$StateRoot, [string]$RunId, [string]$Purpose, [string]$Token, [string]$LockToken, $Adopted)
+    param([string]$StateRoot, [string]$RunId, [string]$Purpose, [string]$Token, [string]$RunToken, [string]$LockToken, [string]$PendingFollowUp, [bool]$Resumable, $Adopted)
     return [ordered]@{
         protocol = $script:KmcReservationProtocol; lab = $script:KmcReservationLab; runId = $RunId; purpose = $Purpose
         token = $Token; holderProcessId = $PID; holderStartUtc = (Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
         host = $env:COMPUTERNAME; createdUtc = [DateTime]::UtcNow.ToString('o')
-        stateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\'); kmcLockToken = $LockToken; adopted = $Adopted
+        stateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\'); kmcRunToken = $RunToken
+        kmcLockToken = $(if ([string]::IsNullOrEmpty($LockToken)) { $null } else { $LockToken })
+        kmcPendingFollowUp = $(if ([string]::IsNullOrEmpty($PendingFollowUp)) { $null } else { $PendingFollowUp })
+        kmcResumable = $Resumable; adopted = $Adopted
     }
 }
 
-# The first ownership-loss observation of a run is durable and never replaced; later observations are separate files.
-# Both live beside, and independently of, every transaction journal.
+function New-KmcReservationSession {
+    param([string]$StateRoot, [string]$RunId, [string]$Purpose, [string]$Token, [string]$RunToken, [string]$LockToken, [string]$PendingFollowUp, $Convention, [bool]$Adopted, [bool]$LockExists)
+    return [pscustomobject]@{ Token = $Token; RunId = $RunId; Purpose = $Purpose; StateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\'); RunToken = $RunToken
+        LockToken = $LockToken; PendingFollowUp = $PendingFollowUp; Convention = $Convention; Adopted = $Adopted; LockCreated = $LockExists; LockHeld = $false; Released = $false }
+}
+
+# Ownership-loss incidents, beside and independent of every transaction journal: the first observation of a run is
+# written once and never replaced (the observed record, the initial differences seen); every later observation or
+# disposition (restoration performed, remaining differences, resources released) is a separate file.
 function Write-KmcReservationIncident {
-    param([Parameter(Mandatory = $true)]$Session, [Parameter(Mandatory = $true)][string]$Context, $Observed, $Disposition)
+    param([Parameter(Mandatory = $true)]$Session, [Parameter(Mandatory = $true)][string]$Context, $Observed, $InitialDifferences, $RestorationPerformed, $RemainingDifferences, $ResourcesReleased)
     try {
         $root = Join-Path $Session.StateRoot 'native-reservation-incidents'
         if (-not (Test-Path -LiteralPath $root)) { New-Item -ItemType Directory -Path $root -Force | Out-Null }
         $value = [ordered]@{ schemaVersion = 1; runId = [string]$Session.RunId; expectedLeaseToken = [string]$Session.Token; context = $Context
-            observedRecordText = $Observed; disposition = $Disposition; observedAtUtc = [DateTime]::UtcNow.ToString('o') }
+            observedRecordText = $Observed; initialDifferences = $InitialDifferences; restorationPerformed = $RestorationPerformed
+            remainingDifferences = $RemainingDifferences; resourcesReleased = $ResourcesReleased; observedAtUtc = [DateTime]::UtcNow.ToString('o') }
         $first = Join-Path $root ([string]$Session.RunId + '.first.json')
         if (-not (Test-Path -LiteralPath $first)) { Write-KmcJsonCreateNewDurable -Path $first -Value $value }
         else { Write-KmcJsonCreateNewDurable -Path (Join-Path $root ([string]$Session.RunId + '.' + [Guid]::NewGuid().ToString('N') + '.json')) -Value $value }
@@ -3634,18 +3688,19 @@ function Test-KmcNativeReservationHeld {
     return ($null -ne $record -and [string]$record.lab -ceq $script:KmcReservationLab -and [string]$record.token -ceq [string]$Session.Token)
 }
 
+# Refuses, after recording the incident, when the lease is no longer this session's own.
 function Assert-KmcNativeReservationHeld {
-    param([Parameter(Mandatory = $true)]$Session, [string]$Context = 'ownership check')
+    param([Parameter(Mandatory = $true)]$Session, [string]$Context = 'ownership check', $ResourcesReleased = 'none (the path stops here)')
     if (Test-KmcNativeReservationHeld $Session) { return }
     $observed = $null
     try { if (Test-Path -LiteralPath $Session.Convention.RecordPath) { $observed = [IO.File]::ReadAllText([string]$Session.Convention.RecordPath) } } catch { }
-    Write-KmcReservationIncident -Session $Session -Context $Context -Observed $observed
+    Write-KmcReservationIncident -Session $Session -Context $Context -Observed $observed -InitialDifferences ("lease token " + $Session.Token + " no longer current") -ResourcesReleased $ResourcesReleased
     throw "The Kingmaker native-test reservation of run $($Session.RunId) is lost ($Context); the affected path stops and the current record is left alone."
 }
 
 # Reserves the shared Kingmaker native-test resources for a new KMC transaction covering $StateRoot, or refuses naming
-# the holder. Any lease is a reservation whether or not its writer still runs. The token of the KMC lock this
-# transaction will create is chosen here and written into the lease, so a later recovery can prove the link.
+# the holder. Any lease is a reservation whether or not its writer still runs. The run token and the token of the KMC
+# lock this transaction will create are chosen here and written into the lease.
 function Enter-KmcNativeReservation {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
@@ -3658,13 +3713,13 @@ function Enter-KmcNativeReservation {
         $existing = Read-KmcReservationRecord $convention
         if ($null -ne $existing) { throw "Kingmaker native-test resources are reserved by $(Get-KmcReservationHolderText $existing); $($convention.RecordPath)" }
         $token = [Guid]::NewGuid().ToString('N'); $lockToken = New-KmcRandomToken
-        Write-KmcReservationRecord $convention (New-KmcReservationRecordValue $fullState $RunId $Purpose $token $lockToken $null)
-        [pscustomobject]@{ Token = $token; RunId = $RunId; Purpose = $Purpose; StateRoot = $fullState; LockToken = $lockToken; Convention = $convention; LockCreated = $false; Released = $false }
+        Write-KmcReservationRecord $convention (New-KmcReservationRecordValue $fullState $RunId $Purpose $token $lockToken $lockToken '' $false $null)
+        New-KmcReservationSession $fullState $RunId $Purpose $token $lockToken $lockToken '' $convention $false $false
     }
 }
 
-# Releases this transaction's lease. A lease that is no longer its own is an incident: it is left alone and the
-# release throws.
+# Releases this session's lease, verifying the exact token under the mutex. A lease that is no longer its own is an
+# incident: it is left alone and the release throws.
 function Exit-KmcNativeReservation {
     param([Parameter(Mandatory = $true)]$Session)
     if ($Session.Released) { return }
@@ -3672,7 +3727,7 @@ function Exit-KmcNativeReservation {
         $record = Read-KmcReservationRecord $Session.Convention
         if ($null -eq $record -or [string]$record.lab -cne $script:KmcReservationLab -or [string]$record.token -cne [string]$Session.Token) {
             $holder = if ($null -ne $record) { Get-KmcReservationHolderText $record } else { 'nobody' }
-            Write-KmcReservationIncident -Session $Session -Context 'release' -Observed $holder -Disposition 'record left alone'
+            Write-KmcReservationIncident -Session $Session -Context 'release' -Observed $holder -ResourcesReleased 'record left alone'
             throw "The Kingmaker native-test reservation is no longer this transaction's (now: $holder); it is left alone."
         }
         Remove-Item -LiteralPath ([string]$Session.Convention.RecordPath) -Force
@@ -3680,12 +3735,31 @@ function Exit-KmcNativeReservation {
     $Session.Released = $true
 }
 
-# The cleanup boundary of a fresh admission: releases a reservation whose KMC lock was never created (nothing shared
-# was mutated). A reservation whose lock exists, or that was adopted, is never released here.
+# Rewrites this session's own lease (exact token verified under the mutex) with the same transaction identity.
+function Set-KmcReservationState {
+    param([Parameter(Mandatory = $true)]$Session, [string]$PendingFollowUp, [bool]$Resumable)
+    Invoke-KmcUnderReservationMutex $Session.Convention {
+        $record = Read-KmcReservationRecord $Session.Convention
+        if ($null -eq $record -or [string]$record.lab -cne $script:KmcReservationLab -or [string]$record.token -cne [string]$Session.Token) {
+            throw "The Kingmaker native-test reservation of run $($Session.RunId) is no longer this session's; it is left alone."
+        }
+        $value = New-KmcReservationRecordValue $Session.StateRoot $Session.RunId $Session.Purpose $Session.Token $Session.RunToken $Session.LockToken $PendingFollowUp $Resumable $null
+        Write-KmcReservationRecord $Session.Convention $value -Replace
+    }
+    $Session.PendingFollowUp = $PendingFollowUp
+}
+
+# The cleanup boundary before a lock is held: a fresh reservation whose lock was never created is released (nothing
+# shared was mutated); an adopted or handed-over reservation is left resumable (same transaction identity, exact token
+# verified) so its own recovery can retry from any process while peers stay excluded. Never touches a held lock's lease.
 function Exit-KmcUnlockedNativeReservation {
     param($Session)
-    if ($null -eq $Session -or $Session.Released -or $Session.LockCreated) { return }
-    try { Exit-KmcNativeReservation $Session } catch { Write-Warning "Reservation release before any lock failed: $($_.Exception.Message)" }
+    if ($null -eq $Session -or $Session.Released -or $Session.LockHeld) { return }
+    try {
+        if ($Session.Adopted) { Set-KmcReservationState -Session $Session -PendingFollowUp ([string]$Session.PendingFollowUp) -Resumable $true }
+        elseif (-not $Session.LockCreated) { Exit-KmcNativeReservation $Session }
+    }
+    catch { Write-Warning "Reservation cleanup before any lock failed: $($_.Exception.Message)" }
 }
 
 # Reads a stale lock's payload without holding the file (shared read, no exclusive handle) and validates its shape.
@@ -3702,37 +3776,85 @@ function Read-KmcStaleLockPayload {
     return $payload
 }
 
-# Reserves for the recovery of exactly one stale KMC transaction: the stale lock is read without being held, its run
-# and token must match -ExpectedRunId/-ExpectedLockToken when given, and the lease must be KMC's own record naming
-# this runtime-state root, that run and that lock token, with its writer gone. Only then is the lease taken over (same
-# run and lock token, new holder). A missing lease, a mismatch, a live or ambiguous writer refuses and leaves every
-# record byte-identical, for the owner.
+# Takes over the lease of a KMC transaction for its own recovery, under the mutex, only when the lease is KMC's
+# record for this root, names the expected run (and, when given, its run token and lock token or owed follow-up), and
+# its writer is demonstrably gone or it was left resumable. A missing, foreign, mismatched, live or ambiguous lease
+# refuses and stays byte-identical. Returns the new session (same transaction identity, new token and holder).
+function Enter-KmcTransactionTakeover {
+    param([string]$FullState, [string]$RunId, [string]$RunToken, [string]$LockToken, [string]$NewLockToken, [string]$FollowUp, [string]$Purpose, [bool]$LockExists)
+    $convention = Get-KmcReservationConvention -StateRoot $FullState
+    return Invoke-KmcUnderReservationMutex $convention {
+        $lease = Read-KmcReservationRecord $convention
+        if ($null -eq $lease) { throw "No Kingmaker native-test reservation names KMC run $RunId; recovery refuses and leaves the state for the owner." }
+        $identity = Get-KmcLeaseIdentity $lease $FullState
+        $linked = $null -ne $identity -and $identity.RunId -ceq $RunId -and ([string]::IsNullOrEmpty($RunToken) -or $identity.RunToken -ceq $RunToken)
+        if ($linked -and -not [string]::IsNullOrEmpty($LockToken)) { $linked = [string]$identity.LockToken -ceq $LockToken }
+        if ($linked -and -not [string]::IsNullOrEmpty($FollowUp)) { $linked = [string]$identity.PendingFollowUp -ceq $FollowUp }
+        if (-not $linked) { throw "Kingmaker native-test resources are reserved by $(Get-KmcReservationHolderText $lease), not by the expected transaction of KMC run $RunId; recovery refuses." }
+        if (-not $identity.Resumable -and (Test-KmcReservationHolderAlive $lease)) { throw "Kingmaker native-test resources are reserved by $(Get-KmcReservationHolderText $lease) and its writer may still run." }
+        $token = [Guid]::NewGuid().ToString('N')
+        $lock = if ([string]::IsNullOrEmpty($NewLockToken)) { [string]$identity.LockToken } else { $NewLockToken }
+        Write-KmcReservationRecord $convention (New-KmcReservationRecordValue $FullState $RunId $Purpose $token $identity.RunToken $lock ([string]$identity.PendingFollowUp) $false ([ordered]@{ token = [string]$lease.token; holderProcessId = $lease.holderProcessId })) -Replace
+        New-KmcReservationSession $FullState $RunId $Purpose $token $identity.RunToken $lock ([string]$identity.PendingFollowUp) $convention $true $LockExists
+    }
+}
+
+# Reserves for the recovery of exactly one stale KMC transaction. The stale lock is read without being held; its run
+# and token must equal -ExpectedRunId/-ExpectedLockToken (the recovery's own journal identity) before the lease that
+# names exactly that lock is taken over.
 function Enter-KmcStaleTransactionReservation {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
-        [string]$ExpectedRunId,
-        [string]$ExpectedLockToken,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$ExpectedRunId,
+        [ValidatePattern('^([0-9a-f]{64})?$')][string]$ExpectedLockToken,
+        # The transaction's run token when the recovery knows it (a follow-up recovery's lock has its own lock token).
+        [ValidatePattern('^([0-9a-f]{64})?$')][string]$ExpectedRunToken,
         [string]$ExpectedPurpose,
         [Parameter(Mandatory = $true)][string]$Purpose
     )
     $fullState = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
     $payload = Read-KmcStaleLockPayload (Join-Path $fullState 'active-transaction.lock') $ExpectedPurpose
-    if (-not [string]::IsNullOrEmpty($ExpectedRunId) -and [string]$payload.runId -cne $ExpectedRunId) { throw "The stale KMC lock belongs to run $($payload.runId), not $ExpectedRunId." }
+    if ([string]$payload.runId -cne $ExpectedRunId) { throw "The stale KMC lock belongs to run $($payload.runId), not $ExpectedRunId." }
     if (-not [string]::IsNullOrEmpty($ExpectedLockToken) -and [string]$payload.token -cne $ExpectedLockToken) { throw 'The stale KMC lock token differs from the recovery''s expected token.' }
     if ($null -ne (Get-Process -Id ([int]$payload.ownerProcessId) -ErrorAction SilentlyContinue)) { throw 'Recorded runtime-lock owner process is still active.' }
+    return Enter-KmcTransactionTakeover -FullState $fullState -RunId $ExpectedRunId -RunToken $ExpectedRunToken -LockToken ([string]$payload.token) -Purpose $Purpose -LockExists $true
+}
+
+# Reserves for the follow-up recovery a closed KMC transaction owed (the lease it kept with kmcPendingFollowUp): only
+# this root's lease for that run and run token, owing exactly this follow-up, with no KMC lock present.
+function Enter-KmcFollowUpReservation {
+    param(
+        [Parameter(Mandatory = $true)][string]$StateRoot,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
+        [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{64}$')][string]$RunToken,
+        [Parameter(Mandatory = $true)][ValidateSet('profile-recovery')][string]$FollowUp
+    )
+    $fullState = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    if (Test-Path -LiteralPath (Join-Path $fullState 'active-transaction.lock')) { throw 'A KMC runtime lock exists; the follow-up recovery refuses.' }
+    return Enter-KmcTransactionTakeover -FullState $fullState -RunId $RunId -RunToken $RunToken -NewLockToken (New-KmcRandomToken) -FollowUp $FollowUp -Purpose $FollowUp -LockExists $false
+}
+
+# Owner-invoked completion of an interrupted reservation that holds no lock: a fresh admission stopped before its lock,
+# or a release stopped after its lock was verified closed. It needs the exact lease token, KMC's lease for this root
+# and run with no owed follow-up, a writer that is gone (or a resumable lease), no KMC lock, and no unresolved
+# transaction journal for the run; the exact token is rechecked under the mutex at removal.
+function Complete-KmcInterruptedReservation {
+    param([Parameter(Mandatory = $true)][string]$StateRoot, [Parameter(Mandatory = $true)][string]$RunId, [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{32}$')][string]$LeaseToken)
+    $fullState = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
+    if (Test-Path -LiteralPath (Join-Path $fullState 'active-transaction.lock')) { throw 'A KMC runtime lock exists; use that transaction''s recovery.' }
+    foreach ($journal in @((Get-KmcRunTransactionStatePath $fullState $RunId), (Get-KmcTransactionStatePath $fullState $RunId))) {
+        if (Test-Path -LiteralPath $journal) { $value = Read-KmcJson $journal; if ([string]$value.phase -cne 'restored') { throw "Run $RunId has an unresolved transaction journal: $journal" } }
+    }
     $convention = Get-KmcReservationConvention -StateRoot $fullState
-    return Invoke-KmcUnderReservationMutex $convention {
+    Invoke-KmcUnderReservationMutex $convention {
         $lease = Read-KmcReservationRecord $convention
-        if ($null -eq $lease) { throw "No Kingmaker native-test reservation names stale KMC run $($payload.runId); recovery refuses and leaves the state for the owner." }
-        $state = $lease.PSObject.Properties['stateRoot']; $lockToken = $lease.PSObject.Properties['kmcLockToken']
-        $linked = [string]$lease.lab -ceq $script:KmcReservationLab -and [string]$lease.runId -ceq [string]$payload.runId -and
-            $null -ne $state -and $state.Value -is [string] -and [IO.Path]::GetFullPath([string]$state.Value).TrimEnd('\').Equals($fullState, [StringComparison]::OrdinalIgnoreCase) -and
-            $null -ne $lockToken -and $lockToken.Value -is [string] -and [string]$lockToken.Value -ceq [string]$payload.token
-        if (-not $linked) { throw "Kingmaker native-test resources are reserved by $(Get-KmcReservationHolderText $lease), not by stale KMC run $($payload.runId)'s lock; recovery refuses." }
-        if (Test-KmcReservationHolderAlive $lease) { throw "Kingmaker native-test resources are reserved by $(Get-KmcReservationHolderText $lease) and its writer may still run." }
-        $token = [Guid]::NewGuid().ToString('N')
-        Write-KmcReservationRecord $convention (New-KmcReservationRecordValue $fullState ([string]$payload.runId) $Purpose $token ([string]$payload.token) ([ordered]@{ token = [string]$lease.token; holderProcessId = $lease.holderProcessId })) -Replace
-        [pscustomobject]@{ Token = $token; RunId = [string]$payload.runId; Purpose = $Purpose; StateRoot = $fullState; LockToken = [string]$payload.token; Convention = $convention; LockCreated = $true; Released = $false }
+        if ($null -eq $lease) { throw 'No reservation record exists.' }
+        $identity = Get-KmcLeaseIdentity $lease $fullState
+        if ($null -eq $identity -or $identity.RunId -cne $RunId -or [string]$lease.token -cne $LeaseToken -or $null -ne $identity.PendingFollowUp) {
+            throw "The reservation is not KMC run $RunId's completable lease with token $LeaseToken (now: $(Get-KmcReservationHolderText $lease)); it is left alone."
+        }
+        if (-not $identity.Resumable -and (Test-KmcReservationHolderAlive $lease)) { throw 'The reservation writer may still run.' }
+        Remove-Item -LiteralPath ([string]$convention.RecordPath) -Force
     }
 }
 
@@ -3741,14 +3863,13 @@ function Open-KmcRuntimeLock {
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
         [ValidateSet('fixture-requalification','fixture-recovery','profile-recovery')][string]$Purpose,
-        # A reservation the entrypoint took before its first shared read (Enter-KmcNativeReservation for this run).
+        # A reservation the entrypoint took before its first shared read (fresh for this run, or a follow-up takeover).
         $Reservation
     )
     $fullState = [IO.Path]::GetFullPath($StateRoot)
     if (-not (Test-Path -LiteralPath $fullState)) { New-Item -ItemType Directory -Path $fullState -Force | Out-Null }
     Assert-KmcNotReparsePoint $fullState 'runtime-state root'
     $lockPath = Join-Path $fullState 'active-transaction.lock'
-    # The neutral reservation first, then KMC's own lock (with the token the lease names).
     if ($null -eq $Reservation) {
         $Reservation = Enter-KmcNativeReservation -StateRoot $fullState -RunId $RunId -Purpose $(if ([string]::IsNullOrWhiteSpace($Purpose)) { 'runtime-scenario' } else { $Purpose })
     }
@@ -3762,7 +3883,7 @@ function Open-KmcRuntimeLock {
         $payload = [ordered]@{ schemaVersion = 1; runId = $RunId; token = $token; ownerProcessId = $PID; createdAtUtc = [DateTime]::UtcNow.ToString('o') }
         if (-not [string]::IsNullOrWhiteSpace($Purpose)) { $payload['purpose'] = $Purpose }
         $stream = New-Object IO.FileStream($lockPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
-        $Reservation.LockCreated = $true
+        $Reservation.LockCreated = $true; $Reservation.LockHeld = $true
         try {
             $bytes = [Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress))
             $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true)
@@ -3776,46 +3897,60 @@ function Open-KmcRuntimeLock {
         catch { $stream.Dispose(); throw }
     }
     catch {
-        # Nothing shared was mutated before the lock existed: release the lease. A created lock stays (stale) with its lease.
+        # Before the lock existed nothing shared was mutated: a fresh lease is released, a taken-over one left
+        # resumable. A created lock stays (stale) with its lease.
         $failure = $_
-        Exit-KmcUnlockedNativeReservation $Reservation
+        if (-not $Reservation.LockCreated) { Exit-KmcUnlockedNativeReservation $Reservation }
         throw $failure
     }
 }
 
 # Closes a transaction the caller has verified: the ownership pair is checked, KMC's lock is removed, then the lease
-# (reverse order). A lost reservation is an incident: the lock file stays, nothing is released, and the close throws.
-# A failed release leaves the lease for the owner.
+# (reverse order). -KeepFor profile-recovery keeps the lease for the owed follow-up recovery of the same run: the
+# obligation is written into the lease before the lock is removed, and only that recovery (Enter-KmcFollowUpReservation)
+# may continue it. A lost reservation is an incident: the lock file stays, nothing is released, and the close throws.
 function Close-KmcRuntimeLock {
-    param([Parameter(Mandatory = $true)]$Lock)
+    param([Parameter(Mandatory = $true)]$Lock, [ValidateSet('profile-recovery')][string]$KeepFor)
     [void](Assert-KmcRuntimeLockStreamOwner $Lock)
     $property = $Lock.PSObject.Properties['Reservation']
     $session = if ($null -ne $property) { $property.Value } else { $null }
     if ($null -ne $session -and -not (Test-KmcNativeReservationHeld $session)) {
         $Lock.Stream.Dispose()
-        Write-KmcReservationIncident -Session $session -Context 'close' -Observed $(try { [IO.File]::ReadAllText([string]$session.Convention.RecordPath) } catch { $null }) -Disposition 'KMC lock file kept; reservation record left alone; nothing released'
+        Write-KmcReservationIncident -Session $session -Context 'close' -Observed $(try { [IO.File]::ReadAllText([string]$session.Convention.RecordPath) } catch { $null }) -ResourcesReleased 'KMC lock file kept; reservation record left alone; nothing released'
         throw "The Kingmaker native-test reservation of run $($Lock.RunId) is lost; the KMC lock stays and nothing is released."
     }
+    if ($null -ne $session -and -not [string]::IsNullOrEmpty($KeepFor)) { Set-KmcReservationState -Session $session -PendingFollowUp $KeepFor -Resumable $true }
     $path = [string]$Lock.Path
     $Lock.Stream.Dispose()
     if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
-    if ($null -ne $session) { Exit-KmcNativeReservation $session }
+    if ($null -eq $session) { return }
+    $session.LockHeld = $false
+    if ([string]::IsNullOrEmpty($KeepFor)) { Exit-KmcNativeReservation $session }
 }
 
-# An unresolved transaction: the lock file and the lease both stay for the owner or the transaction's recovery.
+# An unresolved transaction: the lock file and the lease both stay; the lease is marked resumable (same identity, exact
+# token verified) so the transaction's own recovery can continue from any process while peers stay excluded.
 function Abandon-KmcRuntimeLock {
     param([Parameter(Mandatory = $true)]$Lock)
     [void](Assert-KmcRuntimeLockStreamOwner $Lock)
     $Lock.Stream.Dispose()
+    if ($null -ne $Lock.PSObject.Properties['Reservation'] -and $null -ne $Lock.Reservation -and -not $Lock.Reservation.Released) {
+        $Lock.Reservation.LockHeld = $false
+        try { Set-KmcReservationState -Session $Lock.Reservation -PendingFollowUp ([string]$Lock.Reservation.PendingFollowUp) -Resumable $true }
+        catch { Write-Warning "The abandoned transaction's reservation was left as found: $($_.Exception.Message)" }
+    }
 }
 
 # Recovery admission: the stale lock is inspected without being held and the lease that names exactly that lock is
-# taken over (Enter-KmcStaleTransactionReservation, or the -Reservation the entrypoint took the same way before its
-# reads); only then is the lock opened exclusively and the same run and token revalidated through that handle.
+# taken over (Enter-KmcStaleTransactionReservation with the caller's expected run and token, or the -Reservation the
+# entrypoint took the same way before its reads); only then is the lock opened exclusively and the same run and token
+# revalidated through that handle.
 function Adopt-KmcStaleRuntimeLock {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [ValidateSet('fixture-requalification','fixture-recovery','profile-recovery')][string]$ExpectedPurpose,
+        [string]$ExpectedRunId,
+        [string]$ExpectedLockToken,
         $Reservation
     )
     Assert-KmcNoGameProcesses
@@ -3824,11 +3959,15 @@ function Adopt-KmcStaleRuntimeLock {
     Assert-KmcNotReparsePoint $fullStateRoot 'runtime-state root during stale lock adoption'
     $lockPath=Assert-KmcChildPath (Join-Path $fullStateRoot 'active-transaction.lock') $fullStateRoot 'stale runtime lock'
     if ($null -eq $Reservation) {
-        $Reservation = Enter-KmcStaleTransactionReservation -StateRoot $fullStateRoot -ExpectedPurpose $ExpectedPurpose -Purpose $(if ([string]::IsNullOrWhiteSpace($ExpectedPurpose)) { 'recovery' } else { $ExpectedPurpose })
+        if ([string]::IsNullOrEmpty($ExpectedRunId)) { $ExpectedRunId = [string](Read-KmcStaleLockPayload $lockPath $ExpectedPurpose).runId }
+        $Reservation = Enter-KmcStaleTransactionReservation -StateRoot $fullStateRoot -ExpectedRunId $ExpectedRunId -ExpectedLockToken $ExpectedLockToken -ExpectedPurpose $ExpectedPurpose -Purpose $(if ([string]::IsNullOrWhiteSpace($ExpectedPurpose)) { 'recovery' } else { $ExpectedPurpose })
     }
-    elseif (-not $fullStateRoot.Equals([string]$Reservation.StateRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'The recovery reservation covers another runtime-state root.' }
-    Assert-KmcRecoveryLeafNoLinks $lockPath 'stale runtime lock'
-    $stream=New-Object IO.FileStream($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    elseif (-not $fullStateRoot.Equals([string]$Reservation.StateRoot, [StringComparison]::OrdinalIgnoreCase) -or (-not [string]::IsNullOrEmpty($ExpectedRunId) -and [string]$Reservation.RunId -cne $ExpectedRunId)) { throw 'The recovery reservation covers another runtime-state root or run.' }
+    try {
+        Assert-KmcRecoveryLeafNoLinks $lockPath 'stale runtime lock'
+        $stream=New-Object IO.FileStream($lockPath,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+    }
+    catch { Exit-KmcUnlockedNativeReservation $Reservation; throw }
     try{
         Assert-KmcNotReparsePoint $fullStateRoot 'runtime-state root during stale lock adoption'
         Assert-KmcRecoveryLeafNoLinks $lockPath 'opened stale runtime lock'
@@ -3851,10 +3990,11 @@ function Adopt-KmcStaleRuntimeLock {
         if (-not [string]::IsNullOrWhiteSpace($ExpectedPurpose)) {
             $lock | Add-Member -NotePropertyName Purpose -NotePropertyValue $ExpectedPurpose
         }
+        $Reservation.LockHeld = $true
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcRecoveryLeafNoLinks $lockPath 'adopted runtime lock'
         return $lock
-    }catch{$stream.Dispose();throw}
+    }catch{$stream.Dispose();$Reservation.LockHeld=$false;Exit-KmcUnlockedNativeReservation $Reservation;throw}
 }
 
 function Get-KmcSuspiciousWindows {
@@ -4029,6 +4169,7 @@ function Enter-KmcModsTransaction {
         [AllowEmptyCollection()]$RetainedDependencies=@()
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($LiveModsRoot)
     $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
     $coStaged = $StagingMode -ceq 'base-game-only-kmc-observer'
     $baseGameOnly = $StagingMode -cin @('base-game-only-kmc','base-game-only-kmc-observer')
@@ -4198,6 +4339,7 @@ function Restore-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$StagingRoot
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($LiveModsRoot)
     $state = Read-KmcJson $StatePath
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
     $schemaVersion = [int]$state.schemaVersion

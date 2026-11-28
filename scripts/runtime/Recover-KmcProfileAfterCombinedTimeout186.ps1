@@ -9,6 +9,10 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $requestedWhatIf=[bool]$WhatIfPreference;$WhatIfPreference=$false
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
 $runId='20261022-c7b-world186-b186s1-sixpairs-stress'
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read, -WhatIf too;
+# its lock takes it over and releases it on a verified close; an exit before the lock releases it.
+$nativeReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId ($runId+'-profile-recovery') -Purpose 'recovery-one-run'
+trap{try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{};break}
 $expectedSnapshot='42ccaf0769aebe7596be21809191ceb14d2fb453995d13379ef6812dadbbf53c'
 $expectedParamsNow='9031728507f85b1d6f23461e77b465ac067a7269331946ffc8cce73402767c52'
 $expectedPrefsNow='a9ab7d6d78cb20f0df054078196e3d5ce0280b46eff01820f4569b79168beeac'
@@ -70,12 +74,12 @@ if($changes.Count-ne2-or(@($changes.name|Sort-Object)-join'|')-cne'unity.player_
 $WhatIfPreference=$requestedWhatIf
 if(-not$PSCmdlet.ShouldProcess($runId,'restore pinned native startup parameters/preferences after combined timeout recovery')){
  Write-Host 'POST-COMBINED PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
- return
+ Exit-KmcUnlockedNativeReservation $nativeReservation;return
 }
 $WhatIfPreference=$false
 $lock=$null
 try{
- $lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId ($runId+'-profile-recovery')
+ $lock=Open-KmcRuntimeLock -StateRoot $stateRoot -RunId ($runId+'-profile-recovery') -Reservation $nativeReservation
  [void](Assert-KmcRuntimeLockOwner $lock);Assert-KmcNoGameProcesses
  Assert-KmcRecoveryLeafNoLinks $snapshotPath 'exact timed-out profile snapshot under recovery lock'
  Assert-KmcRecoveryLeafNoLinks $resultPath 'exact timed-out result under recovery lock'

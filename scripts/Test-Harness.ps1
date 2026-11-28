@@ -12,6 +12,8 @@ $testRoot = Assert-KmcChildPath (Join-Path $testParent ([Guid]::NewGuid().ToStri
 # Locks opened by these tests take a private Kingmaker native-test reservation, never the machine-wide one.
 $testReservationPrevious = Use-KmcTestReservationConvention $testRoot
 $testReservation = Get-KmcReservationConvention -StateRoot $testRoot
+# The selection is restored on any terminating error from here on (the finally below restores it on normal exit).
+trap { Restore-KmcTestReservationConvention $testReservationPrevious; break }
 $runtimeEvidenceParent = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence'))
 $runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent ('harness-test-' + [Guid]::NewGuid().ToString('N'))) $runtimeEvidenceParent 'harness runtime-evidence test root'
 $passed = 0
@@ -4826,6 +4828,88 @@ try {
         Assert-Test ($message -like '*without rollback*') ('unexpected failure: '+$message)
         Assert-Test ((Get-KmcSha256 $f.workingPath)-ceq[string]$f.pair.working.sha256 -and [string]$journal.phase-ceq'recovered' -and (Test-Path (Join-Path $f.state 'active-transaction.lock'))) 'the lost reservation triggered a rollback write or released the lock'
         Assert-Test ([string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerFlight' -and (Test-Path (Join-Path $f.state 'native-reservation-incidents\lost-close.first.json'))) 'the replacement or the first incident was not preserved'
+    }
+    function Get-TestFileState([string]$Path) { $item = Get-Item -LiteralPath $Path; return ('{0}|{1}|{2}' -f (Get-KmcSha256 $Path), $item.Length, $item.LastWriteTimeUtc.Ticks) }
+
+    Invoke-HarnessTest 'qualified Working recovery rechecks ownership immediately before the quarantine move: a replaced reservation leaves Working untouched' {
+        $f=New-TestQualifiedRecoveryFixture 'replaced-before-move'
+        $workingBefore=Get-TestFileState $f.workingPath;$foreignBefore=Get-TestFileState $f.foreignPath
+        # The reservation is replaced by another writer right after the repair's journal write (the step before its move).
+        $original=${function:script:Write-KmcJsonCreateNewDurable}
+        $probe=@{original=$original;record=$testReservation.RecordPath}
+        Set-Item -Path function:script:Write-KmcJsonCreateNewDurable -Value ({ param($Path,$Value) & $probe.original -Path $Path -Value $Value
+            if($Path -like '*fixture-recoveries*'){[IO.File]::WriteAllText($probe.record,([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json))} }.GetNewClosure())
+        $message=$null
+        try{try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId replaced-move -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$message=$_.Exception.Message}}
+        finally{Set-Item -Path function:script:Write-KmcJsonCreateNewDurable -Value $original}
+        Assert-Test ($message -like '*without rollback*') ('unexpected failure: '+$message)
+        Assert-Test ((Get-TestFileState $f.workingPath)-ceq$workingBefore -and (Get-TestFileState $f.foreignPath)-ceq$foreignBefore) 'Working or a foreign save changed after the reservation was replaced'
+        Assert-Test ([string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerFlight' -and (Test-Path (Join-Path $f.state 'native-reservation-incidents\replaced-move.first.json'))) 'the replacement reservation or the incident was not preserved'
+    }
+
+    Invoke-HarnessTest 'qualified Working recovery whose journal write fails before the first move restores nothing it did not move and releases only after verifying Working' {
+        $f=New-TestQualifiedRecoveryFixture 'journal-fails'
+        $workingBefore=Get-TestFileState $f.workingPath;$foreignBefore=Get-TestFileState $f.foreignPath
+        # A pre-existing terminal journal of the same run makes the create-new write fail; it must stay as it was.
+        $journalRoot=Join-Path $f.state 'fixture-recoveries';New-Item -ItemType Directory -Path $journalRoot -Force|Out-Null
+        $journal=Join-Path $journalRoot 'journal-fails.json';[IO.File]::WriteAllText($journal,'{"schemaVersion":1,"runId":"journal-fails","phase":"recovered"}')
+        $journalBefore=Get-KmcSha256 $journal
+        $message=$null
+        try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId journal-fails -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$message=$_.Exception.Message}
+        Assert-Test ($message -like '*unexpected Working was restored*') ('unexpected failure: '+$message)
+        Assert-Test ((Get-TestFileState $f.workingPath)-ceq$workingBefore -and (Get-TestFileState $f.foreignPath)-ceq$foreignBefore) 'Working or a foreign save changed'
+        Assert-Test (-not(Test-Path (Join-Path $f.backup 'fixture-recoveries\journal-fails\failed-qualified-replacement.zks')) -and (Get-KmcSha256 $journal)-ceq$journalBefore) 'an untouched Working was quarantined or the existing journal changed'
+        Assert-Test (-not(Test-Path (Join-Path $f.state 'active-transaction.lock')) -and -not(Test-Path -LiteralPath $testReservation.RecordPath)) 'the verified rollback did not release'
+    }
+
+    # A fixture repair stopped by a process exit at a given point: the actual lock and reservation, the prepared journal
+    # (as the repair writes it) and the moves made so far, then abandoned by a process that is gone.
+    function New-TestInterruptedFixtureRepair($Fixture, [string]$RunId, [switch]$AfterReplacement) {
+        $before=Get-KmcQualificationTreeInventory -Root $Fixture.saves -Scope save-root
+        $candidate=Find-KmcQualifiedWorkingBackup -ExpectedWorking $Fixture.pair.working -Qualification (Read-KmcJson $Fixture.qualificationPath) -StateRoot $Fixture.state -BackupRoot $Fixture.backup -SaveRoot $Fixture.saves
+        $current=Read-KmcFixtureHeader -Path $Fixture.workingPath -Kind working -SaveRoot $Fixture.saves
+        $lock=Open-KmcRuntimeLock -StateRoot $Fixture.state -RunId $RunId -Purpose 'fixture-recovery'
+        $recoveryRoot=Join-Path $Fixture.state 'fixture-recoveries';New-Item -ItemType Directory -Path $recoveryRoot -Force|Out-Null
+        $quarantine=Join-Path $Fixture.backup ('fixture-recoveries\'+$RunId);New-Item -ItemType Directory -Path $quarantine -Force|Out-Null
+        $quarantinePath=Join-Path $quarantine 'unexpected-KMC_AUTOMATION_WORKING.zks'
+        Write-KmcJsonCreateNewDurable -Path (Join-Path $recoveryRoot ($RunId+'.json')) -Value ([ordered]@{schemaVersion=1;runId=$RunId;token=[string]$lock.Token;phase='prepared';preparedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');saveRoot=[IO.Path]::GetFullPath($Fixture.saves);workingPath=[IO.Path]::GetFullPath($Fixture.workingPath);unexpectedSha256=[string]$current.sha256;unexpectedLength=[long]$current.length;unexpectedLastWriteTimeUtcTicks=[long]$current.lastWriteTimeUtcTicks;quarantinePath=$quarantinePath;qualifiedBackupPath=[string]$candidate.backup.path;qualifiedBackupSha256=[string]$candidate.backup.sha256;qualifiedBackupAuthorityPath=[string]$candidate.authorityPath;qualifiedBackupAuthoritySha256=[string]$candidate.authoritySha256;expectedWorkingSha256=[string]$Fixture.pair.working.sha256;expectedWorkingLength=[long]$Fixture.pair.working.length;expectedWorkingLastWriteTimeUtcTicks=[long]$Fixture.pair.working.lastWriteTimeUtcTicks;unaffectedSaveDigest=(Get-KmcUnaffectedSaveDigest $before $Fixture.workingPath)})
+        Move-Item -LiteralPath $Fixture.workingPath -Destination $quarantinePath
+        if($AfterReplacement){Copy-Item -LiteralPath ([string]$candidate.backup.path) -Destination $Fixture.workingPath;(Get-Item -LiteralPath $Fixture.workingPath).LastWriteTimeUtc=[DateTime]::new([long]$Fixture.pair.working.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)}
+        $lock.Stream.Dispose()
+        Set-TestRuntimeLockOwnerDead $lock.Path
+        return $lock
+    }
+
+    foreach($interruption in @('after-quarantine','after-replacement')){
+        Invoke-HarnessTest ('an interrupted qualified Working repair ('+$interruption+') is continued through the public command, peers excluded until its verified close') {
+            $f=New-TestQualifiedRecoveryFixture ('continue-'+$interruption)
+            $run=('continue-'+$interruption);$foreignBefore=Get-TestFileState $f.foreignPath
+            [void](New-TestInterruptedFixtureRepair $f $run -AfterReplacement:($interruption-ceq'after-replacement'))
+            Assert-TestThrows { Open-KmcRuntimeLock -StateRoot (Join-Path $f.root 'peer-state') -RunId 'peer' } 'a peer entered while the repair was unresolved'
+            Assert-TestThrows { Invoke-KmcQualifiedWorkingFixtureRecovery -RunId other-run -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false } 'another fixture-recovery run took over the unresolved repair'
+            $preview=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId $run -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -WhatIf
+            Assert-Test ([string]$preview.status-ceq'what-if' -and [string]$preview.resume-ceq$(if($interruption-ceq'after-quarantine'){'copy-qualified-backup'}else{'verify-replacement'})) ('unexpected preview: '+($preview|ConvertTo-Json -Compress))
+            Assert-TestThrows { Open-KmcRuntimeLock -StateRoot (Join-Path $f.root 'peer-state') -RunId 'peer' } 'a peer entered after the preview'
+            $result=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId $run -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false
+            $pair=Assert-KmcFixturePair -SaveRoot $f.saves -QualificationPath $f.qualificationPath
+            Assert-Test ([string]$result.status-like'continued-*' -and [string]$pair.working.sha256-ceq[string]$f.pair.working.sha256 -and (Get-TestFileState $f.foreignPath)-ceq$foreignBefore) 'the continued repair did not restore exact Working with foreign saves unchanged'
+            Assert-Test (-not(Test-Path (Join-Path $f.state 'active-transaction.lock')) -and -not(Test-Path -LiteralPath $testReservation.RecordPath) -and [string](Read-KmcJson (Join-Path $f.state ('fixture-recoveries\'+$run+'.json'))).phase-ceq'recovered') 'the continued repair did not complete and release'
+        }
+    }
+
+    Invoke-HarnessTest 'fixture recovery preview and guard initialization refuse under a peer reservation before reading saves; initialization refuses a stale local lock' {
+        $f=New-TestQualifiedRecoveryFixture 'peer-preview'
+        Set-TestPeerReservation
+        $peer=Get-KmcSha256 $testReservation.RecordPath
+        Assert-TestThrows { Invoke-KmcQualifiedWorkingFixtureRecovery -RunId peer-preview -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -WhatIf } 'the fixture preview ran under a peer reservation'
+        $guardPath=Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        $initState=Join-Path $f.root 'init-state';New-Item -ItemType Directory -Path $initState|Out-Null
+        Assert-TestThrows { & $guardPath -SaveRoot $f.saves -StateRoot $initState -InitializeQualification } 'the guard initialized under a peer reservation'
+        Assert-Test (-not(Test-Path (Join-Path $initState 'fixture-qualification.json')) -and (Get-KmcSha256 $testReservation.RecordPath)-ceq$peer) 'a qualification was published or the peer record changed'
+        Remove-Item -LiteralPath $testReservation.RecordPath -Force
+        [IO.File]::WriteAllText((Join-Path $initState 'active-transaction.lock'),'stale')
+        Assert-TestThrows { & $guardPath -SaveRoot $f.saves -StateRoot $initState -InitializeQualification } 'the guard initialized over a stale local lock'
+        Assert-Test (-not(Test-Path (Join-Path $initState 'fixture-qualification.json')) -and -not(Test-Path -LiteralPath $testReservation.RecordPath)) 'initialization published or kept its reservation'
     }
     Invoke-HarnessTest 'schema-v2 fixture payload exposes no save path and Working-only authorization' {
         $payloadRoot = Join-Path $testRoot 'payload-saves'
