@@ -176,7 +176,7 @@ included, and releases only after its last shared read or verified close):
 
 | Entrypoint | Reservation |
 | --- | --- |
-| `Invoke-KingmakerRuntimeScenario.ps1` (manual review, F1 finish) | after workflow admission; carried into the lock; released on a verified close (Mods, saves, profile, game exit, installed dependencies) only when the run's obligation state is closed, kept with an abandoned lock; a preview or declined run releases after its final purity scans, before reporting PASS |
+| `Invoke-KingmakerRuntimeScenario.ps1` (manual review, F1 finish) | after workflow admission; carried into the lock, whose first act records the run-bound installed loader selection (base-game mode) before any shared preparation; the request and game-result validators run under that lock (`-OwnerLock`, verified before and after each shared read); released on a verified close (Mods, saves, profile, game exit, installed dependencies) only when the run's obligation state is closed, kept with an abandoned lock; a preview or declined run releases after its final purity scans, before reporting PASS |
 | `Recover-KingmakerRuntimeTransaction.ps1` | admit-then-bind: its journals must name the stale lock's run and token before the lease naming that lock is taken over; after restoration the run's obligation state decides: all closed releases, only the profile (and its Areas) restoration open keeps the lease owing `profile-recovery`, anything else keeps lock and lease |
 | `Recover-KmcPersistenceProfile.ps1` | `-AfterTransactionRecovery` continues only the lease owed to it for that run and run token (`Enter-KmcFollowUpReservation`); stale modes take over through admit-then-bind (snapshot and combined journal); records the verified profile closure in the ledger and releases only when the run's obligation state is closed |
 | `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fresh before the save audit (private surfaces checked first); ownership rechecked before each Working move, copy, timestamp write and rollback move; the qualified copy never overwrites a Working that reappeared; a repair interrupted after its prepared or terminal journal is continued by rerunning with its `-RunId` (admit-then-bind, derived destinations, unaffected saves and quarantined bytes verified before any write, `ShouldProcess`, phase-specific terminal files rechecked after confirmation and before the close); anything ambiguous or drifted is left in place with its incident |
@@ -186,14 +186,14 @@ included, and releases only after its last shared read or verified close):
 | `Test-KmcWorkingActorGraph.ps1` (Working diagnostic) | it holds a write-denying handle on the live qualified Working save: reserved before its first read, released after its last (no lock) |
 | `Invoke-KingmakerManualReview.ps1`, `Invoke-FinalizeF1Finish.ps1` | wrappers: they only call the runtime launcher, which reserves |
 | one-run `Recover-*` tools | before their first shared read through admit-then-bind (their journals and reviewed pins, and where pinned the lock token, verified before any takeover); ownership rechecked immediately before every direct loader-settings, timestamp, Areas and PlayerPrefs write, each custody change recorded; PASS reported only after cleanup |
-| `Test-RuntimeRequest.ps1` (and `Test-RuntimeResult.ps1`, `Test-RuntimeGameResult.ps1`, which run it) | an F11 request hashes the configured installation's Mono | that read is taken under its own preparation reservation, released after it; every other check reads recorded evidence only |
-| `scripts/Test-Chunk2StartingInstallation.ps1` | the installed KMC folder in the configured live Mods tree | reads and clones it under a preparation reservation, released before the clone is exercised |
+| `Test-RuntimeRequest.ps1`, `Test-RuntimeGameResult.ps1`, `Test-RuntimeResult.ps1` | an F11 request hashes the configured installation's Mono; `-VerifyLiveWorkingIdentity` reads the live Working save | each such read runs under the caller's held lock passed as `-OwnerLock` (the launcher's, verified before and after the read; the release stays with the owner), or standalone under a preparation reservation for that read; every other check reads recorded evidence only |
+| `scripts/Test-Chunk2StartingInstallation.ps1` | the installed KMC folder in the configured live Mods tree, read at the start (and cloned) and again by the final check | each of those reads runs under a preparation reservation for that read; the clone in between is exercised without one |
 
 Excluded entrypoints (no reservation), each tied to its inputs and handles:
 
 | Entrypoint | Inputs and handles | Why excluded |
 | --- | --- | --- |
-| `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1`, and `Test-RuntimeRequest.ps1` for every non-F11 request | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on the configured installation, live Mods, saves, profile, loader settings or PlayerPrefs |
+| `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1`, and the runtime validators' evidence-only checks | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on the configured installation, live Mods, saves, profile, loader settings or PlayerPrefs |
 | `scripts/Build-Local.ps1`, `Package*.ps1`, `Validate-*.ps1`, icon exports, `Get-PinnedLoaderReferences.ps1`, `Reconcile-WorkflowBudget.ps1` | repository sources, `bin`/`obj`, pinned reference copies | build, packaging and bookkeeping: never open a shared Kingmaker surface and are not native preparation |
 | other `scripts/Test-*.ps1` self-tests | disposable stand-ins under temp or `obj`; some read the installed game's managed assemblies (`Kingmaker_Data\Managed\*.dll`) read-only | the stand-in suites run under a private reservation that refuses this lab's runtime-state and every non-disposable surface (PlayerPrefs use a disposable registry key); the assembly-contract readers open only immutable game binaries that no lab's transaction writes (no Mods, loader settings, saves or profile), and are not native preparation |
 | `runtime/*Evidence.ps1`, `runtime/*Fixtures.ps1`, `runtime/*Source.ps1` | dot-sourced libraries | not entrypoints; they run inside a participating entrypoint's reservation |
@@ -219,8 +219,12 @@ loader files re-verified); a missing, malformed, unbound or contradictory record
 artifacts without a ledger, leave it open; a child absent from the ledger never started.
 
 Every recovery admits then binds (`Enter-KmcBoundRecoveryReservation`): the stale lock is read
-without being held, its journals must name exactly its run and token and its reviewed pins must
-hold, and only then is the lease naming that lock taken over. A record is removed or rewritten only
+without being held, every mandatory journal must exist and at least one of its alternatives
+(combined or legacy Mods state), each naming exactly its run and token, and its reviewed pins must
+hold; an interruption before the requalification journal is admitted only when the run's ledger is
+bound to the lock's token and records that child alone with no other run artifact. Only then is
+the lease naming that lock taken over. Private validation never reads a shared file: installed
+loader files are verified after the reservation is acquired (and again at the final close). A record is removed or rewritten only
 when it is byte-identical to the one the session last wrote (diagnostic fields included); a loss
 found at any transition, adopted or fresh, is a first incident. The verified local unlink is
 effective under `-WhatIf` and confirmed before the lease is released.
@@ -233,10 +237,17 @@ with no owed follow-up, a writer that is gone (or a resumable lease), no KMC loc
 unchanged record at removal. Everything else (a foreign, malformed or mismatched lease, an owed
 follow-up, an open obligation, an ambiguous fixture repair) is left for the owner.
 
-The closed scoped preflight's nested admission has program-level evidence only: the entry refuses
-private mode by design, needs the reviewed full-audit proof and pinned platform, and its guard
-prefix reads the configured live installation immediately after admission, so it cannot run
-against stand-ins without changing pinned sources or reading the live installation. The self-test
+The closed scoped preflight's nested admission has program-level evidence only. A private run of
+the actual entry is not possible without weakening it: the entry refuses private mode and the
+machine-wide reservation is the only one it uses (its bootstrap writes the neutral record itself);
+it admits only the reviewed full-audit proof selected by path and SHA-256 and the pinned platform,
+compiler and Git dispatcher, so disposable inputs fail its source pins before the guard is
+reached; and the guard program it builds runs the launcher's unchanged preflight prefix, whose
+workflow admission writes the repository's budget ledger and whose next statements after
+admission read the configured installation's loader files (`Get-KmcBaseGameDependencies`), the
+live Mods tree and the saves named by the lab intake. A private build would therefore have to
+replace the proof, the pins, the intake or the launcher source, which is exactly what the entry
+exists to prevent. The self-test
 builds the guard program with the entry's own builder from the candidate launcher (it admits only
 through `Enter-KmcEntrypointReservation`), checks that the entry sets the borrow token exactly
 around that guard, and exercises the borrowed admission in-process under an outer lease with a

@@ -4542,7 +4542,7 @@ try {
         $entriesBefore = if (Test-Path -LiteralPath $budgetRecord) { @((Get-Content -Raw -LiteralPath $budgetRecord | ConvertFrom-Json).entries).Count } else { 0 }
         $ErrorActionPreference = 'Continue'  # the refused child writes its refusal to stderr
         $native = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario mod-load-smoke -DevelopmentScopedAudit -RunId 'scoped-refusal-test' 2>&1 | Out-String)
-        Assert-Test ($LASTEXITCODE -ne 0 -and $native.Contains('valid only together with -WhatIf')) 'the scoped audit was not refused on a native run'
+        Assert-Test ($LASTEXITCODE -ne 0 -and $native.Contains('valid only together with -WhatIf')) ('the scoped audit was not refused on a native run: '+(($native -replace '\s+',' ').Substring(0,[Math]::Min(900,($native -replace '\s+',' ').Length))))
         $review = (& powershell -NoProfile -ExecutionPolicy Bypass -File $scopedRunner -Scenario manual-visual-review -DevelopmentScopedAudit -RunId 'scoped-refusal-test' -WhatIf 2>&1 | Out-String)
         Assert-Test ($LASTEXITCODE -ne 0 -and $review.Contains('refused for the manual-review scenario')) 'the scoped audit was not refused for manual review'
         $entriesAfter = if (Test-Path -LiteralPath $budgetRecord) { @((Get-Content -Raw -LiteralPath $budgetRecord | ConvertFrom-Json).entries).Count } else { 0 }
@@ -4999,6 +4999,109 @@ try {
             $incident=Read-KmcJson (Join-Path $state 'native-reservation-incidents\timestamp-only.first.json')
             Assert-Test ([string]$incident.remainingDifferences -like '*timestamp-only*' -and $null-ne$incident.restorationPerformed) 'the first incident does not describe the stop'
         }finally{$lock.Stream.Dispose()}
+    }
+
+    foreach($drift in @('working-changed','quarantine-removed')){
+        Invoke-HarnessTest ('a fresh fixture repair that detects lost file custody before closing makes no rollback move ('+$drift+'); lock, lease and the observed files stay') {
+            $f=New-TestQualifiedRecoveryFixture ('fresh-custody-'+$drift);$run=('fresh-custody-'+$drift)
+            $quarantine=Join-Path $f.backup ('fixture-recoveries\'+$run+'\unexpected-KMC_AUTOMATION_WORKING.zks')
+            $body=if($drift-ceq'working-changed'){"[IO.File]::WriteAllText('"+$f.workingPath+"','changed after installation')"}else{"Remove-Item -LiteralPath '"+$quarantine+"' -Force"}
+            $script:custodyMessage=$null
+            Invoke-WithTestHook 'fixture-before-fresh-verification' $body {
+                try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId $run -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$script:custodyMessage=$_.Exception.Message}
+            }
+            Assert-Test ($script:custodyMessage -like '*ownership retained*' -or $script:custodyMessage -like '*without any rollback move*') ('unexpected outcome: '+$script:custodyMessage)
+            if($drift-ceq'working-changed'){Assert-Test ([IO.File]::ReadAllText($f.workingPath)-ceq'changed after installation' -and (Test-Path -LiteralPath $quarantine) -and -not(Test-Path (Join-Path $f.backup ('fixture-recoveries\'+$run+'\failed-qualified-replacement.zks')))) 'a rollback move happened after Working changed'}
+            else{Assert-Test (-not(Test-Path -LiteralPath $quarantine) -and (Get-KmcSha256 $f.workingPath)-ceq[string]$f.pair.working.sha256) 'a rollback move happened after the quarantine disappeared'}
+            Assert-Test ((Test-Path (Join-Path $f.state 'active-transaction.lock')) -and [string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerMountedCombat') 'the custody loss released the lock or the lease'
+            Assert-Test (Test-Path (Join-Path $f.state ('native-reservation-incidents\'+$run+'.first.json'))) 'the custody loss recorded no incident'
+        }
+    }
+
+    Invoke-HarnessTest 'a fresh fixture repair whose qualified backup becomes unavailable keeps the actual failure and rolls back only after verifying both files' {
+        $f=New-TestQualifiedRecoveryFixture 'backup-unavailable'
+        $unexpected=Get-KmcSha256 $f.workingPath
+        $candidate=Find-KmcQualifiedWorkingBackup -ExpectedWorking $f.pair.working -Qualification (Read-KmcJson $f.qualificationPath) -StateRoot $f.state -BackupRoot $f.backup -SaveRoot $f.saves
+        $backupPath=[string]$candidate.backup.path;$aside=$backupPath+'.aside'
+        $script:backupMessage=$null
+        Invoke-WithTestHook 'fixture-after-fresh-quarantine' ("[IO.File]::Move('"+$backupPath+"','"+$aside+"')") {
+            try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId backup-unavailable -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$script:backupMessage=$_.Exception.Message}
+        }
+        [IO.File]::Move($aside,$backupPath)
+        Assert-Test ($script:backupMessage -like '*unexpected Working was restored*' -and $script:backupMessage -notlike '*reappeared*' -and $script:backupMessage -like '*find*') ('the verdict does not report the actual copy failure: '+$script:backupMessage)
+        Assert-Test ((Get-KmcSha256 $f.workingPath)-ceq$unexpected -and -not(Test-Path (Join-Path $f.state 'active-transaction.lock'))) 'the verified rollback did not restore the unexpected Working and release'
+    }
+
+    Invoke-HarnessTest 'the first Mods move is a recorded custody boundary: a loss right after it stops the next move and the incident names the held original' {
+        Clear-TestReservation
+        $modsRoot=Join-Path $testRoot 'mods-first-move';$liveFirst=Join-Path $modsRoot 'Mods';$stateFirst=Join-Path $modsRoot 'state'
+        New-Item -ItemType Directory -Path (Join-Path $liveFirst 'ExistingMod'),$stateFirst -Force|Out-Null
+        [IO.File]::WriteAllText((Join-Path $liveFirst 'ExistingMod\payload.txt'),'preserve-me')
+        $lock=Open-KmcRuntimeLock -StateRoot $stateFirst -RunId 'mods-first-move'
+        $peer=([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json -Compress)
+        $script:firstMoveMessage=$null
+        try{
+            Invoke-WithTestHook 'mods-after-first-move' ("[IO.File]::WriteAllText('"+$testReservation.RecordPath+"','"+$peer+"')") {
+                try{[void](Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveFirst -PackagePath $package -StateRoot $stateFirst -BackupRoot (Join-Path $modsRoot 'backups') -StagingRoot (Join-Path $modsRoot 'staging'))}catch{$script:firstMoveMessage=$_.Exception.Message}
+            }
+            Assert-Test ($script:firstMoveMessage -like '*lost*') ('unexpected outcome: '+$script:firstMoveMessage)
+            Assert-Test (-not(Test-Path -LiteralPath $liveFirst) -and [IO.File]::ReadAllText($testReservation.RecordPath)-ceq$peer) 'a move happened after the loss or the replacement changed'
+            $incident=Read-KmcJson (Join-Path $stateFirst 'native-reservation-incidents\mods-first-move.first.json')
+            Assert-Test ((@($incident.restorationPerformed)-join'|') -like '*live Mods moved to*live Mods absent*') 'the first incident does not name the held original and the absent live tree'
+        }finally{$lock.Stream.Dispose()}
+    }
+
+    Invoke-HarnessTest 'interrupted completion succeeds on the records of a real disposable restore interrupted after its verified local unlink' {
+        Clear-TestReservation
+        $root=Join-Path $testRoot 'real-unlink';$saves=Join-Path $root 'saves';$state=Join-Path $root 'state';$backup=Join-Path $root 'runtime-backups';$staging=Join-Path $root 'staging';$liveReal=Join-Path $root 'Mods'
+        New-Item -ItemType Directory -Path $saves,$state,$backup,$staging,(Join-Path $liveReal 'ExistingMod') -Force|Out-Null
+        [IO.File]::WriteAllText((Join-Path $liveReal 'ExistingMod\payload.txt'),'preserve-me')
+        New-TestSaveArchive -Path (Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE';New-TestSaveArchive -Path (Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $pair=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath (Join-Path $state 'fixture-qualification.json') -InitializeQualification
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId 'real-unlink'
+        $saveState=Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $saves -StateRoot $state -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+        $modsState=Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $liveReal -PackagePath $package -StateRoot $state -BackupRoot $backup -StagingRoot $staging
+        [void](Restore-KmcModsTransaction -Lock $lock -StatePath $modsState -LiveModsRoot $liveReal -BackupRoot $backup -StagingRoot $staging)
+        [void](Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $saves -BackupRoot $backup -StagingRoot $staging)
+        $leaseToken=[string]$lock.Reservation.Token
+        # The release is interrupted right after the verified local unlink (the process dies there).
+        Invoke-WithTestHook 'close-after-unlink' "throw 'stand-in process exit after the unlink'" { Assert-TestThrows { Close-KmcRuntimeLock $lock } 'the interrupted close' }
+        Assert-Test (-not(Test-Path (Join-Path $state 'active-transaction.lock')) -and (Test-Path -LiteralPath $testReservation.RecordPath)) 'the interruption did not leave exactly the lease behind'
+        Set-TestReservationHolderDead
+        # A pending artifact of the run that the ledger does not list still refuses.
+        $pendingRoot=Join-Path $state 'fixture-recoveries';New-Item -ItemType Directory -Path $pendingRoot -Force|Out-Null
+        $pending=Join-Path $pendingRoot 'real-unlink.json';[IO.File]::WriteAllText($pending,('{"schemaVersion":1,"runId":"real-unlink","token":"'+[string]$lock.Token+'","phase":"prepared"}'))
+        $leaseNow=(Read-KmcJson $testReservation.RecordPath).token
+        Assert-TestThrows { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'real-unlink' -LeaseToken $leaseNow -BackupRoot $backup } 'completion over an unlisted pending artifact'
+        Remove-Item -LiteralPath $pending -Force
+        Complete-KmcInterruptedReservation -StateRoot $state -RunId 'real-unlink' -LeaseToken $leaseNow -BackupRoot $backup
+        Assert-Test (-not(Test-Path -LiteralPath $testReservation.RecordPath)) 'the verified post-unlink interruption was not completed from real restore records'
+    }
+
+    Invoke-HarnessTest 'the fixture guard releases before it reports PASS; a failed release fails the caller, and on a failing path both errors are kept' {
+        Clear-TestReservation
+        $root=Join-Path $testRoot 'guard-release';$saves=Join-Path $root 'saves';$state=Join-Path $root 'state'
+        New-Item -ItemType Directory -Path $saves,$state -Force|Out-Null
+        New-TestSaveArchive -Path (Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE';New-TestSaveArchive -Path (Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $guardPath=Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'
+        & $guardPath -SaveRoot $saves -StateRoot $state -InitializeQualification -Confirm:$false 6>$null|Out-Null
+        $peer=([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json -Compress)
+        $hookBody="[IO.File]::WriteAllText('"+$testReservation.RecordPath+"','"+$peer+"')"
+        $script:guardOutput=$null;$script:guardError=$null
+        Invoke-WithTestHook 'before-unlocked-release' $hookBody {
+            try{$script:guardOutput=@(& $guardPath -SaveRoot $saves -StateRoot $state 6>&1|ForEach-Object{[string]$_})}catch{$script:guardError=$_.Exception.Message}
+        }
+        Assert-Test ($script:guardError -like '*no longer exactly this transaction*' -and @($script:guardOutput|Where-Object{$_ -like '*PASS*'}).Count-eq0) ('the guard reported PASS or hid the failed release: '+$script:guardError+' / '+($script:guardOutput-join' | '))
+        Assert-Test ([IO.File]::ReadAllText($testReservation.RecordPath)-ceq$peer) 'the replacement changed'
+        Remove-Item -LiteralPath $testReservation.RecordPath -Force
+        # An already-failing run (a changed Working) whose cleanup also fails keeps both: its own error and the cleanup warning.
+        New-TestSaveArchive -Path (Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        $script:guardWarnings=@();$script:guardError=$null
+        Invoke-WithTestHook 'before-unlocked-release' $hookBody {
+            try{& $guardPath -SaveRoot $saves -StateRoot $state 3>&1 6>$null|ForEach-Object{$script:guardWarnings+=[string]$_}}catch{$script:guardError=$_.Exception.Message}
+        }
+        Assert-Test ($null-ne$script:guardError -and $script:guardError -notlike '*no longer exactly*' -and @($script:guardWarnings|Where-Object{$_ -like '*cleanup before any lock also failed*'}).Count-eq1) ('both failures were not kept: '+$script:guardError+' / '+($script:guardWarnings-join' | '))
+        Assert-Test ([IO.File]::ReadAllText($testReservation.RecordPath)-ceq$peer) 'the replacement changed on the failing path'
     }
 
     Invoke-HarnessTest 'guard initialization rechecks ownership after confirmation, immediately before its write' {

@@ -453,7 +453,7 @@ $workflowHeartbeatAt=[DateTime]::UtcNow
 # refusal, a WhatIf failure, the final verdict) still completes this entry and restores the
 # caller's context; the error itself propagates unchanged.
 $nativeReservation=$null
-trap { try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{}; try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
+trap { $trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue; Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError; try{Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status failed}catch{}; break }
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md), taken here before the first shared read (installed
 # loader dependencies, protected saves and fixture continuity, live Mods), by native runs and -WhatIf previews alike, so
 # every observation is made under ownership. A native run takes the KMC lock with it and releases it only when the
@@ -723,6 +723,9 @@ Assert-KmcWorkflowStepAdmission -RepoRoot $repoRoot -Admission $workflowAdmissio
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId -Reservation $nativeReservation
+    # The run-bound installed loader selection (its intake receipt) is an obligation from here, before the profile snapshot
+    # or any other shared preparation; every recovery verifies it against the installed files independently of Mods.
+    if($BaseGameOnly){Register-KmcRunObligation -Lock $lock -Name 'installed-dependencies' -Evidence $baseGameDependencies}
     try{Update-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission}catch{}
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
@@ -1200,7 +1203,7 @@ try{
         Write-KmcJsonAtomic (Join-Path $evidenceRoot 'base-game-isolation-admission.json') $admissionReceipt
     }
     Write-KmcJsonAtomic $requestPath $request
-    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath
+    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1') -RequestPath $requestPath -PackageManifestPath $packageManifestPath -OwnerLock $lock
     # The serialized file is the validated request shape; re-read it so every later reader receives the
     # same object tree the validators checked instead of the ordered dictionary used to build it.
     $request=Read-KmcJson $requestPath
@@ -1375,7 +1378,7 @@ try{
         }else{
             $candidateHash=Get-KmcSha256 $gameResultPath
             $gameResultHash=$candidateHash
-            & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -RuntimeLoaderProfileId $runtimeLoaderProfile.Id -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
+            & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -OwnerLock $lock -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -RuntimeLoaderProfileId $runtimeLoaderProfile.Id -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
         }
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'

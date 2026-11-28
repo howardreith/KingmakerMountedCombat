@@ -21,8 +21,8 @@ $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -JournalPath @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotHash} -Purpose 'recovery-one-run'
-trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -RequiredJournal @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotHash} -Purpose 'recovery-one-run'
+trap{$trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue;if($null-ne$trapReservation-and-not$trapReservation.LockHeld){Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError};break}
 $backupRoot=Join-Path $lab 'runtime-backups'
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $receipt=Join-Path $evidenceRoot 'profile-recovery-exact-p07.json'

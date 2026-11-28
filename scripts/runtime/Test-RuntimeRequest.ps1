@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$RequestPath,
-    [string]$PackageManifestPath
+    [string]$PackageManifestPath,
+    # The caller's held transaction lock (the runtime launcher's); without it a shared read reserves for itself.
+    $OwnerLock
 )
 
 $ErrorActionPreference = 'Stop'
@@ -132,15 +134,13 @@ if($hasF11AllocationProbe){
         throw 'F11 native selection differs from the reviewed run-owned helper or exact installed Mono.'
     }
     Assert-KmcNotReparsePoint $expectedF11Path 'F11 staged helper'; Assert-KmcNotHardLink $expectedF11Path 'F11 staged helper'
-    # The installed Mono belongs to the configured live installation: this standalone validator reads it only under its
-    # own preparation reservation (docs/NATIVE-RESERVATION.md), released after that read.
-    $f11Reservation=Enter-KmcNativeReservation -StateRoot (Join-Path (Get-KmcLabRoot) 'runtime-state') -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-request-validation') -Purpose 'preparation-request-validation'
-    $f11Failed=$false
-    try{
+    # The installed Mono belongs to the configured live installation: read under the caller's verified lock, or standalone
+    # under a preparation reservation for this read (docs/NATIVE-RESERVATION.md).
+    Invoke-KmcOwnedSharedRead -OwnerLock $OwnerLock -Purpose 'request-validation' -Read {
         if((Get-KmcSha256 $expectedF11Path)-cne$f11.sha256-or(Get-KmcSha256 $expectedMonoPath)-cne$f11.loadedMonoSha256){
             throw 'F11 staged helper or installed Mono bytes differ from the closed request.'
         }
-    }catch{$f11Failed=$true;throw}finally{Exit-KmcUnlockedNativeReservation $f11Reservation -PreserveError:$f11Failed}
+    }
     $isolationPath=Join-Path ([string]$request.evidenceRoot) 'base-game-isolation-admission.json'
     if(-not(Test-Path -LiteralPath $isolationPath -PathType Leaf)){throw 'F11 native selection lacks base-only transaction admission.'}
     $isolation=Read-KmcJson $isolationPath

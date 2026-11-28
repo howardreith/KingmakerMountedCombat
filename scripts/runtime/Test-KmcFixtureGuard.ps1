@@ -59,7 +59,7 @@ $liveRequalificationRunId = $null
 $staleLockPath = Join-Path $fullStateRoot 'active-transaction.lock'
 if ($RecoverWorkingRequalification -and (Test-Path -LiteralPath $staleLockPath -PathType Leaf)) {
     $requalificationJournal = Join-Path $fullStateRoot ('fixture-requalifications\' + $RequalificationRunId + '.json')
-    $nativeReservation = Enter-KmcBoundRecoveryReservation -StateRoot $fullStateRoot -RunId $RequalificationRunId -JournalPath @($requalificationJournal) -JournalOptional -ExpectedPurpose 'fixture-requalification' -Purpose 'fixture-requalification'
+    $nativeReservation = Enter-KmcBoundRecoveryReservation -StateRoot $fullStateRoot -RunId $RequalificationRunId -AlternativeJournal @($requalificationJournal) -PreJournalObligation 'fixture-requalification' -ExpectedPurpose 'fixture-requalification' -Purpose 'fixture-requalification'
 }
 elseif ($RequalifyWorking) {
     $liveRequalificationRunId = 'fixture-requalification-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')
@@ -153,6 +153,7 @@ if ($AuditWorkingContinuity) {
         throw 'Working fixture continuity audit changed qualification, runtime state, or lock state.'
     }
     $WhatIfPreference = $false
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
     $label = if ($requestedWhatIf) { 'Working fixture continuity audit WhatIf PASS' } else { 'Working fixture continuity audit PASS' }
     Write-Host "$label; frozen prior inventory differs from current saves only at exact Working."
     Write-Host "Prior save transaction: $ExpectedPriorSaveTransactionRunId / $ExpectedPriorSaveTransactionStateSha256"

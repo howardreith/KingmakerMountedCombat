@@ -3531,6 +3531,7 @@ function Get-KmcReservationConvention {
         MutexName = 'Global\KingmakerNativeTest.KmcSelfTest.' + (Get-KmcTextSha256 $full.ToLowerInvariant()).Substring(0, 32)
         RecordPath = Join-Path $full 'reservation\reservation.v1.json'
         Private = $true
+        Root = $full
     }
 }
 
@@ -3546,9 +3547,58 @@ function Invoke-KmcReservationTestHook {
 # The Kingmaker PlayerPrefs registry key (under HKCU): the owner's real key, or in private test mode a disposable key
 # derived from the private root, so self-tests never read or write the owner's preferences.
 function Get-KmcPlayerPrefsKeyPath {
+    # -Lock binds the selection to the convention its reservation was taken under: a private lock always uses its own
+    # disposable key and refuses an ambient convention that changed since; a machine-wide lock refuses a private one.
+    param($Lock)
     $private = [Environment]::GetEnvironmentVariable($script:KmcReservationTestRootVariable, 'Process')
+    $selfTestKey = { param([string]$Root) 'Software\KmcNativeReservationSelfTest\' + (Get-KmcTextSha256 ([IO.Path]::GetFullPath($Root).TrimEnd('\').ToLowerInvariant())).Substring(0, 32) }
+    if ($null -ne $Lock -and $null -ne $Lock.PSObject.Properties['Reservation'] -and $null -ne $Lock.Reservation) {
+        $convention = $Lock.Reservation.Convention
+        if ($null -ne $convention.PSObject.Properties['Private']) {
+            if ([string]::IsNullOrEmpty($private) -or -not [IO.Path]::GetFullPath($private).TrimEnd('\').Equals([string]$convention.Root, [StringComparison]::OrdinalIgnoreCase)) {
+                throw 'The private reservation convention changed under its held lock; the preference key is refused.'
+            }
+            return & $selfTestKey ([string]$convention.Root)
+        }
+        if (-not [string]::IsNullOrEmpty($private)) { throw 'A private reservation convention appeared under a machine-wide lock; the preference key is refused.' }
+        return 'Software\Owlcat Games\Pathfinder Kingmaker'
+    }
     if ([string]::IsNullOrEmpty($private)) { return 'Software\Owlcat Games\Pathfinder Kingmaker' }
-    return 'Software\KmcNativeReservationSelfTest\' + (Get-KmcTextSha256 ([IO.Path]::GetFullPath($private).TrimEnd('\').ToLowerInvariant())).Substring(0, 32)
+    return & $selfTestKey $private
+}
+# The identity of an open file (volume serial and file index), and deletion through that same handle: the local lock is
+# removed only when the file at its path is the very file this transaction held.
+if (-not ('KingmakerMountedCombat.Reservation.FileIdentity' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+namespace KingmakerMountedCombat.Reservation {
+    public static class FileIdentity {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct ByHandleFileInformation {
+            public uint FileAttributes; public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime; public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+            public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime; public uint VolumeSerialNumber; public uint FileSizeHigh; public uint FileSizeLow;
+            public uint NumberOfLinks; public uint FileIndexHigh; public uint FileIndexLow;
+        }
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileDispositionInfo { [MarshalAs(UnmanagedType.U1)] public bool DeleteFile; }
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out ByHandleFileInformation information);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool SetFileInformationByHandle(SafeFileHandle handle, int informationClass, ref FileDispositionInfo information, uint size);
+        public static string Of(SafeFileHandle handle) {
+            ByHandleFileInformation information;
+            if (!GetFileInformationByHandle(handle, out information)) { throw new System.ComponentModel.Win32Exception(); }
+            return information.VolumeSerialNumber.ToString("x8") + ":" + information.FileIndexHigh.ToString("x8") + information.FileIndexLow.ToString("x8");
+        }
+        public static void MarkForDeletion(SafeFileHandle handle) {
+            FileDispositionInfo disposition = new FileDispositionInfo(); disposition.DeleteFile = true;
+            if (!SetFileInformationByHandle(handle, 4, ref disposition, (uint)Marshal.SizeOf(typeof(FileDispositionInfo)))) { throw new System.ComponentModel.Win32Exception(); }
+        }
+    }
+}
+'@
 }
 
 # A shared surface (live Mods, save root, profile, loader settings) touched under a lock: with a private self-test
@@ -3757,13 +3807,14 @@ function Read-KmcRunObligationLedger {
 
 # Records that a child of the held run is about to make its first change (idempotent).
 function Register-KmcRunObligation {
-    param([Parameter(Mandatory = $true)]$Lock, [Parameter(Mandatory = $true)][ValidateSet('profile','areas','combined','working','mods','installed-dependencies','fixture-recovery','fixture-requalification')][string]$Name)
+    param([Parameter(Mandatory = $true)]$Lock, [Parameter(Mandatory = $true)][ValidateSet('profile','areas','combined','working','mods','installed-dependencies','fixture-recovery','fixture-requalification')][string]$Name, $Evidence)
     $WhatIfPreference = $false
     [void](Assert-KmcRuntimeLockOwner $Lock)
     $path = Get-KmcRunObligationLedgerPath (Split-Path -Parent ([string]$Lock.Path)) ([string]$Lock.RunId)
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Run $($Lock.RunId) has no obligation ledger; no child may start." }
     $ledger = Read-KmcRunObligationLedger $path ([string]$Lock.RunId) ([string]$Lock.Token)
     if (@($ledger.obligations | Where-Object { $_.name -ceq $Name }).Count -ne 0) { return }
+    if ($null -ne $Evidence) { Write-KmcJsonCreateNewDurable -Path (Join-Path (Split-Path -Parent $path) ([string]$Lock.RunId + '.' + $Name + '.json')) -Value $Evidence }
     $ledger.obligations = @(@($ledger.obligations) + @([pscustomobject][ordered]@{ name = $Name; startedAtUtc = [DateTime]::UtcNow.ToString('o'); closedAtUtc = $null; closedBy = $null }))
     Write-KmcJsonDurable $path $ledger
 }
@@ -3782,9 +3833,12 @@ function Complete-KmcRunObligation {
     Write-KmcJsonDurable $path $ledger
 }
 
-# Why a started obligation is still open ($null when its durable terminal evidence proves it closed).
+# Why a started obligation is still open ($null when its durable terminal evidence proves it closed). Each terminal record
+# must have its writer's schema, name exactly this run and token, and prove restoration against its own recorded intake.
+# -PrivateOnly judges private evidence only (no shared file is read): installed loader files are then left to the
+# verification made under the acquired reservation.
 function Get-KmcRunObligationGap {
-    param([string]$Name, $Entry, [string]$StateRoot, [string]$BackupRoot, [string]$RunId, [string]$Token)
+    param([string]$Name, $Entry, [string]$StateRoot, [string]$BackupRoot, [string]$RunId, [string]$Token, [switch]$PrivateOnly)
     $readJournal = {
         param([string]$Path)
         if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return 'missing' }
@@ -3795,7 +3849,10 @@ function Get-KmcRunObligationGap {
         if ($value.runId -cne $RunId -or $value.token -cne $Token) { return 'unbound' }
         return $value
     }
-    $text = { param($v) if ($v -is [string]) { "its terminal record is $v" } else { $null } }
+    $text = { param($v) "its terminal record is $v" }
+    $str = { param($v, [string]$f) $p = $v.PSObject.Properties[$f]; return ($null -ne $p -and $p.Value -is [string] -and $p.Value.Length -gt 0) }
+    $hex = { param($v, [string]$f) $p = $v.PSObject.Properties[$f]; return ($null -ne $p -and $p.Value -is [string] -and $p.Value -cmatch '^[0-9a-f]{64}$') }
+    $int = { param($v, [string]$f) $p = $v.PSObject.Properties[$f]; if ($null -eq $p -or ($p.Value -isnot [int] -and $p.Value -isnot [long])) { return -1 }; return [long]$p.Value }
     switch ($Name) {
         'profile' {
             if ($Entry.closedAtUtc -is [string] -and $Entry.closedBy -is [string]) { return $null }
@@ -3804,7 +3861,8 @@ function Get-KmcRunObligationGap {
         'areas' {
             $v = & $readJournal (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-isolation.json'))
             if ($v -is [string]) { return & $text $v }
-            if ($v.stage -isnot [string] -or $v.stage -cne 'restored') { return 'its isolation is not restored' }
+            if ((& $int $v 'schemaVersion') -ne 1 -or -not (& $hex $v 'originalDigest') -or -not (& $hex $v 'snapshotSha256') -or -not (& $str $v 'profileDigest') -or -not (& $str $v 'stage')) { return 'its isolation record lacks its schema fields' }
+            if ($v.stage -cne 'restored') { return 'its isolation is not restored' }
             return $null
         }
         'combined' {
@@ -3816,40 +3874,50 @@ function Get-KmcRunObligationGap {
             foreach ($flag in @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed')) {
                 $p = $v.PSObject.Properties[$flag]; if ($null -eq $p -or $p.Value -isnot [bool] -or -not $p.Value) { return "its terminal record lacks $flag" }
             }
-            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or $errors.Count -ne 0 -or $null -eq $v.PSObject.Properties['restoredAtUtc'] -or $v.restoredAtUtc -isnot [string]) { return 'it is not restored' }
+            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or $errors.Count -ne 0 -or -not (& $str $v 'restoredAtUtc')) { return 'it is not restored' }
+            if (-not (& $hex $v 'restoredModsDigest') -or $v.restoredModsDigest -cne [string]$v.modsDigestBefore -or -not (& $hex $v 'restoredSaveInventoryDigest') -or $v.restoredSaveInventoryDigest -cne [string]$v.saveInventoryDigestBefore) {
+                return 'its restored digests differ from its recorded intake'
+            }
             return $null
         }
         'working' {
             $v = & $readJournal (Get-KmcSaveTransactionStatePath $StateRoot $RunId)
             if ($v -is [string]) { return & $text $v }
-            $restored = $v.PSObject.Properties['restoredInventoryDigest']; $before = $v.PSObject.Properties['beforeInventory']
-            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or $null -eq $v.PSObject.Properties['restoredAtUtc'] -or $v.restoredAtUtc -isnot [string] -or $null -eq $restored -or $restored.Value -isnot [string] -or
-                $null -eq $before -or $null -eq $before.Value -or $before.Value.digest -isnot [string] -or $restored.Value -cne $before.Value.digest) { return 'it is not restored exactly' }
+            $before = $v.PSObject.Properties['beforeInventory']
+            if ((& $int $v 'schemaVersion') -ne 2 -or -not (& $hex $v 'workingSha256') -or -not (& $str $v 'workingPath') -or $null -eq $before -or $null -eq $before.Value -or -not (& $hex $before.Value 'digest')) { return 'its record lacks its schema fields' }
+            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or -not (& $str $v 'restoredAtUtc') -or -not (& $str $v 'workingRestoredAtUtc') -or -not (& $hex $v 'restoredInventoryDigest') -or $v.restoredInventoryDigest -cne $before.Value.digest) { return 'it is not restored exactly to its recorded intake' }
             return $null
         }
         'mods' {
             $v = & $readJournal (Get-KmcTransactionStatePath $StateRoot $RunId)
             if ($v -is [string]) { return & $text $v }
-            $digest = $v.PSObject.Properties['restoredDigest']
-            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or $null -eq $v.PSObject.Properties['restoredAtUtc'] -or $v.restoredAtUtc -isnot [string] -or $null -eq $digest -or $digest.Value -isnot [string] -or $digest.Value -cnotmatch '^[0-9a-f]{64}$') { return 'it is not restored' }
+            $schema = & $int $v 'schemaVersion'
+            if ($schema -lt 1 -or $schema -gt 4 -or -not (& $str $v 'liveModsRoot') -or -not (& $hex $v 'beforeDigest')) { return 'its record lacks its schema fields' }
+            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or -not (& $str $v 'restoredAtUtc') -or -not (& $hex $v 'restoredDigest') -or $v.restoredDigest -cne $v.beforeDigest) { return 'it is not restored exactly to its recorded intake' }
             return $null
         }
         'installed-dependencies' {
-            $v = & $readJournal (Get-KmcTransactionStatePath $StateRoot $RunId)
-            if ($v -is [string]) { return & $text $v }
-            if ($null -eq $v.PSObject.Properties['baseGameDependencies']) { return 'its Mods record names no installed dependencies' }
-            try { Assert-KmcBaseGameDependencyReceipt $v.baseGameDependencies -VerifyFiles } catch { return ('the installed loader dependencies differ: ' + $_.Exception.Message) }
+            # The run-bound loader selection recorded with the obligation, before any shared preparation.
+            $path = Join-Path (Join-Path $StateRoot 'run-obligations') ($RunId + '.installed-dependencies.json')
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return 'its recorded loader selection is missing' }
+            $receipt = $null
+            try { $receipt = Read-KmcJson $path; Assert-KmcBaseGameDependencyReceipt $receipt } catch { return 'its recorded loader selection is invalid' }
+            if ($PrivateOnly) { return $null }
+            try { Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles } catch { return ('the installed loader dependencies differ: ' + $_.Exception.Message) }
             return $null
         }
         'fixture-recovery' {
             $v = & $readJournal (Join-Path $StateRoot ('fixture-recoveries\' + $RunId + '.json'))
             if ($v -is [string]) { return & $text $v }
-            if ($v.phase -isnot [string] -or $v.phase -cnotin @('recovered','rolled-back')) { return 'it is not terminal' }
-            return $null
+            if ((& $int $v 'schemaVersion') -ne 1 -or -not (& $hex $v 'unexpectedSha256') -or -not (& $str $v 'workingPath')) { return 'its record lacks its schema fields' }
+            if ($v.phase -ceq 'recovered' -and ((& $str $v 'recoveredAtUtc') -or (& $str $v 'continuedAtUtc'))) { return $null }
+            if ($v.phase -ceq 'rolled-back' -and ((& $str $v 'rollbackAtUtc') -or (& $str $v 'continuedAtUtc'))) { return $null }
+            return 'it is not terminal'
         }
         'fixture-requalification' {
             $v = & $readJournal (Join-Path $StateRoot ('fixture-requalifications\' + $RunId + '.json'))
             if ($v -is [string]) { return & $text $v }
+            if ((& $int $v 'schemaVersion') -lt 1) { return 'its record lacks its schema fields' }
             if ($v.phase -isnot [string] -or $v.phase -cnotin @('committed','recovered-committed','rolled-back','recovered-rolled-back','replacement-write-attempt-rolled-back','aborted-before-replacement')) { return 'it is not terminal' }
             return $null
         }
@@ -3857,19 +3925,29 @@ function Get-KmcRunObligationGap {
     return 'unknown obligation'
 }
 
-# The complete obligation state of one run from durable evidence: which children started and which remain open.
+# The run's artifacts on disk, each with the obligation that must account for it in the ledger.
+function Get-KmcRunArtifacts {
+    param([string]$StateRoot, [string]$BackupRoot, [string]$RunId)
+    return @(
+        @('combined', (Get-KmcRunTransactionStatePath $StateRoot $RunId)), @('mods', (Get-KmcTransactionStatePath $StateRoot $RunId)),
+        @('working', (Get-KmcSaveTransactionStatePath $StateRoot $RunId)), @('fixture-recovery', (Join-Path $StateRoot ('fixture-recoveries\' + $RunId + '.json'))),
+        @('fixture-requalification', (Join-Path $StateRoot ('fixture-requalifications\' + $RunId + '.json'))),
+        @('profile', (Join-Path $BackupRoot ('profile-' + $RunId + '\snapshot.json'))), @('areas', (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-isolation.json')))
+    ) | Where-Object { Test-Path -LiteralPath $_[1] }
+}
+
+# The complete obligation state of one run from durable evidence: which children started and which remain open. Every
+# run artifact on disk must be accounted for by a ledger entry (a pending artifact cannot hide behind a valid ledger).
 function Get-KmcRunObligationState {
-    param([Parameter(Mandatory = $true)][string]$StateRoot, [Parameter(Mandatory = $true)][string]$RunId, [string]$RunToken, [string]$BackupRoot)
+    param([Parameter(Mandatory = $true)][string]$StateRoot, [Parameter(Mandatory = $true)][string]$RunId, [string]$RunToken, [string]$BackupRoot, [switch]$PrivateOnly)
     $fullState = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
     if ([string]::IsNullOrEmpty($BackupRoot)) { $BackupRoot = Join-Path (Split-Path -Parent $fullState) 'runtime-backups' }
     $open = New-Object System.Collections.Generic.List[string]
     $ledgerPath = Get-KmcRunObligationLedgerPath $fullState $RunId
     $started = @(); $token = $RunToken
+    $artifacts = @(Get-KmcRunArtifacts $fullState $BackupRoot $RunId)
     if (-not (Test-Path -LiteralPath $ledgerPath)) {
-        $artifacts = @(@((Get-KmcRunTransactionStatePath $fullState $RunId), (Get-KmcTransactionStatePath $fullState $RunId), (Get-KmcSaveTransactionStatePath $fullState $RunId),
-            (Join-Path $fullState ('fixture-recoveries\' + $RunId + '.json')), (Join-Path $fullState ('fixture-requalifications\' + $RunId + '.json')),
-            (Join-Path $BackupRoot ('profile-' + $RunId))) | Where-Object { Test-Path -LiteralPath $_ })
-        if ($artifacts.Count -ne 0) { $open.Add('ledger: run artifacts exist (' + ($artifacts -join ', ') + ') but no obligation ledger proves which children started') }
+        if ($artifacts.Count -ne 0) { $open.Add('ledger: run artifacts exist (' + (($artifacts | ForEach-Object { $_[1] }) -join ', ') + ') but no obligation ledger proves which children started') }
     }
     else {
         $ledger = $null
@@ -3878,8 +3956,11 @@ function Get-KmcRunObligationState {
             $token = [string]$ledger.token
             foreach ($entry in @($ledger.obligations)) {
                 $started += [string]$entry.name
-                $gap = Get-KmcRunObligationGap -Name ([string]$entry.name) -Entry $entry -StateRoot $fullState -BackupRoot $BackupRoot -RunId $RunId -Token $token
+                $gap = Get-KmcRunObligationGap -Name ([string]$entry.name) -Entry $entry -StateRoot $fullState -BackupRoot $BackupRoot -RunId $RunId -Token $token -PrivateOnly:$PrivateOnly
                 if ($null -ne $gap) { $open.Add([string]$entry.name + ': ' + $gap) }
+            }
+            foreach ($artifact in $artifacts) {
+                if ($started -cnotcontains $artifact[0]) { $open.Add($artifact[0] + ': the artifact ' + $artifact[1] + ' exists but the ledger records no such child') }
             }
         }
     }
@@ -3887,16 +3968,18 @@ function Get-KmcRunObligationState {
 }
 
 # Admit-then-bind, for every recovery of a stale KMC transaction: before any lease rotation the stale lock is read
-# without being held, every private journal the recovery names that exists must name exactly that run and the lock's
-# token (or, for a follow-up lock, the transaction's -JournalToken), and every reviewed pin must hold. Only then is the
-# lease naming that lock taken over (Enter-KmcStaleTransactionReservation). -JournalOptional admits the separately
-# proven interruption before any journal was written.
+# without being held; every -RequiredJournal must exist, at least one -AlternativeJournal must exist when any is named,
+# and each present journal must name exactly that run and the lock's token (or, for a follow-up lock, the transaction's
+# -JournalToken); every reviewed pin must hold. -PreJournalObligation admits the separately proven interruption before
+# the alternative journal was written: the run's ledger must be bound to the lock's token, record no other child, and
+# no other artifact of the run may exist. Only then is the lease naming that lock taken over.
 function Enter-KmcBoundRecoveryReservation {
     param(
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$RunId,
-        [string[]]$JournalPath = @(),
-        [switch]$JournalOptional,
+        [string[]]$RequiredJournal = @(),
+        [string[]]$AlternativeJournal = @(),
+        [ValidateSet('fixture-requalification')][string]$PreJournalObligation,
         [ValidatePattern('^([0-9a-f]{64})?$')][string]$JournalToken,
         [hashtable]$Pins = @{},
         [ValidatePattern('^([0-9a-f]{64})?$')][string]$ExpectedLockToken,
@@ -3909,22 +3992,56 @@ function Enter-KmcBoundRecoveryReservation {
     if ([string]$payload.runId -cne $RunId) { throw "The stale KMC lock belongs to run $($payload.runId), not $RunId." }
     if (-not [string]::IsNullOrEmpty($ExpectedLockToken) -and [string]$payload.token -cne $ExpectedLockToken) { throw 'The stale KMC lock token differs from the recovery''s expected token.' }
     $bindToken = if ([string]::IsNullOrEmpty($JournalToken)) { [string]$payload.token } else { $JournalToken }
-    $present = 0
-    foreach ($path in @($JournalPath)) {
-        if (-not (Test-Path -LiteralPath $path)) { continue }
-        $present++
+    $bind = {
+        param([string]$Path)
         $journal = $null
-        try { $journal = Read-KmcJson $path } catch { throw "The recovery journal is unreadable: $path" }
+        try { $journal = Read-KmcJson $Path } catch { throw "The recovery journal is unreadable: $Path" }
         $fields = if ($journal -is [pscustomobject]) { @($journal.PSObject.Properties.Name) } else { @() }
         if ($fields -cnotcontains 'runId' -or $fields -cnotcontains 'token' -or $journal.runId -isnot [string] -or $journal.token -isnot [string] -or $journal.runId -cne $RunId -or $journal.token -cne $bindToken) {
-            throw "The recovery journal does not name run $RunId and its lock token; recovery refuses before any takeover: $path"
+            throw "The recovery journal does not name run $RunId and its lock token; recovery refuses before any takeover: $Path"
         }
     }
-    if (@($JournalPath).Count -ne 0 -and $present -eq 0 -and -not $JournalOptional) { throw "Run $RunId has no recovery journal; recovery refuses before any takeover." }
+    foreach ($path in @($RequiredJournal)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Run $RunId lacks a required recovery journal; recovery refuses before any takeover: $path" }
+        & $bind $path
+    }
+    $present = @(@($AlternativeJournal) | Where-Object { Test-Path -LiteralPath $_ })
+    foreach ($path in $present) { & $bind $path }
+    if (@($AlternativeJournal).Count -ne 0 -and $present.Count -eq 0) {
+        if ([string]::IsNullOrEmpty($PreJournalObligation)) { throw "Run $RunId has no recovery journal; recovery refuses before any takeover." }
+        $state = Get-KmcRunObligationState -StateRoot $fullState -RunId $RunId -RunToken ([string]$payload.token) -PrivateOnly
+        # The lock may have been opened and stopped before the child registered (nothing recorded), or after it registered
+        # and before its journal (that obligation alone, open only for its missing record).
+        $expected = $PreJournalObligation + ': its terminal record is missing'
+        $startedText = @($state.Started) -join ','; $openText = @($state.Open) -join '|'
+        $proven = ($startedText -ceq '' -and $openText -ceq '') -or ($startedText -ceq $PreJournalObligation -and $openText -ceq $expected)
+        if (-not (Test-Path -LiteralPath (Get-KmcRunObligationLedgerPath $fullState $RunId)) -or -not $proven) {
+            throw ("Run $RunId has no recovery journal and its private evidence does not prove an interruption before the journal; recovery refuses before any takeover: " + (@($state.Open) -join '; '))
+        }
+    }
     foreach ($pin in $Pins.GetEnumerator()) {
         if (-not (Test-Path -LiteralPath ([string]$pin.Key) -PathType Leaf) -or (Get-KmcSha256 ([string]$pin.Key)) -cne [string]$pin.Value) { throw "A reviewed recovery pin differs; recovery refuses before any takeover: $($pin.Key)" }
     }
     return Enter-KmcStaleTransactionReservation -StateRoot $fullState -ExpectedRunId $RunId -ExpectedLockToken ([string]$payload.token) -ExpectedRunToken $ExpectedRunToken -ExpectedPurpose $ExpectedPurpose -Purpose $Purpose
+}
+
+# A shared read under verified ownership: the caller's held lock (-OwnerLock, its handle and its reservation rechecked
+# before and after), or, standalone, a preparation reservation taken for this read and released after it (the read's own
+# error wins; a cleanup failure is reported beside it).
+function Invoke-KmcOwnedSharedRead {
+    param($OwnerLock, [Parameter(Mandatory = $true)][ValidatePattern('^[a-z-]{1,60}$')][string]$Purpose, [Parameter(Mandatory = $true)][scriptblock]$Read, [string]$StateRoot)
+    if ($null -ne $OwnerLock) {
+        [void](Assert-KmcRuntimeLockOwner $OwnerLock)
+        $result = & $Read
+        [void](Assert-KmcRuntimeLockOwner $OwnerLock)
+        return $result
+    }
+    if ([string]::IsNullOrEmpty($StateRoot)) { $StateRoot = Join-Path (Get-KmcLabRoot) 'runtime-state' }
+    $session = Enter-KmcNativeReservation -StateRoot $StateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-' + $Purpose) -Purpose ('preparation-' + $Purpose)
+    $failed = $false
+    try { & $Read }
+    catch { $failed = $true; throw }
+    finally { Exit-KmcUnlockedNativeReservation $session -PreserveError:$failed }
 }
 
 # Ownership-loss incidents, beside and independent of every transaction journal: the first observation of a run is
@@ -3949,6 +4066,7 @@ function Write-KmcReservationIncident {
 function Test-KmcNativeReservationHeld {
     param($Session)
     if ($null -eq $Session -or $Session.Released) { return $false }
+    if ($null -ne $Session.PSObject.Properties['RecordText'] -and -not [string]::IsNullOrEmpty([string]$Session.RecordText)) { return ($null -eq (Get-KmcOwnRecordMismatch $Session)) }
     try { $record = Read-KmcReservationRecord $Session.Convention } catch { return $false }
     return ($null -ne $record -and [string]$record.lab -ceq $script:KmcReservationLab -and [string]$record.token -ceq [string]$Session.Token)
 }
@@ -4028,6 +4146,7 @@ function Set-KmcReservationState {
 function Exit-KmcUnlockedNativeReservation {
     param($Session, [switch]$PreserveError)
     if ($null -eq $Session -or $Session.Released -or $Session.LockHeld -or $Session.Borrowed) { return }
+    Invoke-KmcReservationTestHook 'before-unlocked-release'
     try {
         if ($Session.Adopted) { Set-KmcReservationState -Session $Session -PendingFollowUp ([string]$Session.PendingFollowUp) -Resumable $true }
         elseif (-not $Session.LockCreated) { Exit-KmcNativeReservation $Session }
@@ -4234,13 +4353,28 @@ function Close-KmcRuntimeLock {
     }
     if ($null -ne $session -and -not [string]::IsNullOrEmpty($KeepFor)) { Set-KmcReservationState -Session $session -PendingFollowUp $KeepFor -Resumable $true }
     $path = [string]$Lock.Path
+    $heldIdentity = [KingmakerMountedCombat.Reservation.FileIdentity]::Of($Lock.Stream.SafeFileHandle)
     $Lock.Stream.Dispose()
     Invoke-KmcReservationTestHook 'close-before-unlink'
-    if (Test-Path -LiteralPath $path -PathType Leaf) { try { [IO.File]::Delete($path) } catch { } }
-    if (Test-Path -LiteralPath $path) {
-        if ($null -ne $session) { Write-KmcReservationIncident -Session $session -Context 'close: the KMC lock could not be removed' -Observed $path -RestorationPerformed @($session.Progress) -ResourcesReleased 'none: the lock file and the reservation stay' }
-        throw "The KMC lock of run $($Lock.RunId) could not be removed; the reservation stays and peers remain excluded."
+    $stop = {
+        param([string]$Context, $Observed)
+        if ($null -ne $session) { Write-KmcReservationIncident -Session $session -Context $Context -Observed $Observed -RestorationPerformed @($session.Progress) -RemainingDifferences 'the local lock path and the reservation record left as observed' -ResourcesReleased 'none: whatever is at the lock path and the reservation stay' }
+        throw "The KMC lock of run $($Lock.RunId) was not removed ($Context); the reservation stays and peers remain excluded."
     }
+    if ($null -ne $session -and -not (Test-KmcNativeReservationHeld $session)) { & $stop 'close: the reservation changed before the unlink' $(try { [IO.File]::ReadAllText([string]$session.Convention.RecordPath) } catch { $null }) }
+    $unlink = $null
+    try { $unlink = New-Object IO.FileStream($path, [IO.FileMode]::Open, [Security.AccessControl.FileSystemRights]'Delete, ReadAttributes', [IO.FileShare]'ReadWrite, Delete', 4096, [IO.FileOptions]::None) }
+    catch { & $stop ('close: the local lock could not be opened for removal: ' + $_.Exception.Message) $path }
+    try {
+        $currentIdentity = [KingmakerMountedCombat.Reservation.FileIdentity]::Of($unlink.SafeFileHandle)
+        if ($currentIdentity -cne $heldIdentity) { $unlink.Dispose(); $unlink = $null; & $stop ('close: another file replaced the held local lock (' + $currentIdentity + ', held ' + $heldIdentity + ')') $path }
+        try { [KingmakerMountedCombat.Reservation.FileIdentity]::MarkForDeletion($unlink.SafeFileHandle) }
+        catch { $unlink.Dispose(); $unlink = $null; & $stop ('close: the KMC lock could not be removed: ' + $_.Exception.Message) $path }
+    }
+    finally { if ($null -ne $unlink) { $unlink.Dispose() } }
+    if (Test-Path -LiteralPath $path) { & $stop 'close: the KMC lock is still present after its removal' $path }
+    Add-KmcReservationProgress $Lock ('local lock removed: ' + $path)
+    Invoke-KmcReservationTestHook 'close-after-unlink'
     if ($null -eq $session) { return }
     $session.LockHeld = $false
     if ([string]::IsNullOrEmpty($KeepFor)) { Exit-KmcNativeReservation $session }
@@ -4625,11 +4759,13 @@ function Enter-KmcModsTransaction {
         if($carried.Count-ne0){$state['kmcCarriedFiles']=@($carried|ForEach-Object{[ordered]@{name=[string]$_.name;length=[long]$_.length;sha256=[string]$_.sha256}})}
     }
     Register-KmcRunObligation -Lock $Lock -Name 'mods'
-    if ($baseGameOnly) { Register-KmcRunObligation -Lock $Lock -Name 'installed-dependencies' }
+    if ($baseGameOnly) { Register-KmcRunObligation -Lock $Lock -Name 'installed-dependencies' -Evidence $BaseGameDependencies }
     Write-KmcJsonAtomic $statePath $state
     try {
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
         Move-Item -LiteralPath $fullLive -Destination $originalBackup
+        Add-KmcReservationProgress $Lock ('live Mods moved to ' + $originalBackup + '; live Mods absent; restore by moving it back to ' + $fullLive)
+        Invoke-KmcReservationTestHook 'mods-after-first-move'
         $state.phase='original-moved'; Write-KmcJsonAtomic $statePath $state
         Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest $originalBackup) $state 'before'
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move

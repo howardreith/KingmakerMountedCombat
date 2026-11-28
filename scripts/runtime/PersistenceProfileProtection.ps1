@@ -3,7 +3,9 @@ Set-StrictMode -Version Latest
 # Read-only protection for native caches/settings outside the already guarded
 # Saves/Mods trees. Never restores stale data over a possibly newer human profile.
 function Get-KmcPersistencePlayerPrefs {
-    $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath),$false)
+    # -Lock binds the key to the convention the held reservation was taken under (Get-KmcPlayerPrefsKeyPath).
+    param($Lock)
+    $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath -Lock $Lock),$false)
     try {
         if($null-eq$key){return 'null'}
         $items=@(foreach($name in @($key.GetValueNames()|Sort-Object)){
@@ -38,10 +40,17 @@ function New-KmcPersistenceProfileSnapshot {
     # The ordinary game log is expected output, retained separately as evidence.
     # Human saves have their own exact suite inventory and Working transaction.
     $before=Get-KmcQualificationTreeInventory -Root $profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    $prefs=Get-KmcPersistencePlayerPrefs
+    $prefs=Get-KmcPersistencePlayerPrefs -Lock $Lock
     $paramsHash=Get-KmcSha256 $params
     $target=Assert-KmcChildPath (Join-Path $BackupRoot ('profile-'+$Lock.RunId)) $BackupRoot 'persistence profile backup'
     if(Test-Path -LiteralPath $target){throw 'Persistence profile backup already exists.'}
+    # No existing ancestor of the backup target may redirect it elsewhere (junction or symbolic link), checked before
+    # the target is created.
+    $ancestor=[IO.Path]::GetFullPath($BackupRoot).TrimEnd('\')
+    while(-not[string]::IsNullOrEmpty($ancestor)){
+        if(Test-Path -LiteralPath $ancestor){Assert-KmcNotReparsePoint $ancestor 'persistence profile backup ancestor'}
+        $parent=Split-Path -Parent $ancestor;if($parent-ceq$ancestor){break};$ancestor=$parent
+    }
     [void][IO.Directory]::CreateDirectory($target)
     $copy=Join-Path $target 'profile'
     [void][IO.Directory]::CreateDirectory($copy)
@@ -439,11 +448,13 @@ function Assert-KmcCompletedTransactionRecovery {
         $combined.saveWriteAllowlistPassed-isnot[bool]-or-not$combined.saveWriteAllowlistPassed-or$errors.Count-ne0){
         throw 'Post-transaction profile recovery has no completed transaction recovery for this run and token.'
     }
-    if([string]$combined.mode-ceq'no-save-v1'-and[string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery of a no-save transaction has no exact save-inventory proof.'}
+    # In every mode both restored digests must equal the recorded intake digests.
+    if([string]$combined.restoredModsDigest-cne[string]$combined.modsDigestBefore-or[string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery: the restored Mods or save digest differs from its recorded intake.'}
     # Which children started is the run's obligation ledger (recorded before each child's first change), never inferred
     # from a missing receipt: every started child other than the owed profile and Areas restoration must be closed by
     # its own terminal record, and the profile restoration must be owed.
-    $obligations=Get-KmcRunObligationState -StateRoot $StateRoot -RunId $RunId -RunToken ([string]$Snapshot.token)
+    # Private evidence only: installed loader files are verified by the recovery after it acquires the reservation.
+    $obligations=Get-KmcRunObligationState -StateRoot $StateRoot -RunId $RunId -RunToken ([string]$Snapshot.token) -PrivateOnly
     $blocking=@($obligations.Open|Where-Object{-not($_.StartsWith('profile: ')-or$_.StartsWith('areas: '))})
     if($blocking.Count-ne0){throw ('Post-transaction profile recovery has unresolved obligations: '+($blocking -join '; '))}
     if($obligations.Started-cnotcontains'profile'){throw 'Post-transaction profile recovery: this run owes no profile restoration.'}
@@ -488,7 +499,7 @@ function Restore-KmcPersistenceStartupSettings {
     Assert-KmcRecoveryLeafNoLinks $expectedParams 'current UMM parameters'
     if((Get-KmcSha256 $saved)-cne$Snapshot.paramsSha256){throw 'Captured UMM parameters changed.'}
     $paramsHash=Get-KmcSha256 $expectedParams
-    $prefs=Get-KmcPersistencePlayerPrefs
+    $prefs=Get-KmcPersistencePlayerPrefs -Lock $Lock
     if($paramsHash-cne$ExpectedCurrentParamsSha256-or(Get-KmcTextSha256 $prefs)-cne$ExpectedCurrentPrefsSha256){
         throw 'Current settings changed after the restoration review; refusing a stale overwrite.'
     }
@@ -506,7 +517,7 @@ function Restore-KmcPersistenceStartupSettings {
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
-    if((Get-KmcSha256 $expectedParams)-cne$paramsHash-or(Get-KmcPersistencePlayerPrefs)-cne$prefs){
+    if((Get-KmcSha256 $expectedParams)-cne$paramsHash-or(Get-KmcPersistencePlayerPrefs -Lock $Lock)-cne$prefs){
         throw 'Settings changed immediately before restoration.'
     }
     if($createdAnalytics.Count-ne0){
@@ -528,16 +539,24 @@ function Restore-KmcPersistenceStartupSettings {
     if($restoreParams){
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
         [IO.File]::WriteAllBytes($expectedParams,[IO.File]::ReadAllBytes($saved))
+        Add-KmcReservationProgress $Lock ('loader settings bytes rewritten from the captured pre-run Params.xml; its timestamp not yet restored: '+$expectedParams)
+        Invoke-KmcReservationTestHook 'settings-after-params-bytes'
+        [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared timestamp write
         [IO.File]::SetLastWriteTimeUtc($expectedParams,[IO.File]::GetLastWriteTimeUtc($saved))
-        Add-KmcReservationProgress $Lock 'loader settings (Params.xml) restored'
+        Add-KmcReservationProgress $Lock ('loader settings timestamp restored: '+$expectedParams)
     }
     if($changes.Count-ne0){
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
-        $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath),$true)
+        $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath -Lock $Lock),$true)
         try{
             if($null-eq$key){throw 'Exact PlayerPrefs key disappeared.'}
-            foreach($change in $changes){$key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)}
-            $key.Flush()
+            foreach($change in $changes){
+                [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before each preference write
+                $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
+                $key.Flush()
+                Add-KmcReservationProgress $Lock ('preference restored: '+$change.name)
+                Invoke-KmcReservationTestHook 'settings-after-preference'
+            }
         }finally{if($null-ne$key){$key.Dispose()}}
     }
     [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Defer)

@@ -59,7 +59,7 @@ function Enter-KmcScopedReservation([string]$StateRoot){
   $script:scopedReservationToken=$token;$script:scopedReservationRunId=$value.runId;$script:scopedReservationBytes=[Convert]::ToBase64String($bytes);$script:scopedReservationStateRoot=$value.stateRoot
  }
 }
-function Exit-KmcScopedReservation{
+function Exit-KmcScopedReservation([bool]$HandlesSettled=$true){
  if($null-eq$script:scopedReservationToken){return}
  Invoke-KmcScopedReservationMutex {
   # Only exactly its own record is removed: byte-identical to the one it wrote (every protocol, identity, timestamp
@@ -70,7 +70,7 @@ function Exit-KmcScopedReservation{
     $root=Join-Path $script:scopedReservationStateRoot 'native-reservation-incidents';[void][IO.Directory]::CreateDirectory($root)
     $first=Join-Path $root ($script:scopedReservationRunId+'.first.json');$path=if(Test-Path -LiteralPath $first){Join-Path $root ($script:scopedReservationRunId+'.'+[Guid]::NewGuid().ToString('N')+'.json')}else{$first}
     $text=if($null-eq$observed){'nobody'}elseif($observed-ceq'unreadable'){$observed}else{[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($observed))}
-    $incident=[ordered]@{schemaVersion=1;runId=$script:scopedReservationRunId;expectedLeaseToken=$script:scopedReservationToken;context='closed scoped preflight release';observedRecordText=$text;resourcesReleased='record left alone';observedAtUtc=[DateTime]::UtcNow.ToString('o')}
+    $incident=[ordered]@{schemaVersion=1;runId=$script:scopedReservationRunId;expectedLeaseToken=$script:scopedReservationToken;context='closed scoped preflight release';expectedRecordText=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($script:scopedReservationBytes));observedRecordText=$text;resourcesReleased=$(if($HandlesSettled){'every shared input handle settled; the reservation record left alone'}else{'a shared input handle retained; the reservation record left alone'});observedAtUtc=[DateTime]::UtcNow.ToString('o')}
     $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$b=[Text.UTF8Encoding]::new($false).GetBytes(($incident|ConvertTo-Json));$stream.Write($b,0,$b.Length);$stream.Flush($true)}finally{$stream.Dispose()}
    }catch{}
    throw 'The scoped preflight''s reservation is no longer exactly its own; it is left alone.'
@@ -281,12 +281,14 @@ finally{
 # The reservation is released (or kept) after every shared handle settled and before the lab-local receipt is written,
 # so the receipt reports the actual release result.
 $reservationReleased=$false
-if($released){try{Exit-KmcScopedReservation;$reservationReleased=$true}catch{$released=$false;$errors.Add($_.Exception.ToString())}}
+# Handle settlement ($released) and the neutral release ($reservationReleased) are independent observations, each
+# reported as observed in the receipt.
+if($released){try{Exit-KmcScopedReservation $true;$reservationReleased=$true}catch{$errors.Add($_.Exception.ToString())}}
 elseif($null-ne$scopedReservationToken){$errors.Add('A shared handle was retained; the Kingmaker native-test reservation stays for the owner.')}
 try{
  if($null-ne$outputOwner-and$null-ne$outputOwner.receiptHandle){
   if($null-eq$receipt){$receipt=[ordered]@{schemaVersion=1;kind='closed-chunk7-scoped-preflight';status='FAIL';startedUtc=$started.ToString('o');nativeExecution=$false;freshWholeRootPurity=$false;historicalRootsStatus='NOT RE-EVALUATED';guards=@($rows);errors=@()}}
-  $receipt.status=if($verified-and$released-and$errors.Count-eq0){'PASS'}else{'FAIL'}
+  $receipt.status=if($verified-and$released-and$reservationReleased-and$errors.Count-eq0){'PASS'}else{'FAIL'}
   $receipt['actualExecutor']=$actualExecutor
   $receipt['compilerProcesses']=@($compilerOwners|ForEach-Object{[pscustomobject]@{source=$_.source;output=$_.output;processStarted=$_.processStarted;processId=$_.processId;arguments=$_.arguments;exitCode=$_.exitCode;outputSha256=$_.outputSha256;outputProvenance=$_.outputProvenance}})
   $receipt.errors=@($errors);$receipt['finishedUtc']=[DateTimeOffset]::UtcNow.ToString('o');$receipt['ownedInputHandlesReleased']=$released;$receipt['nativeReservationReleased']=$reservationReleased

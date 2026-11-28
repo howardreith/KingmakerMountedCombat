@@ -12,7 +12,7 @@ $runId='20261020-c7b-world83-b68s1-small-cal'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before this tool's first shared read, -WhatIf too;
 # its lock takes it over and releases it on a verified close; an exit before the lock releases it.
 $nativeReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId ($runId+'-profile-recovery') -Purpose 'recovery-one-run'
-trap{try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{};break}
+trap{$trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue;Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError;break}
 $expectedSnapshot='93622840ad1f8f712e988b8bfc7de03729446855fdac8f4d327a1e846fdf8c19'
 $expectedParamsNow='3ef54abd54572382ccc716e3577788fc08f57ff12cad540cbf583e91a5d3c84c'
 $expectedPrefsNow='f14cacf429e122e904674c339fb0f87fcd7bdb68b7ea9ede8438c6fced740582'

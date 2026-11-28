@@ -351,13 +351,24 @@ try{
         qualificationSuiteId='suite-1';qualificationSuiteSnapshotSha256=('2'*64);restoreAttemptedAtUtc='2026-10-25T21:59:57Z';modsRestored=$true;saveProtectionPassed=$true
         baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;restoredModsDigest=('0'*64);restoredSaveInventoryDigest=('1'*64);restorationErrors=@();restoredAtUtc='2026-10-25T21:59:57Z'}}
     # A restored child record (fields of both the Mods and the Working-save terminal records).
-    $newPart={[ordered]@{schemaVersion=4;runId=$ptRun;token=$ptToken;phase='restored';restoredAtUtc='2026-10-25T21:59:57Z';restoredDigest=('0'*64);restoredInventoryDigest=('1'*64);beforeInventory=[ordered]@{digest=('1'*64)}}}
+    $newPart={[ordered]@{schemaVersion=2;runId=$ptRun;token=$ptToken;phase='restored';liveModsRoot='C:\Mods';beforeDigest=('0'*64);restoredAtUtc='2026-10-25T21:59:57Z';restoredDigest=('0'*64);workingPath='C:\Saves\Manual_2_KMC_AUTOMATION_WORKING.zks';workingSha256=('5'*64);workingRestoredAtUtc='2026-10-25T21:59:57Z';restoredInventoryDigest=('1'*64);beforeInventory=[ordered]@{digest=('1'*64)}}}
+    # Independently mismatched restored digests (each stand-in record claiming restoration) refuse in every mode.
+    $mismatchCases=@(@('restoredModsDigest',('7'*64)),@('restoredSaveInventoryDigest',('8'*64)))
     # The run's obligation ledger: which children started (recorded before each child's first change).
     $writeLedger={param([string[]]$Started)
         [void][IO.Directory]::CreateDirectory((Join-Path $ptState 'run-obligations'))
         $entries=@($Started|ForEach-Object{[ordered]@{name=$_;startedAtUtc='2026-10-25T21:51:00Z';closedAtUtc=$null;closedBy=$null}})
         [IO.File]::WriteAllText((Join-Path $ptState ('run-obligations/'+$ptRun+'.json')),([ordered]@{schemaVersion=1;runId=$ptRun;token=$ptToken;createdAtUtc='2026-10-25T21:51:00Z';obligations=$entries}|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}
     & $writeLedger @('profile','combined','working','mods')
+    foreach($mismatch in $mismatchCases){
+        foreach($mode in @('save-backed-v3-suite','no-save-v1')){
+            $c=& $newCombined;$c[$mismatch[0]]=$mismatch[1]
+            if($mode-ceq'no-save-v1'){$c.schemaVersion=1;$c.mode='no-save-v1';foreach($name in @('qualificationSuiteSnapshotPath','qualificationSuiteId','qualificationSuiteSnapshotSha256')){$c.Remove($name)}}
+            & $writeState $c (& $newPart) (& $newPart)
+            $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+            if(!$rejected){throw ('A mismatched '+$mismatch[0]+' was admitted in mode '+$mode+'.')};$passes++
+        }
+    }
     & $writeState (& $newCombined) (& $newPart) (& $newPart)
     $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
     if([string]$admitted.token-cne$ptToken){throw 'The completed transaction recovery was not admitted for its own token.'};$passes++

@@ -45,8 +45,8 @@ else{throw 'Stale lock has no matching combined or legacy durable transaction st
 # below (live Mods, saves), for a -WhatIf preview too; without it (missing, foreign, mismatched or live) recovery refuses
 # and leaves the state for the owner. Any exit before the lock is held leaves the lease resumable for a retry.
 $lock=$null
-$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId ([string]$raw.runId) -JournalPath @($combinedStatePath,$legacyModsStatePath) -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
-trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId ([string]$raw.runId) -AlternativeJournal @($combinedStatePath,$legacyModsStatePath) -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
+trap { $trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue; if($null-eq(Get-Variable -Name lock -ValueOnly -ErrorAction SilentlyContinue)){Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError}; break }
 $liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
 $beforeMods=$null
 if($liveModsExistedBefore){

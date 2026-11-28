@@ -9,15 +9,14 @@ $installed=Join-Path $intake.requestedLayout.kingmakerModsRoot 'KingmakerMounted
 $testParent=Assert-KmcChildPath (Join-Path $repo ('obj/starting-installation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path $repo 'obj') 'test parent'
 $clone=Join-Path $testParent 'KingmakerMountedCombat'
 [void][IO.Directory]::CreateDirectory($clone)
-# The installed KMC folder is in the configured live Mods tree: it is read (and cloned) only under a preparation
-# reservation (docs/NATIVE-RESERVATION.md), released before the clone is exercised.
-$installationReservation=Enter-KmcNativeReservation -StateRoot (Join-Path (Get-KmcLabRoot) 'runtime-state') -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-starting-installation') -Purpose 'preparation-starting-installation'
-$installationFailed=$false
-try{
-[void](Assert-KmcPhase3fStartingInstallation $installed)
-$leaves=@(Get-ChildItem -LiteralPath $installed -File -Force | ForEach-Object Name)
-foreach($leaf in $leaves){[IO.File]::Copy((Join-Path $installed $leaf),(Join-Path $clone $leaf),$false)}
-}catch{$installationFailed=$true;throw}finally{Exit-KmcUnlockedNativeReservation $installationReservation -PreserveError:$installationFailed}
+# The installed KMC folder is in the configured live Mods tree: each read of it (the clone here and the final check) is
+# made under a preparation reservation for that read (docs/NATIVE-RESERVATION.md).
+$leaves=@(Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Read {
+    [void](Assert-KmcPhase3fStartingInstallation $installed)
+    $names=@(Get-ChildItem -LiteralPath $installed -File -Force | ForEach-Object Name)
+    foreach($leaf in $names){[IO.File]::Copy((Join-Path $installed $leaf),(Join-Path $clone $leaf),$false)}
+    $names
+})
 [void](Assert-KmcPhase3fStartingInstallation $clone)
 $passes=1
 
@@ -84,5 +83,5 @@ finally { [IO.Directory]::Delete($nested,$true) }
 
 # The exact live installation is still accepted, unchanged, at the end.
 [void](Assert-KmcPhase3fStartingInstallation $clone);$passes++
-[void](Assert-KmcPhase3fStartingInstallation $installed);$passes++
+Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Read {[void](Assert-KmcPhase3fStartingInstallation $installed)};$passes++
 Write-Host "REGISTERED STARTING INSTALLATION PASS=$passes FAIL=0; live bytes were read only."

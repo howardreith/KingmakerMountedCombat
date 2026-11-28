@@ -10,7 +10,9 @@ param(
     [AllowNull()][string]$ExpectedLiveWorkingPath,
     # Runtime loader profile the result is judged against (default: the measured owner installation). It must be the
     # environment's installed loader: a result for another profile, or a mixed identity, is refused.
-    [string]$RuntimeLoaderProfileId
+    [string]$RuntimeLoaderProfileId,
+    # The caller's held transaction lock (the runtime launcher's); without it a shared read reserves for itself.
+    $OwnerLock
 )
 
 $ErrorActionPreference = 'Stop'
@@ -134,7 +136,7 @@ function Assert-SubscenarioResults {
     if (-not (Test-KmcCompoundRuntimeScenario ([string]$Game.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Game.scenario }).Count -eq 1 -and -not $names.Contains([string]$Game.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
 
-& (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath
+& (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath -OwnerLock $OwnerLock
 Assert-KmcManifestJsonMembersUnique $GameResultPath 'runtime game result'
 $game = Read-KmcJson $GameResultPath
 $request = Read-KmcJson $RequestPath
@@ -266,7 +268,10 @@ Assert-SubscenarioResults $game
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
-Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults -GameResult $game -VerifyLiveWorkingIdentity:$VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $ExpectedLiveWorkingPath
+# The opt-in live Working identity check reads the live save: under the caller's verified lock, or standalone under a
+# preparation reservation for that read.
+if($VerifyLiveWorkingIdentity){Invoke-KmcOwnedSharedRead -OwnerLock $OwnerLock -Purpose 'game-result-validation' -Read {Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults -GameResult $game -VerifyLiveWorkingIdentity:$VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $ExpectedLiveWorkingPath}}
+else{Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults -GameResult $game -VerifyLiveWorkingIdentity:$VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $ExpectedLiveWorkingPath}
 Assert-KmcCombatScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults

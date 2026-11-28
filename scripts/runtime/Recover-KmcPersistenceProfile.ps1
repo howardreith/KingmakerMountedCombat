@@ -40,9 +40,14 @@ if($AfterTransactionRecovery){
 # this run's stale lock. Without it recovery refuses; any exit before the lock is held leaves it resumable.
 $lock=$null
 if($AfterTransactionRecovery-and-not$staleProfileLock){$nativeReservation=Enter-KmcFollowUpReservation -StateRoot $stateRoot -RunId $RunId -RunToken $runToken -FollowUp 'profile-recovery'}
-elseif($AfterTransactionRecovery){$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -JournalPath @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -JournalToken $runToken -ExpectedRunToken $runToken -ExpectedPurpose 'profile-recovery' -Purpose 'profile-recovery'}
-else{$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -JournalPath @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -ExpectedLockToken $runToken -Purpose 'profile-recovery'}
-trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
+elseif($AfterTransactionRecovery){$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -RequiredJournal @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -JournalToken $runToken -ExpectedRunToken $runToken -ExpectedPurpose 'profile-recovery' -Purpose 'profile-recovery'}
+else{$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -RequiredJournal @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -ExpectedLockToken $runToken -Purpose 'profile-recovery'}
+trap { $trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue; if($null-eq(Get-Variable -Name lock -ValueOnly -ErrorAction SilentlyContinue)){Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError}; break }
+# Under the acquired reservation: the run's obligations other than the owed profile (and Areas) restoration, installed
+# loader files included, must be closed before any other shared read.
+$admittedObligations=Get-KmcRunObligationState -StateRoot $stateRoot -RunId $RunId -RunToken $runToken -BackupRoot $backups
+$admittedBlocking=@($admittedObligations.Open|Where-Object{-not($_.StartsWith('profile: ')-or$_.StartsWith('areas: '))})
+if($admittedBlocking.Count-ne0){throw ('Profile recovery of run '+$RunId+' finds open obligations; the reservation stays: '+($admittedBlocking -join '; '))}
 if((Get-KmcDirectoryManifest $state.liveModsRoot).digest-cne$state.restoredModsDigest-or
     (Get-KmcSaveMetadataInventory $state.saveRoot).digest-cne$state.restoredSaveInventoryDigest){
     throw 'Current Mods or saves differ from the completed transaction; refusing stale recovery.'

@@ -98,8 +98,8 @@ if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backups=Join-Path $lab 'runtime-backups'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -JournalPath @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotSha} -Purpose 'recovery-one-run'
-trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -RequiredJournal @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotSha} -Purpose 'recovery-one-run'
+trap{$trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue;if($null-ne$trapReservation-and-not$trapReservation.LockHeld){Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError};break}
 $evidence=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backups ('profile-'+$runId+'/snapshot.json')) $backups 'exact batch75 snapshot'
 $saved=Assert-KmcChildPath (Join-Path $backups ('profile-'+$runId+'/Params.xml')) $backups 'exact batch75 UMM parameters'

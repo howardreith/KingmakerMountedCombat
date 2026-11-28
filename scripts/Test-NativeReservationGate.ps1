@@ -88,7 +88,9 @@ try {
         @{ name = 'Test-Chunk7FieldFixtures'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'field')) },
         @{ name = 'Test-Chunk7OrdinaryFixtures'; args = @() },
         @{ name = 'Test-Chunk7ProgressionFixtures'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'progression')) },
-        @{ name = 'Test-Chunk7SmallManualCopy'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'small-manual')) }
+        @{ name = 'Test-Chunk7SmallManualCopy'; args = @('-OutputDirectory', (Join-Path $cacheRoot 'small-manual')) },
+        # The Areas isolation suite (its test lock now carries the run's obligation ledger).
+        @{ name = 'Test-Chunk7ProfileAreasIsolation'; args = @() }
     )
     foreach ($caller in $callers) { [void](Invoke-Suite $caller.name ('scripts\chunk7\' + $caller.name + '.ps1') $caller.args $exitZero) }
     # Scoped-preflight cases that consume changed bytes (the launcher, the harness and the preflight entry).
@@ -119,16 +121,22 @@ try {
         }
         return ('passed as a matched-base partial result ({0}; every row identical to the recorded 11e8e22b rows)' -f $ogeBase.summary)
     }.GetNewClosure())
-    # The partial child's raw evidence is retained with the gate logs (kept on success and failure), with its hashes.
+    # The partial child's raw evidence is retained with the gate logs (kept on success and failure): its whole output
+    # root (receipt-linked Git records and streams included) and the wrapper's console log, which carries the wrapper's
+    # own failure when no result.json was emitted; every retained file is listed with its SHA-256.
     $ogeEvidence = Join-Path $logRoot 'OriginalGuardEffects-raw'
-    [void][IO.Directory]::CreateDirectory($ogeEvidence)
-    foreach ($relative in @('test.log', 'inputs.json', 'result.json', 'case\receipt.json')) {
-        $source = Join-Path $ogeRoot $relative
-        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { Write-Host "   raw OriginalGuardEffects evidence missing: $relative"; continue }
-        $target = Join-Path $ogeEvidence ($relative.Replace('\', '-'))
-        Copy-Item -LiteralPath $source -Destination $target
-        Write-Host ('   raw OriginalGuardEffects evidence {0} sha256={1}' -f $target, (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant())
+    if (Test-Path -LiteralPath $ogeRoot) { Copy-Item -LiteralPath $ogeRoot -Destination $ogeEvidence -Recurse }
+    Copy-Item -LiteralPath (Join-Path $logRoot 'Test-ScopedPreflight-OriginalGuardEffects.log') -Destination (Join-Path $logRoot 'OriginalGuardEffects-raw-wrapper-console.log')
+    foreach ($relative in @('test.log', 'inputs.json', 'result.json', 'invocation-failure.txt', 'case\receipt.json')) {
+        $source = Join-Path $ogeEvidence $relative
+        if (Test-Path -LiteralPath $source -PathType Leaf) { Write-Host ('   raw OriginalGuardEffects evidence {0} sha256={1}' -f $source, (Get-FileHash -Algorithm SHA256 -LiteralPath $source).Hash.ToLowerInvariant()) }
+        else { Write-Host "   raw OriginalGuardEffects evidence not emitted by the child: $relative" }
     }
+    $wrapper = Join-Path $logRoot 'OriginalGuardEffects-raw-wrapper-console.log'
+    Write-Host ('   raw OriginalGuardEffects wrapper console {0} sha256={1}' -f $wrapper, (Get-FileHash -Algorithm SHA256 -LiteralPath $wrapper).Hash.ToLowerInvariant())
+    $manifest = Join-Path $logRoot 'OriginalGuardEffects-raw.sha256.txt'
+    [IO.File]::WriteAllLines($manifest, [string[]]@(Get-ChildItem -LiteralPath $ogeEvidence -Recurse -File -Force | Sort-Object FullName | ForEach-Object { (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant() + '  ' + $_.FullName.Substring($ogeEvidence.Length + 1) }))
+    Write-Host ('   raw OriginalGuardEffects file list {0} ({1} files)' -f $manifest, @(Get-Content -LiteralPath $manifest).Count)
     # Six-pair copy: unchanged, it stops in its source qualification on this machine's installed-loader observation (the
     # recorded evidence does not match the measured loader profile): a candidate prerequisite stop, reported as such. It
     # runs twice: as-is (accepted only with exactly that stop, a partial result), and with only that loader observation
