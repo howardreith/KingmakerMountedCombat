@@ -311,6 +311,26 @@ namespace KingmakerMountedCombat.Integration
         // Set by the pair's relationship service: whether an override of the mount is its bound live stick movement.
         internal Func<object, bool> MountOverrideOwner { get; set; }
 
+        // PR #70 R12-F4 (round 16): set by the pair's relationship service: whether a mount command is the pair's own (the combat owner's exact
+        // carriers, retained carrier cleanups and paired native commands, and the stick movement's bound or retained command). Unbound, every
+        // command counts as the pair's (the earlier behavior).
+        internal Func<Kingmaker.UnitLogic.Commands.Base.UnitCommand, bool> MountCommandOwned { get; set; }
+
+        internal int PreservedMountSuccessorCount { get; private set; }
+
+        // PR #70 R12-F4 (round 16): mod disable and unload only (CleanupTrigger.ModDisabled, the trigger MountedLifecycleSubscriber's
+        // ModDisable cleanup and the coordinator's Dispose pass; every other trigger, the player's ordinary dismount included, keeps stopping
+        // both actors). A live command in the mount's Move slot that the pair does not own is a newer native order (the player's ground order)
+        // that the exact-carrier drain has already yielded to: the mod's obligations are its own leases, not that order, so its command, path
+        // and cursor stay the engine's. The ownership query runs before anything is stopped; if it throws, nothing is stopped and the
+        // restoration keeps its residue for the coordinator's retry.
+        internal bool PreservesMountSuccessor(CleanupTrigger trigger)
+        {
+            if (trigger != CleanupTrigger.ModDisabled || MountCommandOwned == null) return false;
+            var move = mount?.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
+            return move != null && !move.IsFinished && !MountCommandOwned(move);
+        }
+
         public string ValidateMountedInvariants()
         {
             return ValidateMountedInvariants(false);
@@ -739,10 +759,15 @@ namespace KingmakerMountedCombat.Integration
             Exception first = null;
             try
             {
-                mount?.Commands?.InterruptMove();
+                // PR #70 R12-F4 (round 16): a mount successor the pair does not own keeps its command and motion (PreservesMountSuccessor). The
+                // rider's own movement is still stopped: it is placed beside the mount below, and its agent, avoidance, rotation and override
+                // leases are the ones released here. The mount's AI lease below writes only its captured AI flag (no command or path).
+                var preserveMountSuccessor = PreservesMountSuccessor(trigger);
+                if (!preserveMountSuccessor) mount?.Commands?.InterruptMove();
                 rider?.Commands?.InterruptMove();
-                if (mountView != null) { mountView.StopMoving(); }
+                if (mountView != null && !preserveMountSuccessor) { mountView.StopMoving(); }
                 if (riderView != null) { riderView.StopMoving(); }
+                if (preserveMountSuccessor) PreservedMountSuccessorCount++;
             }
             catch (Exception exception)
             {

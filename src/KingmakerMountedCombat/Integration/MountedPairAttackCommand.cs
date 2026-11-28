@@ -422,11 +422,46 @@ namespace KingmakerMountedCombat.Integration
         // R13-F4 (round 14): the installed WantsToMove of the mount's agent (Path != null || RequestedPath != null), read only for a live carrier
         // that has already moved the mount (its one approach was issued and followed).
         internal int NativeApproachEndedCount { get; private set; }
+        // PR #70 R13-F3 (round 16): an ISSUED approach is distinguished from a carrier still awaiting its first path. A carrier has acquired
+        // its path once, while it is live and owns the mount's Move slot, the mount's agent is observed (each approach tick of this command)
+        // holding a path object other than the one it held when this carrier was issued: installed TickApproaching delivers the carrier's own
+        // path, and a request still in flight is RequestedPath, not Path, so a carrier whose request is pending has not acquired one. The
+        // route-bound override carrier also keeps its earlier criterion (it moved the mount from its origin along its validated ForcedPath).
+        // The native-accepted entry does not use displacement: a displaced mount has not necessarily received a path. Otherwise the carrier is
+        // still awaiting its first path and keeps its existing handling.
+        private UnitMoveTo pathBaselineCarrier, pathAcquiredCarrier;
+        private Pathfinding.Path pathAtCarrierIssue;
+        internal int CarrierPathObservations { get; private set; }
+
+        private void NoteCarrierIssued()
+        {
+            pathBaselineCarrier = delegatedMove;
+            pathAtCarrierIssue = mount?.View?.AgentASP?.Path;
+        }
+
+        private void ObserveCarrierPath()
+        {
+            var carrier = delegatedMove;
+            var agent = mount?.View?.AgentASP;
+            if (carrier == null || carrier.IsFinished || agent == null || ReferenceEquals(pathAcquiredCarrier, carrier) ||
+                !ReferenceEquals(pathBaselineCarrier, carrier)) return;
+            var path = agent.Path;
+            if (path != null && !ReferenceEquals(path, pathAtCarrierIssue) && ReferenceEquals(mount.Commands?.GetCommand(CommandType.Move), carrier))
+            {
+                pathAcquiredCarrier = carrier;
+                CarrierPathObservations++;
+            }
+        }
+
+        internal bool CarrierAcquiredPath => delegatedMove != null &&
+            (ReferenceEquals(pathAcquiredCarrier, delegatedMove) || RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
+
+        // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed
+        // CompleteMovement/Stop cleared Path and RequestedPath) while UnitMoveTo has not yet reported finished.
         private bool MountAgentStoppedAfterCarrierMoved()
         {
             var agent = mount?.View?.AgentASP;
-            return delegatedMove != null && !delegatedMove.IsFinished && agent != null && !agent.WantsToMove &&
-                GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f;
+            return delegatedMove != null && !delegatedMove.IsFinished && agent != null && !agent.WantsToMove && CarrierAcquiredPath;
         }
 
 
@@ -831,6 +866,7 @@ namespace KingmakerMountedCombat.Integration
             AnnounceOwnMove(move);
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
+            NoteCarrierIssued();
             delegatedMoveDrivenByStockController = true;
             mountMoveSlotRestoredAfterApproach = false;
             commands.Run(move);
@@ -1666,10 +1702,11 @@ namespace KingmakerMountedCombat.Integration
 
         private bool EndIfNativeTurnBasedApproachEnded()
         {
+            ObserveCarrierPath();
             if (!NativeTurnBasedDispositionApplies) return false;
-            // The live carrier whose agent no longer wants to move is the route-bound override's (its carrier follows the validated ForcedPath);
-            // the native-accepted entry ends on its finished carrier.
-            if (!delegatedMove.IsFinished && !(RouteBound && MountAgentStoppedAfterCarrierMoved())) return false;
+            // Round 16 (R13-F3): BOTH supported entries end on a finished carrier or on a live carrier whose issued approach has ended (it acquired
+            // its path, and the agent no longer wants to move). A live carrier still awaiting its first path is not an ended approach.
+            if (!delegatedMove.IsFinished && !MountAgentStoppedAfterCarrierMoved()) return false;
             var admission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(admission);
             if (admission == MountedPairNativeAdmissionState.Admitted) return false;
@@ -1692,6 +1729,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             ObserveApproachInvariants();
+            ObserveCarrierPath();
             var nativeAdmission = childAttack.EvaluateCurrentNativeAdmission();
             ObserveNativeAdmission(nativeAdmission);
             // PR-1 review R3-F3: revoked movement cancels only an approach that still needs movement; a strike admissible from the
@@ -2027,6 +2065,7 @@ namespace KingmakerMountedCombat.Integration
             AnnounceOwnMove(delegatedMove);
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
+            NoteCarrierIssued();
             delegatedMoveDrivenByStockController =
                 !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == mount;

@@ -41,6 +41,10 @@ $participationPath=Join-Path $integration 'PairedActivationPersistence.cs';$part
 $teardownPath=Join-Path $integration 'MountedServiceTeardownSequence.cs';$teardown=[IO.File]::ReadAllText($teardownPath)
 $worldPath=Join-Path $integration 'MountedWorldService.cs';$worldText=[IO.File]::ReadAllText($worldPath)
 $ownershipPath=Join-Path $integration 'GameMountedRelationshipService.Ownership.cs';$ownershipText=[IO.File]::ReadAllText($ownershipPath)
+# PR #70 R12-F4 (round 16): the production relationship cleanup, movement-authority restoration and lifecycle ModDisable cleanup.
+$runtimePath=Join-Path $integration 'KingmakerMountedPairRuntime.cs';$runtimeText=[IO.File]::ReadAllText($runtimePath)
+$relationshipPath=Join-Path $integration 'GameMountedRelationshipService.cs';$relationshipText=[IO.File]::ReadAllText($relationshipPath)
+$lifecycleSubscriberPath=Join-Path $integration 'MountedLifecycleSubscriber.cs';$lifecycleSubscriberText=[IO.File]::ReadAllText($lifecycleSubscriberPath)
 # PR #70 R11-F1 (round 14): the saved-row DTOs, the archive envelope and the SELECTED archive codec, compiled whole with the installed Newtonsoft.Json
 # (the file set scripts/Test-PersistenceData.ps1 compiles), and the persistence tests' archive builder.
 $persistenceFiles=@('MountedSaveData.cs','SavedCombatData.cs','MountedLoadAdmissionPolicy.cs','MountedArchiveData.cs','MountedArchiveCodec.cs','NativeMountedSaveFormat.cs','RetainedNativeReentryPolicy.cs'|ForEach-Object{Join-Path $integration $_})+@((Join-Path $RepositoryRoot 'tests/Chunk7PersistenceTests.cs'))
@@ -209,6 +213,21 @@ $members=[ordered]@{
  'RELATIONSHIP_COMPLETE_OWNERSHIP'=(Extract $ownershipText 'private void CompleteOwnershipAttempt()')
  'RELATIONSHIP_REFRESH_OWNERSHIP'=(Extract $ownershipText 'internal void RefreshOwnership()')
  'RELATIONSHIP_REFRESH_RETIRED'=(Extract $ownershipText 'internal void RefreshRetiredOwnership()')
+ # PR #70 R12-F4 (round 16): production disable/unload cleanup through the relationship, the real Domain coordinator and the runtime restoration.
+ 'RELATIONSHIP_DISMOUNT'=(Extract $relationshipText 'public TransitionResult Dismount(CleanupTrigger trigger)')
+ 'RELATIONSHIP_MOUNT_COMMAND_OWNED'=(ExtractExpression $relationshipText 'private bool MountCommandOwnedByPair(')
+ 'RELATIONSHIP_CANCEL_IMPORT'=(Extract $ownershipText 'internal void CancelSavedOwnershipImport()')
+ 'RELATIONSHIP_TEARDOWN_READY'=(ExtractExpression $ownershipText 'internal bool AllTeardownOwnersReady =>')
+ 'RUNTIME_SUCCESSOR'=(ExtractRegion $runtimeText '        // PR #70 R12-F4 (round 16): set by the pair''s relationship service' '        public string ValidateMountedInvariants()')
+ 'RUNTIME_RESTORE_MOVEMENT'=(Extract $runtimeText 'public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger)')
+ 'RUNTIME_CLEAR_PREPARED'=(Extract $runtimeText 'public void ClearPreparedPairWhenUnmounted()')
+ 'RUNTIME_RELEASE_REFERENCES'=(Extract $runtimeText 'private void TryReleasePreparedReferences()')
+ 'RUNTIME_SHOULD_PLACE'=(Extract $runtimeText 'private static bool ShouldPlaceRiderAfterCleanup(CleanupTrigger trigger)')
+ 'LIFECYCLE_MOD_DISABLE'=(ExtractRegion $lifecycleSubscriberText '        internal bool HandleModDisable()' '        internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotNativeDeliveries()')
+ 'LIFECYCLE_CLEANUP'=(Extract $lifecycleSubscriberText 'private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)')
+ 'LIFECYCLE_CLEANUP_OWNER'=(Extract $lifecycleSubscriberText 'private bool CleanupOwner(GameMountedRelationshipService owner, NativeLifecycleBoundary boundary, string source,')
+ 'WORLD_VISIT'=(Extract $worldText 'internal Exception[] Visit(Action<MountedPairServices> action)')
+ 'CONTROLLER_OWNS_MOTION'=(ExtractExpression $controller 'internal bool OwnsMountMotionCommand(UnitCommand command) =>')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)
@@ -222,7 +241,7 @@ foreach($dependency in @('Newtonsoft.Json.dll','UnityEngine.dll','UnityEngine.Co
 & $compiler @compile; if($LASTEXITCODE-ne0){throw 'Actual attack path members did not compile.'}
 $timer=[Diagnostics.Stopwatch]::StartNew();$lines=@(& $exe);$code=$LASTEXITCODE;$timer.Stop();$lines|Write-Host
 $pass=@($lines|Where-Object{$_-cmatch'^PASS '}).Count;$fail=@($lines|Where-Object{$_-cmatch'^FAIL '}).Count
-$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'MountedMovementPersistence.cs'),$participationPath,$teardownPath,$worldPath,$ownershipPath,$TemplatePath)+$domain+$persistenceFiles|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
+$inputs=@($commandPath,$childPath,$patchPath,$probePath,$controlsPath,$lifecyclePath,$adapterPath,$controllerPath,$terminalBranchesPath,$directInputPath,(Join-Path $integration 'MountedMovementPersistence.cs'),$participationPath,$teardownPath,$worldPath,$ownershipPath,$runtimePath,$relationshipPath,$lifecycleSubscriberPath,$TemplatePath)+$domain+$persistenceFiles|ForEach-Object{[pscustomobject]@{path=$_;sha256=(Get-FileHash -LiteralPath $_).Hash.ToLowerInvariant()}}
 @{passes=$pass;failures=$fail;seconds=$timer.Elapsed.TotalSeconds;nativeProof=$false;exitCode=$code;inputs=$inputs;actualSha256=(Get-FileHash -LiteralPath $actual).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $OutputDirectory 'receipt.json')
 if($code-ne0 -or $pass-eq0 -or $fail-ne0){throw 'Actual attack path harness regressed.'}
 Write-Host ('MOUNTED ATTACK PATH HARNESS PASS '+$pass+'/0 (offline, not native evidence)')

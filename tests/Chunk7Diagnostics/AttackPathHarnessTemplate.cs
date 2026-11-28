@@ -21,6 +21,7 @@ namespace UnityEngine
         public float x, y, z;
         public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
         public static Vector3 zero => new Vector3(0f, 0f, 0f);
+        public static Vector3 right => new Vector3(1f, 0f, 0f);
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
         public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
         public static Vector3 operator *(Vector3 a, float f) => new Vector3(a.x * f, a.y * f, a.z * f);
@@ -31,6 +32,14 @@ namespace UnityEngine
     }
 
     public static class Time { public static int frameCount; }
+    // PR #70 R12-F4 (round 16): the Unity members KingmakerMountedPairRuntime.RestoreMovementAuthority reads (yaw rotation, Vector3.right, Destroy).
+    public struct Quaternion
+    {
+        private float yaw;
+        public static Quaternion Euler(float x, float y, float z) => new Quaternion { yaw = y };
+        public static Vector3 operator *(Quaternion q, Vector3 v) { var r = q.yaw * Math.PI / 180.0; return new Vector3((float)(v.x * Math.Cos(r) + v.z * Math.Sin(r)), v.y, (float)(-v.x * Math.Sin(r) + v.z * Math.Cos(r))); }
+    }
+    public class Object { public static int DestroyCount; public static void Destroy(object target) { DestroyCount++; } }
     public struct Vector2 { public float x, y; public Vector2(float x, float y) { this.x = x; this.y = y; } }
 
     // PR #70 R5-F2 (round 6): a unit view's GameObject, the identity native ClickUnitHandler.OnClick receives (engine boundary).
@@ -66,6 +75,8 @@ namespace Pathfinding
 
 public static class AstarPath
 {
+    // PR #70 R12-F4 (round 16): no active A* graph offline (RestoreMovementAuthority then places the rider beside the mount without FreePlaceSelector).
+    public static object active;
     public static int WaitCount;
     public static void WaitForPath(Pathfinding.Path path) { WaitCount++; }
 }
@@ -83,6 +94,11 @@ namespace Kingmaker.Visual.FogOfWar
 
 namespace Kingmaker.Utility
 {
+    public static class FreePlaceSelector
+    {
+        public static void PlaceSpawnPlaces(int count, float radius, Vector3 near) { throw new InvalidOperationException("no A* graph offline"); }
+        public static Vector3 GetRelaxedPosition(int index, bool projectOnGround) { throw new InvalidOperationException("no A* graph offline"); }
+    }
     public static class GeometryUtils
     {
         public static float SqrMechanicsDistance(Vector3 a, Vector3 b) { var dx = a.x - b.x; var dz = a.z - b.z; return dx * dx + dz * dz; }
@@ -211,6 +227,9 @@ namespace Kingmaker.View
         public Pathfinding.Path Path;
         // R13-F4 (round 14): installed UnitMovementAgent.get_WantsToMove (060018BE) is Path != null || RequestedPath != null (no requested path here).
         public bool WantsToMove => Path != null;
+        // PR #70 R12-F4 (round 16): the rider's stock agent lease (Behaviour.enabled) and its avoidance guard.
+        public bool enabled = true;
+        public bool AvoidanceDisabled;
         public int NextPointIndex;
         public UnityEngine.Vector2 NextWaypoint;
         public object PathOwner;
@@ -272,6 +291,9 @@ namespace Kingmaker.View
     public sealed class UnitEntityView
     {
         public float Corpulence = 0.5f;
+        // PR #70 R12-F4 (round 16): the rider leases RestoreMovementAuthority restores (AgentOverride, ForbidRotation).
+        public KingmakerMountedCombat.Integration.RiderMovementAgent AgentOverride;
+        public bool ForbidRotation;
         public bool Moving;
         public bool IsMoving() => Moving;
         public int StopMovingCount;
@@ -322,6 +344,10 @@ namespace Kingmaker.EntitySystem.Entities
         // Native UnitEntityData.Orientation: yaw in degrees (0 faces +Z, 90 faces +X).
         public float Orientation;
         public float WeaponRange = 1.5f;
+        // PR #70 R12-F4 (round 16): native Corpulence and Translocate (rider placement after cleanup).
+        public float Corpulence => View.Corpulence;
+        public int TranslocateCount;
+        public void Translocate(Vector3 position, float orientation) { Position = position; Orientation = orientation; TranslocateCount++; }
         public Vector3 EyePosition => Position + new Vector3(0f, 1.6f, 0f);
         public Kingmaker.View.UnitEntityView View = new Kingmaker.View.UnitEntityView();
         public Kingmaker.UnitLogic.Commands.UnitCommands Commands;
@@ -666,6 +692,14 @@ namespace Kingmaker.UnitLogic.Commands
         // Native RemoveFinishedAndUpdateQueue: finished slots are cleared; the first queued command is promoted when its slot is free.
         // PR #70 R6-F7 (round 10): one slot cleanup made to fail (injected) for one container, after native completion was stamped.
         public static Func<UnitCommands, bool> RemoveFault;
+        // PR #70 R12-F4 (round 16): native UnitCommands.InterruptMove (the reading the round-15 finding traced): every unfinished command in the Move
+        // slot, and every other unfinished command approaching (IsMoveUnit), is interrupted; counted per container.
+        public int InterruptMoveCalls;
+        public void InterruptMove()
+        {
+            InterruptMoveCalls++;
+            foreach (var command in raw.ToArray()) if (command != null && !command.IsFinished && (command.Type == UnitCommand.CommandType.Move || command.IsMoveUnit)) command.Interrupt();
+        }
         public void RemoveFinishedAndUpdateQueue()
         {
             if (RemoveFault != null && RemoveFault(this)) { RemoveFault = null; throw new InvalidOperationException("simulated slot cleanup failure"); }
@@ -768,8 +802,26 @@ namespace KingmakerMountedCombat.Integration
         private readonly List<MountedPairServices> pairs = new List<MountedPairServices>();
         /* WORLD_PAIRS */
         internal void PublishForHarness(MountedPairServices pair) => pairs.Add(pair);
+        // PR #70 R12-F4 (round 16): the production world visit and teardown drain (spliced) over this roster; no admission fence offline.
+        private MountedPairServices[] PairSnapshot => pairs.ToArray();
+        internal bool AdmissionFenced() => false;
+        /* WORLD_VISIT */
+        /* WORLD_SETTLE_OUTSTANDING */
     }
-    internal sealed class HarnessCoordinator { public RelationshipState State = RelationshipState.Unmounted; }
+    // PR #70 R12-F4 (round 16): the teardown cases bind the REAL Domain MountedRelationshipCoordinator (Real) over the spliced runtime restoration;
+    // the other cases keep only a state.
+    internal sealed class HarnessCoordinator
+    {
+        public MountedRelationshipCoordinator Real;
+        private RelationshipState state = RelationshipState.Unmounted;
+        public RelationshipState State { get { return Real != null ? Real.State : state; } set { state = value; } }
+        public MountedPair ActivePair => Real?.ActivePair;
+        public TransitionResult Dismount(CleanupTrigger trigger)
+        {
+            if (Real == null) throw new InvalidOperationException("The harness relationship has no real coordinator bound.");
+            return Real.Dismount(trigger);
+        }
+    }
     // The production GameMountedRelationshipService ownership surface: its registry (the world's real Domain MountedPairRegistry), coordinator
     // state, PairOwner and the spliced production ownership transitions. The reservation is the registry's TryReserve with the predicate the
     // production TryReserveOwnership binds (retainedCommands: MountedWorldService's pair.Combat.HasRetainedPairCommands; the harness has no
@@ -800,8 +852,128 @@ namespace KingmakerMountedCombat.Integration
             CompleteOwnershipAttempt();
         }
         internal void DismountForHarness() { coordinator.State = RelationshipState.Unmounted; CompleteOwnershipAttempt(); }
+        // PR #70 R12-F4 (round 16): the production relationship cleanup (Dismount, spliced whole) and its collaborators. The Dismounting subscribers
+        // are the ones each case binds (the combat owner's HandleDismounting cancellation); the stick-movement owner has no residue offline; Record
+        // keeps every result.
+        private bool disposed, automaticCleanupRetry, cleanupRetryRequired;
+        private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
+        private TransitionResult attachmentCleanup;
+        internal event Action<CleanupTrigger> Dismounting;
+        internal Func<CleanupTrigger, bool> ChargeCleanupBarrier { get; set; }
+        private readonly HarnessLogger logger = new HarnessLogger();
+        internal readonly HarnessContinuousDrive continuousDrive = new HarnessContinuousDrive();
+        internal KingmakerMountedPairRuntime runtime;
+        internal readonly List<TransitionResult> Recorded = new List<TransitionResult>();
+        public RelationshipState State => coordinator.State;
+        private TransitionResult Record(TransitionResult result) { Recorded.Add(result); return result; }
+        internal void ReleaseContinuousDrive(string reason, bool explicitRecovery) { continuousDrive.Releases++; }
+        private void ObserveCleanupState(TransitionResult result) { }
+        /* RELATIONSHIP_CANCEL_IMPORT */
+        /* RELATIONSHIP_TEARDOWN_READY */
+        /* RELATIONSHIP_MOUNT_COMMAND_OWNED */
+        /* RELATIONSHIP_DISMOUNT */
+        // The production constructor binds runtime.MountCommandOwned = MountCommandOwnedByPair (the lifecycle contract checks that binding); the
+        // pair is mounted through the REAL coordinator (validation, AcquireMovementAuthority, AttachPresentation) and the registry custody.
+        internal void MountWithRealCoordinatorForHarness(UnitEntityData rider, UnitEntityData mount, Func<bool> retainedCommands, KingmakerMountedPairRuntime pairRuntime)
+        {
+            runtime = pairRuntime;
+            runtime.MountCommandOwned = MountCommandOwnedByPair;
+            coordinator.Real = new MountedRelationshipCoordinator(runtime);
+            RefreshOwnership();
+            MountedPairOwner<UnitEntityData, GameMountedRelationshipService> owner; string refusal;
+            if (!Ownership.TryReserve(Kingmaker.Game.Instance.Player, Kingmaker.Game.Instance.Player.GameId, rider, mount, 1, this,
+                retainedCommands, () => true, () => true, out owner, out refusal)) throw new InvalidOperationException(refusal);
+            PairOwner = owner;
+            var result = coordinator.Real.Mount(new MountedPairCandidate(rider.UniqueId, mount.UniqueId)
+            {
+                RiderIsDirectlyControllable = true, MountIsDirectlyControllable = true, RiderIsAliveAndConscious = true, MountIsAliveAndConscious = true,
+                ExactReciprocalCompanionRelationship = true, RiderSizeOrdinal = 4, MountSizeOrdinal = 5, RiderViewAndStockAgentAvailable = true,
+                MountViewAndStockAgentAvailable = true, RiderStockAgentEnabled = true, MountStockAgentEnabled = true, RiderAgentOverrideAvailable = true,
+                MountAgentOverrideAvailable = true, RiderIsExactlyMedium = true, SafeMovementMode = true
+            });
+            if (!result.Succeeded) throw new InvalidOperationException("The real coordinator refused the harness pair: " + string.Join("; ", result.Errors.ToArray()));
+            CommitOwnership();
+            CompleteOwnershipAttempt();
+        }
         internal string OwnerStateForHarness => PairOwner == null ? "none" : PairOwner.State.ToString();
         internal void ObserveOrderDuringContinuousDrive(UnitCommands commands, UnitCommand command) { }
+    }
+    // PR #70 R12-F4 (round 16): the stick-movement owner's surface the relationship's Dismount and ownership read (no residue offline).
+    internal sealed class HarnessContinuousDrive
+    {
+        public int Releases, Recoveries;
+        public int ResidueCount => 0;
+        public string LastRetirementFailure => null;
+        public void RecoverRetained() { Recoveries++; }
+        public void RecoverRetainedDeliberately() { Recoveries++; }
+        public bool OwnsCommand(object command) => false;
+    }
+    public sealed class RiderMovementAgent { }
+    // PR #70 R12-F4 (round 16): KingmakerMountedPairRuntime with its ACTUAL RestoreMovementAuthority, the round-16 successor members,
+    // ClearPreparedPairWhenUnmounted, TryReleasePreparedReferences and ShouldPlaceRiderAfterCleanup spliced. AcquireMovementAuthority stands in for
+    // the mount-time leases (it captures and takes the same leases: rider stock agent disabled, avoidance guard, ForbidRotation, the rider
+    // AgentOverride, the mount's AI flag, the pre-mount rider pose); AttachPresentation/RestorePresentation stand in for the attachment (no
+    // attachment residue offline). No A* graph is active, so the rider is placed beside the mount.
+    internal sealed class KingmakerMountedPairRuntime : IMountedPairRuntime
+    {
+        private UnitEntityData rider, mount; private Kingmaker.View.UnitEntityView riderView, mountView;
+        private object supportedProfile;
+        private bool movementAuthorityConfigured, presentationConfigured, mountAiLeaseOwned, mountAiBackingWasEnabled, avoidanceLeaseOwned, riderAvoidanceWasDisabled,
+            riderForbidRotationLeaseOwned, riderForbidRotationWasEnabled, overrideInstalled, overrideComponentOwned, riderStockAgentWasEnabled, poseComponentOwned;
+        private RiderMovementAgent riderOverride; private Kingmaker.View.UnitMovementAgent riderStockAgent;
+        private object positionAnchorObject, positionAnchor, poseAdapter;
+        private bool AttachmentLeaseCustodyRetained => false;
+        private string PresentationAttachmentRiskState => "none";
+        private Vector3 preMountRiderPosition; private float preMountRiderOrientation;
+        private static readonly FieldInfo MammothAiBackingField = typeof(UnitEntityData).GetField("IsAIEnabled");
+        public int RestoreMovementCalls;
+        internal KingmakerMountedPairRuntime(UnitEntityData rider, UnitEntityData mount) { this.rider = rider; this.mount = mount; }
+        public void AcquireMovementAuthority(MountedPair pair)
+        {
+            riderView = rider.View; mountView = mount.View;
+            riderStockAgent = riderView.AgentASP ?? (riderView.AgentASP = new Kingmaker.View.UnitMovementAgent { Unit = rider });
+            riderStockAgentWasEnabled = riderStockAgent.enabled; riderStockAgent.enabled = false;
+            riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled; riderStockAgent.AvoidanceDisabled = true; avoidanceLeaseOwned = true;
+            mountAiBackingWasEnabled = mount.IsAIEnabled; mount.IsAIEnabled = false; mountAiLeaseOwned = true;
+            riderForbidRotationWasEnabled = riderView.ForbidRotation; riderView.ForbidRotation = true; riderForbidRotationLeaseOwned = true;
+            riderOverride = new RiderMovementAgent(); riderView.AgentOverride = riderOverride; overrideInstalled = true; overrideComponentOwned = true;
+            preMountRiderPosition = rider.Position; preMountRiderOrientation = rider.Orientation;
+            movementAuthorityConfigured = true;
+        }
+        public void AttachPresentation(MountedPair pair) { presentationConfigured = true; }
+        public void RestorePresentation(MountedPair pair) { presentationConfigured = false; TryReleasePreparedReferences(); }
+        internal string Leases => "leases{configured " + movementAuthorityConfigured + ", mount AI owned " + mountAiLeaseOwned + ", avoidance owned " + avoidanceLeaseOwned +
+            ", rotation owned " + riderForbidRotationLeaseOwned + ", override installed " + overrideInstalled + "}";
+        internal bool LeasesReleased => !movementAuthorityConfigured && !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned;
+        /* RUNTIME_SUCCESSOR */
+        /* RUNTIME_RESTORE_MOVEMENT */
+        /* RUNTIME_CLEAR_PREPARED */
+        /* RUNTIME_RELEASE_REFERENCES */
+        /* RUNTIME_SHOULD_PLACE */
+    }
+    internal enum NativeLifecycleBoundary { ModDisable }
+    internal sealed class HarnessLifecycleLedger
+    {
+        public readonly List<string> Records = new List<string>();
+        public void Record(NativeLifecycleBoundary boundary, string source, RelationshipState before, RelationshipState after, CleanupTrigger? trigger, bool attempted, bool succeeded,
+            IEnumerable<string> errors, string detail = null) =>
+            Records.Add(boundary + " " + before + "->" + after + " " + trigger + " succeeded=" + succeeded + (errors == null ? "" : " errors=" + string.Join(" | ", errors.ToArray())));
+    }
+    internal sealed class HarnessUnifiedTurn { public int Ended; public void EndPairedServiceParticipation() { Ended++; } }
+    internal sealed class HarnessPersistenceFacade { public int Dropped; public void DropRetainedIntent(string reason) { Dropped++; } }
+    // PR #70 R12-F4 (round 16): MountedLifecycleSubscriber with its ACTUAL HandleModDisable, ModDisableSteps (drains, readiness, charge drain and
+    // CleanupPairs), Cleanup (the world visit) and CleanupOwner (the relationship Dismount and the completion policy) spliced. The unified turn's
+    // participation end and the persistence's retained-intent drop are recorded stand-ins.
+    internal sealed class MountedLifecycleSubscriber
+    {
+        private readonly GameMountedRelationshipService service; private readonly MountedCombatController combat;
+        private readonly HarnessUnifiedTurn unifiedTurn = new HarnessUnifiedTurn(); private readonly HarnessPersistenceFacade persistence = new HarnessPersistenceFacade();
+        internal readonly HarnessLifecycleLedger ledger = new HarnessLifecycleLedger();
+        internal int UnifiedTurnEndsForHarness => unifiedTurn.Ended;
+        internal MountedLifecycleSubscriber(GameMountedRelationshipService service, MountedCombatController combat) { this.service = service; this.combat = combat; }
+        /* LIFECYCLE_MOD_DISABLE */
+        /* LIFECYCLE_CLEANUP */
+        /* LIFECYCLE_CLEANUP_OWNER */
     }
     internal static class PointerController { public static bool SimulatingClick; }
     internal abstract class UnitMoveContiniously : UnitCommand { }
@@ -1564,6 +1736,8 @@ namespace Harness
         internal long AutomaticQueuedHoldKeptCount { get; private set; }
         /* CONTROLLER_OWNS_UNIFIED */
         /* CONTROLLER_OWNS_PAIRED */
+        /* CONTROLLER_OWNS_MOTION */
+        internal bool ChargeAdmissionFenced => false;
         /* CONTROLLER_OVERRIDE_MOUNT */
         /* CONTROLLER_RUN_KEEPS_HOLD */
         /* CONTROLLER_COMMIT_PROVISIONAL */
@@ -1670,7 +1844,7 @@ namespace Harness
         internal MountedCombatController(UnitEntityData rider, UnitEntityData mount) { relationship.Rider = rider; relationship.Mount = mount; relationship.Runtime.Mount = mount; }
         private bool IsPairPlayerOrder(UnitCommand command) => command != null && command.CreatedByPlayer;
         private static string DescribeCommand(UnitCommand command) => command.GetType().Name;
-        private bool TryDrainChargeOwnership(string reason) => true;
+        internal bool TryDrainChargeOwnership(string reason) => true;
         private void TryLogException(string phase, Exception exception) { }
 
         // ---- harness entry points: the same calls the production drive makes ----
@@ -5942,6 +6116,148 @@ namespace Harness
             public MountedFirstTickVerdict Decide(object movementContext, float allowedMetres, float deltaTime, float stepTravelLeft, out float grantedMetres, out string detail) { Decisions++; grantedMetres = allowedMetres; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
         }
 
+        // PR #70 R12-F4 (round 16): disable and unload through the PRODUCTION cleanup chain: MountedServiceTeardownSequence (BeginDisable/Unload,
+        // spliced) -> MountedLifecycleSubscriber.HandleModDisable/ModDisableSteps.CleanupPairs/Cleanup/CleanupOwner (spliced) -> the world visit
+        // (MountedWorldService.Visit, spliced) -> GameMountedRelationshipService.Dismount (spliced: the Dismounting subscribers, the stick-movement
+        // release, the coordinator, the completion policy, ClearPreparedPairWhenUnmounted, CompleteOwnershipAttempt) -> the REAL Domain
+        // MountedRelationshipCoordinator -> KingmakerMountedPairRuntime.RestoreMovementAuthority (spliced: the stops, the mount AI lease, the rider
+        // override, rotation, stock agent and avoidance leases, rider placement). The Dismounting subscriber is the combat owner's HandleDismounting
+        // body (Cancel("relationship cleanup " + trigger)) over the real controller; the teardown readiness is the registry's AllTeardownReady over
+        // the production retained-commands predicate. Substituted: the engine (InterruptMove, StopMoving, the agent, Translocate, no A* graph), the
+        // mount-time lease acquisition and the presentation attachment, the unified turn's participation end, the retained-intent drop, the Shield
+        // release and the Harmony unpatch (RemoveHooksAndServices clears HooksPatched).
+        private static void R16ProductionDismountTeardown()
+        {
+            Action clearFaults = () => Kingmaker.View.UnitEntityView.StopMovingFault = null;
+            foreach (var kase in new[] { "steering successor through save/load fences, disable and unload", "failed mount stop in the restoration (no successor)",
+                "cancellation-created carrier stop (no successor)", "player dismount control (Manual trigger, steering successor)" })
+            {
+                var successorCase = kase.StartsWith("steering") || kase.StartsWith("player");
+                var cancelling = kase.StartsWith("cancellation");
+                var failingRestore = kase.StartsWith("failed");
+                var c = FirstTickPair(1.2f, 1f / 60f, false, false);
+                PriorSelectionAndHold(c);
+                var w = c.World;
+                var click = ClickTick(c, w.Target);
+                var wrapper = click.Order;
+                for (var i = 0; i < 4 && !c.Combat.LastFirstTickDecision.StartsWith("committed"); i++) Frame(c);
+                Frame(c);
+                Action armStop = () => Kingmaker.View.UnitEntityView.StopMovingFault = view => view == w.Horse.View;
+                // The production custody: the registry, the world roster, the relationship with the REAL coordinator over the spliced runtime.
+                var registry = new MountedPairRegistry<UnitEntityData, KingmakerMountedCombat.Integration.GameMountedRelationshipService>(unit => unit.UniqueId);
+                var world = new KingmakerMountedCombat.Integration.MountedWorldService();
+                var service = new KingmakerMountedCombat.Integration.GameMountedRelationshipService(registry) { World = world, CombatOwner = c.Combat };
+                world.PublishForHarness(new KingmakerMountedCombat.Integration.MountedPairServices { Relationship = service, Combat = c.Combat });
+                var runtime = new KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime(w.Rider, w.Horse);
+                service.MountWithRealCoordinatorForHarness(w.Rider, w.Horse, () => c.Combat.HasRetainedPairCommands, runtime);
+                var engineFailing = cancelling || failingRestore;
+                service.Dismounting += trigger =>
+                {
+                    // MountedCombatController.HandleDismounting; while the engine is failing its stop keeps failing after the cancellation.
+                    try { c.Combat.Cancel("relationship cleanup " + trigger); }
+                    finally { if (engineFailing) armStop(); }
+                };
+                var lifecycle = new KingmakerMountedCombat.Integration.MountedLifecycleSubscriber(service, c.Combat);
+                var steps = new ProductionTeardownSteps(world, service, lifecycle);
+                var handled = false; var log = new List<string>(); var ok = true; UnitMoveTo successor = null; PathSnap before = null;
+                Func<string> state = () =>
+                {
+                    var snap = successor != null ? Snap(w.Horse) : null;
+                    return "relationship " + service.State + ", " + runtime.Leases + ", owed " + c.Combat.HasOutstandingCleanup + ", enabled " + steps.Enabled + ", hooks " + steps.HooksPatched +
+                        ", drains " + steps.DrainCalls + ", participation ends " + lifecycle.UnifiedTurnEndsForHarness + ", horse InterruptMove " + w.Horse.Commands.InterruptMoveCalls +
+                        ", horse stops " + w.Horse.View.StopMovingCount + ", successor preserved " + runtime.PreservedMountSuccessorCount + ", registry owners " + registry.Owners.Length + ", horse path owner " + Id(w.Horse.View.AgentASP.PathOwner) +
+                        (successor != null ? ", Move slot " + Id(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move)) + " (successor " + Id(successor) + ", finished " + successor.IsFinished + "), {" + snap + "}" : "");
+                };
+                Func<int, int, bool> successorKept = (interrupts, stops) =>
+                    successor != null && !successor.IsFinished && ReferenceEquals(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move), successor) &&
+                    SuccessorPathKept(before, Snap(w.Horse), successor) && w.Horse.Commands.InterruptMoveCalls == interrupts && w.Horse.View.StopMovingCount == stops;
+                if (!cancelling) { armStop(); c.ActionStage = () => w.Target.Descriptor.State.IsDead = true; }
+                c.BeforeDrive = () =>
+                {
+                    if (handled || wrapper == null) return;
+                    if (cancelling ? (wrapper.IsFinished || LiveMountCarrier(c) == null) : !wrapper.IsFinished) return;
+                    handled = true;
+                    if (successorCase)
+                    {
+                        var at = w.Horse.Position;
+                        successor = new UnitMoveTo(at + new Vector3(-0.5f, 0f, 0f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(-0.5f, 0f, 0f) }) };
+                        w.Horse.Commands.Run(successor);
+                        TakePath(w.Horse, successor);
+                        before = Snap(w.Horse);
+                    }
+                    var interrupts0 = w.Horse.Commands.InterruptMoveCalls; var stops0 = w.Horse.View.StopMovingCount;
+                    log.Add("at the request: " + state());
+                    MountedServiceTeardownSequence.Verdict v;
+                    if (kase.StartsWith("player"))
+                    {
+                        // The player's ordinary dismount reaches the same relationship cleanup with CleanupTrigger.Manual: it still stops the mount.
+                        clearFaults();
+                        var result = service.Dismount(CleanupTrigger.Manual);
+                        ok &= result.Succeeded && service.State == RelationshipState.Unmounted && successor.IsFinished && w.Horse.Commands.InterruptMoveCalls == interrupts0 + 1 &&
+                            w.Horse.View.StopMovingCount > stops0 && runtime.PreservedMountSuccessorCount == 0 && runtime.LeasesReleased;
+                        log.Add("Manual dismount: " + (result.Succeeded ? "succeeded" : "failed") + "; " + state());
+                        return;
+                    }
+                    if (successorCase)
+                    {
+                        armStop();   // a tripwire: any StopMoving of the horse view during teardown would throw
+                        steps.Save = true;
+                        v = steps.SetEnabledFalse();
+                        ok &= v == MountedServiceTeardownSequence.Verdict.RefusedSaveOrOwners && steps.DrainCalls == 0 && service.State == RelationshipState.Mounted && steps.HooksPatched && steps.Enabled && successorKept(interrupts0, stops0);
+                        log.Add("disable inside the save fence: " + v + "; " + state());
+                        steps.Save = false; steps.Load = true;
+                        v = steps.Unload();
+                        ok &= v == MountedServiceTeardownSequence.Verdict.RefusedLoad && steps.DrainCalls == 0 && lifecycle.UnifiedTurnEndsForHarness == 0 && service.State == RelationshipState.Mounted && steps.HooksPatched && successorKept(interrupts0, stops0);
+                        log.Add("unload inside the load fence: " + v + "; " + state());
+                        steps.Load = false;
+                        v = steps.SetEnabledFalse();
+                        ok &= v == MountedServiceTeardownSequence.Verdict.Ready && !steps.Enabled && steps.HooksPatched && service.State == RelationshipState.Unmounted && !c.Combat.HasOutstandingCleanup &&
+                            runtime.LeasesReleased && runtime.PreservedMountSuccessorCount == 1 && w.Horse.IsAIEnabled && w.Rider.View.AgentASP.enabled && !w.Rider.View.AgentASP.AvoidanceDisabled &&
+                            w.Rider.View.AgentOverride == null && !w.Rider.View.ForbidRotation && w.Rider.TranslocateCount == 1 && successorKept(interrupts0, stops0);
+                        log.Add("disable: " + v + "; rider placed " + w.Rider.Position + " (mount " + w.Horse.Position + "), horse AI " + w.Horse.IsAIEnabled + ", rider agent enabled " + w.Rider.View.AgentASP.enabled +
+                            ", avoidance disabled " + w.Rider.View.AgentASP.AvoidanceDisabled + ", override " + (w.Rider.View.AgentOverride == null ? "none" : "installed") + ", ForbidRotation " + w.Rider.View.ForbidRotation + "; " + state());
+                        v = steps.Unload();
+                        ok &= v == MountedServiceTeardownSequence.Verdict.Ready && !steps.HooksPatched && service.State == RelationshipState.Unmounted && successorKept(interrupts0, stops0);
+                        log.Add("unload: " + v + "; " + state());
+                        clearFaults();
+                        return;
+                    }
+                    // Controls without a successor: the restoration's own mount stop fails (or the cancellation's stop failed), so the relationship keeps
+                    // its movement residue; the request is refused with hooks and owners retained; the retry after recovery settles.
+                    if (failingRestore) clearFaults();
+                    else armStop();
+                    v = steps.SetEnabledFalse();
+                    ok &= v == MountedServiceTeardownSequence.Verdict.RefusedResidue && steps.Enabled && steps.HooksPatched && service.State == RelationshipState.Faulted && world.Pairs.Length == 1 && ReferenceEquals(world.Pairs[0].Relationship, service);
+                    log.Add("disable (engine failing): " + v + "; ledger " + string.Join(" / ", lifecycle.ledger.Records.ToArray()) + "; " + state());
+                    engineFailing = false; clearFaults();
+                    if (cancelling)
+                    {
+                        // UpdateCore's retry once ordinary updates stopped, then a second disable request
+                        steps.Enabled = false;
+                        var attempted = MountedServiceTeardownSequence.RetryWhileDisabled(steps);
+                        ok &= attempted && steps.HooksPatched && service.State == RelationshipState.Faulted;
+                        log.Add("UpdateCore retry: attempted " + attempted + "; " + state());
+                        v = steps.Unload();
+                    }
+                    else v = steps.SetEnabledFalse();
+                    ok &= v == MountedServiceTeardownSequence.Verdict.Ready && service.State == RelationshipState.Unmounted && runtime.LeasesReleased && !c.Combat.HasOutstandingCleanup &&
+                        w.Horse.View.AgentASP.PathOwner == null && (cancelling ? !steps.HooksPatched : !steps.Enabled && steps.HooksPatched);
+                    log.Add((cancelling ? "unload" : "disable") + " (engine recovered): " + v + "; " + state());
+                    if (!cancelling)
+                    {
+                        v = steps.Unload();
+                        ok &= v == MountedServiceTeardownSequence.Verdict.Ready && !steps.HooksPatched;
+                        log.Add("unload: " + v + "; " + state());
+                    }
+                };
+                for (var i = 0; i < 4 && !handled; i++) Frame(c);
+                c.BeforeDrive = null; clearFaults();
+                if (successor != null && !successor.IsFinished) { successor.Interrupt(); w.Horse.Commands.RemoveFinishedAndUpdateQueue(); }
+                ok &= handled;
+                Check(ok, "R12-F4 (round 16, production dismount cleanup) " + kase + ": " + string.Join("; ", log.ToArray()));
+            }
+        }
+
         // PR #70 R12-F4 / R14-F5 (round 15): the PRODUCTION teardown sequence (MountedServiceTeardownSequence, spliced whole: what
         // CompositionRoot.SetEnabled(false), CompositionRoot.UpdateCore's disabled-state retry, CompositionRoot.Dispose (UMM unload) and
         // MountedLifecycleSubscriber.HandleModDisable delegate to), with the production world drain (MountedWorldService.SettleOutstandingPairCleanup,
@@ -8612,6 +8928,7 @@ namespace Harness
                     "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + "; the player's newer ground order owns the Move slot " + ReferenceEquals(slot, successor));
             }
 
+<<<<<<< HEAD
             // ===== round 16 (owner authorization 2026-11-28a section 3: R13-F5, R15-F1, R15-F2, R15-F3) =====
             Func<string, string> selectedOf = text => { var at = (text ?? "").IndexOf("waypoint#", StringComparison.Ordinal); if (at < 0) return "?"; var end = text.IndexOfAny(new[] { '=', ',', ';' }, at); return text.Substring(at, (end < 0 ? text.Length : end) - at); };
             Func<string, string> returnedOf = line => { var delta = Field(line ?? "", "physicalDelta"); var arrow = delta.IndexOf("->", StringComparison.Ordinal); return arrow < 0 ? delta : delta.Substring(arrow + 2); };
@@ -8876,6 +9193,86 @@ namespace Harness
                         (order == null ? "-" : order.IsFinished ? "ended (" + order.EndCause + ")" : "live"));
                 }
 
+||||||| parent of ff052b23 (Review R16 (PR-2): native-accepted approach termination (R13-F3) and successor preservation through production dismount cleanup (R12-F4))
+=======
+            // R13-F3 (round 16): the native-accepted ordinary rider click (no override route) whose LIVE carrier has acquired its path and moved the
+            // mount; the issued path is then cleared (installed CompleteMovement/Stop: Path released, no further request) while UnitMoveTo has not
+            // reported finished, and on that same frame, before the rider's command tick, the target drifts 0.8 m (beyond the 0.75 m re-path
+            // distance). The issued approach has ended out of reach: the force-finish disposition, one carrier, the movement already spent stays
+            // spent, no strike, the rider's Standard unspent, and the player's newer ground order then owns the mount's Move slot. Control
+            // (pending first path): the same click whose carrier has NOT acquired a path (native has not delivered one) when the target drifts is
+            // not an ended approach: no native disposition, and the existing drift re-path still serves the order.
+            foreach (var kase in new[] { "native-accepted click, issued path cleared while the carrier is unfinished, target drifts 0.8 m", "pending-first-path control, target drifts 0.8 m" })
+            {
+                var pending = kase.StartsWith("pending");
+                var c = FirstTickPair(0.6f, 1f / 60f, false, false);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                w.PathfindUnforcedMoves = !pending;
+                LineOfSightGeometry.Instance.Blocked = (from, to) => true;   // the target is never in sight: no strike can become legal
+                var standardBefore = w.Rider.CombatState.Cooldown.StandardAction;
+                var click = ClickTick(c, w.Target, false);
+                var order = w.Rider.Commands.Standard as MountedPairAttackCommand;
+                UnitMoveTo first = null; var cleared = false; var acquiredAtClear = false; var origin = w.Horse.Position; var moveAtClear = -1f; var movedAtClear = 0f;
+                var targetBefore = w.Target.Position;
+                for (var i = 0; i < 40 && order != null && !order.IsFinished && !cleared; i++)
+                {
+                    var carrier = order.DelegatedMove;
+                    if (carrier != null && first == null) { first = carrier; origin = w.Horse.Position; }
+                    var ready = carrier != null && !carrier.IsFinished && (pending ? i >= 3 : Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin, w.Horse.Position) > 0.05f);
+                    if (ready)
+                    {
+                        c.ActionStage = () =>
+                        {
+                            if (!pending)
+                            {
+                                var agent = w.Horse.View.AgentASP;
+                                agent.Path = null; agent.PathOwner = null; w.PathfindUnforcedMoves = false;   // the issued path is released; native requests no other
+                            }
+                            acquiredAtClear = order.CarrierAcquiredPath;
+                            moveAtClear = w.Horse.CombatState.Cooldown.MoveAction;
+                            movedAtClear = Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin, w.Horse.Position);
+                            w.Target.Position = w.Target.Position + new Vector3(0f, 0f, 0.8f);
+                            cleared = true;
+                        };
+                    }
+                    Frame(c);
+                }
+                var unfinishedAtClear = first != null && (pending ? !first.IsFinished || order.DelegatedMoveStarts > 1 : true);
+                Frame(c); Frame(c);
+                var moveAfter = w.Horse.CombatState.Cooldown.MoveAction;
+                var carriers = order == null ? -1 : order.DelegatedMoveStarts;
+                bool ok; string successorDetail = "";
+                if (!pending)
+                {
+                    var endedNatively = order != null && order.IsFinished && order.NativeApproachEndedCount == 1 && order.EndCause == MountedAttackEndCause.Cancelled;
+                    var carrierCleared = LiveMountCarrier(c) == null;
+                    var at = w.Horse.Position;
+                    var successor = new UnitMoveTo(at + new Vector3(0f, 0f, -0.5f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(0f, 0f, -0.5f) }) };
+                    w.Horse.Commands.Run(successor);
+                    Frame(c);
+                    var slot = w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move);
+                    var successorMoved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(at, w.Horse.Position);
+                    ok = cleared && acquiredAtClear && order.CarrierPathObservations == 1 && endedNatively && carriers == 1 && order.StruckTargets.Count == 0 &&
+                        moveAtClear > 0f && moveAfter == moveAtClear && carrierCleared && w.Rider.CombatState.Cooldown.StandardAction == standardBefore &&
+                        ReferenceEquals(slot, successor) && !order.RouteBound && !click.Admitted;
+                    successorDetail = "; the player's newer ground order owns the Move slot " + ReferenceEquals(slot, successor) + " (moved " + successorMoved.ToString("0.###") + " m)";
+                }
+                else
+                {
+                    ok = cleared && !acquiredAtClear && order != null && order.CarrierPathObservations == 0 && order.NativeApproachEndedCount == 0 &&
+                        !(order.IsFinished && order.EndCauseDetail != null && order.EndCauseDetail.Contains("native turn-based approach ended")) && carriers == 2 &&
+                        order.StruckTargets.Count == 0 && w.Rider.CombatState.Cooldown.StandardAction == standardBefore && !order.RouteBound;
+                }
+                Check(ok, "R13-F3 (round 16) " + kase + ": admitted override " + click.Admitted + ", route-bound " + (order != null && order.RouteBound) + "; first carrier " + Id(first) +
+                    " unfinished at the clear " + unfinishedAtClear + ", path acquired " + acquiredAtClear + " (observations " + (order == null ? 0 : order.CarrierPathObservations) + "), mount moved " +
+                    movedAtClear.ToString("0.###") + " m; target " + targetBefore + " -> " + w.Target.Position + "; carriers issued " + carriers + "; disposition " +
+                    (order == null ? "-" : order.IsFinished ? "ended " + order.EndCause + "(" + order.EndCauseDetail + ") (native force-finish disposition " + order.NativeApproachEndedCount + ")" : "live (native force-finish disposition " + order.NativeApproachEndedCount + ")") +
+                    "; mount Move " + moveAtClear.ToString("0.####") + " at the clear -> " + moveAfter.ToString("0.####") + " s; rider Standard " + standardBefore + " -> " + w.Rider.CombatState.Cooldown.StandardAction +
+                    "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + successorDetail);
+            }
+
+>>>>>>> ff052b23 (Review R16 (PR-2): native-accepted approach termination (R13-F3) and successor preservation through production dismount cleanup (R12-F4))
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
             // (0.0439 m of physical travel left at 18 m/s: a 1/60 s request is cut to 0.0439/18 s, not the 0.30 m frame); the ordinary control keeps
             // the full requested tick (native's borrowed time). Domain arithmetic (MountedMovementState.Advance, the debit the adapter applies).
@@ -9299,6 +9696,7 @@ namespace Harness
             try { R4F10Pairing(); } catch (Exception exception) { Check(false, "PR-2 R1-F10 (round 4) threw " + exception); }
             try { R7ProvisionalLifecycle(); } catch (Exception exception) { Check(false, "PR-2 R1-F6/R5-F3/R6-F1..F7 (round 7) threw " + exception); }
             try { R15TeardownLifecycle(); } catch (Exception exception) { Check(false, "PR-2 R12-F4/R14-F5 (round 15, production teardown sequence) threw " + exception); }
+            try { R16ProductionDismountTeardown(); } catch (Exception exception) { Check(false, "PR-2 R12-F4 (round 16, production dismount cleanup) threw " + exception); }
             try { R5F1NoResidue(); } catch (Exception exception) { Check(false, "PR-2 R4-F1 (round 5) threw " + exception); }
             try { R5F7Dispatch(); } catch (Exception exception) { Check(false, "PR-2 R1-F7/R4-F2 (round 5) threw " + exception); }
             try { R5F3Crowding(); } catch (Exception exception) { Check(false, "PR-2 R4-F3 (round 5) threw " + exception); }
@@ -9332,6 +9730,36 @@ namespace Harness
         /* WORLD_SETTLE_OUTSTANDING */
     }
 
+    // PR #70 R12-F4 (round 16): CompositionRoot.TeardownSteps over the production collaborators: the world drain (spliced), the relationship's
+    // registry readiness (spliced), the lifecycle's HandleModDisable (spliced); the persistence fences are flags; the Shield release succeeds;
+    // RemoveHooksAndServices (patches.Dispose and the release after it) clears the observable HooksPatched flag.
+    internal sealed class ProductionTeardownSteps : MountedServiceTeardownSequence.ISteps
+    {
+        private readonly MountedWorldService world; private readonly GameMountedRelationshipService relationship; private readonly MountedLifecycleSubscriber lifecycle;
+        public bool Enabled = true, Save, Load, Worker, Area, Restoration, HooksPatched = true;
+        public int DrainCalls;
+        internal ProductionTeardownSteps(MountedWorldService world, GameMountedRelationshipService relationship, MountedLifecycleSubscriber lifecycle) { this.world = world; this.relationship = relationship; this.lifecycle = lifecycle; }
+        public bool IsEnabled => Enabled;
+        public bool SaveSuspended => Save;
+        public bool LoadInFlight => Load;
+        public bool ActiveSaveWorkerRunning => Worker;
+        public bool AreaTransitionPending => Area;
+        public bool CombatRestorationPending => Restoration;
+        public bool ChargeFenced => false;
+        public bool TeardownOwnersReady => relationship.AllTeardownOwnersReady;
+        public bool DrainOutstandingPairCleanup() { DrainCalls++; return world.SettleOutstandingPairCleanup(); }
+        public bool OwnedWorkerCanStillCommit() => Worker;
+        public bool HandleModDisable() => lifecycle.HandleModDisable();
+        public bool ReleaseForUnload() => true;
+        public void RemoveHooksAndServices() { HooksPatched = false; }
+        internal MountedServiceTeardownSequence.Verdict SetEnabledFalse()
+        {
+            var verdict = MountedServiceTeardownSequence.BeginDisable(this);
+            if (verdict == MountedServiceTeardownSequence.Verdict.Ready) Enabled = false;
+            return verdict;
+        }
+        internal MountedServiceTeardownSequence.Verdict Unload() => MountedServiceTeardownSequence.Unload(this);
+    }
     // The services CompositionRoot.TeardownSteps and MountedLifecycleSubscriber.ModDisableSteps bind, as observable harness state (see
     // R15TeardownLifecycle for what each stands for).
     internal sealed class HarnessTeardownSteps : MountedServiceTeardownSequence.ISteps, MountedServiceTeardownSequence.IModDisableSteps

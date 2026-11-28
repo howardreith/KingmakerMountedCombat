@@ -1328,6 +1328,12 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception) { return true; }
         }
 
+        // PR #70 R12-F4 (round 16): every mount command whose motion this pair owns: its exact paired native commands and carriers, the
+        // retained order's and active command's own carriers, and a carrier whose cleanup is retained. Read by the relationship's mod-disable
+        // restoration (KingmakerMountedPairRuntime.PreservesMountSuccessor).
+        internal bool OwnsMountMotionCommand(UnitCommand command) => command != null &&
+            (OwnsExactPairedNativeCommand(command) || IsOwnDelegatedMove(command) || retainedCarrierCleanups.Any(record => ReferenceEquals(record.Carrier, command)));
+
         // The pair's own exact carrier moves: the retained order's, and the active pair command's (a charge included).
         internal bool IsOwnDelegatedMove(UnitCommand command) => command is UnitMoveTo &&
             (retainedOrder.IsRetainedOwn(command) || activeCommand != null && activeCommand.IsOwnDelegatedMove(command));

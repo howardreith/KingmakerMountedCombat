@@ -459,4 +459,29 @@ Check ((Calls $rootDispose $seqUnload) -eq 1 -and (Calls $rootDispose $handleDis
     (Calls $rootDispose $settlePairs) -eq 0 -and (Calls $seqUnload $sLoad) -eq 1 -and @(Refs $seqUnload | Where-Object { $_.Member -and $_.Member.DeclaringType -eq $stepsType } | Select-Object -First 1)[0].Member -eq $sLoad -and
     (FirstOffset $seqUnload $sLoad) -lt (FirstOffset $seqUnload $sOwnedWorker) -and (FirstOffset $seqUnload $sOwnedWorker) -lt (FirstOffset $seqUnload $sHandle) -and
     (FirstOffset $seqUnload $sHandle) -lt (FirstOffset $seqUnload $sRelease) -and (FirstOffset $seqUnload $sRelease) -lt (FirstOffset $seqUnload $sRemove) -and (Calls $seqUnload $sDrain) -eq 0) 'PR-2 R14-F5 (round 15): CompositionRoot.Dispose (UMM unload) runs MountedServiceTeardownSequence.Unload, whose FIRST step is the owned-load fence (LoadInFlight) before the bounded owned-worker wait, HandleModDisable (the only drain/cancellation), the Mounted Shield release and patches.Dispose; Dispose itself calls none of them directly'
+# ---- PR-2 R12-F4 (round 16): the production disable/unload cleanup reaches the relationship Dismount, the coordinator and the runtime's
+# movement-authority restoration, which consults the pair's exact mount-command ownership before it stops the mount (the attack-path harness
+# executes this chain with the spliced members; these checks bind the compiled wiring the harness stands in for: the constructor binding).
+$relationshipType = KmcType 'KingmakerMountedCombat.Integration.GameMountedRelationshipService'
+$runtimeType = KmcType 'KingmakerMountedCombat.Integration.KingmakerMountedPairRuntime'
+$coordinatorType = KmcType 'KingmakerMountedCombat.Domain.MountedRelationshipCoordinator'
+$runtimeInterface = KmcType 'KingmakerMountedCombat.Domain.IMountedPairRuntime'
+$commandOwnedSetter = $runtimeType.GetProperty('MountCommandOwned', $any).GetSetMethod($true)
+$commandOwnedByPair = @(Method $relationshipType 'MountCommandOwnedByPair')[0]
+# The delegate is created with ldftn (FE 06 <token>), which the one-byte call-site scan above does not decode.
+function LoadsFunction([Reflection.MethodBase]$Method, [Reflection.MethodBase]$Target) { $il = $Method.GetMethodBody().GetILAsByteArray(); for ($i = 0; $i -le $il.Length - 6; $i++) { if ($il[$i] -eq 0xFE -and $il[$i + 1] -eq 0x06 -and [BitConverter]::ToInt32($il, $i + 2) -eq $Target.MetadataToken) { return $true } }; $false }
+$relationshipCtors = @($relationshipType.GetConstructors($any) | Where-Object { (Calls $_ $commandOwnedSetter) -eq 1 -and (LoadsFunction $_ $commandOwnedByPair) })
+$ownsMotion = @(Method $controller 'OwnsMountMotionCommand')[0]
+$driveOwnsCommand = (KmcType 'KingmakerMountedCombat.Domain.MountedContinuousDriveOwner').GetMethod('OwnsCommand', $any)
+$restoreMovement = @(Method $runtimeType 'RestoreMovementAuthority')[0]
+$preserves = @(Method $runtimeType 'PreservesMountSuccessor')[0]
+$interruptMove = @(Method (GameType 'Kingmaker.UnitLogic.Commands.UnitCommands') 'InterruptMove')[0]
+$relationshipDismount = @(Method $relationshipType 'Dismount')[0]
+$cleanupOwner = @(Method $lifecycleSubscriber 'CleanupOwner')[0]
+$coordinatorCleanup = @(Method $coordinatorType 'Cleanup')[0]
+Check ($relationshipCtors.Count -ge 1 -and (Calls $commandOwnedByPair $ownsMotion) -eq 1 -and (Calls $commandOwnedByPair $driveOwnsCommand) -eq 1 -and
+    (Calls $ownsMotion (@(Method $controller 'OwnsExactPairedNativeCommand')[0])) -eq 1 -and (Calls $ownsMotion (@(Method $controller 'IsOwnDelegatedMove')[0])) -eq 1 -and
+    (Calls $restoreMovement $preserves) -eq 1 -and (FirstOffset $restoreMovement $preserves) -lt (FirstOffset $restoreMovement $interruptMove) -and (Calls $restoreMovement $interruptMove) -eq 2 -and
+    (Calls $cleanupMethod $cleanupOwner) -ge 1 -and (Calls $cleanupOwner $relationshipDismount) -eq 1 -and
+    (Calls $relationshipDismount ($coordinatorType.GetMethod('Dismount', $any))) -eq 1 -and (Calls $coordinatorCleanup ($runtimeInterface.GetMethod('RestoreMovementAuthority'))) -eq 1) 'PR-2 R12-F4 (round 16): the ModDisable cleanup reaches CleanupOwner -> relationship Dismount -> coordinator Cleanup -> RestoreMovementAuthority, which consults PreservesMountSuccessor before either InterruptMove; the relationship constructor binds MountCommandOwned to MountCommandOwnedByPair (combat OwnsMountMotionCommand: exact paired native commands and own carriers; stick-movement OwnsCommand)'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
