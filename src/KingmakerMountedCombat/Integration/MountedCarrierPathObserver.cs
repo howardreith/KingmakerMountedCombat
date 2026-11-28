@@ -11,8 +11,13 @@ namespace KingmakerMountedCombat.Integration
     //     it, and either makes p the agent's Path (set_Path, SetWaypoint(1), OnMovementStarted: the delivery) or returns without delivering
     //     (no destination, or a failed/not-found path: OnPathNotFound). set_Path and set_RequestedPath claim their path (ClaimPath), so A*
     //     cannot hand back the object the agent currently holds as Path: a pooled object reused for a delivery was released earlier.
-    // Forced paths (UnitCommand.TickApproaching -> FollowPrecomputedPath, and ForcePath) set m_RequestedPath and complete synchronously without
-    // PathTo: they are deliveries no admitted carrier requested (the route-bound override carrier keeps its own displacement criterion).
+    //   UnitMovementAgent.FollowPrecomputedPath(Path p, float) 060018B6 (round 19 follow-up): its only installed caller is
+    //     UnitCommand.TickApproaching (060027A6), which passes a FRESH ForcedPath copy of the ticking command's ForcedPath (or of the visualized
+    //     path) with no command argument; FollowPrecomputedPath sets m_RequestedPath to it and calls OnPathComplete synchronously. The
+    //     product's TickApproaching prefix and postfix scope the exact ticking command (EnterApproach/ExitApproach, a stack), and the
+    //     FollowPrecomputedPath prefix records the forced request for that command; the OnPathComplete hooks then record the delivery under the
+    //     same rule as a PathTo request. (Reference identity with the carrier's own ForcedPath cannot bind it: native passes a copy.)
+    // ForcePath (UnitMoveAlongPath and ability movement) has no command scope and is never attributed to a carrier.
     // Both hooks are filtered to agents an admitted carrier was issued to (one weak-table lookup) and never change native state.
     internal static class MountedCarrierPathObserver
     {
@@ -29,6 +34,32 @@ namespace KingmakerMountedCombat.Integration
             agent == null || RequestedPathField == null ? null : RequestedPathField.GetValue(agent) as Pathfinding.Path;
 
         private static bool Tracks(Kingmaker.View.UnitMovementAgent agent) => KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.Tracks(agent);
+
+        // The commands whose native TickApproaching is running, innermost last (bounded: a body that threw leaves its entry, later trimmed).
+        private static readonly System.Collections.Generic.List<Kingmaker.UnitLogic.Commands.Base.UnitCommand> approaching =
+            new System.Collections.Generic.List<Kingmaker.UnitLogic.Commands.Base.UnitCommand>();
+
+        // TickApproaching prefix (first statement of MountedPatchController.PatchMethods.MountedAttackApproachPrefix).
+        internal static void EnterApproach(Kingmaker.UnitLogic.Commands.Base.UnitCommand command)
+        {
+            if (command == null) return;
+            if (approaching.Count >= 32) approaching.Clear();
+            approaching.Add(command);
+        }
+
+        // TickApproaching postfix (Harmony runs it whether or not the prefix skipped the native body).
+        internal static void ExitApproach(Kingmaker.UnitLogic.Commands.Base.UnitCommand command)
+        {
+            var at = approaching.LastIndexOf(command);
+            if (at >= 0) approaching.RemoveRange(at, approaching.Count - at);
+        }
+
+        // FollowPrecomputedPath prefix: the forced request the innermost ticking command issues (before set_RequestedPath and OnPathComplete).
+        internal static void BeforeForcedRequest(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
+        {
+            if (p == null || approaching.Count == 0 || !Tracks(agent)) return;
+            KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent, approaching[approaching.Count - 1], p);
+        }
 
         // PathTo prefix: the outstanding request before native decides.
         internal static Pathfinding.Path BeforeRequest(Kingmaker.View.UnitMovementAgent agent) => Tracks(agent) ? RequestedPathOf(agent) : null;

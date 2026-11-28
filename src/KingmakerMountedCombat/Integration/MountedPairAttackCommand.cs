@@ -430,8 +430,10 @@ namespace KingmakerMountedCombat.Integration
         // later movement tick, so neither native denial route (the paired movement prefix returning to native before the delegated adapter,
         // or the adapter's zero tick: CanMoveInTurnBased -> CompleteMovement clears Path and RequestedPath) can erase it, and a carrier that
         // merely holds the Move slot while a predecessor's path remains acquires nothing. The rider's samples are not an issuance fact (a path
-        // can be delivered, used and lost between them). The route-bound override carrier also keeps its earlier criterion (it moved the
-        // mount from its origin along its validated ForcedPath, which native follows through FollowPrecomputedPath without a PathTo request).
+        // can be delivered, used and lost between them). A forced approach (the route-bound carrier's ForcedPath, which native follows through
+        // FollowPrecomputedPath without PathTo) is attributed to the exact command whose TickApproaching issued it (round 19 follow-up). The
+        // route-bound override carrier also keeps its earlier displacement criterion unchanged (it moved the mount from its origin along its
+        // validated ForcedPath).
         internal int CarrierPathObservations { get; private set; }
         private UnitMoveTo observedDeliveredCarrier;
 

@@ -2081,6 +2081,7 @@ namespace Harness
                 if (!command.IsStarted)
                 {
                     if (PatchMethods.MountedAttackApproachPrefix(command)) { command.IsMoveUnit = true; NativeApproach(world, command); }
+                    PatchMethods.MountedAttackApproachPostfix(command);   // round 19 follow-up: Harmony's postfix ends the TickApproaching scope
                     if (!command.IsFinished && world.Ready[command.Executor] && command.Result == UnitCommand.ResultType.None && command.IsUnitEnoughClose)
                         command.Start();
                 }
@@ -5918,6 +5919,7 @@ namespace Harness
         {
             var agent = unit.View.AgentASP;
             var forced = new Pathfinding.ForcedPath(new List<Vector3>(move.ForcedPath.vectorPath));
+            PatchMethods.CarrierForcedPathRequestPrefix(agent, forced);   // round 19 follow-up: the ACTUAL FollowPrecomputedPath prefix
             agent.RequestedPath = forced;
             NativeOnPathComplete(unit, forced, move);
             agent.PathOwner = move; agent.NextPointIndex = 0;
@@ -5991,7 +5993,9 @@ namespace Harness
                     // Native TickApproaching of the carrier: its approach gives the agent its own copy of the path once (the cursor starts past the
                     // points the agent already stands on); a carrier whose agent path is consumed completes.
                     var agent = unit.View.AgentASP;
-                    if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath != null) TakePath(unit, move);
+                    // Round 19 follow-up: native TickApproaching of the carrier, scoped by the ACTUAL prefix/postfix (FollowPrecomputedPath's issuer).
+                    if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath != null)
+                    { PatchMethods.MountedAttackApproachPrefix(move); TakePath(unit, move); PatchMethods.MountedAttackApproachPostfix(move); }
                     else if (agent != null && !ReferenceEquals(agent.PathOwner, move) && move.ForcedPath == null && c.World.PathfindUnforcedMoves)
                     {
                         var goal = move.ApproachPoint;
@@ -6014,6 +6018,7 @@ namespace Harness
                 if (!command.IsStarted)
                 {
                     if (PatchMethods.MountedAttackApproachPrefix(command)) { command.IsMoveUnit = true; NativeApproach(c.World, command); }
+                    PatchMethods.MountedAttackApproachPostfix(command);   // round 19 follow-up: Harmony's postfix ends the TickApproaching scope
                     if (!command.IsFinished && c.World.Ready[command.Executor] && command.Result == UnitCommand.ResultType.None && command.IsUnitEnoughClose)
                         command.Start();
                 }
@@ -9907,6 +9912,110 @@ namespace Harness
                     " m along it (credited " + MountedCarrierApproachLedger.MovedAlongDelivery(first) + "); carriers issued " + carriers + "; native disposition " + (order == null ? -1 : order.NativeApproachEndedCount) +
                     "; strikes " + strikes + "; mount Move " + moveBeforeDenial.ToString("0.####") + " before the denial -> " + w.Horse.CombatState.Cooldown.MoveAction.ToString("0.####") +
                     " s; rider Standard " + standardBefore + " -> " + w.Rider.CombatState.Cooldown.StandardAction + "; order " + (order == null ? "-" : order.IsFinished ? "ended " + order.EndCause + "(" + order.EndCauseDetail + ")" : "live"));
+            }
+
+            // Round 19 follow-up (R17-F1, route-bound): the accepted override click's route-bound carrier receives its forced path between the rider's
+            // observations (native TickApproaching -> FollowPrecomputedPath -> OnPathComplete: the ACTUAL TickApproaching prefix/postfix scope, the
+            // ACTUAL FollowPrecomputedPath prefix and the ACTUAL completion hooks). Its first movement tick is denied before any displacement (the
+            // guard before the adapter, or the adapter's zero tick), the modeled CanMoveInTurnBased denial clears the path, and the action stage
+            // drifts the target 0.8 m. The guard route ends with the installed force-finish disposition. The carrier is gated (a first-tick
+            // carrier, MountedMovementStateAdapter.FirstTickGate), so the adapter's zero tick is that first-tick decision's refusal: the existing
+            // refusal path governs (no further carrier is issued, nothing is spent). Control: a predecessor command's own TickApproaching issues a
+            // forced path on the same agent after the carrier's delivery; it is not attributed to the carrier (observed right after the
+            // predecessor's synchronous delivery, before the movement hook).
+            foreach (var kase in new[] { "guard before the adapter (IsCommandsPreventMovement)", "adapter zero tick", "control: a predecessor's forced path" })
+            {
+                var control = kase.StartsWith("control");
+                var c = FirstTickPair(0.6f, 1f / 60f, false, false);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                var agent = w.Horse.View.AgentASP;
+                var standardBefore = w.Rider.CombatState.Cooldown.StandardAction;
+                var click = ClickTick(c, w.Target);
+                var order = w.Rider.Commands.Standard as MountedPairAttackCommand;
+                UnitMoveTo first = null; var armed = false; var done = false; var origin = w.Horse.Position; var targetBefore = w.Target.Position;
+                var phaseBeforeTick = MountedCarrierApproachPhase.NotAdmitted; var phaseAfterTick = MountedCarrierApproachPhase.NotAdmitted;
+                var observedBeforeTick = -1; var handled = true; object pathAfterTick = null, requestAfterTick = null, predecessorPath = null;
+                var denialsBefore = 0; var denials = 0; var moveAtTick = -1f; var movedAtTick = -1f; var movedAlongAtTick = true; var deliveryAtTick = false;
+                var requestsBeforeTick = -1; var requestsAfterTick = -1; var firstTickDecision = "-";
+                for (var i = 0; i < 40 && order != null && !order.IsFinished && !done; i++)
+                {
+                    if (first == null && order.DelegatedMove != null) { first = order.DelegatedMove; origin = w.Horse.Position; }
+                    // armed on the harness's observation of native's delivery (the agent steers the carrier's forced path), not on the record under test
+                    if (first != null && !armed && agent.Path != null && ReferenceEquals(agent.PathOwner, first))
+                    {
+                        armed = true; phaseBeforeTick = order.CarrierApproachPhase; observedBeforeTick = order.CarrierPathObservations;
+                        requestsBeforeTick = MountedCarrierApproachLedger.RequestCount(first);
+                        c.BeforeMountTick = () =>
+                        {
+                            denialsBefore = w.NativeDenials;
+                            if (kase.StartsWith("guard")) w.Horse.IsCommandsPreventMovement = true;
+                            else if (!control) w.ZeroMountTicks = 1;
+                            else
+                            {
+                                // a predecessor command's native TickApproaching on the same agent (its own scope) follows its own forced path
+                                var at = w.Horse.Position;
+                                var earlier = new UnitMoveTo(at + new Vector3(0f, 0f, 0.6f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(0f, 0f, 0.6f) }) };
+                                PatchMethods.MountedAttackApproachPrefix(earlier); TakePath(w.Horse, earlier); PatchMethods.MountedAttackApproachPostfix(earlier);
+                                predecessorPath = agent.Path; requestsAfterTick = MountedCarrierApproachLedger.RequestCount(first); phaseAfterTick = order.CarrierApproachPhase;
+                                movedAlongAtTick = MountedCarrierApproachLedger.MovedAlongDelivery(first); deliveryAtTick = MountedCarrierApproachLedger.HasDelivery(first);
+                            }
+                        };
+                        c.ActionStage = () =>
+                        {
+                            handled = w.LastHookHandled; denials = w.NativeDenials - denialsBefore;
+                            pathAfterTick = agent.Path; requestAfterTick = agent.RequestedPath; firstTickDecision = c.Combat.LastFirstTickDecision ?? "-";
+                            if (!control)
+                            {
+                                phaseAfterTick = order.CarrierApproachPhase; movedAlongAtTick = MountedCarrierApproachLedger.MovedAlongDelivery(first);
+                                deliveryAtTick = MountedCarrierApproachLedger.HasDelivery(first); requestsAfterTick = MountedCarrierApproachLedger.RequestCount(first);
+                            }
+                            moveAtTick = w.Horse.CombatState.Cooldown.MoveAction; movedAtTick = Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin, w.Horse.Position);
+                            if (!control) w.Target.Position = w.Target.Position + new Vector3(0f, 0f, 0.8f);
+                            done = true;
+                        };
+                    }
+                    Frame(c);
+                }
+                if (control)
+                {
+                    var okControl = armed && done && order != null && order.RouteBound && click.Admitted && requestsBeforeTick == 1 && requestsAfterTick == 1 &&
+                        predecessorPath != null && predecessorPath is Pathfinding.ForcedPath && phaseAfterTick == MountedCarrierApproachPhase.EndedByNative && deliveryAtTick && !movedAlongAtTick;
+                    Check(okControl, "Round 19 follow-up (R17-F1, route-bound) " + kase + ": carrier " + Id(first) + " delivered its own forced path (requests " + requestsBeforeTick + ", phase " + phaseBeforeTick +
+                        "); a predecessor command's own TickApproaching then delivered its forced path " + Id(predecessorPath) + " on the same agent: carrier requests still " + requestsAfterTick +
+                        ", phase " + phaseAfterTick + " (the agent no longer holds the carrier's delivery; nothing attributed), carrier's own earlier delivery still recorded " + deliveryAtTick +
+                        ", movement credited " + movedAlongAtTick + "; route-bound " + (order != null && order.RouteBound) + ", admitted override " + click.Admitted);
+                    continue;
+                }
+                Frame(c); Frame(c);
+                var moveAfter = w.Horse.CombatState.Cooldown.MoveAction;
+                var carriers = order == null ? -1 : order.DelegatedMoveStarts;
+                var endedNatively = order != null && order.IsFinished && order.NativeApproachEndedCount == 1 && order.EndCause == MountedAttackEndCause.Cancelled;
+                var carrierCleared = LiveMountCarrier(c) == null;
+                w.Horse.IsCommandsPreventMovement = false;
+                var successorAt = w.Horse.Position;
+                var successor = new UnitMoveTo(successorAt + new Vector3(0f, 0f, -0.5f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { successorAt, successorAt + new Vector3(0f, 0f, -0.5f) }) };
+                c.Combat.AdmitRiderTurnGroundOrderForHarness();
+                w.Horse.Commands.Run(successor);
+                c.Combat.CompleteGroundCommandAdmission(w.Horse);
+                var admittedAsGroundMove = ReferenceEquals(c.Combat.ActiveRiderTurnGroundMoveForHarness, successor);
+                for (var f = 0; f < 5 && !successor.IsFinished; f++) Frame(c);
+                var successorMoved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(successorAt, w.Horse.Position);
+                var zero = kase.StartsWith("adapter");
+                var refusedByGate = order != null && order.IsFinished && order.NativeApproachEndedCount == 0 && order.EndCause == MountedAttackEndCause.Cancelled &&
+                    order.EndCauseDetail == "first-tick request refused" && firstTickDecision.StartsWith("refused");
+                var ok = armed && done && !handled && observedBeforeTick == 0 && phaseBeforeTick == MountedCarrierApproachPhase.Delivered && requestsBeforeTick == 1 && denials == 1 &&
+                    pathAfterTick == null && requestAfterTick == null && phaseAfterTick == MountedCarrierApproachPhase.EndedByNative && deliveryAtTick && !movedAlongAtTick &&
+                    movedAtTick == 0f && (zero ? refusedByGate : endedNatively) && carriers == 1 && order.StruckTargets.Count == 0 && moveAfter == moveAtTick && carrierCleared &&
+                    w.Rider.CombatState.Cooldown.StandardAction == standardBefore && admittedAsGroundMove && successorMoved > 0f && order.DelegatedMoveStarts == 1 && order.RouteBound && click.Admitted;
+                Check(ok, "Round 19 follow-up (R17-F1, route-bound) rider-first, forced path delivered between rider observations (rider observations " + observedBeforeTick + ", phase " + phaseBeforeTick +
+                    ", requests " + requestsBeforeTick + "), " + kase + " on its first movement tick: ACTUAL TryOverrideMountTurnMovement handled " + handled + ", modeled CanMoveInTurnBased denial ran " + denials +
+                    "x; path after denial " + (pathAfterTick == null ? "none" : Id(pathAfterTick)) + ", request " + (requestAfterTick == null ? "none" : Id(requestAfterTick)) + ", carrier phase " + phaseAfterTick +
+                    ", delivery recorded " + deliveryAtTick + ", movement credited " + movedAlongAtTick + ", mount displaced " + movedAtTick.ToString("0.####") + " m; target " + targetBefore + " -> " + w.Target.Position +
+                    "; first-tick decision " + firstTickDecision.Substring(0, Math.Min(60, firstTickDecision.Length)) + "; carriers issued " + carriers + "; disposition " + (order == null ? "-" : order.IsFinished ? "ended " + order.EndCause + "(" + order.EndCauseDetail + ") (native force-finish disposition " +
+                    order.NativeApproachEndedCount + ")" : "live") + "; mount Move " + moveAtTick.ToString("0.####") + " at the tick -> " + moveAfter.ToString("0.####") + " s; rider Standard " + standardBefore +
+                    " -> " + w.Rider.CombatState.Cooldown.StandardAction + "; strikes " + (order == null ? 0 : order.StruckTargets.Count) + "; successor ground order admitted " + admittedAsGroundMove +
+                    ", moved the mount " + successorMoved.ToString("0.###") + " m; route-bound " + (order != null && order.RouteBound) + ", admitted override " + click.Admitted);
             }
 
             // R13-F5 (round 14): NearTheEnd's borrowed time is ordinary movement's only. A step tick inside NearTheEnd stays within both step limits
