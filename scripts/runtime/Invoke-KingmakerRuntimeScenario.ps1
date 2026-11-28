@@ -1510,7 +1510,9 @@ try{
             if((ConvertTo-KmcChunk7Canonical $verifiedDerivedSource)-cne(ConvertTo-KmcChunk7Canonical $manualDerivedSource)){throw 'Manual-derived source lineage changed during the native process.'}
             $sourceArtifact=Read-KmcJson $verifiedDerivedSource.artifactPath
             $derivedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-manual-derived-evidence.json')
-            Assert-KmcChunk7ManualDerivedEvidence $request $derivedArtifact $sourceArtifact 'PASS'
+            # Round 23 (R22-F5): trusted hook metadata comes from the validated package's own product bytes (its SHA-256 is the manifest's).
+            $candidateArtifact=Read-KmcChunk7PackageCandidateArtifact $PackagePath;if((Get-KmcChunk7CandidateArtifactDigest $candidateArtifact)-cne[string]$manifest.dllSha256){throw 'The selected package product differs from its validated manifest.'}
+            Assert-KmcChunk7ManualDerivedEvidence $request $derivedArtifact $sourceArtifact 'PASS' -CandidateArtifact $candidateArtifact
             Assert-KmcChunk7ManualDerivedOutput $request $derivedArtifact
         }
         if($gamePassed-and(Test-KmcChunk7CumulativeScenario $Scenario)){
@@ -1527,7 +1529,9 @@ try{
             if((ConvertTo-KmcChunk7Canonical $verifiedManualSource)-cne(ConvertTo-KmcChunk7Canonical $manualSeedSource)){throw 'Manual seed bootstrap/cold source changed during the native process.'}
             $sourceArtifact=Read-KmcJson $manualSeedSource.artifactPath;$coldArtifact=Read-KmcJson $manualSeedSource.inventoryPath
             $seedArtifact=Read-KmcJson (Join-Path $evidenceRoot 'chunk7-manual-seed-evidence.json')
-            Assert-KmcChunk7ManualSeedEvidence $request $seedArtifact $sourceArtifact $coldArtifact 'PASS'
+            # Round 23 (R22-F5): trusted hook metadata comes from the validated package's own product bytes (its SHA-256 is the manifest's).
+            $candidateArtifact=Read-KmcChunk7PackageCandidateArtifact $PackagePath;if((Get-KmcChunk7CandidateArtifactDigest $candidateArtifact)-cne[string]$manifest.dllSha256){throw 'The selected package product differs from its validated manifest.'}
+            Assert-KmcChunk7ManualSeedEvidence $request $seedArtifact $sourceArtifact $coldArtifact 'PASS' -CandidateArtifact $candidateArtifact
             Assert-KmcChunk7ManualSeedOutput $request $seedArtifact
         }
         if($gamePassed-and(Test-KmcChunk7AssistedColdInventoryScenario $Scenario)){

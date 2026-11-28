@@ -379,17 +379,17 @@ function Assert-KmcManualDerivedNativeChoices($Request,$O,$Selection=$null){
  else{Assert-KmcOrdinaryInteger $identity.level $s.existingLevel $s.existingLevel;Assert-KmcOrdinaryInteger $xp $s.existingExperience $s.existingExperience;Assert-KmcOrdinaryInteger $identity.rangerLevel $s.existingRangerLevel $s.existingRangerLevel;Assert-KmcOrdinaryInteger $expectedMoney $s.readiness.money $s.readiness.money}
  [pscustomobject]@{actorId=$identity.actorId;actorObject=$identity.actorObject;descriptorObject=$identity.descriptorObject;petId=$O.builderComplete.petId;level=$level;xp=$xp;money=$expectedMoney;commits=$commits}
 }
-function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifact,[string]$Status='PASS'){
+function Assert-KmcChunk7ManualDerivedEvidence($Request,$Artifact,$SourceArtifact,[string]$Status='PASS',$CandidateArtifact=$null){
  Assert-KmcChunk7ManualDerivedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-derived-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS Manual-derived result needs its PASS native artifact.'};if($Artifact.status-cne'PASS'){return}
  if($Request.manualDerived.nativeWriteLeaf-cin@('Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks','Manual_308_KMC_C7_SIX_HORSE_WORLD.zks')){
   Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-assisted-cold-inventory';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-assisted-cold-inventory-evidence'
  }else{Assert-KmcBootstrapInventoryString $SourceArtifact.scenario 'chunk7-bootstrap-manual-seed';Assert-KmcBootstrapInventoryString $SourceArtifact.evidenceKind 'chunk7-manual-seed-evidence'}
- Assert-KmcNativeAcquisitionProof $Request $Artifact $SourceArtifact $Request.manualDerived
+ Assert-KmcNativeAcquisitionProof $Request $Artifact $SourceArtifact $Request.manualDerived -CandidateArtifact $CandidateArtifact
 }
 # Shared raw native observation proof only. Each closed caller validates its own
 # exact descriptor, artifact kind and distinct source family before entering.
-function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative,$AssistedProjection=$null){
+function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Selection,[switch]$Cumulative,$AssistedProjection=$null,$CandidateArtifact=$null){
  $o=$Artifact.observations;$s=$Selection;$source=$SourceArtifact;$paid=Test-KmcManualDerivedPaidCase $s.case
  $sourceValues=$source.observations;$sourceWrite=$null;$sourceWorld=$null;$ownerSeed=$s.nativeWriteLeaf-ceq'Manual_304_KMC_C7_MANUAL_DERIVED_FIELD.zks'
  $f09=$s.nativeWriteLeaf-ceq'Manual_307_KMC_C7_MANUAL_DERIVED_FIELD.zks'
@@ -432,7 +432,9 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
   if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid
    # Round 21/22 (R20-F3, R21-F1): this record and its same-candidate sources bind each method to one token of its module, across restoration
    # and Manual save rows, and current-build product rows equal the candidate artifact's reflected bindings.
-   Assert-KmcChunk7SameModuleHookTokens $Request (@(,$o.noPreparation.hooks)+@(,$o.nativeSave.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks)+@(,$sourceValues.nativeSave.hooks)) (Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer')
+   # Round 23 (R22-F3): the outer save rows, the supplied source's save rows and their copy pass the exact three-row validation first.
+   foreach($rows in @(,$o.nativeSave.hooks)+@(,$sourceValues.nativeSave.hooks)+@(,$o.sourceManualObservations.nativeSave.hooks)){Assert-KmcChunk7ManualSaveHookRows $rows $Request.dllMvid}
+   Assert-KmcChunk7SameModuleHookTokens $Request (@(,$o.noPreparation.hooks)+@(,$o.nativeSave.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks)+@(,$sourceValues.nativeSave.hooks)) (Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer') $CandidateArtifact
    # Round 21 (R20-F2): the same-candidate Manual seed and cold-inventory processes decoded with the same build, so their normalized graphs
    # carry this record's writer (its own Manual write). Their inputs' versions are independent and are not recorded.
    $sameBuildWriter=Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer'
@@ -654,11 +656,7 @@ function Assert-KmcManualDerivedNativeSave($Request,$O,$Labels,[string]$Root){
  foreach($key in @('installed','installationAttempted','complete')){Assert-KmcChunk7Boolean $p.$key $true}
  foreach($key in @('requests','prepares','starts','stages','completions','callbacks')){Assert-KmcOrdinaryInteger $p.$key 1 1}
  if($p.errors-isnot[Array]-or$p.errors.Count-ne0-or$p.events-isnot[Array]-or$p.events.Count-ne6-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne3){throw 'Manual save observer is incomplete.'}
- $methods=@('SaveRoutine','PrepareSave','RecordCompletedSave');$tokens=@('06008029','06008025')
- for($i=0;$i-lt3;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i]
-  if($i-lt2){Assert-KmcBootstrapInventoryString $h.type 'Kingmaker.EntitySystem.Persistence.SaveManager';Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}
-  else{Assert-KmcBootstrapInventoryString $h.type 'KingmakerMountedCombat.Integration.MountedPersistenceService';Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Manual completion hook token invalid.'}}
- }
+ Assert-KmcChunk7ManualSaveHookRows $p.hooks $Request.dllMvid
  $kinds=@('native-save-request','native-save-prepared','snapshot-starting','snapshot-staged','native-worker-completed','native-save-callback');$prior=$r.frame
  for($i=0;$i-lt6;$i++){$e=$p.events[$i];Assert-KmcBootstrapInventoryString $e.kind $kinds[$i];Assert-KmcOrdinaryInteger $e.sequence ($i+1) ($i+1);Assert-KmcOrdinaryInteger $e.frame $prior $O.settledWorld.frame;$prior=$e.frame
   foreach($key in @('game','saveManager','player')){Assert-KmcOrdinaryInteger $e.$key $O.loadedWorld.$key $O.loadedWorld.$key}
