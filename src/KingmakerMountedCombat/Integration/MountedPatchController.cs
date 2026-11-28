@@ -314,9 +314,6 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.CarrierPathRequestPrefix), nameof(PatchMethods.CarrierPathRequestPostfix));
                 PatchExact(typeof(UnitMovementAgent), "OnPathComplete", 0x060018B9, new[] { typeof(Pathfinding.Path) },
                     nameof(PatchMethods.CarrierPathCompletePrefix), nameof(PatchMethods.CarrierPathCompletePostfix));
-                // Round 19 follow-up: the forced request (FollowPrecomputedPath 060018B6, called only by TickApproaching for the ticking command).
-                PatchExact(typeof(UnitMovementAgent), "FollowPrecomputedPath", 0x060018B6, new[] { typeof(Pathfinding.Path), typeof(float) },
-                    nameof(PatchMethods.CarrierForcedPathRequestPrefix));
                 PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));
                 PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));
                 PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));
@@ -2123,12 +2120,6 @@ namespace KingmakerMountedCombat.Integration
             internal static void CarrierPathCompletePostfix(UnitMovementAgent __instance, Pathfinding.Path p, int __state)
             {
                 MountedCarrierPathObserver.AfterCompletion(__instance, p, __state);
-            }
-
-            // PR #70 round 19 follow-up, round 22 (R19-F5): the forced request of the exact command whose transpiled TickApproaching call issues it.
-            internal static void CarrierForcedPathRequestPrefix(UnitMovementAgent __instance, Pathfinding.Path p)
-            {
-                MountedCarrierPathObserver.BeforeForcedRequest(__instance, p);
             }
 
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
