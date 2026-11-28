@@ -20,6 +20,10 @@ param()
 # - Same-process version (R18-F5): Manual-derived (normalized graph vs its own Manual write) and pre-owned owner seed (normalized graph vs
 #   advertised writer capability) accept 3/3 and 4/4 and refuse both crossings made by changing only the normalized graph field.
 # Round 20 controls: an impossible round hook in BOTH agreeing source copies is refused (the readers validate each copy's identity).
+# Round 21: every archive row in a current Manual-derived same-build chain (outer, Manual seed source, its cold inventory, and their copies)
+# is the candidate codec's normalized 4 of a historical schema-3 input; agreeing source copies downgraded to 3 beside the current writer,
+# and agreeing copies that rebind a product method's MethodDef token, are refused. The earlier-writer 3/3 control keeps the retained
+# synthetic fixture's own identity (module 33333333-..., its own product tokens): an earlier-build fixture, not the current DLL.
 # The 3/3 records are earlier-build (schema-3 writer) controls taken from the retained synthetic fixtures; no earlier codec runs here.
 # All observations are generated offline (nativeInvoked=false): reader behavior only, never a native save, load or gameplay session.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
@@ -125,6 +129,20 @@ function Assert-NoFixtureIdentity($Value,[string]$FixtureMvid){$text=ConvertTo-J
  foreach($bad in @('"NewRound"','Kingmaker.UnitLogic.UnitCombatState',('"'+$FixtureMvid+'"'),'"06001230"','"06001231"','"06001234"')){if($text.Contains($bad)){throw ('A retained fixture identity survives: '+$bad)}}
  $rows=[regex]::Matches($text,'"moduleMvid":"([0-9a-f-]+)"');if($rows.Count-lt4){throw 'No hook rows found.'};foreach($row in $rows){if($row.Groups[1].Value-cnotin@('07fa1e4d-8618-41b3-9b8d-faa17d3b26f7',$productMvid)){throw ('Foreign hook module '+$row.Groups[1].Value)}};$rows.Count}
 $fixtureMvid='33333333-3333-4333-8333-333333333333'
+# Round 21: replace every producer archive row (the exact-case observation row, never a capitalized archive graph) with the candidate
+# codec's normalized row for a schema-3 input of that row's own campaign and area.
+function Test-ArchiveRow($Value){$null-ne$Value-and$Value-is[Management.Automation.PSCustomObject]-and@($Value.PSObject.Properties.Name)-ccontains'schemaVersion'-and@($Value.PSObject.Properties.Name)-ccontains'nativeRestorationGrantedByDiagnostic'}
+function Set-CurrentArchiveRows($Node){
+ if($Node-is[Array]){foreach($item in $Node){Set-CurrentArchiveRows $item};return}
+ if($Node-isnot[Management.Automation.PSCustomObject]){return}
+ foreach($property in @($Node.PSObject.Properties)){
+  if($property.Name-ceq'archive'-and(Test-ArchiveRow $property.Value)){$in=Read-HistoricalInput $property.Value.campaignId $property.Value.areaId;$property.Value=New-ProducerArchiveRow $in.data}
+  else{Set-CurrentArchiveRows $property.Value}}}
+function Get-ArchiveRowVersions($Node){
+ if($Node-is[Array]){foreach($item in $Node){Get-ArchiveRowVersions $item};return}
+ if($Node-isnot[Management.Automation.PSCustomObject]){return}
+ foreach($property in @($Node.PSObject.Properties)){if($property.Name-ceq'archive'-and(Test-ArchiveRow $property.Value)){$property.Value.schemaVersion}else{Get-ArchiveRowVersions $property.Value}}}
+function Assert-ArchiveRowVersions($Record,[int]$Expected){$versions=@(Get-ArchiveRowVersions $Record);if($versions.Count-lt5-or@($versions|Where-Object{$_-ne$Expected}).Count){throw ('Archive rows in the chain are not all '+$Expected+': '+($versions-join','))};$versions.Count}
 
 $expectedNative=@(@('TurnBased.Controllers.TurnController','Prepare','06000C3C'),@('Kingmaker.Controllers.Combat.UnitCombatState','OnNewRound','0600939D'))
 Check 'installed hook identity: the probe''s two native tokens reflect TurnController.Prepare 06000C3C and Kingmaker.Controllers.Combat.UnitCombatState.OnNewRound 0600939D in module 07fa1e4d' {
@@ -166,6 +184,7 @@ try{
  Check 'Manual seed reader: producer-reflected hooks and normalized graph 4 (schema-3 input) accepted' {$f=New-CurrentManualSeed;[void](Assert-NoFixtureIdentity $f $fixtureMvid);if($f.artifact.observations.archive.schemaVersion-ne4){throw 'not normalized'};Invoke-ManualSeed $f}
  foreach($m in $hookMutations.GetEnumerator()){$script:mutation=$m.Value;Reject ('Manual seed reader: '+$m.Key) {New-CurrentManualSeed} {param($f)& $script:mutation $f.artifact.observations.noPreparation.hooks;Invoke-ManualSeed $f}}
  Reject 'Manual seed reader: impossible round hook in both agreeing cold-inventory copies (record copy and inventory artifact)' {New-CurrentManualSeed} {param($f)foreach($h in @($f.artifact.observations.sourceColdInventory.noPreparation.hooks[1],$f.inventory.observations.noPreparation.hooks[1])){$h.declaringType='Kingmaker.UnitLogic.UnitCombatState';$h.method='NewRound'};Invoke-ManualSeed $f}
+ Reject 'Manual seed reader: agreeing cold-inventory copies give RestoreActor the RestoreDebt token' {New-CurrentManualSeed} {param($f)foreach($rows in @($f.artifact.observations.sourceColdInventory.noPreparation.hooks,$f.inventory.observations.noPreparation.hooks)){$rows[2].token=$rows[3].token};Invoke-ManualSeed $f}
  foreach($m in $versionMutations.GetEnumerator()){$script:value=$m.Value;Reject ('Manual seed reader: '+$m.Key) {New-CurrentManualSeed} {param($f)$f.artifact.observations.archive.schemaVersion=$script:value;Invoke-ManualSeed $f}}
 }finally{if(Test-Path -LiteralPath $seedDirectory){Remove-Item -LiteralPath $seedDirectory -Recurse -Force}}
 
@@ -173,13 +192,14 @@ try{
 $derivedFixtures=Join-Path $repo 'tests/Chunk7Diagnostics'
 function Invoke-ManualDerived($f){Assert-KmcChunk7ManualDerivedEvidence $f.request $f.artifact $f.source}
 # Current build: the schema-3 input decoded by the candidate (normalized 4) and this build's own Manual write (SourceSchema of its output).
-function New-CurrentManualDerived([bool]$Paid=$true){$f=New-ManualDerivedFixture $Paid;Set-ProducerIdentity $f $fixtureMvid;$o=$f.artifact.observations;$in=Read-HistoricalInput $f.request.persistenceLoad.gameId $f.request.persistenceLoad.area
+function New-CurrentManualDerived([bool]$Paid=$true){$f=New-ManualDerivedFixture $Paid;Set-ProducerIdentity $f $fixtureMvid;Set-CurrentArchiveRows $f;$o=$f.artifact.observations;$in=Read-HistoricalInput $f.request.persistenceLoad.gameId $f.request.persistenceLoad.area
  $o.archive=New-ProducerArchiveRow $in.data;$o.nativeWrite.schema=Get-CurrentWrittenSchema $in.data;Copy-Json $f}
-# Earlier build (schema-3 writer) control: the retained fixture's 3/3 with the producer-reflected hooks.
-function New-EarlierManualDerived{$f=New-ManualDerivedFixture $true;Set-ProducerIdentity $f $fixtureMvid;Copy-Json $f}
+# Earlier build (schema-3 writer) control: the retained synthetic fixture with its own identity (module 33333333-..., product tokens
+# 06001230/06001231/06001234 of that module) and 3/3 throughout its chain. The installed native rows are the real ones; not the current DLL.
+function New-EarlierManualDerived{$f=New-ManualDerivedFixture $true;Copy-Json $f}
 foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}else{'existing-Horse'}
- Check ('Manual-derived reader ('+$label+'): schema-3 input decoded by the current writer, graph 4 with its own Manual write 4, producer hooks accepted') {$f=New-CurrentManualDerived $script:paid;if($f.artifact.observations.archive.schemaVersion-ne4-or$f.artifact.observations.nativeWrite.schema-ne4){throw 'not 4/4'};[void](Assert-NoFixtureIdentity $f $fixtureMvid);Invoke-ManualDerived $f}}
-Check 'Manual-derived reader: earlier-build 3/3 control accepted' {$f=New-EarlierManualDerived;if($f.artifact.observations.archive.schemaVersion-ne3-or$f.artifact.observations.nativeWrite.schema-ne3){throw 'not 3/3'};[void](Assert-NoFixtureIdentity $f $fixtureMvid);Invoke-ManualDerived $f}
+ Check ('Manual-derived reader ('+$label+'): schema-3 input decoded by the current writer, graph 4 with its own Manual write 4, producer hooks accepted') {$f=New-CurrentManualDerived $script:paid;if($f.artifact.observations.archive.schemaVersion-ne4-or$f.artifact.observations.nativeWrite.schema-ne4){throw 'not 4/4'};[void](Assert-NoFixtureIdentity $f $fixtureMvid);[void](Assert-ArchiveRowVersions $f 4);Invoke-ManualDerived $f}}
+Check 'Manual-derived reader: earlier-build synthetic fixture (module 33333333-..., its own product tokens, not the current DLL) 3/3 throughout its chain accepted' {$f=New-EarlierManualDerived;if($f.artifact.observations.nativeWrite.schema-ne3-or$f.request.dllMvid-cne$fixtureMvid-or$f.request.dllMvid-ceq$productMvid){throw 'not the earlier-build fixture'};[void](Assert-ArchiveRowVersions $f 3);Invoke-ManualDerived $f}
 Reject 'Manual-derived reader: same-process crossing, normalized graph 3 beside its own Manual write 4' {New-CurrentManualDerived} {param($f)$f.artifact.observations.archive.schemaVersion=3;Invoke-ManualDerived $f}
 Reject 'Manual-derived reader: same-process crossing, normalized graph 4 beside its own Manual write 3' {New-EarlierManualDerived} {param($f)$f.artifact.observations.archive.schemaVersion=4;Invoke-ManualDerived $f}
 foreach($m in $hookMutations.GetEnumerator()){$script:mutation=$m.Value;Reject ('Manual-derived reader: '+$m.Key) {New-CurrentManualDerived} {param($f)& $script:mutation $f.artifact.observations.noPreparation.hooks;Invoke-ManualDerived $f}}
@@ -187,6 +207,12 @@ foreach($m in $hookMutations.GetEnumerator()){$script:mutation=$m.Value;Reject (
 foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}else{'existing-Horse'}
  Reject ('Manual-derived reader ('+$label+'): impossible round hook in both agreeing Manual seed source copies') {New-CurrentManualDerived $script:paid} {param($f)foreach($h in @($f.source.observations.noPreparation.hooks[1],$f.artifact.observations.sourceManualObservations.noPreparation.hooks[1])){$h.declaringType='Kingmaker.UnitLogic.UnitCombatState';$h.method='NewRound'};Invoke-ManualDerived $f}
  Reject ('Manual-derived reader ('+$label+'): impossible round hook in both agreeing cold-inventory source copies') {New-CurrentManualDerived $script:paid} {param($f)foreach($h in @($f.source.observations.sourceColdInventory.noPreparation.hooks[1],$f.artifact.observations.sourceManualObservations.sourceColdInventory.noPreparation.hooks[1])){$h.declaringType='Kingmaker.UnitLogic.UnitCombatState';$h.method='NewRound'};Invoke-ManualDerived $f}}
+# Round 21 (R20-F2, R20-F3): agreeing same-candidate source copies that downgrade a normalized graph, or rebind a product method's token.
+foreach($paid in @($true,$false)){$script:paid=$paid;$label=if($paid){'paid'}else{'existing-Horse'}
+ Reject ('Manual-derived reader ('+$label+'): agreeing Manual seed source copies downgraded to normalized 3 beside the current writer') {New-CurrentManualDerived $script:paid} {param($f)foreach($row in @($f.source.observations.archive,$f.artifact.observations.sourceManualObservations.archive)){$row.schemaVersion=3};Invoke-ManualDerived $f}
+ Reject ('Manual-derived reader ('+$label+'): agreeing cold-inventory source copies downgraded to normalized 3 beside the current writer') {New-CurrentManualDerived $script:paid} {param($f)foreach($row in @($f.source.observations.sourceColdInventory.archive,$f.artifact.observations.sourceManualObservations.sourceColdInventory.archive)){$row.schemaVersion=3};Invoke-ManualDerived $f}
+ Reject ('Manual-derived reader ('+$label+'): agreeing Manual seed source copies give RestoreActor the RestoreDebt token') {New-CurrentManualDerived $script:paid} {param($f)foreach($rows in @($f.source.observations.noPreparation.hooks,$f.artifact.observations.sourceManualObservations.noPreparation.hooks)){$rows[2].token=$rows[3].token};Invoke-ManualDerived $f}
+ Reject ('Manual-derived reader ('+$label+'): agreeing Manual seed source copies bind RestoreActor to another token of the same module than this record') {New-CurrentManualDerived $script:paid} {param($f)foreach($rows in @($f.source.observations.noPreparation.hooks,$f.artifact.observations.sourceManualObservations.noPreparation.hooks)){$rows[2].token='06FFFFFE'};Invoke-ManualDerived $f}}
 foreach($m in $versionMutations.GetEnumerator()){$script:value=$m.Value;Reject ('Manual-derived reader: '+$m.Key) {New-CurrentManualDerived} {param($f)$f.artifact.observations.archive.schemaVersion=$script:value;Invoke-ManualDerived $f}}
 
 # --- (4) Pre-owned owner seed (R18-F5): the owner-made seed's normalized graph against the same process's writer capability. ---

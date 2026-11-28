@@ -61,10 +61,20 @@ function Assert-KmcManualSeedWorld($Row,$Request,$Labels,$SourceWorld,[long]$Min
 # record carries, so agreeing copies cannot carry an identity the installed module cannot emit.
 function Assert-KmcChunk7RestorationHookRows($Hooks,[string]$ProductMvid){
  if($Hooks-isnot[Array]-or$Hooks.Count-ne4){throw 'Restoration observer hook rows are incomplete.'}
+ # Round 21 (R20-F3): the two product methods are distinct MethodDefs of one module; they cannot share a token.
+ if($Hooks[2].token-is[string]-and$Hooks[2].token-ceq$Hooks[3].token){throw 'Two product restoration hooks claim one MethodDef token.'}
  $tokens=@('06000C3C','0600939D');$methods=@('Prepare','OnNewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
  for($i=0;$i-lt4;$i++){$h=$Hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
   if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $ProductMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
  }
+}
+# Round 21 (R20-F3): restoration-hook rows observed by processes of one candidate bind each module's methods to tokens consistently: one
+# token per (module, type, method) and one method per (module, token). Token values stay module-specific (historical builds keep theirs).
+function Assert-KmcChunk7SameModuleHookTokens([object[]]$RowSets){
+ $byMethod=@{};$byToken=@{}
+ foreach($rows in $RowSets){foreach($h in @($rows)){$method=[string]$h.moduleMvid+'|'+[string]$h.declaringType+'.'+[string]$h.method;$token=[string]$h.moduleMvid+'|'+[string]$h.token
+  if($byMethod.ContainsKey($method)-and$byMethod[$method]-cne[string]$h.token){throw 'Same-module restoration observations bind one method to different tokens.'};$byMethod[$method]=[string]$h.token
+  if($byToken.ContainsKey($token)-and$byToken[$token]-cne$method){throw 'Same-module restoration observations bind one token to different methods.'};$byToken[$token]=$method}}
 }
 function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$InventoryArtifact,[string]$Status='PASS'){
  Assert-KmcChunk7ManualSeedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-seed-evidence'
@@ -119,7 +129,7 @@ function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
  foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0}
  if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Cold inventory observed native preparation/round or actor/debt restoration.'}
- Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid
+ Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid;Assert-KmcChunk7SameModuleHookTokens (@(,$p.hooks)+@(,$o.sourceColdInventory.noPreparation.hooks))
  $a=$o.archive;[void](Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed');foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
