@@ -979,9 +979,10 @@ function Test-KmcChunk7DebtWithinClock($Before,$After,[double]$Elapsed){
  return $true
 }
 function Assert-KmcChunk7OwnerSeedManualArchive($Request,$Archive,[string[]]$Roles){
- Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'owner-seed Manual native archive'
+ # PR #70 R13-F2 (round 16): a writer graph (shared versioned field set); the caller binds it to the write's version.
+ [void](Assert-KmcChunk7WriterArchive $Archive 'owner-seed Manual native archive')
  $d=$Request.persistenceLoad
- if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$d.gameId-or$Archive.AreaId-cne$d.area-or
+ if($Archive.CampaignId-cne$d.gameId-or$Archive.AreaId-cne$d.area-or
     -not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or$Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
     $Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne2-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or$null-ne$Archive.Combat-or
     $Archive.Slots-isnot[Array]-or$Archive.Slots.Count-ne4){throw 'Owner-seed Manual read-back omitted a pair, invented combat/retained state or changed version/policy/slots.'}
@@ -1029,8 +1030,10 @@ function Assert-KmcChunk7OwnerSeedManualWorldEvidence($Request,$Observations){
  if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-cin@($d.sha256,$s.seedSha256)){throw 'Owner-seed Manual write hash is malformed or aliases the immutable seed.'}
  Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
  foreach($pair in @(@('fileName',$leaf),@('gameId',$d.gameId),@('gameName',$d.gameName),@('area',$d.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
- Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+ $writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Owner-seed Manual writer'
+ Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1
  Assert-KmcChunk7OwnerSeedManualArchive $Request $w.archive $roles
+ if($w.archive.SchemaVersion-ne$writer){throw 'Owner-seed Manual archive differs from its writer schema.'}
  $m=$o.ownerSeedManual;Assert-KmcExactProperties $m (Get-KmcChunk7OwnerSeedManualFields) 'owner-seed-derived Manual receipt'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-manual-v1';Assert-KmcBootstrapInventoryString $m.ancestry 'owner-seed-derived'
  foreach($key in @('disclosedAssistance','setupCompletedBeforeSave','seedCopyUnchanged')){Assert-KmcChunk7Boolean $m.$key $true}

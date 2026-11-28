@@ -47,8 +47,9 @@ function Assert-KmcChunk7SixPairPersistenceDescriptor($Request){
  Assert-KmcOrdinaryInteger $d.length 1 268435456;Assert-KmcOrdinaryInteger $d.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
 }
 function Assert-KmcChunk7SixPairArchive($Archive,$Request){
- Assert-KmcExactProperties $Archive @('SchemaVersion','CampaignId','AreaId','GameTimeTicks','Policy','RulesId','Pairs','Participations','Slots','Combat') 'six-pair native archive'
- if(-not(Test-KmcExactJsonInteger $Archive.SchemaVersion)-or$Archive.SchemaVersion-ne3-or$Archive.CampaignId-cne$Request.persistenceLoad.gameId-or
+ # PR #70 R13-F2 (round 16): a writer graph (shared versioned field set); the observation binds it to its writer.
+ [void](Assert-KmcChunk7WriterArchive $Archive 'six-pair native archive')
+ if($Archive.CampaignId-cne$Request.persistenceLoad.gameId-or
     $Archive.AreaId-cne$Request.persistenceLoad.area-or-not(Test-KmcExactJsonInteger $Archive.GameTimeTicks)-or$Archive.GameTimeTicks-lt0-or
     $Archive.Policy-cne'rider-principal-distinct-native-v1'-or$Archive.RulesId-cne'crpg-transport-v1'-or
     $Archive.Pairs-isnot[Array]-or$Archive.Pairs.Count-ne6-or$Archive.Participations-isnot[Array]-or$Archive.Participations.Count-ne0-or
@@ -190,13 +191,14 @@ function Assert-KmcChunk7SixPairPersistenceObservation($Request,$Artifact){
  Assert-KmcBootstrapInventoryString $o.checkpoint 'multi-exploration-manual';Assert-KmcChunk7Boolean $o.cold $cold
  if($null-ne$o.sourceWorkingSha256){throw 'Six-pair persistence cannot claim historical Working fixture identity.'}
  Assert-KmcBootstrapInventoryString $o.inheritedManualSha256 $Request.ownedPairs.sourceArchiveSha256
- Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $o.nativeSchema 3 3;Assert-KmcOrdinaryInteger $o.nativeCapacity 6 6
+ Assert-KmcOrdinaryInteger $o.processId 1 ([int]::MaxValue);[void](Assert-KmcChunk7WriterSchema $o.nativeSchema 'Six-pair writer');Assert-KmcOrdinaryInteger $o.nativeCapacity 6 6
  foreach($key in @('nativeProgressionRequiresExternalWorkingRestoration','ordinaryRespecProven','combatDebtProof')){Assert-KmcChunk7Boolean $o.$key $false}
  # The engine bounds its scenario at 300 s; a settled cleanup adds at most its 45 s retention window.
  if(-not(Test-KmcChunk7FiniteNumber $o.elapsedSeconds)-or$o.elapsedSeconds-lt0-or$o.elapsedSeconds-gt360){throw 'Six-pair persistence exceeded its bounded scenario window.'}
  Assert-KmcChunk7InheritedEvidence $Request $o
  $archive=if($cold){$o.loadedArchive}else{$o.nativeWrite.archive}
  Assert-KmcChunk7SixPairArchive $archive $Request
+ if($archive.SchemaVersion-ne$o.nativeSchema){throw 'Six-pair archive differs from the build''s writer schema.'}
  $s=$o.sixPairPersistence
  if($cold){
   Assert-KmcExactProperties $s @('contract','fixtureRunId','producerRunId','producerArtifactSha256','requiredPairs','requiredSlots','requiredGroundInputs',

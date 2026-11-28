@@ -42,7 +42,7 @@ function Assert-KmcFinalize6RiderFallObservation($Request,$Artifact){
     $root=if($null-ne$Request.PSObject.Properties['evidenceRoot']){[string]$Request.evidenceRoot}else{$null}
     Assert-KmcChunk7NativeCounters $o @('nativeSchema','nativeCapacity','processId')
     if($o.checkpoint-cne'rider-fall-integration-manual'-or$o.sourceWorkingSha256-cne$Request.fixture.working.sha256-or
-       $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or$o.nativeSchema-ne3-or
+       $o.sourceWorkingSha256-cne'5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6'-or-not(Test-KmcChunk7WriterSchema $o.nativeSchema)-or
        -not(Test-KmcChunk7NativePairCapacity $o.nativeCapacity)-or-not(Test-KmcExactJsonInteger $o.processId)-or$o.processId-le0){throw 'Native persistence family/fixture/capability identity differs.'}
     Assert-KmcChunk7Boolean $o.cold $cold
     Assert-KmcChunk7Boolean $o.nativeProgressionRequiresExternalWorkingRestoration $true

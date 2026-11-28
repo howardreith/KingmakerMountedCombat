@@ -110,9 +110,11 @@ function Assert-KmcChunk7ThirdHorseManualEvidence($Request,$Observations){
     if($w.sha256-isnot[string]-or$w.sha256-cnotmatch'^[a-f0-9]{64}$'-or$w.sha256-ceq$Request.persistenceLoad.sha256){throw 'Third-Horse native Manual hash is missing or aliases the source.'}
     Assert-KmcOrdinaryInteger $w.length 1 268435456;Assert-KmcOrdinaryInteger $w.lastWriteTimeUtcTicks 1 ([DateTime]::MaxValue.Ticks)
     foreach($pair in @(@('fileName',$leaf),@('nativeType','Manual'),@('nativeName',$name),@('gameId',$Request.persistenceLoad.gameId),@('gameName',$Request.persistenceLoad.gameName),@('area',$Request.persistenceLoad.area),@('operation','None'),@('readKind','Current'))){Assert-KmcBootstrapInventoryString $w.($pair[0]) $pair[1]}
-    Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1;Assert-KmcOrdinaryInteger $w.sourceSchema 3 3
+    # PR #70 R13-F2 (round 16): the Manual is the producing build's write: its read-back version is that writer (exact versioned shape).
+    $writer=Assert-KmcChunk7WriterSchema $w.sourceSchema 'Third-Horse Manual writer'
+    Assert-KmcChunk7Boolean $w.nativeCallback $true;Assert-KmcOrdinaryInteger $w.snapshotCount 1 1
     $a=$w.archive
-    Assert-KmcOrdinaryInteger $a.SchemaVersion 3 3
+    if((Assert-KmcChunk7WriterArchive $a 'third-Horse native Manual archive')-ne$writer){throw 'Third-Horse Manual archive differs from its writer schema.'}
     Assert-KmcBootstrapInventoryString $a.CampaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $a.AreaId $Request.persistenceLoad.area
     foreach($key in @('Pairs','Participations','Slots')){if($a.$key-isnot[Array]-or$a.$key.Count-ne0){throw ('Third-Horse unmounted save carries unexpected '+$key+'.')}}
     if($null-ne$a.Combat){throw 'Third-Horse unmounted save carries combat ownership.'}
