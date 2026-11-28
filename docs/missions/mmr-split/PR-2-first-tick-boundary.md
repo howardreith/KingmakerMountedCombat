@@ -604,3 +604,137 @@ seven read-only IL reads of about 1 s each. Not run: the focused gate, presentat
 not executed. The R13-F3 control was not run against the round-13 code (by inspection its Repath would have issued a second carrier).
 `LiveLegAdmits` treats only a bit-identical start as the planned segment; a moved mount on a tightly placed destination is validated on its
 live chord (correct, and it can refuse a destination whose disc begins exactly at the opening's measured start).
+
+## 13. Round 15 (owner amendment revision 1, 2026-11-27g): the thirteen open findings
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825. Line numbers are at this commit.
+Everything the round-14 review verified is kept (R11-F3, R12-F1, R12-F3, R13-F4, R12-F5, R6-F7 and every earlier verified item; the accepted
+R10-F2/R12-F6 amendment rebuttals). No change makes SingleAction into TwoActions, manufactures or refunds an action, forces Acting or alters game
+time; native spending, explicit successor input, historical-format checks and the protected neighbours are unchanged. All evidence below is
+offline (connected harness on the spliced production source, the real codec, IL contracts on the compiled product; nativeProof=false).
+
+### 13.1 Movement and click
+
+- **R13-F5 (correction).** `MountedMovementStateAdapter.TickDelegated` bounds every step tick by the installed endpoint completion before
+  `Advance` (MountedMovementStateAdapter.cs:319-332; `StepEndpointCap`, :371-399): when the path's end lies farther than the physical step
+  remainder, the shift (speed x tick) is limited to (distance to the end - 0.05 m - 0.1 mm) and to the distance to the last segment's endpoint
+  plane, so installed TickMovement can neither snap the mount onto the end nor pass it; a remainder that covers the end keeps the lawful
+  completion; ordinary movement and its NearTheEnd borrowed time are unchanged. Connected harness (faster turning step, 18/9 m/s, a second
+  NearTheEnd tick 65 mm before the end): with 43.9 mm left the tick returns the capped duration, the mount travels about 14.9 mm and stays
+  outside the 50 mm completion distance, the settled travel stays within 1.524 m, the next tick has no lawful movement (native's denial branch
+  completes the movement) and the order ends with the force-finish disposition, no strike; the 70 mm control completes onto the end (65 mm)
+  and strikes.
+- **R14-F1 (correction).** `LiveLegAdmits` (PairedAttackClickProbe.cs:563) samples the live chord by its OWN distance (every 1 mm from its entry,
+  both ends) and additionally checks the live points that project onto the planned chord's established samples; every point is explicit
+  (position + u x leg), never `Vector3.Lerp`. The planned-leg shortcut needs both live endpoints bit-identical to the planned leg
+  (PairedAttackClickProbe.cs:526-530). The harness facade's `Vector3.Lerp` now clamps like Unity's. Harness: the reviewer's oblique case
+  (planned approach along x to the destination, live start destination + (-0.001, 0.2) m, blind patch at z = 35 mm between the ring samples)
+  is refused before any debit with the prior order kept (`refusedOnLiveChordAt`); its visible control commits; the round-13 reverse leg past the
+  truncated endpoint and the round-14 16-micrometre case pass with the clamping facade.
+- **R12-F2 (correction).** `EvaluateFirstTickNative` (PairedAttackClickProbe.cs:421-475) evaluates, after the full-duration and
+  waypoint-distance candidates, the interior durations of the current steered tick at the established 1 mm resolution of shift, each with the
+  installed waypoint selection at that duration, its steering and its last-segment completion; the first admitted stop is returned with
+  exactly that duration. Harness (sight z <= 0.052, frame, heading and endpoint fixed): 5/512 s stops at (0.04395, 0.04395) and strikes; the
+  1/60 s + 0.001 s allowance returns a shortened interior duration (`ordinary-movement-shortened-strike(first-tick-interior(`), stops visible and
+  strikes once.
+- **R14-F2 (correction).** The grant carries its step-counter classification: `MountedMovementStateAdapter.RemainingOrderMetres(..., out
+  stepCounterBinds)` (MountedMovementStateAdapter.cs:448-462) computes it from the SAME speed observations that price the grant;
+  `PairedActivationLifecycle.PairedMountGrantedMetres` passes it out, the click's `MountGrantReader` (MountedCombatController.cs:1377) returns it
+  and `AdmitTurnBasedAttackClick` uses it (:1427); `PairedMountStepCounterBinds` (the second read) is removed. Harness: MaxSpeed reads of the
+  grant 2 = the whole click 2; a one-shot failure armed for the first read after the step's successful pricing (0.140625 m, equal speeds) is not
+  consumed by the click, the click stays the provisional request, and the perpendicular first debit is refused before any movement with the
+  generation, target, both Holds and both balances unchanged.
+- **R14-F3 (correction).** `BeginProvisionalOrder` (MountedCombatController.cs:1700-1705) classifies a step request (`ClickProof.StepCounterBinds`)
+  with the existing accepted-work rule (`CompetingMountWork`): compatible older mount work (an in-range Swift) coexists and the carrier's
+  existing deferral path waits behind it; competing work still refuses; the restricted single tick keeps its idle-mount precondition; the
+  before-debit decision still protects the prior order where the actual debit is final (`final-step-counter`). Harness: fresh equal-speed step,
+  0.45 m route (several frames), older in-range Swift: the request stays pending (not retired), the Swift finishes, the click moves over several
+  frames, commits at its first debit and strikes once; control: an older competing mount order refuses the step request with the prior order
+  kept; the refused final step remains the R12-F1 perpendicular control.
+- **R13-F3 (correction).** `MountedPairAttackCommand.EndIfNativeTurnBasedApproachEnded` (MountedPairAttackCommand.cs:1652-1684) resolves the end
+  of the issued ordinary turn-based approach BEFORE the target-drift re-path (:1796) and again after this tick's drive (:1843). It applies to the
+  override entry (route-bound with its validated route followed; also its live carrier whose agent no longer wants to move) and to the
+  native-accepted rider click (a player-origin order without an override route whose carrier was issued; its finished carrier). Provisional
+  requests, charges, real time and automatic orders keep their handling. Harness (`PathfindUnforcedMoves`: the agent takes native's open-fixture
+  path for a move without a ForcedPath): (a) override route, the carrier ends blind and the target drifts 0.8 m on that tick: one carrier,
+  force-finish disposition, Move unchanged afterwards, no strike, Standard unspent, the player's newer ground order owns the Move slot; (b) a
+  native-accepted click whose carrier ends blind with a visible stretch beyond: the same. The accepted R1-F10 retarget (native-accepted click in
+  the corner world) still strikes.
+
+### 13.2 Ownership and custody
+
+- **R14-F4 (correction).** `CommitAcceptedProvisional` stages both actors' manual targets once before the transfer
+  (MountedCombatController.cs:2524-2531) and every later decision uses the staged values; the deferred effects are owned by their FLAGS
+  (`FirstTickProposal.EffectsOutstanding`, :1570; the sweep keeps a request until its flags clear, :1599; registration from the flags, :1821);
+  the first application is contained like the retries, and both Holds are written to the staged actors. Harness: a one-shot target read fault
+  immediately after a successful transfer: the new generation stays accepted, the request stays retained from its flags with 0 listed
+  effects, the retry clears only the retired target (control) and preserves a later same-target reassignment.
+- **R11-F8 (evidence correction).** The harness splices the production custody: `PatchBridge.World`, `Owner`, `CombatFor` and `Pairs`,
+  `MountedWorldService.Pairs` and the relationship's ownership members (`CommitOwnership`, `CompleteOwnershipAttempt`, `RefreshOwnership`,
+  `RefreshRetiredOwnership`) over the real Domain `MountedPairRegistry` with the production `HasRetainedPairCommands`, and routes native Run
+  through the production `InternalRunPostfix`. The intervening retry fails on a target READ, so the diagnostic list is empty while the clear is
+  owed. Observed production behaviour: a dismount detaches (does not retire) the owner while the clear is owed, so custody still returns the
+  pair; after the clear settles the owner retires and custody returns none (the roster entry stays). The same-target command on the original
+  horse survives the retry; the control clears the old target and ownership settles. The controller's own dismount view is still the harness's
+  `SimulateDismountForHarness`.
+
+### 13.3 Lifecycle
+
+- **R12-F4 (correction; the production sequence is executed).** The teardown order is extracted into `MountedServiceTeardownSequence`
+  (Integration/MountedServiceTeardownSequence.cs): `BeginDisable` (SetEnabled(false): drain outside the fences, readiness, load fence,
+  HandleModDisable), `RetryWhileDisabled` (UpdateCore's per-frame drain), `Unload` (Dispose) and `ModDisable` (HandleModDisable: drain,
+  readiness, charge drain, cleanup, second drain). CompositionRoot (:240-263, :404-405, :458-488; adapters :508-533) and
+  MountedLifecycleSubscriber.HandleModDisable delegate to it with the same services. `InterruptOwnedCommand` now retains the carrier cleanup
+  even when the cancellation's own stop throws (`try { command.Interrupt(); } finally { RetainCarrierCleanup(command); }`): work created by the
+  cancellation keeps its owner (the new case failed before this). Harness (`R12-F4/R14-F5 (round 15, production teardown sequence)`): deferred
+  target clear, unfinished carrier, already-steering successor (path, owner, cursor and stops unchanged, no StopMoving) and a
+  cancellation-created carrier stop, each through the real sequence with the controller and world drain: refusal with hooks retained, the
+  UpdateCore retry, eventual `Ready` with hooks removed. Not executed offline: the Harmony unpatch, the UMM callbacks, the real
+  `DrainForTeardown` wait, the relationship's other readiness terms and the Shield release (stand-ins; their binding is checked by the lifecycle
+  contract's IL checks and Validate-Source).
+- **R14-F5 (correction).** `MountedServiceTeardownSequence.Unload` checks `LoadInFlight` first: an unload during an owned load neither waits,
+  drains nor cancels; Dispose logs and throws (Main.OnUnload reports false) and the root, hooks, observers and obligations stay. Harness:
+  unload during the load with a healthy engine: `RefusedLoad`, zero drains and cleanups, target unchanged, hooks retained; after the load the
+  same sequence settles.
+
+### 13.4 Persistence and archive readers
+
+- **R11-F1 (evidence correction).** The harness splices the production `PairedActivationPersistence` members (`CaptureParticipation`,
+  `RestoreParticipation`, which rebinds the activation to the current turn, sets `partnerContext` from the saved partner turn and copies the
+  restored allocation into it, and the actor capture helper). The archive participation is the production capture of the ACTIVE pair (Split
+  false, current boundary; the grant identity is the activation's own; no substituted actor or grant ids); restoration follows the production
+  order (`RestorePersistence`, then `RestoreParticipation`) and the click runs on the restored participation, whose `PairedMovementContext` is
+  the restored partner turn (a new object). Recorded: original and restored pair, actor, activation, turn, round and grant identities; straight
+  1.2/0.6 m (partner step field 0.6 m, grant 0.324 m, 0.3 m route admitted), turning 0.45/0.42426 m (grant 1.09974 m, 1.085 m admitted; the former
+  single value gives 1.074 m), historical schema-3 (source 3 -> 4, 1.25 m), malformed (codec Invalid, nothing restored). Stand-ins: the native
+  turn field copy and the participation discard reset (harness-labelled).
+- **R13-F2 (correction).** `ReadCurrentRemovalArchive` and `ValidateCurrentRemovalArchive` (Diagnostics/RuntimePersistenceRemovalScenario.CurrentArchive.cs)
+  require `MountedArchiveData.Schema` for the selected writer, source and normalized schema (a genuine historical schema-3 archive is read by its
+  explicit reader and refused as not that writer's readback); the observation's source schema comes from the read result. The migration/resave
+  (`Chunk7PersistenceScenario.Schema2`, two writer sites), `Schema1`, `Schema2Derivative`, `Chunk7ProgressionScenario`,
+  `Chunk7WorldScenarioEngine` and `LoadRefusal` guards compare with `MountedArchiveData.Schema`; `CurrentMigration` derives `loadedSourceSchema`
+  from its own read. The PowerShell combat evidence reader (`scripts/runtime/Chunk7CombatPersistenceEvidence.ps1`) accepts schema 3 or 4 with
+  version-specific exact field sets (schema 4 requires `StepTravel` with exact, unique, finite rows covering every allocation; schema 3 must not
+  carry it), derives the source schema from the recorded archive, and covers the Mounted Shield case through the same archive reader;
+  `CurrentRemovalEvidence.ps1`, `PersistenceSaveFixtures.ps1` and `Chunk7LoadRefusalFixtures.ps1` accept the current version strictly. Reader
+  tests (metered by the developer): current removal archive 49/0, current removal evidence reader 69/0, combat persistence evidence 41, combat
+  reader 103 and observation 199 (0 failures; Mounted Shield schema-4 and schema-3 lines, 10 refusals, schema-4 complete artifacts), current
+  migration native contract 59/0. Not run: `Test-Chunk7Schema2Resave.ps1`, `Test-Sprint6ShieldReaders.ps1`; readers outside the named set
+  (capital arrival, owned pairs, assisted/ordinary fixtures, six-pair, the UPG-01 snapshot check) still expect schema 3 and were not changed.
+- **R13-F1 (evidence).** `Chunk7PersistenceTests.RunStepTravelControls` is called by the attack-path harness (part of the focused gate), so the
+  candidate log prints the valid two-allocation round trip, the decode refusal after removing one of two rows, the encode refusal, the schema-3
+  historical read and the future-version control (`R13-F1 (round 15) the step-travel codec controls above ran on the candidate`).
+
+### 13.5 Validation of this round (metered, on source commit 0bcb235a) and residual
+
+Build-Local 32.7 s (DLL sha256 33b4072b88adb05ecf08db7c2b55ebcdb622f536f77393d767db188779c225c4, MVID 08f12895-05ab-4c40-b5d8-59e1ffe49645);
+attack-path harness 532/0 (3.1 s); components 1,545/0; native contract 72/0; lifecycle contract 106/0; the focused selection
+(`Test-MmrTbApproachFocused.ps1`, 16 children, 28.9 s: presentation 239/0, Mounted Shield 114/0, Archery 54/0, loader and UMM 0.31.1/0.33.0
+bindings pass); persistence data 56 + Chunk7 106/0; Validate-Source 153/0. A discrimination run with the R13-F5 cap, the R14-F3 classification
+and the R13-F3 early resolution disabled failed exactly those three round-15 cases (travel 65 mm against 43.9 mm left; the step request refused
+behind the Swift; two carriers after the drift) and was reverted. Not run: Test-Tiers, any game.
+
+Residual: offline evidence only (nativeProof=false); N02/N03 remain the owner's playtest. The R14-F1, R14-F2 and R12-F2 cases were not run
+against the round-14 code (by inspection the round-14 sampler took only the endpoint sample on the oblique chord, the second speed read was
+consumed by the click, and the shortened-stop search had no interior candidate). The step endpoint bound keeps 0.1 mm beyond native's 50 mm
+completion distance and may end a step up to 0.1 mm short of a lawful position. The R11-F1 and R12-F4 cases keep the stand-ins named above.
