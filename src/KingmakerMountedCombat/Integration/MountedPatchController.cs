@@ -179,8 +179,9 @@ namespace KingmakerMountedCombat.Integration
                     Type.EmptyTypes, nameof(PatchMethods.ChargeReasonPrefix));
                 PatchExact(typeof(UnitCommands), "InterruptAndRemoveCommand", 0x060026BF,
                     new[] { typeof(UnitCommand.CommandType), typeof(bool) }, nameof(PatchMethods.PairedCommandInterruptPrefix));
+                // PR #70 R19-F5 (round 22): the transpiler carries the executing command across the single FollowPrecomputedPath call.
                 PatchExact(typeof(UnitCommand), "TickApproaching", 0x060027A6, Type.EmptyTypes,
-                    nameof(PatchMethods.MountedAttackApproachPrefix), nameof(PatchMethods.MountedAttackApproachPostfix));
+                    nameof(PatchMethods.MountedAttackApproachPrefix), null, nameof(PatchMethods.ForcedPathCallerTranspiler));
                 PatchExact(typeof(UnitAttack), "UpdateTarget", 0x06002683, Type.EmptyTypes,
                     nameof(PatchMethods.MountedAttackTargetPrefix));
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
@@ -1492,8 +1493,6 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool MountedAttackApproachPrefix(UnitCommand __instance)
             {
-                // PR #70 round 19 follow-up: the exact command whose approach native is ticking (MountedAttackApproachPostfix ends the scope).
-                MountedCarrierPathObserver.EnterApproach(__instance);
                 if (!ChargeExecutionPrefix(__instance)) return false;
                 // The pair command owns its mount Move slot and drives it through
                 // the existing native/off-executor movement paths. Running the
@@ -2126,20 +2125,49 @@ namespace KingmakerMountedCombat.Integration
                 MountedCarrierPathObserver.AfterCompletion(__instance, p, __state);
             }
 
-            // PR #70 round 19 follow-up: the forced request of the exact command whose TickApproaching issues it, and the end of that scope.
+            // PR #70 round 19 follow-up, round 22 (R19-F5): the forced request of the exact command whose transpiled TickApproaching call issues it.
             internal static void CarrierForcedPathRequestPrefix(UnitMovementAgent __instance, Pathfinding.Path p)
             {
                 MountedCarrierPathObserver.BeforeForcedRequest(__instance, p);
             }
 
-            internal static void MountedAttackApproachPostfix(UnitCommand __instance)
-            {
-                MountedCarrierPathObserver.ExitApproach(__instance);
-            }
-
             internal static bool CompleteMovementPrefix(UnitMovementAgent __instance)
             {
                 return PatchBridge.CombatFor(__instance?.Unit?.EntityData)?.TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance) != true;
+            }
+
+            // PR #70 R19-F5 (round 22): installed UnitCommand.TickApproaching (060027A6) makes exactly one FollowPrecomputedPath (060018B6) call, with
+            // the stack (agent, new ForcedPath(copy), ApproachRadius): `newobj ForcedPath::.ctor; ldarg.0; call get_ApproachRadius; callvirt
+            // FollowPrecomputedPath`. That one instruction becomes `ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(agent, p,
+            // radius, this)`, which makes the same native call once. Any other occurrence count, argument shape, label on the call or helper
+            // signature refuses the installation (fail closed).
+            internal static IEnumerable<CodeInstruction> ForcedPathCallerTranspiler(IEnumerable<CodeInstruction> instructions)
+            {
+                var follow = typeof(UnitMovementAgent).GetMethod("FollowPrecomputedPath", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null, new[] { typeof(Pathfinding.Path), typeof(float) }, null);
+                if (follow == null || follow.MetadataToken != 0x060018B6) throw new MissingMethodException(typeof(UnitMovementAgent).FullName, "FollowPrecomputedPath exact token 060018B6");
+                var radius = typeof(UnitCommand).GetProperty("ApproachRadius", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)?.GetGetMethod(true);
+                var forcedCtor = typeof(Pathfinding.ForcedPath).GetConstructor(new[] { typeof(List<UnityEngine.Vector3>) });
+                var helper = typeof(MountedCarrierPathObserver).GetMethod(nameof(MountedCarrierPathObserver.FollowPrecomputedPathFrom), BindingFlags.Static | BindingFlags.NonPublic);
+                var helperParameters = helper?.GetParameters();
+                if (radius == null || forcedCtor == null || helperParameters == null || helperParameters.Length != 4 || helperParameters[0].ParameterType != typeof(UnitMovementAgent) ||
+                    helperParameters[1].ParameterType != typeof(Pathfinding.Path) || helperParameters[2].ParameterType != typeof(float) || helperParameters[3].ParameterType != typeof(UnitCommand))
+                    throw new InvalidOperationException("TickApproaching forced-path binding: the helper or the native argument members differ.");
+                var code = instructions.ToList();
+                var sites = new List<int>();
+                for (var i = 0; i < code.Count; i++)
+                    if ((code[i].opcode == OpCodes.Callvirt || code[i].opcode == OpCodes.Call) && Equals(code[i].operand, follow)) sites.Add(i);
+                if (sites.Count != 1)
+                    throw new InvalidOperationException("TickApproaching forced-path binding: expected exactly one FollowPrecomputedPath call, found " + sites.Count + ".");
+                var site = sites[0];
+                if (site < 3 || code[site].opcode != OpCodes.Callvirt || code[site].labels.Count != 0 ||
+                    !(code[site - 1].opcode == OpCodes.Call || code[site - 1].opcode == OpCodes.Callvirt) || !Equals(code[site - 1].operand, radius) ||
+                    code[site - 2].opcode != OpCodes.Ldarg_0 || code[site - 3].opcode != OpCodes.Newobj || !Equals(code[site - 3].operand, forcedCtor))
+                    throw new InvalidOperationException("TickApproaching forced-path binding: the call site's argument shape differs (expected newobj ForcedPath, ldarg.0, call get_ApproachRadius, callvirt FollowPrecomputedPath).");
+                code[site].opcode = OpCodes.Call;
+                code[site].operand = helper;
+                code.Insert(site, new CodeInstruction(OpCodes.Ldarg_0));
+                return code;
             }
 
             internal static void IsUnitEnoughClosePostfix(UnitCommand __instance, ref bool __result)
