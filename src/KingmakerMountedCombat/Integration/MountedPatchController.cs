@@ -36,6 +36,23 @@ using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
+    // PR #70 R11-F8 (round 13): the routing of a command native actually accepted (the private Run overload's postfix). The actor's pair owner
+    // classifies it as before; every other controller of the world that still owes an outstanding deferred operation on this exact actor (a
+    // retired order's target clear after dismount or owner retirement) observes its manual-target assignment until that operation settles.
+    internal static class MountedAcceptedWorkRouting
+    {
+        internal static void Route(MountedCombatController primary, IEnumerable<MountedCombatController> others, UnitCommands container, UnitCommand cmd, bool fromQueue)
+        {
+            var route = MountedAcceptedWorkRoutes.AfterRun(fromQueue, container.Contains(cmd), container.Queue.Contains(cmd));
+            if (!route.HasValue) return;
+            primary?.ObserveAcceptedWork(container, cmd, route.Value);
+            if (others == null) return;
+            foreach (var other in others)
+                if (other != null && !ReferenceEquals(other, primary) && other.ObservesOutstandingActor(container))
+                    other.ObserveOutstandingAssignment(container, cmd, route.Value);
+        }
+    }
+
     internal sealed class MountedPatchController : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Feasibility";
@@ -932,8 +949,10 @@ namespace KingmakerMountedCombat.Integration
                 {
                     // Review R5-F5: native's own fromQueue marks promotion of an already accepted (queued) command.
                     // PR-1 review R1-F11: a promotion counts only if it actually installed the command (a refused promotion did not).
-                    var route = MountedAcceptedWorkRoutes.AfterRun(fromQueue, __instance.Contains(cmd), __instance.Queue.Contains(cmd));
-                    if (route.HasValue) PatchBridge.CombatFor(__instance)?.ObserveAcceptedWork(__instance, cmd, route.Value);
+                    // PR #70 R11-F8 (round 13): the actor's pair owner observes it, and so does a former owner that still owes an outstanding
+                    // deferred operation on this exact actor (the world's own pair services; no global subscription).
+                    var pairs = PatchBridge.Pairs;
+                    MountedAcceptedWorkRouting.Route(PatchBridge.CombatFor(__instance), pairs == null ? null : pairs.Select(pair => pair?.Combat), __instance, cmd, fromQueue);
                 }
                 catch (Exception error) { PatchBridge.Logger?.Exception("Accepted pair work was not observed", error); }
                 if (cmd is UnitMoveContiniously) return;

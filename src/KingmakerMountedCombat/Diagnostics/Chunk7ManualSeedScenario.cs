@@ -138,7 +138,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 RequireNoOwners(); RequireNoEffects();
                 var data = persistence.LoadedArchive;
-                Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+                Require(data != null && data.SchemaVersion == MountedArchiveData.Schema && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                     data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source is not the qualified empty mounted archive.");
                 var trace = restoration.Capture();

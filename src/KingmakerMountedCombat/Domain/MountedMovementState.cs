@@ -83,6 +83,18 @@ namespace KingmakerMountedCombat.Domain
 
         // A step's remaining time is the smaller of the native counter's (nominal metres left / nominal speed) and the physical travel's
         // (metres left / physical speed): a slower override cannot spend past the native counter, a faster one cannot travel past the step.
+        // PR #70 R12-F1 (round 13): a step tick of length tick makes the native counter final when the counter's time binds the step
+        // ((stepRange - MetresStepped) / nominalSpeed <= (stepRange - MetresStepTravelled) / speed) and fits within the tick: native then charges
+        // the counter to the step range and no later debit can follow, whatever the steered displacement. When the physical reservation binds
+        // instead, the reservation is settled to the executed displacement and the counter still permits another lawful debit.
+        public bool StepCounterFinal(float speed, float nominalSpeed, float stepRange, float tick)
+        {
+            if (!Finite(speed) || !Finite(nominalSpeed) || !Finite(tick) || speed <= 0f || nominalSpeed <= 0f || TimeMoved > TimeStepped) return false;
+            var counter = Math.Max(0f, stepRange - MetresStepped) / nominalSpeed;
+            var physical = Math.Max(0f, stepRange - MetresStepTravelled) / speed;
+            return counter > 0f && counter <= physical && counter <= tick;
+        }
+
         public float Remaining(float speed, float nominalSpeed, float stepRange, float moveUsed, bool standardUsed,
             bool moveRestricted, bool step, bool singleMove)
         {

@@ -88,10 +88,17 @@ Check ($slotters.Count -eq 1 -and $slotters[0] -eq $run) 'R1-F5: every native sl
 $patches = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController+PatchMethods'
 $controller = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
 $observe = @(Method $controller 'ObserveAcceptedWork')[0]
-Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $observe) -eq 1 -and (Calls (@(Method $patches 'QueueAcceptedPostfix')[0]) $observe) -eq 1) 'R1-F5: accepted work is observed from the private Run postfix and the AddToQueueInternal postfix'
+# PR #70 R11-F8 (round 13): the private Run postfix observes through MountedAcceptedWorkRouting.Route (the actor's owner, plus a former owner that
+# still owes an outstanding operation on that exact actor).
+$routing = KmcType 'KingmakerMountedCombat.Integration.MountedAcceptedWorkRouting'
+$route = @(Method $routing 'Route')[0]
+$observeOutstanding = @(Method $controller 'ObserveOutstandingAssignment')[0]
+Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route $observe) -eq 1 -and (Calls $route $observeOutstanding) -eq 1 -and
+    (Calls $route (@(Method $controller 'ObservesOutstandingActor')[0])) -eq 1 -and (Calls $observe $observeOutstanding) -eq 1 -and
+    (Calls (@(Method $patches 'QueueAcceptedPostfix')[0]) $observe) -eq 1) 'R1-F5: accepted work is observed from the private Run postfix (through the accepted-work routing, R11-F8) and the AddToQueueInternal postfix'
 Check ((Calls (@(Method $controller 'AdmitPairCommandRun')[0]) $observe) -eq 0 -and (Calls (@(Method $patches 'UnitCommandRunPrefix')[0]) $observe) -eq 0) 'R1-F5: nothing is recorded before native acceptance (public Run prefix)'
 $contains = $commands.GetMethod('Contains', [Type[]]@($command))
-Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $contains) -ge 1) 'R1-F5: the Run postfix checks that native holds the command'
+Check ((Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route $contains) -ge 1) 'R1-F5: the Run postfix checks that native holds the command (in its accepted-work routing, round 13)'
 $patchStrings = @(@($patches.DeclaringType.GetMethods($any)) + @($patches.DeclaringType.GetConstructors($any)) + @($patches.DeclaringType.GetNestedTypes($any).GetMethods($any)) | ForEach-Object { Refs $_ } | Where-Object { $_.Text } | ForEach-Object { $_.Text })
 Check ($patchStrings -contains 'QueueAcceptedPostfix' -and $patchStrings -contains 'MoveActionHoldPrefix' -and $patchStrings -contains 'MoveActionHoldPostfix' -and $patchStrings -contains 'HoldPrefix') 'R1-F5/R1-F8: the queue-acceptance, carrier-Hold and Hold-input patches are registered'
 $ledger = KmcType 'KingmakerMountedCombat.Domain.MountedRetainedOrderLedger'
@@ -308,7 +315,7 @@ $observeAccepted = @(Method $controller 'ObserveAcceptedWork')[0]
 Check ((Calls (@(Method $controller 'ClearStockAttackIntent')[0]) ($ownership.GetMethod('ClearsOnRetirement'))) -eq 2 -and (Calls $observeAccepted ($ownership.GetMethod('ObserveForeignAssignment'))) -eq 1 -and
     (FirstOffset $observeAccepted ($ownership.GetMethod('ObserveForeignAssignment'))) -lt (FirstOffset $observeAccepted ($ledger.GetMethod('Classify'))) -and
     (Calls (@(Method $controller 'OwnManualTarget')[0]) ($ownership.GetMethod('RecordOwnWrite'))) -eq 1 -and
-    (Calls (@(Method $patches 'InternalRunPostfix')[0]) ((KmcType 'KingmakerMountedCombat.Domain.MountedAcceptedWorkRoutes').GetMethod('AfterRun'))) -eq 1) 'PR-1 R1-F11: ownership follows the actual assignment, observed before the competing classification; only an installed promotion is observed; retirement clears only a still-owned selection'
+    (Calls (@(Method $patches 'InternalRunPostfix')[0]) $route) -eq 1 -and (Calls $route ((KmcType 'KingmakerMountedCombat.Domain.MountedAcceptedWorkRoutes').GetMethod('AfterRun'))) -eq 1) 'PR-1 R1-F11: ownership follows the actual assignment, observed before the competing classification; only an installed promotion is observed; retirement clears only a still-owned selection'
 $patchRoot = KmcType 'KingmakerMountedCombat.Integration.MountedPatchController'
 $clickRegistered = $false
 foreach ($m in @($patchRoot.GetMethods($any)) + @($patchRoot.GetConstructors($any))) {
@@ -385,4 +392,19 @@ Check ($checkLos.MetadataToken -eq 0x06008555 -and (Calls $nativeLos $checkLos) 
     (Calls $admissionLost $currentRange) -eq 1 -and (Calls $admissionLost $readerCandidates) -eq 0 -and (Calls $currentRange $nativeGetRange) -eq 1 -and
     $decisionContextCtor.MetadataToken -eq 0x0600941F -and (Calls $currentRange $decisionContextCtor) -eq 1 -and
     (Calls $decideAdmission $admissionLost) -eq 1) 'PR-1 R9-F1/R10-F3: the automatic order''s decision rechecks native IsTargetValid''s restricted rule with the proposing action''s CURRENT range (BlueprintAiAction.GetRange on a fresh DecisionContext 0x0600941F for the rider), both bodies and GameHelper.CheckLOS 0x06008555, independent of the optional ranking reader'
+# ---- PR-2 R12-F4 (round 13): outstanding owned cleanup takes part in registry retention and teardown readiness before anything is unpatched ----
+$lifecycleSubscriber = KmcType 'KingmakerMountedCombat.Integration.MountedLifecycleSubscriber'
+$worldService = KmcType 'KingmakerMountedCombat.Integration.MountedWorldService'
+$handleDisable = @(Method $lifecycleSubscriber 'HandleModDisable')[0]
+$settlePairs = @(Method $worldService 'SettleOutstandingPairCleanup')[0]
+$trySettle = @(Method $controller 'TrySettleOutstandingCleanup')[0]
+$outstandingGetter = $controller.GetProperty('HasOutstandingCleanup', $any).GetGetMethod($true)
+$retainedGetter = $controller.GetProperty('HasRetainedPairCommands', $any).GetGetMethod($true)
+$teardownReadyGetter = (KmcType 'KingmakerMountedCombat.Integration.GameMountedRelationshipService').GetProperty('AllTeardownOwnersReady', $any).GetGetMethod($true)
+$cleanupMethod = @(Method $lifecycleSubscriber 'Cleanup')[0]
+$teardownClosures = @($worldService.GetNestedTypes($any) | ForEach-Object { $_.GetMethods($any) } | Where-Object { (Calls $_ $outstandingGetter) -ge 1 -and (Calls $_ ($controller.GetProperty('ChargeAdmissionFenced', $any).GetGetMethod($true))) -ge 1 })
+Check ((Calls $retainedGetter $outstandingGetter) -eq 1 -and (Calls $settlePairs $trySettle) -eq 1 -and $teardownClosures.Count -ge 1 -and
+    (Calls $handleDisable $settlePairs) -eq 2 -and (Calls $handleDisable $teardownReadyGetter) -ge 2 -and
+    (FirstOffset $handleDisable $settlePairs) -lt (FirstOffset $handleDisable $teardownReadyGetter) -and
+    @(Refs $handleDisable | Where-Object { $_.Member -eq $teardownReadyGetter } | Select-Object -Last 1)[0].Offset -gt (FirstOffset $handleDisable $cleanupMethod)) 'PR-2 R12-F4 (round 13): outstanding acceptance effects, retained carrier cleanup and an unfinished refused-request cleanup keep the pair owner registered (HasRetainedPairCommands) and the pair teardown not ready; HandleModDisable (run by disable and by unload before patches.Dispose) drains them once, refuses while they remain, drains again after its own cleanup (work the cancellation created) and reports ready only when none remains'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

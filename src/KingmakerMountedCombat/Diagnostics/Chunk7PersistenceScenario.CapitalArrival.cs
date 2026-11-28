@@ -277,7 +277,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["archive"] = written == null ? null : JObject.FromObject(written, MountedSaveCodec.CreateSerializer()) };
             snapshots.Add(Capture("native-write-complete"));
             ObserveOwnedSaveCompletion();
-            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == 3 && written != null && written.SchemaVersion == 3 &&
+            Require(read.Kind == MountedSaveReadKind.Current && read.SourceSchema == MountedArchiveData.Schema && written != null && written.SchemaVersion == MountedArchiveData.Schema &&
                 written.Pairs.Length == 1 && written.Participations.Length == 0 && written.Combat == null &&
                 written.CampaignId == request.PersistenceLoad.GameId && written.AreaId == Chunk7OwnedPairsSelection.CapitalArrivalArea,
                 "Capital Manual readback is not exactly one mounted exploration pair in the capital.");

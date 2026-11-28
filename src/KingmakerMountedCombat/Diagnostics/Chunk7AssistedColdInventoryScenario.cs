@@ -202,7 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (selection.IsOwnerSeed)
                     Require(Chunk7OwnerSeedObservation.AdmittedSeedMetadata(persistence, ownerMadeSeed, saved.GameId, saved.Area),
                         ownerMadeSeed ? "Owner-made seed KMC metadata is not the admitted empty schema-3 archive." : "Owner seed did not take the supported missing-KMC-metadata path.", Chunk7OwnerSeedAssertions.MetadataNotMissing);
-                else Require(data != null && data.SchemaVersion == 3 && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
+                else Require(data != null && data.SchemaVersion == MountedArchiveData.Schema && data.CampaignId == saved.GameId && data.AreaId == saved.Area &&
                     data.Pairs.Length == 0 && data.Participations.Length == 0 && data.Slots.Length == 0 && data.Combat == null,
                     "Cold source is not the qualified empty mounted archive.");
                 var trace = restoration.Capture();

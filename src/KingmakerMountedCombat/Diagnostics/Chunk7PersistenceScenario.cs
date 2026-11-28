@@ -121,7 +121,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (beforeLoad || Game.Instance?.CurrentlyLoadedArea != null) throw new InvalidOperationException("Chunk 7 load observation started late.");
             Require(world != null && NativeMountedSaveFormat.ArchiveNativeSupportEnabled &&
-                NativeMountedSaveFormat.SelectedWriterSchema == 3 && GameMountedRelationshipService.NativePairCapacity >= 2,
+                NativeMountedSaveFormat.SelectedWriterSchema == MountedArchiveData.Schema && GameMountedRelationshipService.NativePairCapacity >= 2,
                 "Native schema 3 and two-pair capacity must be explicitly selected before this scenario.");
             beforeLoadGame = Game.Instance;
             originalPaired = settings.EnablePairedActivation; originalMovement = settings.EnableUnsafeMovementExperiment;

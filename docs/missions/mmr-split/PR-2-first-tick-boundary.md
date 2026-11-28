@@ -359,3 +359,127 @@ R9-F1..R9-F5, R10-F1, R10-F3..R10-F5).
 - Pending native observation (owner playtest N02/N03): restricted and short ordinary approaches in the game, the turn controller's
   registration order, native's denial branch ending a zeroed carrier, the turn staying Acting after a refused provisional order (no action
   spent), native step behaviour under a speed override, and a mid-step save/load.
+
+## 11. Round 13: owner amendment (2026-11-27g) and the installed native baseline
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 (the owner instruction is
+recorded verbatim in `docs/missions/mmr-split/owner-authorization-2026-11-27g.md`). Line numbers are at the round-13 commit. Everything the
+round-12 review verified is kept (R1-F6, R5-F1..R5-F3, R6-F1..R6-F6, R7-F1..R7-F5, R8-F1..R8-F7, R9-F1..R9-F5, R10-F1, R10-F3..R10-F5, R11-F2,
+R11-F4..R11-F7, R11-F9, R11-F10; R11-F10's expectation changes, see below).
+
+### 11.1 Native baseline (section 3 of the amendment), read-only IL
+
+Basis: the installed `Assembly-CSharp.dll` (Kingmaker 2.1.7b; sha256 prefix 3B6450FFEC440E29, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7),
+read-only IL listings; no game run. The connected control is the native contract script (`scripts/Test-MmrTbApproachNativeContract.ps1`,
+the "PR-2 round 13 baseline" checks), which asserts each statement below on the installed assembly.
+
+- **Acceptance and target assignment.** `TurnController.IgnoreClick` (06000C2F) drops a turn-based click whose visualized path
+  (`PathVisualizer.IsCurrentPathForPoint`, the movement-limited prediction) does not end within the predicted approach radius; nothing
+  forecasts later frames. The accepted `UnitAttack` runs and its target becomes the manual target on that acceptance (the existing
+  click-assignment hook).
+- **Approach and variable ticks.** `UnitCommand.TickApproaching` (060027A6) issues ONE turn-based approach on the visualized path
+  (`UnitMovementAgent.FollowPrecomputedPath` with a `ForcedPath`, then `NextApproachTime = TimeSpan.MaxValue`: no re-path); an empty path
+  interrupts the command; once in range it stops the mover and turns to the target. `UnitMoveController.Tick` (06009183) ticks every moving
+  agent with that frame's `TimeController.DeltaTime`: each tick has its own duration.
+- **Exhaustion before reach or sight.** `TurnController.TickMovement` (06000C37) clamps each tick to `GetRemainingMovementTime` (06000C5A),
+  except on `UnitMovementAgent.NearTheEnd` (its "Moving on borrowed time" endpoint correction keeps the full delta), and returns without
+  movement or debit when the remaining time is zero; it never interrupts or finishes the command.
+- **Waiting, completion, cancellation.** `UnitActionController.TickCommandTurnBased` (0600911D) force-finishes (`ForceFinishForTurnBased`)
+  an approaching command whose approach was issued only once its agent no longer wants to move (`UnitEntityView.IsMoving` = `WantsToMove`);
+  while it wants to move the command waits (until the turn ends or a newer order replaces it). `UnitCommand.Start` (060027A5) starts the
+  action only from an actually close-enough position (`IsUnitEnoughClose`; otherwise it interrupts).
+- **Standard consumption.** `UnitActionController.TickCommand` (0600911E) calls `UpdateCooldowns` (06009120; turn-based: the unit's own
+  `UpdateCooldowns`, which sets the Standard) only when the command becomes `IsActed` after its `Tick`: an approach that never strikes spends
+  no Standard; movement is debited tick by tick and stays spent.
+
+Conclusion: the trace supports the amended contract (acceptance is a lawful attempt; execution uses each tick's actual duration; exhaustion
+leaves the approach waiting or force-finished, without a strike, a Standard or a refund). No contradiction was found. Not traced: the
+concrete agent's `WantsToMove` after a zero-delta tick (whether native waits or force-finishes at exhaustion); both outcomes spend nothing
+more and strike nothing, and the KMC carrier keeps the waiting outcome (offline control below).
+
+### 11.2 Corrections and changed expectations
+
+- **Ordinary acceptance (amendment section 4).** `PairedAttackClickProbe.EvaluateNativeTicks` (the 256-tick forecast), the short-ordinary
+  branch of `EvaluateFirstTickDecision`, the frame bound `NativeMaxTurnBasedFrameSeconds`, `ShortOrdinaryApproach`, the click's
+  `shortApproachClick` and `ClickProof.ShortOrdinary` are removed (they existed only for the replaced eventual-strike guarantee). An ordinary
+  or step click whose route the grant covers is an accepted order (MountedCombatController.cs:1419); only the restricted single tick stays a
+  provisional request. At the first debit only a genuinely single-tick allowance is decided on its executable stop before the debit
+  (MountedCombatController.cs:1889-1912: the restricted tick, an ordinary grant this tick exhausts, a step whose native counter this tick
+  makes final); every other allowance applies the common remaining-route and arrival checks whatever the grant size, and later ticks follow
+  native.
+- **R10-F2 and R12-F6 (changed expectation: the forecast is removed).** The variable-frame examples are execution and accounting controls
+  (harness "R10-F2 (round 13 execution/accounting control)"): one tick left aligned strikes, perpendicular is refused before any debit. The
+  review's perpendicular schedules: 4 x 1/120 s reach (0.18697, 0.05195), visible, one strike; 1/120 then 1/40 s end blind at
+  (0.1747, 0.09071) with the allowance exactly exhausted (Move 3.0 s), the order and carrier waiting with zero-delta ticks, no strike, the
+  rider's Standard unchanged, and the player's newer ground order then holds the Move slot with no further debit; a NearTheEnd tick takes
+  native's borrowed time (Move 3.00833 s, as installed TickMovement does). Every executed stop, returned duration and debit is recorded; the
+  debits never decrease (no refund) and the prior order is not resurrected. The former all-or-nothing guarantee is not claimed.
+- **R12-F2 (changed expectation).** A larger ordinary grant no longer selects a forecast branch: it is admitted by the route check and
+  executed natively, so it cannot hide an executable strike behind a refusal.
+- **R12-F3 (correction by removal).** The short multi-tick branch that bypassed `EvaluateRemainingRoute` is gone; every non-single-tick
+  allowance applies it.
+- **R11-F3 (correction).** `EvaluateRemainingRoute` (PairedAttackClickProbe.cs:434) drops the 1 mm displacement threshold: the live leg from
+  the actual position to the agent's cursor point of the truncated path is validated at the full radius with its own heading (the disc under
+  the live heading when the cursor point is the destination), and the established samples are kept from the cursor point on. Only a mount
+  ON the planned segment within its numerical identity (`PlannedSegmentIdentityMetres` = 20 micrometres, fifty times finer than the 1 mm
+  sampling, with its projection inside the truncated segment) keeps the established samples of that segment (R8-F1: the click and the
+  revalidation sampled exactly those points; resampling the same chord at other float positions refused knife-edge destinations). Harness:
+  0.8 mm sideways grazing (planned leg 50.2 mm from the destination, live chord inside the disc, blind patch 3.1 mm from every disc sample)
+  refused, visible control committed; reverse approach 80 mm past the truncated endpoint, blind patch on the return chord refused, visible
+  control committed.
+- **R12-F1 (correction).** `MountedMovementState.StepCounterFinal` (Domain/MountedMovementState.cs:90), through the adapter
+  (MountedMovementStateAdapter.cs:428) and `PairedMountStepCounterFinal`: a step tick is final when `(1.524 - MetresStepped) / CurrentSpeedMps`
+  binds (is not larger than the physical term) and fits the tick; the debit is then decided on the executable stop (`final-step-counter`).
+  When the physical reservation binds, the reservation is settled and another lawful debit remains. The click has no separate classification
+  any more (changed expectation: the click is native-equivalent admission). Harness: equal speeds, 0.140625 m on both counters, 1/64 s:
+  aligned commits and strikes (counter 1.383375 -> 1.519375 m); perpendicular refused before any debit (both ledgers unchanged, no
+  displacement, no strike); the faster turning step (18 vs 9 m/s) keeps its route checks and its second tick (R11-F2 case).
+- **R12-F5 (correction by removal; one-shot control kept).** The click no longer rereads `MaxSpeed` after its grant: the harness counts the
+  grant's reads (2) equal to the whole click's (2); a failure armed for the first read after the grant is not consumed by the click (the
+  accepted order equals the clean click's) and the perpendicular first debit is decided on its tick (refused, no movement or debit); a
+  failure on the grant's pricing read keeps native's decision (prior target and Hold, nothing installed).
+- **R11-F1 (correction; versioned extension, amendment section 6).** Archive schema 4 (MountedArchiveData.cs:13) adds `StepTravel`
+  (`SavedStepTravel`, SavedCombatData.cs:242: actor id and settled physical step travel); the shared seven-field `SavedMovementValues` row is
+  unchanged and its `MetresStepped` is now the exact native counter (the value `CopyGrantedMovementToContext` writes). Capture records the
+  travel on the allocation row (`StepTravelled`, not serialized in the shared row), the archive writer stores it, the codec attaches it after
+  strict validation (one unique allocation, a bounded value, no travel without combat), and `Restore(row, travel)` sets both limits exactly.
+  The explicit schema-3 reader (MountedArchiveCodec.cs:81) requires the schema-3 field set and restores both limits from the single stored
+  value (legacy interpretation: the round-12 writer stored the larger commitment, earlier writers the native counter); schema-3 archives
+  remain restorable (NativeMountedSaveFormat.cs:24). The legacy schema-2 writer (selected only without the all-pair archive) still has one
+  field and stores the larger commitment (`FoldForSingleFieldFormat`). Evidence: the real codec in `tests/Chunk7PersistenceTests.cs`
+  (schema-4 round trip with identities, schema-3 historical read, malformed shapes, future data) and the harness (production capture, travel
+  rows, restoration and the real click: straight case restores the 0.6 m native counter, turning case 1.09974 m before and after, 1.085 m
+  admitted where the former single value gave 1.074 m). The two halves meet at the allocation row; the codec cannot be compiled into the
+  harness.
+- **Compatibility direction (alpha rollback).** The new build reads schemas 1-4. An older build cannot read a schema-4 archive (it reports
+  newer-format data, preserves it unchanged and does not restore it). Rolling the alpha back after saving with it needs a save made before
+  the upgrade; loading historical saves in the new build does not make new saves loadable by old binaries.
+- **R6-F7 (evidence correction).** The successor takes its real path and cursor (`TakePath`) at the fault, before any retry; path identity,
+  content, owner, cursor and cumulative stops are recorded before and immediately after all retries; negative controls (a cleared path and
+  the old carrier's path retained) are rejected by the same assertion; the no-successor and later ground-move controls are kept. No
+  production change.
+- **R11-F8 (correction).** `MountedAcceptedWorkRouting.Route` (MountedPatchController.cs:42, called by `InternalRunPostfix` at :955) delivers
+  the assignment to the actor's owner and to any controller of the world's own pair services that still owes an outstanding operation on
+  that exact actor (`ObserveOutstandingAssignment`, `ObservesOutstandingActor`, MountedCombatController.cs:1147/1162); no global
+  subscription, no retained mounted relationship. Harness: a same-target reassignment on the original horse after dismount and owner
+  retirement is kept; the control without reassignment clears A's target.
+- **R12-F4 (correction).** `HasOutstandingCleanup` (MountedCombatController.cs:1606: outstanding effects, retained carrier cleanup records, an
+  unfinished refused-request cleanup) is part of `HasRetainedPairCommands` (:120, registry retention and boundary reuse) and of the pair's
+  teardown readiness (MountedWorldService.cs:186). `MountedLifecycleSubscriber.HandleModDisable` (run by disable and by unload before
+  `patches.Dispose`) drains once (`SettleOutstandingPairCleanup`, MountedWorldService.cs:357), refuses while work remains, drains again after
+  its own cleanup (work the cancellation created) and reports ready only when none remains (MountedLifecycleSubscriber.cs:302-319); the
+  controller's per-frame drive retries it in every relationship state (:1059); `Dispose` refuses with work outstanding (:4055). This branch
+  has no `ServiceLifecycleSequence` (accepted PR-4's extraction): composition must keep this readiness ahead of PR-4's unpatch step.
+  Evidence: the lifecycle contract (call order on the compiled product) and the harness's readiness-member cases (failed target clear across
+  a dismount, unfinished carrier, steering successor): a retained retryable refusal, then completion. A real disable or unload through
+  CompositionRoot is not exercised offline.
+- **R11-F10 (changed expectation).** Short ordinary clicks are accepted orders: with an older compatible Swift the order commits at its final
+  tick and strikes; behind a competing older mount order its carrier is deferred (no movement, debit or strike; the older order runs).
+- **Harness re-expression.** The former two-provisional-requests R11-F8 case is not reachable under the amendment (provisional requests exist
+  only for the restricted tick, once per Move); it is re-expressed with one restricted request whose outstanding clear survives its cancel.
+
+### 11.3 Residual
+
+- Offline evidence only; native gameplay observation remains the owner's playtest (N02/N03 and the items in section 10).
+- `PlannedSegmentIdentityMetres` is a numerical identity tolerance (20 micrometres); a deviation below it uses the established samples.
+- The diagnostic runtime scenarios that read a newly written archive now expect schema 4; they were not run (no game launch).

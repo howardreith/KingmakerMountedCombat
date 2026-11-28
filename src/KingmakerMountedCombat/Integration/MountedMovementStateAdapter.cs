@@ -423,6 +423,19 @@ namespace KingmakerMountedCombat.Integration
                 allocation.StandardUsed || actor.UsedStandardAction(), actor.IsMoveActionRestricted(), step, singleMove);
         }
 
+        // PR #70 R12-F1 (round 13): whether a step tick of this length makes the native step counter final (MountedMovementState.StepCounterFinal),
+        // with this tick's speed facts and the completed step travel settled first.
+        internal bool StepCounterFinal(UnitEntityData actor, float tick)
+        {
+            Allocation allocation;
+            if (actor == null || !allocations.TryGetValue(actor, out allocation) || !allocation.Prepared) return false;
+            float speed, nominal;
+            ReadSpeeds(actor, out speed, out nominal);
+            if (!SpeedsReadable(speed, nominal, true)) return false;
+            allocation.SettleStepTravel(actor.Position);
+            return allocation.Movement.StepCounterFinal(speed, nominal, TurnController.MetersOfFiveFootStep, tick);
+        }
+
         internal bool HasGrantedMovement(UnitEntityData actor, bool step, bool singleMove)
         {
             Allocation allocation;

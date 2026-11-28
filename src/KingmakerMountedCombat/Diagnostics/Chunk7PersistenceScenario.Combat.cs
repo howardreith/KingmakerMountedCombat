@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool CombatCase => IsCombatCheckpoint(request.PersistenceCase);
         private bool TurnBasedCase => CombatCase && request.PersistenceCase != "multi-rt-debt-manual";
         private bool OwnerSeedCurrentPendingSource => OwnerSeedCheckpointSave && !Cold && LegacyPendingCase;
-        private int ExpectedCombatSourceSchema => LegacyPendingCase && !OwnerSeedCurrentPendingSource ? 2 : 3;
+        private int ExpectedCombatSourceSchema => LegacyPendingCase && !OwnerSeedCurrentPendingSource ? 2 : MountedArchiveData.Schema;
         private bool LegacyPendingCase => request.PersistenceCase == "legacy-mounted-pending-tb-manual";
         private bool PendingOnlyCase => LegacyPendingCase || OwnedSchema2CurrentCase || request.PersistenceCase == "pending-schema3-control-manual";
         private bool ZeroMountedCase => request.PersistenceCase == "zero-mounted-tb-retained-manual";

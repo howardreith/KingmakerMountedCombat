@@ -134,7 +134,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Require(ready && archive != null && archive.Combat != null, "Native checkpoint archive is absent or source is not ready.");
             archive.Validate(); var tb = kind != Chunk7CombatCheckpointKind.RealTimeDebts;
             var zero = kind == Chunk7CombatCheckpointKind.ZeroMountedRetained; var pending = kind == Chunk7CombatCheckpointKind.MountedPendingOnly;
-            Require(archive.SchemaVersion == 3 && archive.Combat.TurnBased == tb && archive.Combat.Paired == null &&
+            Require(archive.SchemaVersion == MountedArchiveData.Schema && archive.Combat.TurnBased == tb && archive.Combat.Paired == null &&
                 archive.Pairs.Length == (zero ? 0 : pending ? 1 : 2) && archive.Participations.Length == (pending ? 1 : 2) &&
                 archive.Combat.Actors.Length == NativeParty.Length + 1 && NativeParty.All(a => archive.Combat.Actors.Any(x => x.Native.Id == a.UniqueId)) &&
                 archive.Combat.Actors.Any(a => a.Native.Id == targetId), "Archive does not preserve the complete selected native world.");

@@ -364,6 +364,8 @@ namespace KingmakerMountedCombat.Integration
         internal void CapturePersistence(SavedCombatData saved)
         {
             CaptureSharedPersistence(saved);
+            // PR #70 R11-F1 (round 13): the legacy schema-2 writer has one step field per row.
+            MountedMovementPersistenceRows.FoldForSingleFieldFormat(saved.Allocations);
             var states = participants.Select(p => p.CaptureParticipation()).Where(p => p != null).ToArray();
             if (states.Length > 1) throw new InvalidOperationException("The legacy native adapter cannot capture multiple pair participations.");
             saved.Paired = states.SingleOrDefault();

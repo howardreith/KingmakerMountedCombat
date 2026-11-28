@@ -111,6 +111,9 @@ namespace KingmakerMountedCombat.Integration
             return movementState.RemainingOrderMetres(mount, step, singleMove);
         }
 
+        // PR #70 R12-F1 (round 13): the paired mount's step tick of this length makes the native step counter final.
+        internal bool PairedMountStepCounterFinal(float tick) => movementState.StepCounterFinal(activation?.Partner, tick);
+
         // PR #70 R1-F6 (round 6): a provisional replacement request binds (and releases) its first-tick gate on the mount's movement adapter.
         internal void BindMountFirstTickGate(IMountedFirstTickGate gate, bool bind)
         {

@@ -358,7 +358,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["autoLevelup"] = value.IsAutoLevelupSave }));
             var file = new FileInfo(completion.Path); var archive = NativeMountedSaveStorage.ReadArchive(save.Saver);
             Require(file.Exists && file.Length > 0 && archive.Kind == MountedSaveReadKind.Current &&
-                archive.SourceSchema == 3 && archive.Data != null &&
+                archive.SourceSchema == MountedArchiveData.Schema && archive.Data != null &&
                 archive.Data.CampaignId == request.PersistenceLoad.GameId && archive.Data.AreaId == request.PersistenceLoad.Area &&
                 archive.Data.Pairs.Length == 0 && archive.Data.Participations.Length == 0 &&
                 archive.Data.Slots.Length == 0 && archive.Data.Combat == null,

@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
             data.Validate();
+            SavedStepTravel.Attach(data.StepTravel, data.Combat?.Allocations);
             string json;
             using (var buffer = new StringWriter(CultureInfo.InvariantCulture))
             {
@@ -77,14 +78,23 @@ namespace KingmakerMountedCombat.Integration
                     result.Data = Migrate(old.Data);
                     return result;
                 }
-                if (schema != MountedArchiveData.Schema) throw new InvalidDataException("Unsupported historical schema.");
+                if (schema == 3)
+                {
+                    // PR #70 R11-F1 (round 13): the explicit schema-3 reader. Schema 3 has exactly the schema-4 field set without StepTravel (a
+                    // schema-3 envelope carrying it is malformed); its allocation rows keep their stored single step value (legacy interpretation).
+                    if (root.Property("StepTravel") != null) throw new InvalidDataException("Schema 3 has no step travel member.");
+                    root["StepTravel"] = new JArray();
+                    root["SchemaVersion"] = MountedArchiveData.Schema;
+                }
+                else if (schema != MountedArchiveData.Schema) throw new InvalidDataException("Unsupported historical schema.");
                 MountedSaveCodec.VerifyShape(root, typeof(MountedArchiveData), new HashSet<Type> {
-                    typeof(MountedArchiveData), typeof(SavedMountedPair), typeof(SavedPairParticipation) });
+                    typeof(MountedArchiveData), typeof(SavedMountedPair), typeof(SavedPairParticipation), typeof(SavedStepTravel) });
                 using (var reader = root.CreateReader())
                     result.Data = MountedSaveCodec.CreateSerializer().Deserialize<MountedArchiveData>(reader);
                 if (result.Data == null) throw new InvalidDataException("Empty mounted archive.");
                 result.Data.Validate();
-                result.SourceSchema = MountedArchiveData.Schema;
+                SavedStepTravel.Attach(result.Data.StepTravel, result.Data.Combat?.Allocations);
+                result.SourceSchema = (int)schema;
                 result.Kind = MountedSaveReadKind.Current;
                 return result;
             }
@@ -113,7 +123,7 @@ namespace KingmakerMountedCombat.Integration
             var linked = copy.Mounted && SavedPairParticipation.BelongsToMountedPair(paired, copy.Rider.Id, copy.Mount.Id);
             var result = new MountedArchiveData { SchemaVersion = MountedArchiveData.Schema,
                 CampaignId = copy.CampaignId, AreaId = copy.AreaId, GameTimeTicks = copy.GameTimeTicks,
-                Policy = copy.Policy, RulesId = copy.RulesId, Slots = copy.Slots, Combat = copy.Combat,
+                Policy = copy.Policy, RulesId = copy.RulesId, Slots = copy.Slots, Combat = copy.Combat, StepTravel = new SavedStepTravel[0],
                 Pairs = copy.Mounted ? new[] { new SavedMountedPair { PairId = pairId, Generation = 1,
                     ProfileId = copy.ProfileId, Rider = copy.Rider, Mount = copy.Mount } } : new SavedMountedPair[0],
                 Participations = paired == null ? new SavedPairParticipation[0] : new[] {

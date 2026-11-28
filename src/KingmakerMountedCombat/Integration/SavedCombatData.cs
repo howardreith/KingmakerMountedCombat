@@ -214,6 +214,10 @@ namespace KingmakerMountedCombat.Integration
         public float MoveObserved { get; set; }
         public bool StandardCommitted { get; set; }
         public SavedMovementValues Movement { get; set; }
+        // PR #70 R11-F1 (round 13): the settled physical step travel, held independently of Movement.MetresStepped (the native counter). Not a
+        // serialized member of this shared historical row: archive schema 4 stores it in MountedArchiveData.StepTravel (SavedStepTravel), and a
+        // row read from any older format leaves it null (legacy interpretation: both limits from MetresStepped).
+        internal float? StepTravelled;
 
         internal void Validate(HashSet<string> ids, long gameTicks)
         {
@@ -230,6 +234,44 @@ namespace KingmakerMountedCombat.Integration
                     "Saved movement grant identity is invalid.");
             }
             Movement.Validate();
+        }
+    }
+
+    // PR #70 R11-F1 (round 13): archive schema 4's independent step commitment, one per allocation row that has step travel: the settled
+    // physical travel of that actor's step (the native counter stays in the allocation's Movement.MetresStepped).
+    internal sealed class SavedStepTravel
+    {
+        public string ActorId { get; set; }
+        public float MetresStepTravelled { get; set; }
+
+        // The rows of every allocation carrying an independent travel value (writer side).
+        internal static SavedStepTravel[] Detach(SavedMovementAllocation[] allocations)
+        {
+            var rows = new List<SavedStepTravel>();
+            if (allocations != null)
+                foreach (var allocation in allocations)
+                    if (allocation != null && allocation.StepTravelled.HasValue)
+                        rows.Add(new SavedStepTravel { ActorId = allocation.ActorId, MetresStepTravelled = allocation.StepTravelled.Value });
+            return rows.ToArray();
+        }
+
+        // Strict: every row names exactly one allocation, at most once, with a valid distance; then each value is attached to its row.
+        internal static void Attach(SavedStepTravel[] rows, SavedMovementAllocation[] allocations)
+        {
+            SaveStateValidation.Require(rows != null, "Saved step travel collection is absent.");
+            SaveStateValidation.Require(rows.Length == 0 || allocations != null, "Saved step travel has no movement allocations.");
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                SaveStateValidation.Require(row != null && row.ActorId != null && seen.Add(row.ActorId) &&
+                    SaveStateValidation.Number(row.MetresStepTravelled, 1000000f), "Saved step travel row is invalid or duplicated.");
+                SavedMovementAllocation match = null;
+                var count = 0;
+                foreach (var allocation in allocations)
+                    if (allocation != null && string.Equals(allocation.ActorId, row.ActorId, StringComparison.Ordinal)) { match = allocation; count++; }
+                SaveStateValidation.Require(count == 1, "Saved step travel names no unique movement allocation.");
+                match.StepTravelled = row.MetresStepTravelled;
+            }
         }
     }
 
