@@ -85,7 +85,10 @@ namespace KingmakerMountedCombat.Integration
             if (!steps.DrainChargeOwnership()) return false;
             var cleaned = steps.CleanupPairs();
             var settledAfter = steps.DrainOutstandingPairCleanup();
-            return cleaned && settledAfter && steps.TeardownOwnersReady;
+            var ready = cleaned && settledAfter && steps.TeardownOwnersReady;
+            // PR #70 R19-F5 (round 20): no forced-path attribution scope survives a completed disable or unload.
+            if (ready) MountedCarrierPathObserver.ReleaseScopes();
+            return ready;
         }
     }
 }

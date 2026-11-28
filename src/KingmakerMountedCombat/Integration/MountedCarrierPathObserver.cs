@@ -35,30 +35,69 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool Tracks(Kingmaker.View.UnitMovementAgent agent) => KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.Tracks(agent);
 
-        // The commands whose native TickApproaching is running, innermost last (bounded: a body that threw leaves its entry, later trimmed).
-        private static readonly System.Collections.Generic.List<Kingmaker.UnitLogic.Commands.Base.UnitCommand> approaching =
-            new System.Collections.Generic.List<Kingmaker.UnitLogic.Commands.Base.UnitCommand>();
+        // PR #70 R19-F5 (round 20): the commands whose native TickApproaching is running, innermost last. Harmony 1.2 (the installed Harmony12)
+        // has no finalizer, so a body that throws skips its postfix; the scope is therefore exception-safe by construction: entries hold the
+        // command WEAKLY (a failed scope never roots its command or actors), and an entry from an earlier engine frame can only be a scope whose
+        // body threw (TickApproaching never spans frames), so it is discarded when the next scope opens; a collected command is discarded too.
+        // An active outer scope is always from the current frame and is never discarded (no count-based clearing). A postfix ends its own scope
+        // and any nested scope whose body threw inside it. ReleaseScopes (MountedServiceTeardownSequence.ModDisable, both disable and unload)
+        // drops every entry.
+        private struct ApproachScope
+        {
+            internal System.WeakReference Command;
+            internal int Frame;
+        }
+        private static readonly System.Collections.Generic.List<ApproachScope> approaching = new System.Collections.Generic.List<ApproachScope>();
+
+        private static void DiscardStaleScopes()
+        {
+            var frame = UnityEngine.Time.frameCount;
+            for (var i = approaching.Count - 1; i >= 0; i--)
+                if (approaching[i].Frame != frame || !approaching[i].Command.IsAlive) approaching.RemoveAt(i);
+        }
 
         // TickApproaching prefix (first statement of MountedPatchController.PatchMethods.MountedAttackApproachPrefix).
         internal static void EnterApproach(Kingmaker.UnitLogic.Commands.Base.UnitCommand command)
         {
             if (command == null) return;
-            if (approaching.Count >= 32) approaching.Clear();
-            approaching.Add(command);
+            DiscardStaleScopes();
+            approaching.Add(new ApproachScope { Command = new System.WeakReference(command), Frame = UnityEngine.Time.frameCount });
         }
 
-        // TickApproaching postfix (Harmony runs it whether or not the prefix skipped the native body).
+        // TickApproaching postfix (Harmony runs it whether or not the prefix skipped the native body): this command's innermost scope ends, with
+        // every scope nested inside it (their bodies threw).
         internal static void ExitApproach(Kingmaker.UnitLogic.Commands.Base.UnitCommand command)
         {
-            var at = approaching.LastIndexOf(command);
-            if (at >= 0) approaching.RemoveRange(at, approaching.Count - at);
+            for (var i = approaching.Count - 1; i >= 0; i--)
+                if (ReferenceEquals(approaching[i].Command.Target, command)) { approaching.RemoveRange(i, approaching.Count - i); return; }
         }
+
+        // The innermost live scope of this frame (the command whose TickApproaching is running).
+        internal static Kingmaker.UnitLogic.Commands.Base.UnitCommand CurrentIssuer
+        {
+            get
+            {
+                var frame = UnityEngine.Time.frameCount;
+                for (var i = approaching.Count - 1; i >= 0; i--)
+                {
+                    var command = approaching[i].Command.Target as Kingmaker.UnitLogic.Commands.Base.UnitCommand;
+                    if (approaching[i].Frame == frame && command != null) return command;
+                }
+                return null;
+            }
+        }
+
+        internal static int RetainedScopeCount => approaching.Count;
+
+        // Teardown (MountedServiceTeardownSequence.ModDisable on success): no scope survives disable or unload.
+        internal static void ReleaseScopes() => approaching.Clear();
 
         // FollowPrecomputedPath prefix: the forced request the innermost ticking command issues (before set_RequestedPath and OnPathComplete).
         internal static void BeforeForcedRequest(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
         {
-            if (p == null || approaching.Count == 0 || !Tracks(agent)) return;
-            KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent, approaching[approaching.Count - 1], p);
+            if (p == null || !Tracks(agent)) return;
+            var issuer = CurrentIssuer;
+            if (issuer != null) KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent, issuer, p);
         }
 
         // PathTo prefix: the outstanding request before native decides.

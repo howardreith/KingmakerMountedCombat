@@ -452,11 +452,11 @@ namespace KingmakerMountedCombat.Integration
             CarrierPathObservations++;
         }
 
-        // The carrier acquired its path: native delivered its own request (whatever happened to that path since), or the route-bound carrier
-        // moved the mount from its origin. A carrier with only an outstanding or undelivered request, or none, is still awaiting its first path.
-        internal bool CarrierAcquiredPath => delegatedMove != null &&
-            (MountedCarrierApproachLedger.HasDelivery(delegatedMove) ||
-             RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
+        // The carrier acquired its path: native delivered its own request (whatever happened to that path since). R18-F2 (round 20): the
+        // route-bound displacement criterion is removed: a forced approach is now attributed to the exact command whose TickApproaching issued it,
+        // so the delivery covers the route-bound carrier, and displacement from its origin can be a predecessor's steering. A carrier with only an
+        // outstanding or undelivered request, or none, is still awaiting its first path.
+        internal bool CarrierAcquiredPath => delegatedMove != null && MountedCarrierApproachLedger.HasDelivery(delegatedMove);
 
         // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed
         // CompleteMovement/Stop cleared Path and RequestedPath) while UnitMoveTo has not yet reported finished.
@@ -1702,9 +1702,28 @@ namespace KingmakerMountedCombat.Integration
             delegatedMove != null && !chargeMode && !ProvisionalOrder && (RouteBound ? ValidatedRouteFollowed : !IsAutomaticOrigin && delegatedMoveStartCount > 0) &&
             (FirstTickCarrierPermitted == null || FirstTickCarrierPermitted()) && TurnBased.Controllers.CombatController.IsInTurnBasedCombat();
 
+        // PR #70 R19-F2 (round 20): asked when native ended this provisional carrier's own delivered approach out of reach before its deciding tick;
+        // true: the pending replacement was settled through its refusal path (the controller's sweep retires it and the previous order resumes).
+        internal Func<string, bool> ProvisionalApproachEnded;
+        internal int ProvisionalApproachEndedCount { get; private set; }
+
+        // The exact ended-delivery observation: the provisional carrier's own delivery is EndedByNative and the agent has no path or request. A
+        // carrier still awaiting its first path keeps waiting; a strike admissible where the pair stands keeps the in-place path.
+        private bool EndIfProvisionalApproachEnded()
+        {
+            if (!ProvisionalOrder || chargeMode || delegatedMove == null || ProvisionalApproachEnded == null) return false;
+            var agent = mount?.View?.AgentASP;
+            if (agent == null || agent.WantsToMove || CarrierApproachPhase != MountedCarrierApproachPhase.EndedByNative) return false;
+            if (StrikeAdmissibleNow()) return false;
+            if (!ProvisionalApproachEnded("native-ended-first-approach(carrier " + (delegatedMove.IsFinished ? "finished" : "live") + ")")) return false;
+            ProvisionalApproachEndedCount++;
+            return true;
+        }
+
         private bool EndIfNativeTurnBasedApproachEnded()
         {
             ObserveCarrierPath();
+            if (EndIfProvisionalApproachEnded()) return true;
             if (!NativeTurnBasedDispositionApplies) return false;
             // Round 16 (R13-F3): BOTH supported entries end on a finished carrier or on a live carrier whose issued approach has ended (it acquired
             // its path, and the agent no longer wants to move). A live carrier still awaiting its first path is not an ended approach.

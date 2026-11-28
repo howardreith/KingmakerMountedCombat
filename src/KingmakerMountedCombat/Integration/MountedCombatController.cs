@@ -900,6 +900,8 @@ namespace KingmakerMountedCombat.Integration
                     command.FirstTickCarrierPermitted = () => FirstTickCarrierPermitted(command);
                     command.CarrierReleasedForStrike = () => CarrierReleasedForStrike(command);
                     command.ProvisionalStrikeGate = () => AdmitProvisionalStrike(command);
+                    // PR #70 R19-F2 (round 20): native ended this provisional carrier's own delivered approach out of reach before its deciding tick.
+                    command.ProvisionalApproachEnded = why => RefuseEndedProvisionalApproach(command, why);
                     if (provisional.TargetUnconsciousAtClick) command.AdmitTargetUnconsciousWhenOrdered();
                 }
                 if (automaticOrigin)
@@ -1669,6 +1671,10 @@ namespace KingmakerMountedCombat.Integration
         internal int DeferredClickTargetWriteCount { get; private set; }
         internal int DeferredHoldWriteCount { get; private set; }
         internal string LastFirstTickDecision { get; private set; } = "<none>";
+        // PR #70 R18-F2 (round 20): first ticks left undecided because the agent was not steering the exact carrier's own delivered approach.
+        internal int FirstTickDeferralCount { get; private set; }
+        internal string LastFirstTickDeferral { get; private set; } = "<none>";
+        private const string FirstTickAwaitingOwnPath = "awaiting-own-path";
         private bool PendingReplacement => firstTickProposal != null && firstTickProposal.Replacement && firstTickProposal.State == MountedFirstTickProposalState.Pending;
         private bool IsPendingReplacementWork(UnitCommand command) => command != null && PendingReplacement && firstTickProposal.Command != null &&
             (ReferenceEquals(command, firstTickProposal.Command) || firstTickProposal.Command.IsOwnDelegatedMove(command));
@@ -1816,6 +1822,15 @@ namespace KingmakerMountedCombat.Integration
                 TryLogException("Turn-based first-tick decision failed; the request is refused", error);
                 refusal = "decision-failed(" + error.GetType().Name + ")";
             }
+            // R18-F2 (round 20): the agent is not steering the exact carrier's own delivered approach (a predecessor's path, matching coordinates
+            // included, or the carrier's first request not yet delivered): the request stays pending; nothing is decided, debited or refused.
+            if (ReferenceEquals(refusal, FirstTickAwaitingOwnPath))
+            {
+                FirstTickDeferralCount++;
+                detail = LastFirstTickDeferral = "deferred:" + FirstTickAwaitingOwnPath + "(" + MountedCarrierPathObserver.PhaseOf(p.CarrierMove, relationship.Mount?.View?.AgentASP) +
+                    ";requests=" + MountedCarrierApproachLedger.RequestCount(p.CarrierMove) + ")" + tick;
+                return MountedFirstTickVerdict.Defer;
+            }
             if (refusal == null)
             {
                 string failure = null;
@@ -1917,6 +1932,10 @@ namespace KingmakerMountedCombat.Integration
             if (p.Command.ClickPlan.Valid && !here.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
             if (here.AdmissibleNow) { inPlace = true; p.Detail = "in-range"; return null; }
             if (inPlaceOnly) return "no-strike-in-place";
+            // R18-F2 (round 20): a moving decision is made only on the exact carrier's own delivered approach (MountedCarrierApproachLedger,
+            // written at the native request/delivery boundaries). Whatever else the agent steers settles nothing. The independently legal
+            // in-place strike above is unaffected.
+            if (MountedCarrierPathObserver.PhaseOf(carrier, mount.View?.AgentASP) != MountedCarrierApproachPhase.Delivered) return FirstTickAwaitingOwnPath;
             var input = movementContext as TurnController;
             if (input == null) return "movement-context-unavailable";
             bool step, single;
@@ -2089,6 +2108,20 @@ namespace KingmakerMountedCombat.Integration
         {
             var p = firstTickProposal;
             return p == null || !ReferenceEquals(p.Command, command) || p.State != MountedFirstTickProposalState.Refused;
+        }
+
+        // PR #70 R19-F2 (round 20): the provisional carrier's own delivered approach was ended by native (EndedByNative: the guard route bypassed the
+        // deciding tick) out of reach: the pending replacement settles through its refusal path (the sweep retires it; the previous order,
+        // generation, manual target and Hold are kept; nothing is spent) before any target-drift re-path can issue another carrier.
+        private bool RefuseEndedProvisionalApproach(MountedPairAttackCommand command, string why)
+        {
+            var p = firstTickProposal;
+            if (disposed || p == null || !p.Replacement || !ReferenceEquals(p.Command, command) || p.State != MountedFirstTickProposalState.Pending) return false;
+            RefuseFirstTickProposal(why);
+            LastStockAttackObservation = "first-tick-proposal-refused;" + why;
+            LastFeedback = "Mounted attack not started: the mount cannot reach a legal strike position with its current movement.";
+            TryLog(() => "Turn-based provisional order refused after native ended its first approach: " + LastFirstTickDecision + "; the previous order is unchanged.");
+            return true;
         }
 
         private void RefuseFirstTickProposal(string why)

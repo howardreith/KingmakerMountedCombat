@@ -519,4 +519,22 @@ Check ($null -eq $kmc.GetType('KingmakerMountedCombat.Domain.MountedCarrierMovem
     (Calls (@(Method $commandType19 'NoteCarrierIssued')[0]) ($ledgerType.GetMethod('Admit'))) -eq 1 -and
     (Calls (@(Method $observerType19 'AfterRequest')[0]) ($ledgerType.GetMethod('RecordRequest'))) -eq 1 -and (Calls (@(Method $observerType19 'AfterCompletion')[0]) ($ledgerType.GetMethod('RecordCompletion'))) -eq 1 -and
     $null -eq $commandType19.GetField('pathAtCarrierIssue', $any) -and $null -eq $commandType19.GetField('pathRequestPendingCarrier', $any)) 'PR-2 round 19 (R17-F1, R18-F2): the exact carrier''s issuance and delivery are written only by the PathTo/OnPathComplete observer (MountedCarrierApproachLedger.RecordRequest/RecordCompletion) for a carrier the command admitted at issue; TickDelegated writes no issuance or delivery and credits its positive tick only to the carrier whose own delivered path moved (RecordMovement); CarrierAcquiredPath reads the delivery (not the movement fact); the round-17/18 Move-slot markers and the rider-sampled baseline heuristics are gone'
+# ---- PR-2 round 20 (R18-F2, R19-F2, R19-F5): the exact carrier's delivery at both decision points; forced-path scope release ----
+$controller20 = KmcType 'KingmakerMountedCombat.Integration.MountedCombatController'
+$evaluate20 = @(Method $controller20 'EvaluateFirstTickDecision')[0]; $decide20 = @(Method $controller20 'DecideFirstTickProposal')[0]
+$phaseOf20 = $observerType19.GetMethod('PhaseOf', $any); $tryRead20 = (KmcType 'KingmakerMountedCombat.Integration.MountedAgentSteering').GetMethod('TryRead', $any)
+$inPlace20 = (KmcType 'KingmakerMountedCombat.Integration.PairedAttackClickProbe').GetMethod('EvaluateFirstTick', $any)
+$endIfNative20 = @(Method $commandType19 'EndIfNativeTurnBasedApproachEnded')[0]; $endIfProvisional20 = @(Method $commandType19 'EndIfProvisionalApproachEnded')[0]
+$appliesGetter20 = $commandType19.GetProperty('NativeTurnBasedDispositionApplies', $any).GetGetMethod($true)
+$distance20 = @((GameType 'Kingmaker.Utility.GeometryUtils').GetMethods($any) | Where-Object { $_.Name -ceq 'MechanicsDistance' })
+$teardownModDisable20 = (KmcType 'KingmakerMountedCombat.Integration.MountedServiceTeardownSequence').GetMethod('ModDisable', $any)
+$scopeField20 = $observerType19.GetField('approaching', $any)
+Check ((Calls $evaluate20 $phaseOf20) -eq 1 -and (FirstOffset $evaluate20 $inPlace20) -lt (FirstOffset $evaluate20 $phaseOf20) -and (FirstOffset $evaluate20 $phaseOf20) -lt (FirstOffset $evaluate20 $tryRead20) -and
+    [Enum]::GetNames((KmcType 'KingmakerMountedCombat.Domain.MountedFirstTickVerdict')) -contains 'Defer' -and
+    @($distance20 | Where-Object { (Calls $acquiredGetter $_) -ne 0 }).Count -eq 0 -and (Calls $acquiredGetter ($ledgerType.GetMethod('HasDelivery'))) -eq 1 -and
+    (Calls $endIfNative20 $endIfProvisional20) -eq 1 -and (FirstOffset $endIfNative20 $endIfProvisional20) -lt (FirstOffset $endIfNative20 $appliesGetter20) -and
+    (Calls $endIfProvisional20 ($commandType19.GetProperty('CarrierApproachPhase', $any).GetGetMethod($true))) -eq 1 -and
+    (Calls $teardownModDisable20 ($observerType19.GetMethod('ReleaseScopes', $any))) -eq 1 -and $null -ne $scopeField20 -and
+    $scopeField20.FieldType.GetGenericArguments()[0].GetField('Command', $any).FieldType -eq [WeakReference] -and
+    @($observerType19.GetFields($any) | Where-Object { $_.FieldType.IsGenericType -and $_.FieldType.GetGenericArguments()[0].FullName -ceq 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' }).Count -eq 0) 'PR-2 round 20 (R18-F2, R19-F2, R19-F5): the first-tick decision reads the exact carrier''s phase after the independently legal in-place check and before reading the agent''s path (anything but its own delivery defers: MountedFirstTickVerdict.Defer); CarrierAcquiredPath is the carrier''s own delivery only (no displacement criterion); a provisional order''s ended own delivery is settled (EndIfProvisionalApproachEnded) before the accepted-order disposition and the drift re-path; the forced-path scope holds commands weakly and the teardown ModDisable releases it'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')
