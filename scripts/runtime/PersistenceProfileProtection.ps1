@@ -31,6 +31,9 @@ function New-KmcPersistenceProfileSnapshot {
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     $profile=[IO.Path]::GetFullPath((Split-Path $SaveRoot)).TrimEnd('\')
     $params=Join-Path $GameRoot 'Kingmaker_Data/Managed/UnityModManager/Params.xml'
+    # A private self-test reservation covers only disposable stand-ins: refused before the profile, the game's loader
+    # settings or the backup location is opened.
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($profile,$SaveRoot,$GameRoot,$params,$BackupRoot)
     Assert-KmcNotReparsePoint $params 'UMM parameters';Assert-KmcNotHardLink $params 'UMM parameters'
     # The ordinary game log is expected output, retained separately as evidence.
     # Human saves have their own exact suite inventory and Working transaction.
@@ -59,6 +62,7 @@ function New-KmcPersistenceProfileSnapshot {
         runId=[string]$Lock.RunId;token=[string]$Lock.Token;profile=$profile
         inventory=$before;profileDigest=Get-KmcPersistenceProfileDigest $before;paramsPath=$params;paramsSha256=$paramsHash;playerPrefsJson=$prefs
     }
+    Register-KmcRunObligation -Lock $Lock -Name 'profile'
     Write-KmcJsonCreateNewDurable -Path (Join-Path $target 'snapshot.json') -Value $record
     [void](Assert-KmcPersistenceProfileUnchanged $record)
     return $record
@@ -435,24 +439,14 @@ function Assert-KmcCompletedTransactionRecovery {
         $combined.saveWriteAllowlistPassed-isnot[bool]-or-not$combined.saveWriteAllowlistPassed-or$errors.Count-ne0){
         throw 'Post-transaction profile recovery has no completed transaction recovery for this run and token.'
     }
-    # A no-save transaction created no Working-save child: its exact save-inventory proof is the combined receipt's
-    # restored digest equal to its recorded before digest. Save-backed transactions keep the child receipt check.
-    $parts=@(,@('Mods',(Get-KmcTransactionStatePath $StateRoot $RunId)))
-    if([string]$combined.mode-ceq'no-save-v1'){
-        if([string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery of a no-save transaction has no exact save-inventory proof.'}
-    }else{$parts+=,@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId))}
-    foreach($part in $parts){
-        if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){
-            # A Mods transaction that never started (the run stopped before staging) has no receipt: live Mods must be
-            # proven exact by the combined receipt's restored digest equal to its recorded before digest.
-            if($part[0]-ceq'Mods'-and[string]$combined.restoredModsDigest-ceq[string]$combined.modsDigestBefore){continue}
-            throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt and no exact never-started proof.')
-        }
-        $value=Read-KmcJson $part[1]
-        if([string]$value.runId-cne$RunId-or[string]$value.token-cne[string]$Snapshot.token-or[string]$value.phase-cne'restored'){
-            throw ('Post-transaction profile recovery '+$part[0]+' transaction is not restored under this run and token.')
-        }
-    }
+    if([string]$combined.mode-ceq'no-save-v1'-and[string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery of a no-save transaction has no exact save-inventory proof.'}
+    # Which children started is the run's obligation ledger (recorded before each child's first change), never inferred
+    # from a missing receipt: every started child other than the owed profile and Areas restoration must be closed by
+    # its own terminal record, and the profile restoration must be owed.
+    $obligations=Get-KmcRunObligationState -StateRoot $StateRoot -RunId $RunId -RunToken ([string]$Snapshot.token)
+    $blocking=@($obligations.Open|Where-Object{-not($_.StartsWith('profile: ')-or$_.StartsWith('areas: '))})
+    if($blocking.Count-ne0){throw ('Post-transaction profile recovery has unresolved obligations: '+($blocking -join '; '))}
+    if($obligations.Started-cnotcontains'profile'){throw 'Post-transaction profile recovery: this run owes no profile restoration.'}
     $receipt=Join-Path ([IO.Path]::GetFullPath($EvidenceRoot)) ($RunId+'/profile-recovery.json')
     if(Test-Path -LiteralPath $receipt){throw 'Profile recovery already has a receipt for this run.'}
     return $combined

@@ -57,7 +57,7 @@ function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments, [scr
     Write-Host ("== {0}: exit={1} PASS-lines={2} FAIL-lines={3} seconds={4:N0} -> {5}" -f $Name, $exit, @($lines | Where-Object { $_ -like 'PASS *' }).Count, $fail.Count, $timer.Elapsed.TotalSeconds, $verdict)
     foreach ($line in $fail) { Write-Host "   $line" }
     foreach ($line in @($lines | Where-Object { $_ -like 'RESULT *' -or $_ -like 'TOTAL *' -or $_ -like '* PASS=*' -or $_ -like 'INFO *' -or $_ -like 'PASS actual held-lock copy *' })) { Write-Host "   $line" }
-    if ($verdict -notlike 'passed*') { $failures.Add("$Name $verdict (log $log)") }
+    if ($verdict -notlike 'passed*' -and $verdict -notlike 'partial:*') { $failures.Add("$Name $verdict (log $log)") }
     return $lines
 }
 $exitZero = { param($exit, $lines, $fail) if ($exit -eq 0 -and $fail.Count -eq 0) { 'passed' } else { 'failed' } }
@@ -119,14 +119,25 @@ try {
         }
         return ('passed as a matched-base partial result ({0}; every row identical to the recorded 11e8e22b rows)' -f $ogeBase.summary)
     }.GetNewClosure())
+    # The partial child's raw evidence is retained with the gate logs (kept on success and failure), with its hashes.
+    $ogeEvidence = Join-Path $logRoot 'OriginalGuardEffects-raw'
+    [void][IO.Directory]::CreateDirectory($ogeEvidence)
+    foreach ($relative in @('test.log', 'inputs.json', 'result.json', 'case\receipt.json')) {
+        $source = Join-Path $ogeRoot $relative
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { Write-Host "   raw OriginalGuardEffects evidence missing: $relative"; continue }
+        $target = Join-Path $ogeEvidence ($relative.Replace('\', '-'))
+        Copy-Item -LiteralPath $source -Destination $target
+        Write-Host ('   raw OriginalGuardEffects evidence {0} sha256={1}' -f $target, (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash.ToLowerInvariant())
+    }
     # Six-pair copy: unchanged, it stops in its source qualification on this machine's installed-loader observation (the
-    # recorded evidence does not match the measured loader profile; base 11e8e22b stops identically). It runs twice: as-is
-    # (accepted only with exactly that stop, a partial result), and with only that loader observation replaced by a
-    # recording stand-in, so the actual sixteen-pin source, the private lock and the copy helper run all ten cases.
+    # recorded evidence does not match the measured loader profile): a candidate prerequisite stop, reported as such. It
+    # runs twice: as-is (accepted only with exactly that stop, a partial result), and with only that loader observation
+    # replaced by a recording stand-in, so the actual sixteen-pin source, the private lock and the copy helper run all
+    # ten cases.
     [void](Invoke-Suite 'Test-Chunk7SixPairSourceCopy' 'scripts\chunk7\Test-Chunk7SixPairSourceCopy.ps1' @() {
         param($exit, $lines, $fail)
         if ($exit -eq 0 -and $fail.Count -eq 0) { return 'passed' }
-        if ((($lines -join ' ') -replace '\s+', ' ') -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'passed as a matched-base partial result (installed-loader prerequisite unmet; base 11e8e22b stops identically)' }
+        if ((($lines -join ' ') -replace '\s+', ' ') -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'partial: candidate prerequisite stop (installed-loader observation unmet on this machine); no lock case reached' }
         return 'failed'
     })
     $sixPairSource = Join-Path $PSScriptRoot 'chunk7\Test-Chunk7SixPairSourceCopy.ps1'

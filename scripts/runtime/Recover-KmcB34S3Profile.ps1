@@ -120,7 +120,7 @@ if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){throw 'Recovery req
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -ExpectedLockToken ([string](Read-KmcJson (Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))).token) -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -JournalPath @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotSha} -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/snapshot.json')) $backupRoot 'exact run profile snapshot'
@@ -160,8 +160,8 @@ Assert-KmcBaseGameSettingsAuthority -State $modsState -RunId $runId -Token $snap
 $allHeld=@($expectedFiles|Where-Object {-not(Test-Path -LiteralPath (Join-Path $snapshot.profile ($_.path.Replace('/','\'))) -PathType Leaf)}).Count-eq7
 $startup=Get-ExactStartupState $snapshot $saved $params $allHeld
 if(-not$PSCmdlet.ShouldProcess($runId,'quarantine seven exact native Areas writes, restore this run profile/settings, release lock')){
-    Write-Host 'B34S3 PROFILE RECOVERY WHATIF PASS; seven pinned Areas files and three startup preferences; no mutation.'
-    Exit-KmcUnlockedNativeReservation $nativeReservation;return
+    Exit-KmcUnlockedNativeReservation $nativeReservation
+    Write-Host 'B34S3 PROFILE RECOVERY WHATIF PASS; seven pinned Areas files and three startup preferences; no mutation.';return
 }
 $lock=$null
 try{
@@ -195,7 +195,9 @@ try{
         $held=Assert-KmcChildPath (Join-Path $quarantine $relative) $quarantine 'exact Areas quarantine file'
         if(Test-Path -LiteralPath $live -PathType Leaf){
             if(Test-Path -LiteralPath $held){throw 'Exact Areas quarantine target already exists.'}
+            [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
             [IO.File]::Move($live,$held)
+            Add-KmcReservationProgress $lock ('Areas file moved to quarantine: '+$held)
         }
     }
     [void](Assert-ExactAreasDelta $snapshot $quarantine)
@@ -203,10 +205,14 @@ try{
     if((Get-KmcPersistenceProfileDigest $clean)-cne$snapshot.profileDigest){throw 'Profile differs after exact Areas quarantine.'}
     $startup=Get-ExactStartupState $snapshot $saved $params $true
     if($startup.paramsHash-cne$paramsBefore){
+        [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
         [IO.File]::WriteAllBytes($params,$capturedParams)
+        Add-KmcReservationProgress $lock 'loader settings (Params.xml) rewritten from the captured pre-run bytes'
+        [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
         [IO.File]::SetLastWriteTimeUtc($params,[IO.File]::GetLastWriteTimeUtc($saved))
     }
     if($startup.changes.Count-ne0){
+        [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
         $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
         try{
             if($null-eq$key){throw 'Actual Kingmaker PlayerPrefs key disappeared.'}
@@ -214,6 +220,7 @@ try{
                 $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
             }
             $key.Flush()
+            Add-KmcReservationProgress $lock 'PlayerPrefs values restored'
         }finally{if($null-ne$key){$key.Dispose()}}
     }
     [void](Assert-KmcPersistenceProfileUnchanged $snapshot)

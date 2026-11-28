@@ -9,7 +9,7 @@ $run='20261104-finalize-f1c-creator-scroll'
 $token='6afaf1c419f8840d8b1f6737c5aa9e5386d93aa9e9a425ce35ce00bab7862596'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -ExpectedLockToken $token -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $run -ExpectedLockToken $token -JournalPath @((Get-KmcRunTransactionStatePath $stateRoot $run),(Get-KmcTransactionStatePath $stateRoot $run)) -Pins @{(Get-KmcRunTransactionStatePath $stateRoot $run)='e731c0c08bb672c05a8fa2994aa8ab3d906a872380cb2d329846ef7024caba82';(Get-KmcTransactionStatePath $stateRoot $run)='3bca2b6a00ae43b2e5bdacf32713ff27922fbcf846ad1fbaf53e6a60925b2ff9'} -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $combinedPath=Get-KmcRunTransactionStatePath $stateRoot $run
 $modsPath=Get-KmcTransactionStatePath $stateRoot $run
@@ -47,8 +47,8 @@ if($raw.runId-cne$run-or$raw.token-cne$token){throw 'Stale lock belongs to anoth
 if((Test-Path $receiptPath)-or(Test-Path $originalPath)){throw 'Append-only review evidence already exists.'}
 $WhatIfPreference=$requestedWhatIf
 if(-not$PSCmdlet.ShouldProcess($run,'record verified copied-symbol review and close only this restored stale transaction')){
- Write-Host 'PASS reviewed symbol recovery WhatIf; no files, lock, saves or Mods changed.'
- Exit-KmcUnlockedNativeReservation $nativeReservation;return
+ Exit-KmcUnlockedNativeReservation $nativeReservation
+ Write-Host 'PASS reviewed symbol recovery WhatIf; no files, lock, saves or Mods changed.';return
 }
 $WhatIfPreference=$false
 $lock=$null

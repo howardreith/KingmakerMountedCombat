@@ -90,6 +90,7 @@ if (-not $PSCmdlet.ShouldProcess($snapshotPath,'create append-only stable qualif
     $modsWhatIf=Get-KmcQualificationTreeInventory -Root $modsRoot -Scope mods-root
     [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $saveSecond -Actual $saveWhatIf -Description 'qualification-suite WhatIf save inventory')
     [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $modsSecond -Actual $modsWhatIf -Description 'qualification-suite WhatIf Mods inventory')
+    Exit-KmcUnlockedNativeReservation $preparationReservation  # the release completes before PASS is reported
     Write-Host 'Qualification-suite snapshot WhatIf PASS; both external trees and all project-owned state remain unmodified.'
     return
 }

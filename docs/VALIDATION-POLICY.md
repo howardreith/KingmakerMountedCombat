@@ -176,24 +176,26 @@ included, and releases only after its last shared read or verified close):
 
 | Entrypoint | Reservation |
 | --- | --- |
-| `Invoke-KingmakerRuntimeScenario.ps1` (manual review, F1 finish) | after workflow admission; carried into the lock; released on a verified close (Mods, saves, profile, game exit, installed dependencies), kept with an abandoned lock; a preview or declined run releases after its final purity scans |
-| `Recover-KingmakerRuntimeTransaction.ps1` | its journal token must equal the stale lock's, then the lease naming that lock is taken over before the Mods/save reads; installed dependencies are verified against their files; when the run snapshotted the profile the lock closes but the lease is kept, owing `profile-recovery` |
-| `Recover-KmcPersistenceProfile.ps1` | `-AfterTransactionRecovery` continues only the lease owed to it for that run and run token (`Enter-KmcFollowUpReservation`); stale mode takes over the run's stale lock; released after profile verification |
-| `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fresh before the save audit; ownership rechecked before each Working move, copy and rollback move; a repair interrupted after its prepared journal is continued by rerunning with its `-RunId` (identity-bound takeover, derived destinations, unaffected saves and quarantined bytes verified before any write, `ShouldProcess`), anything ambiguous is left in place |
-| `Test-KmcFixtureGuard.ps1` | every mode; initialization refuses a stale local lock |
+| `Invoke-KingmakerRuntimeScenario.ps1` (manual review, F1 finish) | after workflow admission; carried into the lock; released on a verified close (Mods, saves, profile, game exit, installed dependencies) only when the run's obligation state is closed, kept with an abandoned lock; a preview or declined run releases after its final purity scans, before reporting PASS |
+| `Recover-KingmakerRuntimeTransaction.ps1` | admit-then-bind: its journals must name the stale lock's run and token before the lease naming that lock is taken over; after restoration the run's obligation state decides: all closed releases, only the profile (and its Areas) restoration open keeps the lease owing `profile-recovery`, anything else keeps lock and lease |
+| `Recover-KmcPersistenceProfile.ps1` | `-AfterTransactionRecovery` continues only the lease owed to it for that run and run token (`Enter-KmcFollowUpReservation`); stale modes take over through admit-then-bind (snapshot and combined journal); records the verified profile closure in the ledger and releases only when the run's obligation state is closed |
+| `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fresh before the save audit (private surfaces checked first); ownership rechecked before each Working move, copy, timestamp write and rollback move; the qualified copy never overwrites a Working that reappeared; a repair interrupted after its prepared or terminal journal is continued by rerunning with its `-RunId` (admit-then-bind, derived destinations, unaffected saves and quarantined bytes verified before any write, `ShouldProcess`, phase-specific terminal files rechecked after confirmation and before the close); anything ambiguous or drifted is left in place with its incident |
+| `Test-KmcFixtureGuard.ps1` | every mode; initialization refuses a stale local lock and rechecks ownership after confirmation; requalification recovery takes over through admit-then-bind (its journal, or the separately proven pre-journal interruption) |
 | suite snapshot, protected-save authority producers | held from the first shared read until the authority is published (ownership rechecked immediately before publishing) |
-| `Invoke-Chunk7ScopedPreflight.ps1` | own minimal participation (it loads no harness): before its first write-denying shared handle; the embedded launcher guard prefix borrows exactly this lease (`KMC_NATIVE_RESERVATION_BORROW_TOKEN`; a borrower never releases or locks); released, strictly validated as exactly its own record, only when every handle settled and before its receipt (which records the release result), otherwise left for the owner |
+| `Invoke-Chunk7ScopedPreflight.ps1` | own minimal participation (it loads no harness): before its first write-denying shared handle (an occupied admission names the readable holder); the embedded launcher guard prefix, executed in the same process, borrows exactly this lease (`KMC_NATIVE_RESERVATION_BORROW_TOKEN`, accepted only for the lease of this process and runtime-state root; a borrower never releases or locks); released only when the record is byte-identical to the one it wrote, every handle settled and before its receipt (which records the release result); otherwise left for the owner with its first incident |
 | `Test-KmcWorkingActorGraph.ps1` (Working diagnostic) | it holds a write-denying handle on the live qualified Working save: reserved before its first read, released after its last (no lock) |
 | `Invoke-KingmakerManualReview.ps1`, `Invoke-FinalizeF1Finish.ps1` | wrappers: they only call the runtime launcher, which reserves |
-| one-run `Recover-*` tools | before their first shared read, bound to their own fixed run and, where pinned, its lock token; the timeout tools recheck ownership immediately before their direct loader-settings and PlayerPrefs writes |
+| one-run `Recover-*` tools | before their first shared read through admit-then-bind (their journals and reviewed pins, and where pinned the lock token, verified before any takeover); ownership rechecked immediately before every direct loader-settings, timestamp, Areas and PlayerPrefs write, each custody change recorded; PASS reported only after cleanup |
+| `Test-RuntimeRequest.ps1` (and `Test-RuntimeResult.ps1`, `Test-RuntimeGameResult.ps1`, which run it) | an F11 request hashes the configured installation's Mono | that read is taken under its own preparation reservation, released after it; every other check reads recorded evidence only |
+| `scripts/Test-Chunk2StartingInstallation.ps1` | the installed KMC folder in the configured live Mods tree | reads and clones it under a preparation reservation, released before the clone is exercised |
 
 Excluded entrypoints (no reservation), each tied to its inputs and handles:
 
 | Entrypoint | Inputs and handles | Why excluded |
 | --- | --- | --- |
-| `Test-RuntimeRequest.ps1`, `Test-RuntimeResult.ps1`, `Test-RuntimeGameResult.ps1`, `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1` | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on live Mods, saves, profile, loader settings or the game |
+| `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1`, and `Test-RuntimeRequest.ps1` for every non-F11 request | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on the configured installation, live Mods, saves, profile, loader settings or PlayerPrefs |
 | `scripts/Build-Local.ps1`, `Package*.ps1`, `Validate-*.ps1`, icon exports, `Get-PinnedLoaderReferences.ps1`, `Reconcile-WorkflowBudget.ps1` | repository sources, `bin`/`obj`, pinned reference copies | build, packaging and bookkeeping: never open a shared Kingmaker surface and are not native preparation |
-| `scripts/Test-*.ps1` self-tests | disposable stand-ins under temp or `obj` | run under a private reservation that refuses this lab's runtime-state and every non-disposable surface (PlayerPrefs use a disposable registry key) |
+| other `scripts/Test-*.ps1` self-tests | disposable stand-ins under temp or `obj`; some read the installed game's managed assemblies (`Kingmaker_Data\Managed\*.dll`) read-only | the stand-in suites run under a private reservation that refuses this lab's runtime-state and every non-disposable surface (PlayerPrefs use a disposable registry key); the assembly-contract readers open only immutable game binaries that no lab's transaction writes (no Mods, loader settings, saves or profile), and are not native preparation |
 | `runtime/*Evidence.ps1`, `runtime/*Fixtures.ps1`, `runtime/*Source.ps1` | dot-sourced libraries | not entrypoints; they run inside a participating entrypoint's reservation |
 
 An exit before a lock is held releases a fresh reservation and leaves a taken-over one
@@ -205,13 +207,42 @@ remaining differences and resources released are recorded there and in later sep
 independent of every journal. Self-tests use a private reservation that is refused for this lab's
 runtime-state and for any non-disposable shared surface.
 
+Every run's obligations are bound to the run, not to the continued existence of its artifacts:
+its obligation ledger (`runtime-state/run-obligations/<run>.json`, created with its first lock)
+records each child before the child's first change (profile snapshot, Areas isolation, combined
+journal, Working-save and Mods transactions, installed loader dependencies, fixture repair or
+requalification) and the verified closure of the profile restoration. `Get-KmcRunObligationState`
+is the single judgement every release uses (the launcher's close, transaction and profile
+recovery, the profile handoff, interrupted completion): a recorded child is open until its own
+terminal record proves it closed (valid types and fields, bound to the run and token; installed
+loader files re-verified); a missing, malformed, unbound or contradictory record, or run
+artifacts without a ledger, leave it open; a child absent from the ledger never started.
+
+Every recovery admits then binds (`Enter-KmcBoundRecoveryReservation`): the stale lock is read
+without being held, its journals must name exactly its run and token and its reviewed pins must
+hold, and only then is the lease naming that lock taken over. A record is removed or rewritten only
+when it is byte-identical to the one the session last wrote (diagnostic fields included); a loss
+found at any transition, adopted or fresh, is a first incident. The verified local unlink is
+effective under `-WhatIf` and confirmed before the lease is released.
+
 Unresolved state stays reserved. `Complete-KmcInterruptedReservation -StateRoot -RunId
--LeaseToken` (owner-invoked) completes only an acquisition interrupted before its lock or a
-release interrupted after its verified unlink: under the mutex it needs the exact lease token,
-KMC's lease for that root and run with no owed follow-up, a writer that is gone (or a resumable
-lease), no KMC lock, and every journal of the run (combined, Mods, Working save, fixture repair,
-requalification) absent or terminal and bound to the lease's run and token. Everything else (a foreign, malformed or mismatched lease, an owed follow-up, an
-ambiguous fixture repair) is left for the owner. Evidence: `scripts/Test-NativeReservationGate.ps1`.
+-LeaseToken` (owner-invoked) completes only an acquisition interrupted before its lock (no
+ledger and no artifact of the run) or a release interrupted after its verified unlink (every
+started obligation closed): it needs the exact lease token, KMC's lease for that root and run
+with no owed follow-up, a writer that is gone (or a resumable lease), no KMC lock, and an
+unchanged record at removal. Everything else (a foreign, malformed or mismatched lease, an owed
+follow-up, an open obligation, an ambiguous fixture repair) is left for the owner.
+
+The closed scoped preflight's nested admission has program-level evidence only: the entry refuses
+private mode by design, needs the reviewed full-audit proof and pinned platform, and its guard
+prefix reads the configured live installation immediately after admission, so it cannot run
+against stand-ins without changing pinned sources or reading the live installation. The self-test
+builds the guard program with the entry's own builder from the candidate launcher (it admits only
+through `Enter-KmcEntrypointReservation`), checks that the entry sets the borrow token exactly
+around that guard, and exercises the borrowed admission in-process under an outer lease with a
+waiting contender process (refused during, admitted after the outer release), an independent
+process carrying the token and another runtime-state root (both refused). Evidence:
+`scripts/Test-NativeReservationGate.ps1`.
 
 An unexpected write that reaches the staged tree during a run is preserved
 byte-exact in that run's quarantine, the live tree is returned to its pre-run

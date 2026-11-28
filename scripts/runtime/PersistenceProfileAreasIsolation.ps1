@@ -68,7 +68,10 @@ function Assert-KmcPersistenceProfileOutsideAreasUnchanged {
 function Enter-KmcPersistenceAreasIsolation {
     param($Lock,$Snapshot,[string]$BackupRoot)
     Assert-KmcNoGameProcesses
+    # A private self-test reservation covers only disposable stand-ins: refused before any Areas tree is opened.
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @([string]$Snapshot.profile,$BackupRoot)
     $paths=Get-KmcPersistenceAreasIsolationPaths $Lock $Snapshot $BackupRoot
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($paths.live,$paths.copy,$paths.original,$paths.state)
     foreach($path in @($paths.state,$paths.original,$paths.generated)){
         if(Test-Path -LiteralPath $path){throw 'Areas isolation destination already exists; refusing ambiguous custody.'}
     }
@@ -82,15 +85,18 @@ function Enter-KmcPersistenceAreasIsolation {
         profile=[string]$Snapshot.profile;profileDigest=[string]$Snapshot.profileDigest
         snapshotSha256=[string]$paths.snapshotSha256;originalDigest=[string]$before.digest
         stage='prepared';generatedDigest=$null}
+    Register-KmcRunObligation -Lock $Lock -Name 'areas'
     Write-KmcJsonCreateNewDurable -Path $paths.state -Value $state
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.live) 'Areas immediately before isolation'
     [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
     [IO.Directory]::Move($paths.live,$paths.original)
+    Add-KmcReservationProgress $Lock ('original Areas held at '+$paths.original+'; live Areas absent; restore by moving it back to '+$paths.live)
     $state.stage='original-held';Write-KmcJsonAtomic $paths.state $state
+    Invoke-KmcReservationTestHook 'areas-after-original-move'
     [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared copy
     [void](Copy-KmcDirectoryTreeExact -SourceRoot $paths.copy -DestinationRoot $paths.live)
-    Add-KmcReservationProgress $Lock 'Areas isolated (original held, disposable copy live)'
+    Add-KmcReservationProgress $Lock ('disposable Areas copy live at '+$paths.live+'; original still held at '+$paths.original)
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.live) 'disposable Areas copy'
     $state.stage='isolated-ready';Write-KmcJsonAtomic $paths.state $state
     [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
@@ -137,6 +143,7 @@ function Restore-KmcPersistenceAreasIsolation {
             }
             [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
             [IO.Directory]::Move($paths.live,$paths.generated)
+            Add-KmcReservationProgress $Lock ('generated Areas quarantined at '+$paths.generated+'; live Areas absent; original held at '+$paths.original)
             $state.generatedDigest=[string]$generated.digest
             $state.stage='quarantined';Write-KmcJsonAtomic $paths.state $state
             $hasGenerated=$true
@@ -155,6 +162,7 @@ function Restore-KmcPersistenceAreasIsolation {
         }
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
         [IO.Directory]::Move($paths.original,$paths.live)
+        Add-KmcReservationProgress $Lock ('original Areas restored to '+$paths.live)
     }elseif(-not$hasLive-or
         ($hasGenerated-and$state.stage-cnotin @('quarantined','restored'))-or
         (-not$hasGenerated-and$state.stage-cne'prepared'-and$state.stage-cne'restored')){

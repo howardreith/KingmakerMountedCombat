@@ -4936,6 +4936,71 @@ try {
         Assert-Test (Test-Path (Join-Path $f.state 'native-reservation-incidents\reappeared.first.json')) 'the refused continuation recorded no incident'
     }
 
+    foreach($drift in @('rolled-back-timestamp','recovered-quarantine-removed','recovered-quarantine-changed')){
+        Invoke-HarnessTest ('a terminal fixture retry refuses to close when its files drift after confirmation ('+$drift+'); lock, lease and observations stay') {
+            $phase=if($drift-like'rolled-back*'){'rolled-back'}else{'recovered'}
+            $f=New-TestQualifiedRecoveryFixture ('drift-'+$drift);$run=('drift-'+$drift)
+            [void](New-TestInterruptedFixtureRepair $f $run -AfterReplacement:($phase-ceq'recovered') -NoMove:($phase-ceq'rolled-back') -TerminalPhase $phase)
+            $quarantine=Join-Path $f.backup ('fixture-recoveries\'+$run+'\unexpected-KMC_AUTOMATION_WORKING.zks')
+            $body=switch($drift){
+                'rolled-back-timestamp'{"(Get-Item -LiteralPath '"+$f.workingPath+"').LastWriteTimeUtc=[DateTime]::new(2001,1,1,0,0,0,[DateTimeKind]::Utc)"}
+                'recovered-quarantine-removed'{"Remove-Item -LiteralPath '"+$quarantine+"' -Force"}
+                'recovered-quarantine-changed'{"[IO.File]::WriteAllText('"+$quarantine+"','changed quarantine')"}
+            }
+            $script:driftMessage=$null
+            Invoke-WithTestHook 'fixture-before-continued-write' $body {
+                try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId $run -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$script:driftMessage=$_.Exception.Message}
+            }
+            Assert-Test ($script:driftMessage -like '*changed after confirmation*') ('unexpected outcome: '+$script:driftMessage)
+            Assert-Test ((Test-Path (Join-Path $f.state 'active-transaction.lock')) -and [string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerMountedCombat') 'the drifted terminal retry released its lock or lease'
+            Assert-Test (Test-Path (Join-Path $f.state ('native-reservation-incidents\'+$run+'.first.json'))) 'the drift was not recorded as an incident'
+            switch($drift){
+                'rolled-back-timestamp'{Assert-Test ((Get-Item -LiteralPath $f.workingPath).LastWriteTimeUtc.Year-eq2001) 'the drifted Working timestamp was overwritten'}
+                'recovered-quarantine-removed'{Assert-Test (-not(Test-Path -LiteralPath $quarantine)) 'the removed quarantine reappeared'}
+                'recovered-quarantine-changed'{Assert-Test ([IO.File]::ReadAllText($quarantine)-ceq'changed quarantine') 'the changed quarantine was rewritten'}
+            }
+        }
+    }
+
+    Invoke-HarnessTest 'a fresh fixture repair never overwrites a Working save that reappears after its quarantine move; both files, the transaction and the incident stay' {
+        $f=New-TestQualifiedRecoveryFixture 'fresh-collision'
+        $originalUnexpected=Get-KmcSha256 $f.workingPath
+        $script:collisionMessage=$null
+        Invoke-WithTestHook 'fixture-after-fresh-quarantine' ("[IO.File]::WriteAllText('"+$f.workingPath+"','reappeared after the quarantine move')") {
+            try{Invoke-KmcQualifiedWorkingFixtureRecovery -RunId fresh-collision -SaveRoot $f.saves -StateRoot $f.state -BackupRoot $f.backup -QualificationPath $f.qualificationPath -HistoricalAuthority $f.authority -Confirm:$false|Out-Null}catch{$script:collisionMessage=$_.Exception.Message}
+        }
+        $quarantine=Join-Path $f.backup 'fixture-recoveries\fresh-collision\unexpected-KMC_AUTOMATION_WORKING.zks'
+        Assert-Test ($script:collisionMessage -like '*without overwriting*') ('unexpected outcome: '+$script:collisionMessage)
+        Assert-Test ([IO.File]::ReadAllText($f.workingPath)-ceq'reappeared after the quarantine move' -and (Get-KmcSha256 $quarantine)-ceq$originalUnexpected) 'the reappeared Working or the quarantined original changed'
+        Assert-Test ((Test-Path (Join-Path $f.state 'active-transaction.lock')) -and [string](Read-KmcJson $testReservation.RecordPath).lab-ceq'KingmakerMountedCombat') 'the collision released the lock or the lease'
+        Assert-Test (Test-Path (Join-Path $f.state 'native-reservation-incidents\fresh-collision.first.json')) 'the collision was not recorded as an incident'
+    }
+
+    Invoke-HarnessTest 'a timestamp-only Working restoration rechecks ownership immediately before its write; the replacement survives and the first incident records the state' {
+        Clear-TestReservation
+        $root=Join-Path $testRoot 'timestamp-only-restore';$saves=Join-Path $root 'saves';$state=Join-Path $root 'state';$backup=Join-Path $root 'backups';$staging=Join-Path $root 'staging'
+        New-Item -ItemType Directory -Path $saves,$state,$backup,$staging|Out-Null
+        New-TestSaveArchive -Path (Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE';$working=Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks';New-TestSaveArchive -Path $working -Name 'KMC_AUTOMATION_WORKING'
+        $pair=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath (Join-Path $state 'fixture-qualification.json') -InitializeQualification
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId 'timestamp-only'
+        $saveState=Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $saves -StateRoot $state -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake
+        # The runtime touched Working (planned as an artifact); its backup copy lands with another timestamp, so the
+        # restoration reaches its timestamp-only write.
+        (Get-Item -LiteralPath $working).LastWriteTimeUtc=[DateTime]::new(2002,2,2,0,0,0,[DateTimeKind]::Utc)
+        (Get-Item -LiteralPath (Join-Path $backup 'save-transactions\timestamp-only\KMC_AUTOMATION_WORKING.original.zks')).LastWriteTimeUtc=[DateTime]::new(2003,3,3,0,0,0,[DateTimeKind]::Utc)
+        $peer=([ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerFlight';runId='peer-run';purpose='stand-in';token=('f'*32);holderProcessId=4;holderStartUtc='2020-01-01T00:00:00.0000000Z';host='stand-in';createdUtc='2020-01-01T00:00:00.0000000Z'}|ConvertTo-Json -Compress)
+        $script:timestampMessage=$null
+        Invoke-WithTestHook 'working-before-timestamp' ("[IO.File]::WriteAllText('"+$testReservation.RecordPath+"','"+$peer+"')") {
+            try{[void](Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $saves -BackupRoot $backup -StagingRoot $staging)}catch{$script:timestampMessage=$_.Exception.Message}
+        }
+        try{
+            Assert-Test ($script:timestampMessage -like '*lost*') ('unexpected outcome: '+$script:timestampMessage)
+            Assert-Test ((Get-Item -LiteralPath $working).LastWriteTimeUtc.Year-eq2003 -and [IO.File]::ReadAllText($testReservation.RecordPath)-ceq$peer) 'the timestamp was written after the loss or the replacement changed'
+            $incident=Read-KmcJson (Join-Path $state 'native-reservation-incidents\timestamp-only.first.json')
+            Assert-Test ([string]$incident.remainingDifferences -like '*timestamp-only*' -and $null-ne$incident.restorationPerformed) 'the first incident does not describe the stop'
+        }finally{$lock.Stream.Dispose()}
+    }
+
     Invoke-HarnessTest 'guard initialization rechecks ownership after confirmation, immediately before its write' {
         $f=New-TestQualifiedRecoveryFixture 'guard-recheck'
         $guardPath=Join-Path $repoRoot 'scripts\runtime\Test-KmcFixtureGuard.ps1'

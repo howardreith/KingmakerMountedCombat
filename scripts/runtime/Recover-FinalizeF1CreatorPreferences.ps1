@@ -38,7 +38,7 @@ if($ContractOnly){return}
 $lab=Get-KmcLabRoot;$run='20261105-finalize-f1c-owner-creator-01';$stateRoot=Join-Path $lab 'runtime-state'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -ExpectedLockToken '02cdfbe10c95284bf1463bbf4d296dd381db2202758c285c864dbe2747d413c5' -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $run -ExpectedLockToken '02cdfbe10c95284bf1463bbf4d296dd381db2202758c285c864dbe2747d413c5' -JournalPath @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$run+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $run)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$run+'/snapshot.json'))='90588536e15c3116194a4b82272cc706c12f7c23e97d47dba38f0bd0b50b27c5';(Join-Path $lab ('runtime-backups/profile-'+$run+'/Params.xml'))='ca5d402248723c3578c4a35a21d69b749d7459a4a74c6f406e16f0d2fa9386c4'} -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidence=Join-Path $lab ('runtime-evidence/'+$run);$backup=Join-Path $lab ('runtime-backups/profile-'+$run)
 $snapshotPath=Join-Path $backup 'snapshot.json';$saved=Join-Path $backup 'Params.xml'
@@ -76,16 +76,21 @@ function Assert-F1Recovery($HeldLock=$null) {
 }
 if(Test-Path $receipt){throw 'Append-only recovery receipt already exists.'}
 Assert-F1Recovery
-if($dry-or-not$PSCmdlet.ShouldProcess($run,'restore only pinned creation/session preferences and captured UMM settings, preserving native FAIL')){Write-Host 'PASS exact F1 preference recovery WhatIf; no mutation.';Exit-KmcUnlockedNativeReservation $nativeReservation;return}
+if($dry-or-not$PSCmdlet.ShouldProcess($run,'restore only pinned creation/session preferences and captured UMM settings, preserving native FAIL')){Exit-KmcUnlockedNativeReservation $nativeReservation;Write-Host 'PASS exact F1 preference recovery WhatIf; no mutation.';return}
 $lock=$null
 try {
  $lock=Adopt-KmcStaleRuntimeLock $stateRoot -ExpectedRunId $run -Reservation $nativeReservation
  Assert-F1Recovery -HeldLock $lock
  [void](Assert-KmcRuntimeLockOwner $lock)
  if((Get-KmcPersistencePlayerPrefs)-cne$prefs){throw 'Preference race before restoration.'}
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
  try{foreach($change in $changes){$key.SetValue($change.name,[Convert]::FromBase64String($change.value),[Microsoft.Win32.RegistryValueKind]::Binary)};$key.Flush()}finally{$key.Dispose()}
+ Add-KmcReservationProgress $lock 'PlayerPrefs values restored'
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::WriteAllBytes($snapshot.paramsPath,[IO.File]::ReadAllBytes($saved))
+ Add-KmcReservationProgress $lock 'loader settings (Params.xml) rewritten from the captured pre-run bytes'
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::SetLastWriteTimeUtc($snapshot.paramsPath,[IO.File]::GetLastWriteTimeUtc($saved))
  $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit)
  if((Get-KmcPersistencePlayerPrefs)-cne$snapshot.playerPrefsJson-or(Get-KmcSha256 $snapshot.paramsPath)-cne$snapshot.paramsSha256){throw 'Restored settings differ.'}

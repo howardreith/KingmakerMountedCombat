@@ -21,7 +21,7 @@ $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -ExpectedLockToken ([string](Read-KmcJson (Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))).token) -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -JournalPath @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotHash} -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $backupRoot=Join-Path $lab 'runtime-backups'
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
@@ -90,8 +90,8 @@ if(($changes.name|Sort-Object)-join'|' -cne
     throw 'P07 PlayerPrefs changed outside the exact three native startup keys.'
 }
 if(-not$PSCmdlet.ShouldProcess($runId,'restore pinned UMM parameters and three native PlayerPrefs changes; release otherwise-restored lock')){
-    Write-Host 'P07 PROFILE RECOVERY WHATIF PASS; exact two-field UMM delta and three native preference keys; no mutation.'
-    Exit-KmcUnlockedNativeReservation $nativeReservation;return
+    Exit-KmcUnlockedNativeReservation $nativeReservation
+    Write-Host 'P07 PROFILE RECOVERY WHATIF PASS; exact two-field UMM delta and three native preference keys; no mutation.';return
 }
 
 $lock=$null
@@ -123,8 +123,12 @@ try{
        (Get-KmcSaveMetadataInventory $state.saveRoot).digest-cne$state.restoredSaveInventoryDigest){
         throw 'P07 external state changed after exact recovery review.'
     }
+    [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
     [IO.File]::WriteAllBytes($paramsPath,$capturedParams)
+    Add-KmcReservationProgress $lock 'loader settings (Params.xml) rewritten from the captured pre-run bytes'
+    [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
     [IO.File]::SetLastWriteTimeUtc($paramsPath,[IO.File]::GetLastWriteTimeUtc($saved))
+    [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
     $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
     try{
         if($null-eq$key){throw 'Actual Kingmaker PlayerPrefs key disappeared.'}
@@ -132,6 +136,7 @@ try{
             $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
         }
         $key.Flush()
+        Add-KmcReservationProgress $lock 'PlayerPrefs values restored'
     }finally{if($null-ne$key){$key.Dispose()}}
     [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
     if((Get-KmcPersistenceProfileDigest (Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')))-cne$snapshot.profileDigest-or

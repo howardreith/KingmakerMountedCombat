@@ -9,9 +9,15 @@ $installed=Join-Path $intake.requestedLayout.kingmakerModsRoot 'KingmakerMounted
 $testParent=Assert-KmcChildPath (Join-Path $repo ('obj/starting-installation-tests/'+[Guid]::NewGuid().ToString('N'))) (Join-Path $repo 'obj') 'test parent'
 $clone=Join-Path $testParent 'KingmakerMountedCombat'
 [void][IO.Directory]::CreateDirectory($clone)
+# The installed KMC folder is in the configured live Mods tree: it is read (and cloned) only under a preparation
+# reservation (docs/NATIVE-RESERVATION.md), released before the clone is exercised.
+$installationReservation=Enter-KmcNativeReservation -StateRoot (Join-Path (Get-KmcLabRoot) 'runtime-state') -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-starting-installation') -Purpose 'preparation-starting-installation'
+$installationFailed=$false
+try{
 [void](Assert-KmcPhase3fStartingInstallation $installed)
 $leaves=@(Get-ChildItem -LiteralPath $installed -File -Force | ForEach-Object Name)
 foreach($leaf in $leaves){[IO.File]::Copy((Join-Path $installed $leaf),(Join-Path $clone $leaf),$false)}
+}catch{$installationFailed=$true;throw}finally{Exit-KmcUnlockedNativeReservation $installationReservation -PreserveError:$installationFailed}
 [void](Assert-KmcPhase3fStartingInstallation $clone)
 $passes=1
 

@@ -350,7 +350,14 @@ try{
         liveModsRoot='C:\Mods';saveRoot='C:\Saves';modsDigestBefore=('0'*64);saveInventoryDigestBefore=('1'*64);qualificationSuiteSnapshotPath='C:\suite.json'
         qualificationSuiteId='suite-1';qualificationSuiteSnapshotSha256=('2'*64);restoreAttemptedAtUtc='2026-10-25T21:59:57Z';modsRestored=$true;saveProtectionPassed=$true
         baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;restoredModsDigest=('0'*64);restoredSaveInventoryDigest=('1'*64);restorationErrors=@();restoredAtUtc='2026-10-25T21:59:57Z'}}
-    $newPart={[ordered]@{schemaVersion=4;runId=$ptRun;token=$ptToken;phase='restored'}}
+    # A restored child record (fields of both the Mods and the Working-save terminal records).
+    $newPart={[ordered]@{schemaVersion=4;runId=$ptRun;token=$ptToken;phase='restored';restoredAtUtc='2026-10-25T21:59:57Z';restoredDigest=('0'*64);restoredInventoryDigest=('1'*64);beforeInventory=[ordered]@{digest=('1'*64)}}}
+    # The run's obligation ledger: which children started (recorded before each child's first change).
+    $writeLedger={param([string[]]$Started)
+        [void][IO.Directory]::CreateDirectory((Join-Path $ptState 'run-obligations'))
+        $entries=@($Started|ForEach-Object{[ordered]@{name=$_;startedAtUtc='2026-10-25T21:51:00Z';closedAtUtc=$null;closedBy=$null}})
+        [IO.File]::WriteAllText((Join-Path $ptState ('run-obligations/'+$ptRun+'.json')),([ordered]@{schemaVersion=1;runId=$ptRun;token=$ptToken;createdAtUtc='2026-10-25T21:51:00Z';obligations=$entries}|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}
+    & $writeLedger @('profile','combined','working','mods')
     & $writeState (& $newCombined) (& $newPart) (& $newPart)
     $admitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
     if([string]$admitted.token-cne$ptToken){throw 'The completed transaction recovery was not admitted for its own token.'};$passes++
@@ -359,24 +366,36 @@ try{
     $noSave=& $newCombined;$noSave.schemaVersion=1;$noSave.mode='no-save-v1'
     foreach($name in @('qualificationSuiteSnapshotPath','qualificationSuiteId','qualificationSuiteSnapshotSha256')){$noSave.Remove($name)}
     $savePart=Join-Path $ptState ('save-transactions/'+$ptRun+'.json')
+    & $writeLedger @('profile','combined','mods')
     & $writeState $noSave (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
     $noSaveAdmitted=Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot
     if([string]$noSaveAdmitted.mode-cne'no-save-v1'){throw 'A no-save transaction was not admitted from its exact inventory proof.'};$passes++
     $noSave.restoredSaveInventoryDigest=('9'*64);& $writeState $noSave (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
     $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
     if(!$rejected){throw 'A no-save transaction without an exact save-inventory proof was admitted.'};$passes++
+    & $writeLedger @('profile','combined','working','mods')
     & $writeState (& $newCombined) (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
     $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
     if(!$rejected){throw 'A save-backed transaction without its save receipt was admitted.'};$passes++
-    # A run stopped before its Mods transaction started has no Mods receipt: the combined receipt's exact Mods digest proves
-    # live Mods unchanged; without that exact proof it still refuses.
+    # Which children started is the ledger, not a missing receipt: a run stopped before its Mods transaction started (no
+    # Mods entry in its ledger) needs no Mods receipt; a started Mods child whose receipt is gone after its bytes were
+    # restored still refuses, as does a run whose ledger is missing.
     $modsPart=Join-Path $ptState ('transactions/'+$ptRun+'.json')
+    & $writeLedger @('profile','combined','working')
     & $writeState (& $newCombined) (& $newPart) (& $newPart);[IO.File]::Delete($modsPart)
     [void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot);$passes++
-    $changedMods=& $newCombined;$changedMods.restoredModsDigest=('8'*64);& $writeState $changedMods (& $newPart) (& $newPart);[IO.File]::Delete($modsPart)
+    & $writeLedger @('profile','combined','working','mods')
     $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
-    if(!$rejected){throw 'A missing Mods receipt without an exact Mods proof was admitted.'};$passes++
+    if(!$rejected){throw 'A started Mods child whose receipt was removed was admitted.'};$passes++
     & $writeState (& $newCombined) (& $newPart) (& $newPart)
+    $ledgerPath=Join-Path $ptState ('run-obligations/'+$ptRun+'.json');$ledgerBytes=[IO.File]::ReadAllBytes($ledgerPath);[IO.File]::Delete($ledgerPath)
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'A run without its obligation ledger was admitted.'};$passes++
+    [IO.File]::WriteAllBytes($ledgerPath,$ledgerBytes)
+    & $writeLedger @('combined','working','mods')
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'A run that owes no profile restoration was admitted.'};$passes++
+    & $writeLedger @('profile','combined','working','mods')
     $ptLockPath=Join-Path $ptState 'active-transaction.lock';$ptReceipt=Join-Path $ptEvidence ($ptRun+'/profile-recovery.json')
     $ptCases=@(
         @{name='lock held';setup={[IO.File]::WriteAllText($ptLockPath,'{}')};undo={[IO.File]::Delete($ptLockPath)}},

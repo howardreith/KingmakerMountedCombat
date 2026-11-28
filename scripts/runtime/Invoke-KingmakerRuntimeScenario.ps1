@@ -660,13 +660,13 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
     if($BaseGameOnly){Assert-KmcBaseGameDependencyReceipt $baseGameDependencies -VerifyFiles;Write-Host ('Base-game-only KMC staging selected; unchanged installed loader dependency digest: '+$baseGameDependencies.dependencyDigest)}
     if($DevelopmentScopedAudit){
         # Deliberately not the full-proof sentence: no reader may accept it as whole-lab equality.
-        Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
         Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read of the preview
+        Write-Host ('Runtime WhatIf development-scoped check PASS (scope: development-run-scoped, run '+$RunId+'; NOT a full whole-lab purity proof): runtime-state and the live Mods tree were compared by whole-tree content identity and save metadata was compared; historical archives under runtime-backups, runtime-staging and runtime-evidence were checked only for run-owned paths and new top-level entries, not rehashed.')
         Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
         return
     }
-    Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read of the preview or declined run
+    Write-Host 'Runtime WhatIf purity PASS; exact fixture descriptors were validated when required, and no evidence, lock, transaction, Mods, process, game, or save mutation occurred.'
     Complete-KmcWorkflowEntry -RepoRoot $repoRoot -Admission $workflowAdmission -Status completed
     return
 }
@@ -1694,6 +1694,7 @@ finally{
             # change, not restored bytes, so it is recorded rather than implied
             # away by a bare "profile unchanged" result.
             $profileCacheChanges=@(Wait-KmcPersistenceProfileUnchanged $profileSnapshot)
+            Complete-KmcRunObligation -Lock $lock -RunToken ([string]$lock.Token) -Name 'profile' -Evidence 'launcher: startup settings restored and the profile verified unchanged'
         }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
         try{
@@ -1731,7 +1732,11 @@ finally{
             # Release follows verification of every shared surface of the transaction, independent of the gameplay
             # verdict: Mods, saves, profile (inside $saveProtection), the game's exit and, for base-game staging, the
             # installed loader dependencies. Anything unverified keeps the lock and the reservation for recovery.
-            if($modsRestored-and$saveProtection-and$processExited-and(-not$BaseGameOnly-or$baseGameDependenciesUnchanged)){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
+            # The run's obligation state (Get-KmcRunObligationState) must agree: every child it started is closed by durable evidence.
+            $runObligations=$null
+            if($modsRestored-and$saveProtection-and$processExited-and(-not$BaseGameOnly-or$baseGameDependenciesUnchanged)){$runObligations=Get-KmcRunObligationState -StateRoot $runtimeState -RunId $actualRunId -RunToken ([string]$lock.Token) -BackupRoot $runtimeBackups}
+            if($null-ne$runObligations-and$runObligations.Closed){Close-KmcRuntimeLock $lock}
+            else{if($null-ne$runObligations){$errors.Add('Open run obligations keep the lock and the reservation: '+($runObligations.Open -join '; '))};Abandon-KmcRuntimeLock $lock}
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
     }
     elseif($null-ne$nativeReservation){try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{$errors.Add('Reservation release after the final shared reads failed: '+$_.Exception.Message)}}

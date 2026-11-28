@@ -40,8 +40,8 @@ if($AfterTransactionRecovery){
 # this run's stale lock. Without it recovery refuses; any exit before the lock is held leaves it resumable.
 $lock=$null
 if($AfterTransactionRecovery-and-not$staleProfileLock){$nativeReservation=Enter-KmcFollowUpReservation -StateRoot $stateRoot -RunId $RunId -RunToken $runToken -FollowUp 'profile-recovery'}
-elseif($AfterTransactionRecovery){$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $RunId -ExpectedRunToken $runToken -ExpectedPurpose 'profile-recovery' -Purpose 'profile-recovery'}
-else{$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $RunId -ExpectedLockToken $runToken -Purpose 'profile-recovery'}
+elseif($AfterTransactionRecovery){$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -JournalPath @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -JournalToken $runToken -ExpectedRunToken $runToken -ExpectedPurpose 'profile-recovery' -Purpose 'profile-recovery'}
+else{$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $RunId -JournalPath @($snapshotPath,(Get-KmcRunTransactionStatePath $stateRoot $RunId)) -ExpectedLockToken $runToken -Purpose 'profile-recovery'}
 trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
 if((Get-KmcDirectoryManifest $state.liveModsRoot).digest-cne$state.restoredModsDigest-or
     (Get-KmcSaveMetadataInventory $state.saveRoot).digest-cne$state.restoredSaveInventoryDigest){
@@ -110,8 +110,11 @@ try{
     $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit)
     $acceptedEmpty=@($accepted|Where-Object change -CEQ 'created-empty')
     if((ConvertTo-Json -InputObject @($acceptedEmpty|ForEach-Object path) -Compress)-cne(ConvertTo-Json -InputObject @($admittedBefore|ForEach-Object path) -Compress)){throw 'The admitted empty native cache leaf changed during recovery.'}
-    # The installed loader dependencies the run staged around are verified against their files before release.
-    if($baseGameOnly){[void](Assert-KmcRuntimeLockOwner $lock);Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies -VerifyFiles}
+    # The verified profile restoration closes the run's profile obligation; the release then needs the run's complete
+    # obligation state closed (installed loader dependencies verified against their files, Areas restored).
+    Complete-KmcRunObligation -Lock $lock -RunToken $runToken -Name 'profile' -Evidence ('Recover-KmcPersistenceProfile: '+$(if($AfterTransactionRecovery){'after-transaction-recovery'}else{'stale-lock'}))
+    $obligations=Get-KmcRunObligationState -StateRoot $stateRoot -RunId $RunId -RunToken $runToken -BackupRoot $backups
+    if(-not$obligations.Closed){throw ('Run '+$RunId+' still has open obligations; the lock and the reservation stay: '+($obligations.Open -join '; '))}
     Close-KmcRuntimeLock $lock;$lock=$null
     Write-KmcJsonCreateNewDurable -Path (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-recovery.json')) -Value ([ordered]@{
         runId=$RunId;status='PASS';mode=$(if($AfterTransactionRecovery){'after-transaction-recovery'}else{'stale-lock'});recoveredAtUtc=[DateTimeOffset]::UtcNow.ToString('o')

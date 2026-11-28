@@ -36,7 +36,7 @@ $receipt=$null;$outputOwner=$null;$verified=$false;$released=$false;$actualExecu
 # writes a KMC lease under the Global mutex (refusing any present record, which it never removes), and after every
 # handle is settled it removes exactly its own lease. If settlement retained a handle, the lease stays for the owner.
 # It runs only under the machine-wide reservation (never a self-test selection).
-$scopedReservationToken=$null;$scopedReservationRunId=$null;$scopedReservationRecord=Join-Path $env:ProgramData 'KingmakerNativeTest\reservation.v1.json'
+$scopedReservationToken=$null;$scopedReservationRunId=$null;$scopedReservationBytes=$null;$scopedReservationStateRoot=$null;$scopedReservationRecord=Join-Path $env:ProgramData 'KingmakerNativeTest\reservation.v1.json'
 function Invoke-KmcScopedReservationMutex([scriptblock]$Body){
  $mutex=New-Object Threading.Mutex($false,'Global\KingmakerNativeTest.Reservation.v1');$owned=$false
  try{try{$owned=$mutex.WaitOne([TimeSpan]::FromSeconds(10))}catch [Threading.AbandonedMutexException]{$owned=$true};if(-not$owned){throw 'The Kingmaker native-test reservation mutex stayed busy.'};& $Body}
@@ -45,25 +45,36 @@ function Invoke-KmcScopedReservationMutex([scriptblock]$Body){
 function Enter-KmcScopedReservation([string]$StateRoot){
  if(-not[string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable('KMC_NATIVE_RESERVATION_TEST_ROOT','Process'))){throw 'The closed scoped preflight runs only under the machine-wide Kingmaker native-test reservation.'}
  Invoke-KmcScopedReservationMutex {
-  if(Test-Path -LiteralPath $scopedReservationRecord){throw ('Kingmaker native-test resources are reserved (record present, left alone): '+$scopedReservationRecord)}
+  if(Test-Path -LiteralPath $scopedReservationRecord){
+   # Occupied: name the readable holder (or say it is unreadable); the record is left alone.
+   $holder='an unreadable record';try{$r=[IO.File]::ReadAllText($scopedReservationRecord)|ConvertFrom-Json;if($r-is[pscustomobject]){$holder=[string]$r.lab+' run '+[string]$r.runId+' ('+[string]$r.purpose+'; process '+[string]$r.holderProcessId+'; protocol '+[string]$r.protocol+')'}}catch{}
+   throw ('Kingmaker native-test resources are reserved by '+$holder+' (record left alone): '+$scopedReservationRecord)
+  }
   [void][IO.Directory]::CreateDirectory((Split-Path -Parent $scopedReservationRecord))
   $token=[Guid]::NewGuid().ToString('N');$runToken=-join(1..4|ForEach-Object{[Guid]::NewGuid().ToString('N')});$runToken=$runToken.Substring(0,64)
   $value=[ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerMountedCombat';runId=([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-scoped-preflight');purpose='preparation-scoped-preflight';token=$token;holderProcessId=$PID
    holderStartUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o');host=$env:COMPUTERNAME;createdUtc=[DateTime]::UtcNow.ToString('o');stateRoot=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\');kmcRunToken=$runToken;kmcLockToken=$null;kmcPendingFollowUp=$null;kmcResumable=$false;adopted=$null}
-  $temporary=$scopedReservationRecord+'.'+$token+'.tmp';[IO.File]::WriteAllText($temporary,($value|ConvertTo-Json),[Text.UTF8Encoding]::new($false));[IO.File]::Move($temporary,$scopedReservationRecord)
-  $script:scopedReservationToken=$token;$script:scopedReservationRunId=$value.runId
+  $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($value|ConvertTo-Json))
+  $temporary=$scopedReservationRecord+'.'+$token+'.tmp';[IO.File]::WriteAllBytes($temporary,$bytes);[IO.File]::Move($temporary,$scopedReservationRecord)
+  $script:scopedReservationToken=$token;$script:scopedReservationRunId=$value.runId;$script:scopedReservationBytes=[Convert]::ToBase64String($bytes);$script:scopedReservationStateRoot=$value.stateRoot
  }
 }
 function Exit-KmcScopedReservation{
  if($null-eq$script:scopedReservationToken){return}
  Invoke-KmcScopedReservationMutex {
-  # Only exactly its own record (strict protocol-1 common fields and its own identity) is removed; anything else,
-  # unreadable or of another protocol, is left alone.
-  $record=$null;try{$record=[IO.File]::ReadAllText($scopedReservationRecord)|ConvertFrom-Json}catch{}
-  $fields=if($record-is[pscustomobject]){@($record.PSObject.Properties.Name)}else{@()}
-  $common=@('protocol','lab','runId','purpose','token','holderProcessId','holderStartUtc','host','createdUtc')
-  if(@($common|Where-Object{$fields-cnotcontains$_}).Count-ne0-or[string]$record.protocol-cne'kingmaker-native-test-reservation/1'-or[string]$record.lab-cne'KingmakerMountedCombat'-or
-     [string]$record.runId-cne$script:scopedReservationRunId-or[string]$record.purpose-cne'preparation-scoped-preflight'-or[string]$record.token-cne$script:scopedReservationToken-or[string]$record.holderProcessId-cne[string]$PID){throw 'The scoped preflight''s reservation is no longer exactly its own; it is left alone.'}
+  # Only exactly its own record is removed: byte-identical to the one it wrote (every protocol, identity, timestamp
+  # and diagnostic field). Anything else is left alone and its first observation is recorded once as an incident.
+  $observed=$null;try{if(Test-Path -LiteralPath $scopedReservationRecord){$observed=[Convert]::ToBase64String([IO.File]::ReadAllBytes($scopedReservationRecord))}}catch{$observed='unreadable'}
+  if($observed-cne$script:scopedReservationBytes){
+   try{
+    $root=Join-Path $script:scopedReservationStateRoot 'native-reservation-incidents';[void][IO.Directory]::CreateDirectory($root)
+    $first=Join-Path $root ($script:scopedReservationRunId+'.first.json');$path=if(Test-Path -LiteralPath $first){Join-Path $root ($script:scopedReservationRunId+'.'+[Guid]::NewGuid().ToString('N')+'.json')}else{$first}
+    $text=if($null-eq$observed){'nobody'}elseif($observed-ceq'unreadable'){$observed}else{[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($observed))}
+    $incident=[ordered]@{schemaVersion=1;runId=$script:scopedReservationRunId;expectedLeaseToken=$script:scopedReservationToken;context='closed scoped preflight release';observedRecordText=$text;resourcesReleased='record left alone';observedAtUtc=[DateTime]::UtcNow.ToString('o')}
+    $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None);try{$b=[Text.UTF8Encoding]::new($false).GetBytes(($incident|ConvertTo-Json));$stream.Write($b,0,$b.Length);$stream.Flush($true)}finally{$stream.Dispose()}
+   }catch{}
+   throw 'The scoped preflight''s reservation is no longer exactly its own; it is left alone.'
+  }
   [IO.File]::Delete($scopedReservationRecord);$script:scopedReservationToken=$null
  }
 }

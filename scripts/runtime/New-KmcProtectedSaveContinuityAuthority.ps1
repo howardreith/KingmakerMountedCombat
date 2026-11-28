@@ -95,6 +95,7 @@ if (-not $PSCmdlet.ShouldProcess($authorityPath, 'record the exact user-attested
         (Test-Path -LiteralPath $activeLockPath) -or (Test-Path -LiteralPath $authorityPath)) {
         throw 'Protected-save authority WhatIf changed runtime state.'
     }
+    Exit-KmcUnlockedNativeReservation $preparationReservation  # the release completes before PASS is reported
     Write-Host 'Protected-save continuity authority WhatIf PASS; exact F0-to-current Working/Auto/Quick transition validated without mutation.'
     return
 }
@@ -147,6 +148,7 @@ $validated = Read-KmcProtectedSaveContinuityAuthority `
 Assert-KmcSaveMetadataInventoriesEqual -Before $saveMetadataBefore -After $validated.saveMetadata -Description 'protected-save authority committed save metadata'
 Assert-KmcNoGameProcesses
 if (Test-Path -LiteralPath $activeLockPath) { throw 'Protected-save authority creation left an unexpected runtime lock.' }
+Exit-KmcUnlockedNativeReservation $preparationReservation  # the release completes before PASS is reported
 Write-Host 'Protected-save continuity authority PASS.'
 Write-Host "AUTHORITY=$authorityPath"
 Write-Host "SHA256=$authoritySha256"

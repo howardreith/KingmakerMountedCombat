@@ -102,6 +102,7 @@ if (-not $PSCmdlet.ShouldProcess($authorityPath, 'append the exact user-attested
         (Test-Path -LiteralPath $activeLockPath) -or (Test-Path -LiteralPath $authorityPath)) {
         throw 'Schema-v2 authority WhatIf changed historical authority, runtime state, or lock state.'
     }
+    Exit-KmcUnlockedNativeReservation $preparationReservation  # the release completes before PASS is reported
     Write-Host 'Schema-v2 protected-save continuity authority WhatIf PASS; exact chained transitions validated without mutation.'
     return
 }
@@ -161,6 +162,7 @@ if ((Get-KmcSha256 $parent.path) -cne $ExpectedParentAuthoritySha256 -or
 }
 Assert-KmcNoGameProcesses
 if (Test-Path -LiteralPath $activeLockPath) { throw 'Schema-v2 authority creation left an unexpected runtime lock.' }
+Exit-KmcUnlockedNativeReservation $preparationReservation  # the release completes before PASS is reported
 Write-Host 'Schema-v2 protected-save continuity authority PASS.'
 Write-Host "AUTHORITY=$authorityPath"
 Write-Host "SHA256=$authoritySha256"

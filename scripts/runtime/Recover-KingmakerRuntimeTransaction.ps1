@@ -40,15 +40,12 @@ elseif(Test-Path -LiteralPath $legacyModsStatePath -PathType Leaf){
     $legacyMode=$true
 }
 else{throw 'Stale lock has no matching combined or legacy durable transaction state; automatic recovery is unsafe.'}
-# The recovery's own journal fixes the transaction identity before any ownership change: its token must be the stale
-# lock's. The Kingmaker native-test reservation naming exactly that run and lock is then taken over before the shared
-# reads below (live Mods, saves), for a -WhatIf preview too; without it (missing, foreign, mismatched or live) recovery
-# refuses and leaves the state for the owner. Any exit before the lock is held leaves the lease resumable for a retry.
-$journal=if($legacyMode){Read-KmcJson $legacyModsStatePath}else{$combined}
-$journalToken=[string]$journal.token
-if([string]$journal.runId-cne[string]$raw.runId-or$journalToken-cne[string]$raw.token){throw 'The recovery journal run or token differs from the stale lock; recovery refuses.'}
+# Admit-then-bind (Enter-KmcBoundRecoveryReservation): the recovery's own journals must name the stale lock's run and
+# token before the Kingmaker native-test reservation naming exactly that lock is taken over, before the shared reads
+# below (live Mods, saves), for a -WhatIf preview too; without it (missing, foreign, mismatched or live) recovery refuses
+# and leaves the state for the owner. Any exit before the lock is held leaves the lease resumable for a retry.
 $lock=$null
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId ([string]$raw.runId) -ExpectedLockToken $journalToken -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId ([string]$raw.runId) -JournalPath @($combinedStatePath,$legacyModsStatePath) -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
 trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
 $liveModsExistedBefore=Test-Path -LiteralPath $liveMods -PathType Container
 $beforeMods=$null
@@ -104,11 +101,20 @@ if(-not$PSCmdlet.ShouldProcess($target,"recover exact KMC transaction $($raw.run
     if($modsChanged-or(Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){
         throw 'Recovery WhatIf purity failed.'
     }
-    Write-Host 'Recovery WhatIf purity PASS; durable state was validated and no external state changed.'
     Exit-KmcUnlockedNativeReservation $nativeReservation  # after the last shared read; the lease stays resumable
+    Write-Host 'Recovery WhatIf purity PASS; durable state was validated and no external state changed.'
     return
 }
 $WhatIfPreference=$false
+# Returns whether only the owed profile follow-up remains; throws (keeping the lock and the lease) for anything else open.
+function Assert-KmcRecoveredRunObligations {
+    [void](Assert-KmcRuntimeLockOwner $lock)
+    $obligations=Get-KmcRunObligationState -StateRoot $stateRoot -RunId ([string]$raw.runId) -RunToken ([string]$raw.token) -BackupRoot $backupRoot
+    if($obligations.Closed){return $false}
+    $blocking=@($obligations.Open|Where-Object{-not($_.StartsWith('profile: ')-or$_.StartsWith('areas: '))})
+    if($blocking.Count-eq0-and$obligations.Started-ccontains'profile'){return $true}
+    throw ('Run '+[string]$raw.runId+' has open obligations; the lock and the reservation stay for the owner: '+($obligations.Open -join '; '))
+}
 try{
     $lock=Adopt-KmcStaleRuntimeLock $stateRoot -Reservation $nativeReservation
     if($legacyMode){
@@ -119,6 +125,7 @@ try{
         # Recorded unexpected runtime writes keep the recovery unclean (the lock is
         # abandoned for review); the quarantine retains them byte-exact.
         $unexpected=@();if($null-ne$restored.PSObject.Properties['unexpectedRuntimeWrites']){$unexpected=@($restored.unexpectedRuntimeWrites|Where-Object{$null-ne$_})}
+        if(Assert-KmcRecoveredRunObligations){throw 'A legacy no-save transaction cannot owe a profile recovery.'}
         if($unexpected.Count-ne0){throw "Recovery restored the pre-run Mods snapshot but recorded $($unexpected.Count) unexpected runtime write(s), preserved in '$($restored.runtimeQuarantine)'; re-apply any newer external deployment."}
         Close-KmcRuntimeLock $lock
         $lock=$null
@@ -130,26 +137,10 @@ try{
     if(-not$restoration.modsRestored-or-not$restoration.saveProtectionPassed-or@($restoration.errors).Count-ne0){
         throw "Combined recovery remains incomplete: $(@($restoration.errors) -join '; ')"
     }
-    # Base-game staging: the installed loader dependencies are verified against their files, as the launcher does.
-    $modsStatePath=Get-KmcTransactionStatePath $stateRoot ([string]$raw.runId)
-    if(Test-Path -LiteralPath $modsStatePath -PathType Leaf){
-        $modsState=Read-KmcJson $modsStatePath
-        if([int]$modsState.schemaVersion-eq4){[void](Assert-KmcRuntimeLockOwner $lock);Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies -VerifyFiles}
-    }
-    # A run that snapshotted the persistence profile still owes Recover-KmcPersistenceProfile.ps1
-    # -AfterTransactionRecovery: the lock closes, but the lease (bound to this run and token) is kept for that recovery
-    # and released only after its profile verification. Nothing else can continue it.
-    $profileDirectory=Join-Path $backupRoot ('profile-'+[string]$raw.runId)
-    $profilePending=$false
-    if(Test-Path -LiteralPath $profileDirectory){
-        # Owed unless this run's profile recovery left its PASS receipt bound to this run and to the exact snapshot bytes.
-        $profilePending=$true
-        $snapshotFile=Join-Path $profileDirectory 'snapshot.json';$receiptFile=Join-Path $labRoot ('runtime-evidence/'+[string]$raw.runId+'/profile-recovery.json')
-        if((Test-Path -LiteralPath $snapshotFile -PathType Leaf)-and(Test-Path -LiteralPath $receiptFile -PathType Leaf)){
-            $receipt=Read-KmcJson $receiptFile
-            if([string]$receipt.runId-ceq[string]$raw.runId-and[string]$receipt.status-ceq'PASS'-and[string]$receipt.snapshotSha256-ceq(Get-KmcSha256 $snapshotFile)){$profilePending=$false}
-        }
-    }
+    # The run's complete obligation state decides the release (installed loader dependencies verified against their
+    # files): everything closed releases; only the profile (and its Areas) restoration still owed keeps the lease for
+    # Recover-KmcPersistenceProfile.ps1 -AfterTransactionRecovery; anything else keeps the lock and the lease.
+    $profilePending=Assert-KmcRecoveredRunObligations
     if($profilePending){Close-KmcRuntimeLock $lock -KeepFor 'profile-recovery'}else{Close-KmcRuntimeLock $lock}
     $lock=$null
     if($profilePending){Write-Host "Reservation kept for Recover-KmcPersistenceProfile.ps1 -AfterTransactionRecovery -RunId $($raw.runId)."}

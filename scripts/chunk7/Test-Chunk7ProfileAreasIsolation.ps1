@@ -28,7 +28,9 @@ function New-Fixture([string]$name,[switch]$PreexistingCache){
     }
     [IO.File]::WriteAllText($params,'<Params />')
     Write-KmcJsonAtomic (Join-Path $script:root 'environment-intake.json') ([ordered]@{requestedLayout=[ordered]@{kingmakerSaveRoot=$save;kingmakerInstallDir=$game}})
-    $lock=[pscustomobject]@{RunId='test-areas';Token=('a'*64)}
+    # The test lock carries the run's obligation ledger, as every lock does (Open-KmcRuntimeLock creates it).
+    $lock=[pscustomobject]@{RunId='test-areas';Token=('a'*64);Path=(Join-Path $base 'state/active-transaction.lock')}
+    [void][IO.Directory]::CreateDirectory((Join-Path $base 'state'));Initialize-KmcRunObligationLedger $lock
     $snapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $save -GameRoot $game -BackupRoot $backup
     return [pscustomobject]@{profile=$profile;areas=$areas;backup=$backup;lock=$lock;snapshot=$snapshot
         state=(Join-Path $backup 'profile-test-areas/Areas-isolation.json')

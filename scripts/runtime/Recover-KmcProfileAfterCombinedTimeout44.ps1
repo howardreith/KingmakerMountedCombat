@@ -69,8 +69,8 @@ if($changes.Count-ne2-or(@($changes.name|Sort-Object)-join'|')-cne'unity.player_
 }
 $WhatIfPreference=$requestedWhatIf
 if(-not$PSCmdlet.ShouldProcess($runId,'restore pinned native startup parameters/preferences after combined timeout recovery')){
- Write-Host 'POST-COMBINED PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
- Exit-KmcUnlockedNativeReservation $nativeReservation;return
+ Exit-KmcUnlockedNativeReservation $nativeReservation
+ Write-Host 'POST-COMBINED PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.';return
 }
 $WhatIfPreference=$false
 $lock=$null
@@ -95,6 +95,8 @@ try{
  }
  [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::WriteAllBytes($paramsPath,$capturedParams)
+ Add-KmcReservationProgress $lock 'loader settings (Params.xml) rewritten from the captured pre-run bytes'
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::SetLastWriteTimeUtc($paramsPath,[IO.File]::GetLastWriteTimeUtc($saved))
  [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
@@ -104,6 +106,7 @@ try{
    $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
   }
   $key.Flush()
+  Add-KmcReservationProgress $lock 'PlayerPrefs values restored'
  }finally{if($null-ne$key){$key.Dispose()}}
  [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
  if((Get-KmcPersistenceProfileDigest (Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')))-cne$snapshot.profileDigest-or

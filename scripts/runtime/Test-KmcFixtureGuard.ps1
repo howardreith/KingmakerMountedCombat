@@ -58,7 +58,8 @@ Assert-KmcReservationCoversSurface -Path @($SaveRoot)
 $liveRequalificationRunId = $null
 $staleLockPath = Join-Path $fullStateRoot 'active-transaction.lock'
 if ($RecoverWorkingRequalification -and (Test-Path -LiteralPath $staleLockPath -PathType Leaf)) {
-    $nativeReservation = Enter-KmcStaleTransactionReservation -StateRoot $fullStateRoot -ExpectedRunId $RequalificationRunId -ExpectedPurpose 'fixture-requalification' -Purpose 'fixture-requalification'
+    $requalificationJournal = Join-Path $fullStateRoot ('fixture-requalifications\' + $RequalificationRunId + '.json')
+    $nativeReservation = Enter-KmcBoundRecoveryReservation -StateRoot $fullStateRoot -RunId $RequalificationRunId -JournalPath @($requalificationJournal) -JournalOptional -ExpectedPurpose 'fixture-requalification' -Purpose 'fixture-requalification'
 }
 elseif ($RequalifyWorking) {
     $liveRequalificationRunId = 'fixture-requalification-' + [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')
@@ -207,6 +208,7 @@ if ($InitializeQualification -and -not (Test-Path -LiteralPath $qualificationPat
     if (-not $PSCmdlet.ShouldProcess($qualificationPath, 'record immutable KMC fixture qualification')) {
         $WhatIfPreference = $false
         if ($requestedWhatIf) {
+            Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
             Write-Host 'Fixture guard WhatIf PASS; both exact descriptors were read, no qualification was written, and no save was loaded or mutated.'
         }
         else { Write-Host 'Fixture qualification was declined; no qualification or save was mutated.' }
@@ -256,6 +258,7 @@ elseif ($RequalifyWorking) {
             throw 'Working fixture requalification WhatIf created a runtime lock.'
         }
         if ($requestedWhatIf) {
+            Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
             Write-Host 'Working fixture requalification WhatIf PASS; exact revised descriptors and prior pins were validated, and neither the qualification, lock, nor any save metadata changed.'
         }
         else { Write-Host 'Working fixture requalification was declined; no qualification, lock, or save was mutated.' }
@@ -277,11 +280,13 @@ elseif ($RequalifyWorking) {
         -Reservation $nativeReservation
     $WhatIfPreference = $false
     $pair = $liveResult.pair
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
     Write-Host 'KMC fixture guard PASS.'
     Write-Host "Baseline: $($pair.baseline.fileName) / $($pair.baseline.sha256)"
     Write-Host "Working:  $($pair.working.fileName) / $($pair.working.sha256)"
     Write-Host "Campaign: $($pair.expectedGameName) / $($pair.expectedGameId) / $($pair.expectedArea)"
     Write-Host 'Writable save allowlist: KMC_AUTOMATION_WORKING only.'
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
     Write-Host "Working fixture requalification PASS: $($liveResult.supersededWorkingSha256) -> $($liveResult.revisedWorkingSha256)."
     Write-Host "Qualification SHA-256: $($liveResult.qualificationSha256)"
     Write-Host "Pinned prior save metadata digest: $ExpectedPriorSaveMetadataDigest"
@@ -315,6 +320,7 @@ elseif ($RecoverWorkingRequalification) {
             throw 'Working fixture requalification recovery WhatIf changed qualification or runtime state.'
         }
         if ($requestedWhatIf) {
+            Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
             Write-Host "Working fixture requalification recovery WhatIf PASS; exact stale state supports $($recoveryPlan.action), and no lock, qualification, state, or save metadata changed."
         }
         else { Write-Host 'Working fixture requalification recovery was declined; no lock, qualification, state, or save was mutated.' }
@@ -331,6 +337,7 @@ elseif ($RecoverWorkingRequalification) {
         -ExpectedRevisedWorkingSha256 $ExpectedRevisedWorkingSha256 `
         -Reservation $(if ($RecoverWorkingRequalification -and $nativeReservation.Adopted) { $nativeReservation } else { $null })
     $WhatIfPreference = $false
+    Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
     Write-Host "Working fixture requalification recovery PASS: $($recoveryResult.disposition)."
     Write-Host "Qualification SHA-256: $($recoveryResult.qualificationSha256)"
     Write-Host "Save metadata digest unchanged: $($recoveryResult.saveMetadataDigest)"
@@ -347,6 +354,7 @@ if ($InitializeQualification) {
     if (Test-Path -LiteralPath $activeLockPath) { throw 'A stale or active KMC runtime transaction lock appeared before fixture initialization.' }
 }
 $pair = Assert-KmcFixtureQualification -Pair $pair -QualificationPath $qualificationPath -InitializeQualification:$InitializeQualification
+Exit-KmcUnlockedNativeReservation $nativeReservation  # the release completes before PASS is reported
 Write-Host 'KMC fixture guard PASS.'
 Write-Host "Baseline: $($pair.baseline.fileName) / $($pair.baseline.sha256)"
 Write-Host "Working:  $($pair.working.fileName) / $($pair.working.sha256)"

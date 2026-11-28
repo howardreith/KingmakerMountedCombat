@@ -77,10 +77,31 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
     $lock=$null;$reservation=$null
     if($null-ne$pending){
         if([int]$pending.schemaVersion-ne1-or[string]$pending.runId-cne$RunId-or[string]$pending.token-cnotmatch'^[0-9a-f]{64}$'){throw 'The prepared fixture-repair journal is not this run''s.'}
-        $reservation=Enter-KmcStaleTransactionReservation -StateRoot $fullState -ExpectedRunId $RunId -ExpectedLockToken ([string]$pending.token) -ExpectedPurpose 'fixture-recovery' -Purpose 'fixture-recovery'
+        $reservation=Enter-KmcBoundRecoveryReservation -StateRoot $fullState -RunId $RunId -JournalPath @($statePath) -ExpectedLockToken ([string]$pending.token) -ExpectedPurpose 'fixture-recovery' -Purpose 'fixture-recovery'
     }
     else{$reservation=Enter-KmcNativeReservation -StateRoot $fullState -RunId $RunId -Purpose $(if($requestedWhatIf){'fixture-recovery-preview'}else{'fixture-recovery'})}
-    $closing=$false;$journalCreated=$false;$moved=$false;$replaced=$false;$resuming=($null-ne$pending)
+    $closing=$false;$journalCreated=$false;$moved=$false;$replaced=$false;$collision=$false;$resuming=($null-ne$pending)
+    # The phase-specific terminal files, rechecked after confirmation and immediately before a close: recovered means the
+    # exact qualified Working (bytes, length, timestamp) with the unexpected original quarantined; rolled-back means the
+    # unexpected original back in place (bytes, length, timestamp) and nothing quarantined. A drift is an incident and
+    # keeps the lock and the lease.
+    $assertTerminalFiles={
+        param([string]$Phase,$Lock,$Expected,$Journal)
+        $item=if(Test-Path -LiteralPath $workingPath -PathType Leaf){Get-Item -LiteralPath $workingPath}else{$null}
+        $held=Test-Path -LiteralPath $quarantinePath -PathType Leaf
+        $observed=if($null-eq$item){'Working absent'}else{'Working '+(Get-KmcSha256 $workingPath)+' length '+$item.Length+' ticks '+$item.LastWriteTimeUtc.Ticks}
+        $observed+='; quarantine '+$(if($held){Get-KmcSha256 $quarantinePath}else{'absent'})
+        $ok=if($Phase-ceq'recovered'){
+            $null-ne$item-and$item.Length-eq[long]$Expected.length-and$item.LastWriteTimeUtc.Ticks-eq[long]$Expected.lastWriteTimeUtcTicks-and(Get-KmcSha256 $workingPath)-ceq[string]$Expected.sha256-and
+            $held-and(Get-KmcSha256 $quarantinePath)-ceq[string]$Journal.unexpectedSha256
+        }else{
+            $null-ne$item-and$item.Length-eq[long]$Journal.unexpectedLength-and$item.LastWriteTimeUtc.Ticks-eq[long]$Journal.unexpectedLastWriteTimeUtcTicks-and(Get-KmcSha256 $workingPath)-ceq[string]$Journal.unexpectedSha256-and-not$held
+        }
+        if(-not$ok){
+            Write-KmcReservationIncident -Session $Lock.Reservation -Context ("fixture repair: the $Phase terminal files changed after confirmation") -Observed $observed -InitialDifferences "expected the $Phase state of run $RunId" -RestorationPerformed @($Lock.Reservation.Progress) -RemainingDifferences 'every file left as observed' -ResourcesReleased 'none: the KMC lock and the reservation stay'
+            throw "The $Phase fixture state changed after confirmation ($observed); the repair refuses to close and keeps its lock and reservation."
+        }
+    }
     try{
     $audit=Get-KmcFixtureCandidateAudit $SaveRoot
     $qualification=Read-KmcJson $QualificationPath
@@ -123,6 +144,7 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
             }
             [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
             [IO.File]::Copy([string]$candidate.backup.path,$workingPath,$false)
+            [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared timestamp write
             (Get-Item -LiteralPath $workingPath).LastWriteTimeUtc=[DateTime]::new([long]$expectedWorking.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)
             Add-KmcReservationProgress $lock 'Working replaced by the qualified backup'
         }
@@ -141,6 +163,8 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
             $pending|Add-Member -NotePropertyName continuedAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force
             Write-KmcJsonDurable $statePath $pending
         }
+        & $assertTerminalFiles $(if($action-cin@('nothing-moved','close-rolled-back')){'rolled-back'}else{'recovered'}) $lock $expectedWorking $pending
+        [void](Assert-KmcRuntimeLockOwner $lock)
         $closing=$true
         Close-KmcRuntimeLock $lock;$lock=$null
         return [pscustomobject]@{status=('continued-'+$action);path=$workingPath;statePath=$statePath}
@@ -175,15 +199,27 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         $quarantineRoot=Join-Path ([IO.Path]::GetFullPath($BackupRoot)) 'fixture-recoveries';if(-not(Test-Path -LiteralPath $quarantineRoot)){New-Item -ItemType Directory -Path $quarantineRoot|Out-Null}
         $runQuarantine=Join-Path $quarantineRoot $RunId;if(Test-Path -LiteralPath $runQuarantine){throw 'Fixture-recovery quarantine already exists.'};New-Item -ItemType Directory -Path $runQuarantine|Out-Null
         $state=[ordered]@{schemaVersion=1;runId=$RunId;token=[string]$lock.Token;phase='prepared';preparedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');saveRoot=[IO.Path]::GetFullPath($SaveRoot);workingPath=$workingPath;unexpectedSha256=[string]$currentWorking.sha256;unexpectedLength=[long]$currentWorking.length;unexpectedLastWriteTimeUtcTicks=[long]$currentWorking.lastWriteTimeUtcTicks;quarantinePath=$quarantinePath;qualifiedBackupPath=[string]$candidate.backup.path;qualifiedBackupSha256=[string]$candidate.backup.sha256;qualifiedBackupAuthorityPath=[string]$candidate.authorityPath;qualifiedBackupAuthoritySha256=[string]$candidate.authoritySha256;expectedWorkingSha256=[string]$expectedWorking.sha256;expectedWorkingLength=[long]$expectedWorking.length;expectedWorkingLastWriteTimeUtcTicks=[long]$expectedWorking.lastWriteTimeUtcTicks;unaffectedSaveDigest=(Get-KmcUnaffectedSaveDigest $before $workingPath)}
+        Register-KmcRunObligation -Lock $lock -Name 'fixture-recovery'
         Write-KmcJsonCreateNewDurable -Path $statePath -Value $state
         $journalCreated=$true
         [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared move
         Move-Item -LiteralPath $workingPath -Destination $quarantinePath
         $moved=$true
+        Add-KmcReservationProgress $lock ('unexpected Working quarantined at '+$quarantinePath+'; Working absent')
+        Invoke-KmcReservationTestHook 'fixture-after-fresh-quarantine'
         [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
-        Copy-Item -LiteralPath ([string]$candidate.backup.path) -Destination $workingPath
+        # No-overwrite installation: a Working that reappeared after the quarantine move is never overwritten; both files,
+        # the transaction and the first incident are preserved.
+        try{if(Test-Path -LiteralPath $workingPath){throw [IO.IOException]::new('Working reappeared')};[IO.File]::Copy([string]$candidate.backup.path,$workingPath,$false)}
+        catch [IO.IOException]{
+            $collision=$true
+            Write-KmcReservationIncident -Session $lock.Reservation -Context 'fixture repair: Working reappeared before the qualified copy' -Observed ('Working '+$(if(Test-Path -LiteralPath $workingPath -PathType Leaf){Get-KmcSha256 $workingPath}else{'unreadable'})+'; quarantined original '+(Get-KmcSha256 $quarantinePath)) -RestorationPerformed @($lock.Reservation.Progress) -RemainingDifferences 'the reappeared Working and the quarantined original are both kept' -ResourcesReleased 'none: the KMC lock and the reservation stay'
+            throw 'A Working save reappeared after the quarantine move; nothing was overwritten, both files and the transaction are kept for the owner.'
+        }
         $replaced=$true
+        [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared timestamp write
         (Get-Item -LiteralPath $workingPath).LastWriteTimeUtc=[DateTime]::new([long]$expectedWorking.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)
+        Add-KmcReservationProgress $lock ('qualified Working installed at '+$workingPath)
         $pair=Assert-KmcFixturePair -SaveRoot $SaveRoot -QualificationPath $QualificationPath
         [void](Assert-KmcPermanentFixtureIdentity -Pair $pair -HistoricalAuthorityRecord $HistoricalAuthority)
         $after=Get-KmcQualificationTreeInventory -Root $SaveRoot -Scope save-root
@@ -191,6 +227,8 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         if($changed.Count-ne1-or[string]$changed[0]-cne[IO.Path]::GetFileName($workingPath)){throw 'Fixture recovery changed a non-Working save.'}
         [void](Assert-KmcRuntimeLockOwner $lock)
         $state.phase='recovered';$state['recoveredAtUtc']=[DateTimeOffset]::UtcNow.ToString('o');$state['restoredSaveInventoryDigest']=[string]$after.digest;Write-KmcJsonDurable $statePath $state
+        & $assertTerminalFiles 'recovered' $lock $expectedWorking ([pscustomobject]$state)
+        [void](Assert-KmcRuntimeLockOwner $lock)
         $closing=$true
         Close-KmcRuntimeLock $lock;$lock=$null
         return [pscustomobject]@{status='recovered';path=$workingPath;sha256=[string]$pair.working.sha256;backupRunId=$candidate.runId;statePath=$statePath;quarantinePath=$quarantinePath}
@@ -199,6 +237,7 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         # Before any lock: nothing shared was mutated (a fresh reservation is released, a taken-over one left resumable).
         if($null-eq$lock){Exit-KmcUnlockedNativeReservation $reservation -PreserveError;throw}
         if($resuming-and-not$closing){if($lock.Stream.CanRead){try{Abandon-KmcRuntimeLock $lock}catch{}};throw "The continued fixture repair stopped; the lock and reservation stay for a retry or the owner: $failure"}
+        if($collision){if($lock.Stream.CanRead){try{Abandon-KmcRuntimeLock $lock}catch{}};throw "Fixture recovery stopped without overwriting: $failure"}
         # A failed close (the repair is complete and verified) or a lost reservation is not a fixture-operation failure:
         # nothing more is written; the lock and reservation stay for the owner, with the incident recorded.
         $lost=-not(Test-KmcNativeReservationHeld $lock.Reservation)
