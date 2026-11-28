@@ -949,6 +949,19 @@ namespace KingmakerMountedCombat.Integration
             mountView?.StopMoving();
         }
 
+        // PR #70 R12-F4 (round 16): the combat owner's mod-disable cancellation. A mount successor the pair does not own keeps its command and
+        // motion (PreservesMountSuccessor); every other approaching mount command is still interrupted as InterruptMove would. Any other
+        // trigger is the ordinary CancelMountMovement.
+        public void CancelMountMovement(CleanupTrigger trigger)
+        {
+            if (!PreservesMountSuccessor(trigger)) { CancelMountMovement(); return; }
+            var commands = mount.Commands;
+            var successor = commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
+            foreach (var command in commands.Raw.ToArray())
+                if (command != null && !command.IsFinished && command.IsMoveUnit && !ReferenceEquals(command, successor)) command.Interrupt();
+            PreservedMountSuccessorCount++;
+        }
+
         public void ClearPreparedPairWhenUnmounted()
         {
             if (!movementAuthorityConfigured && !presentationConfigured && !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned && !overrideInstalled && !overrideComponentOwned &&

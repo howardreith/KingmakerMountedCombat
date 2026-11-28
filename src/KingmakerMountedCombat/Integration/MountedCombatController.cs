@@ -1331,7 +1331,8 @@ namespace KingmakerMountedCombat.Integration
         // PR #70 R12-F4 (round 16): every mount command whose motion this pair owns: its exact paired native commands and carriers, the
         // retained order's and active command's own carriers, and a carrier whose cleanup is retained. Read by the relationship's mod-disable
         // restoration (KingmakerMountedPairRuntime.PreservesMountSuccessor).
-        internal bool OwnsMountMotionCommand(UnitCommand command) => command != null &&
+        // The player's admitted ground order is native's own command, never the pair's (ReleaseRiderTurnGroundMovementForModDisable).
+        internal bool OwnsMountMotionCommand(UnitCommand command) => command != null && !ReferenceEquals(command, activeRiderTurnGroundMove) &&
             (OwnsExactPairedNativeCommand(command) || IsOwnDelegatedMove(command) || retainedCarrierCleanups.Any(record => ReferenceEquals(record.Carrier, command)));
 
         // The pair's own exact carrier moves: the retained order's, and the active pair command's (a charge included).
@@ -2284,7 +2285,7 @@ namespace KingmakerMountedCombat.Integration
 
         // PR-1 review R4-F1: ordinaryRetarget is a fresh player order replacing the current one (not a hard lifecycle boundary): a
         // command whose strike was already delivered stays native's until it completes; every other boundary keeps its hard cleanup.
-        private void CancelCore(string reason, bool ordinaryRetarget)
+        private void CancelCore(string reason, bool ordinaryRetarget, bool modDisableYieldsSuccessor = false)
         {
             if (disposed)
             {
@@ -2310,12 +2311,19 @@ namespace KingmakerMountedCombat.Integration
             var settlement = pendingDoorSettlement;
             pendingDoorSettlement = null;
             settlement?.Cancel(reason);
-            CancelRiderTurnGroundMovement();
+            // PR #70 R12-F4 (round 16): at mod disable the player's admitted ground order (native's own command) is released from this pair's
+            // accounting without being interrupted.
+            if (modDisableYieldsSuccessor) ReleaseRiderTurnGroundMovementForModDisable();
+            else CancelRiderTurnGroundMovement();
             SweepFinishedCommand();
             // PR-1 review R4-F1: CancelMountMovement interrupts the mount's IsMoveUnit commands, and native TickApproaching sets that
             // flag on a horse Standard attack that approached. On ordinary retargeting a delivered mount command stays native's (the
             // retired order's own movement was released with its wrappers); every hard boundary keeps the mount-wide interrupt.
-            if (!(ordinaryRetarget && MountCommandLeftToNative())) relationship.Runtime.CancelMountMovement();
+            if (!(ordinaryRetarget && MountCommandLeftToNative()))
+            {
+                if (modDisableYieldsSuccessor) relationship.Runtime.CancelMountMovement(CleanupTrigger.ModDisabled);
+                else relationship.Runtime.CancelMountMovement();
+            }
             LastFeedback = "Mounted combat cancelled: " + (string.IsNullOrWhiteSpace(reason) ? "boundary" : reason) + ".";
         }
 
@@ -4261,7 +4269,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void HandleDismounting(CleanupTrigger trigger)
         {
-            Cancel("relationship cleanup " + trigger);
+            // PR #70 R12-F4 (round 16): the mod-disable/unload relationship cleanup yields the mount's newer player Move (its command, path and
+            // cursor) while it ends the pair's own work; every other cleanup keeps the hard cancellation.
+            if (trigger == CleanupTrigger.ModDisabled) CancelCore("relationship cleanup " + trigger, false, true);
+            else Cancel("relationship cleanup " + trigger);
         }
 
         internal long RiderSpecificTerminalCount { get; private set; }
@@ -5047,6 +5058,19 @@ namespace KingmakerMountedCombat.Integration
                 activeGroundMoveDriveCount++;
                 command.Tick();
             }
+        }
+
+        // PR #70 R12-F4 (round 16): the player's turn-based ground order on the mount is native's own command (ClickGroundHandler's
+        // CreatedByPlayer UnitMoveTo, or native's cannot-attack click approach, run on the mount after RouteGroundCommand rewrote the rider);
+        // the pair only admitted and accounted for it (and, without paired activation, ticked it). Mod disable ends that involvement: the
+        // admission, owner and accounting references are released and the command keeps running.
+        internal int ModDisableGroundMoveReleases { get; private set; }
+        private void ReleaseRiderTurnGroundMovementForModDisable()
+        {
+            riderTurnGroundMoveAdmissionPending = false;
+            groundMoveOwner = null;
+            if (activeRiderTurnGroundMove != null) ModDisableGroundMoveReleases++;
+            activeRiderTurnGroundMove = null;
         }
 
         private void CancelRiderTurnGroundMovement()

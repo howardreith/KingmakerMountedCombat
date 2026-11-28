@@ -128,7 +128,7 @@ $members=[ordered]@{
  'CONTROLLER_TRY_RETIRE'=(Extract $controller 'private bool TryRetireStockIntent(UnitEntityData rider, UnitEntityData mount, bool turnBased)')
  'CONTROLLER_STRIKE_ADMISSIBLE'=(ExtractExpression $controller 'private bool StockIntentStrikeAdmissibleNow() =>')
  'ADMIT_EXPLICIT_PROMOTION'=(Extract $patch 'internal static bool AdmitExplicitPromotion(MountedPairSingleAttack command, MountedCombatController owner)')
- 'CONTROLLER_CANCEL_CORE'=(Extract $controller 'private void CancelCore(string reason, bool ordinaryRetarget)')
+ 'CONTROLLER_CANCEL_CORE'=(Extract $controller 'private void CancelCore(string reason, bool ordinaryRetarget, bool modDisableYieldsSuccessor = false)')
  'CONTROLLER_MOUNT_LEFT'=(ExtractExpression $controller 'private bool MountCommandLeftToNative() =>')
  'CONTROLLER_IF_INVALID'=(Extract $controller 'private bool RetireOrderIfTargetInvalid(bool targetValid)')
  'CONTROLLER_PLAN_DISPATCH'=(Extract $controller 'private MountedDispatchPlan PlanStockDispatch(UnitEntityData rider, UnitEntityData mount, UnitEntityData target, bool turnBased, bool targetValid,')
@@ -228,6 +228,12 @@ $members=[ordered]@{
  'LIFECYCLE_CLEANUP_OWNER'=(Extract $lifecycleSubscriberText 'private bool CleanupOwner(GameMountedRelationshipService owner, NativeLifecycleBoundary boundary, string source,')
  'WORLD_VISIT'=(Extract $worldText 'internal Exception[] Visit(Action<MountedPairServices> action)')
  'CONTROLLER_OWNS_MOTION'=(ExtractExpression $controller 'internal bool OwnsMountMotionCommand(UnitCommand command) =>')
+ 'CONTROLLER_GROUND_COMPLETE'=(Extract $controller 'public void CompleteGroundCommandAdmission(UnitEntityData routedUnit)')
+ 'CONTROLLER_GROUND_RELEASE'=(ExtractRegion $controller '        internal int ModDisableGroundMoveReleases { get; private set; }' '        private void CancelRiderTurnGroundMovement()')
+ 'CONTROLLER_GROUND_CANCEL'=(Extract $controller 'private void CancelRiderTurnGroundMovement()')
+ 'CONTROLLER_HANDLE_DISMOUNTING'=(Extract $controller 'private void HandleDismounting(CleanupTrigger trigger)')
+ 'RUNTIME_CANCEL_MOVE'=(Extract $runtimeText 'public void CancelMountMovement()')
+ 'RUNTIME_CANCEL_MOVE_TRIGGER'=(Extract $runtimeText 'public void CancelMountMovement(CleanupTrigger trigger)')
 }
 $text=[IO.File]::ReadAllText($TemplatePath);foreach($entry in $members.GetEnumerator()){$marker='/* '+$entry.Key+' */';if(-not$text.Contains($marker)){throw ('Template lacks '+$marker)};$text=$text.Replace($marker,$entry.Value)}
 $actual=Join-Path $OutputDirectory 'actual.cs';[IO.File]::WriteAllText($actual,$text)

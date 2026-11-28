@@ -429,7 +429,7 @@ namespace KingmakerMountedCombat.Integration
         // route-bound override carrier also keeps its earlier criterion (it moved the mount from its origin along its validated ForcedPath).
         // The native-accepted entry does not use displacement: a displaced mount has not necessarily received a path. Otherwise the carrier is
         // still awaiting its first path and keeps its existing handling.
-        private UnitMoveTo pathBaselineCarrier, pathAcquiredCarrier;
+        private UnitMoveTo pathBaselineCarrier, pathAcquiredCarrier, pathRequestPendingCarrier;
         private Pathfinding.Path pathAtCarrierIssue;
         internal int CarrierPathObservations { get; private set; }
 
@@ -445,8 +445,17 @@ namespace KingmakerMountedCombat.Integration
             var agent = mount?.View?.AgentASP;
             if (carrier == null || carrier.IsFinished || agent == null || ReferenceEquals(pathAcquiredCarrier, carrier) ||
                 !ReferenceEquals(pathBaselineCarrier, carrier)) return;
+            if (!ReferenceEquals(mount.Commands?.GetCommand(CommandType.Move), carrier)) return;
             var path = agent.Path;
-            if (path != null && !ReferenceEquals(path, pathAtCarrierIssue) && ReferenceEquals(mount.Commands?.GetCommand(CommandType.Move), carrier))
+            // Round 16 (path pooling): A* recycles Path objects, so identity alone can miss a delivery. A request observed in flight for this
+            // exact carrier (installed WantsToMove is Path != null || RequestedPath != null, and RequestedPath is not public: WantsToMove with no
+            // Path is the pending request) and later resolved into a delivered Path is an acquisition whatever the Path object is.
+            if (path == null)
+            {
+                if (agent.WantsToMove) pathRequestPendingCarrier = carrier;
+                return;
+            }
+            if (!ReferenceEquals(path, pathAtCarrierIssue) || ReferenceEquals(pathRequestPendingCarrier, carrier))
             {
                 pathAcquiredCarrier = carrier;
                 CarrierPathObservations++;
