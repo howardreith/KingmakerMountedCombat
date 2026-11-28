@@ -55,6 +55,17 @@ function Assert-KmcManualSeedWorld($Row,$Request,$Labels,$SourceWorld,[long]$Min
  if(-not$ids.Contains($Row.mainActorId)){throw 'Cold main actor is absent from its exact party.'}
 }
 
+# Round 19/20 (R13-F2): the restoration observer's four hook rows as NativeArchiveRestorationProbe reflects them: installed tokens 06000C3C and
+# 0600939D in module 07fa1e4d (Kingmaker.Controllers.Combat.UnitCombatState.OnNewRound, pinned in Test-AssemblyContracts.ps1; no build ever
+# emitted UnitLogic/NewRound) and the product's NativeCombatActorPersistence restore hooks in the product module. Applied to every copy a
+# record carries, so agreeing copies cannot carry an identity the installed module cannot emit.
+function Assert-KmcChunk7RestorationHookRows($Hooks,[string]$ProductMvid){
+ if($Hooks-isnot[Array]-or$Hooks.Count-ne4){throw 'Restoration observer hook rows are incomplete.'}
+ $tokens=@('06000C3C','0600939D');$methods=@('Prepare','OnNewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
+ for($i=0;$i-lt4;$i++){$h=$Hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
+  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $ProductMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
+ }
+}
 function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$InventoryArtifact,[string]$Status='PASS'){
  Assert-KmcChunk7ManualSeedDescriptor $Request;Assert-KmcChunk7ArtifactEnvelope $Request $Artifact 'chunk7-manual-seed-evidence'
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw 'PASS cold inventory requires its PASS native artifact.'}
@@ -108,12 +119,7 @@ function Assert-KmcChunk7ManualSeedEvidence($Request,$Artifact,$SourceArtifact,$
  foreach($key in @('complete','installedBeforeWorldLoad')){Assert-KmcChunk7Boolean $p.$key $true};Assert-KmcOrdinaryInteger $p.maximumEvents 2048 2048
  foreach($key in @('dropped','errors')){Assert-KmcOrdinaryInteger $p.$key 0 0}
  if($p.events-isnot[Array]-or$p.events.Count-ne0-or$p.hooks-isnot[Array]-or$p.hooks.Count-ne4){throw 'Cold inventory observed native preparation/round or actor/debt restoration.'}
- # Round 19 (R13-F2): NativeArchiveRestorationProbe records the REFLECTED declaringType/method of token 0600939D in module 07fa1e4d, i.e.
- # Kingmaker.Controllers.Combat.UnitCombatState.OnNewRound (pinned in Test-AssemblyContracts.ps1); no build ever emitted UnitLogic/NewRound.
- $tokens=@('06000C3C','0600939D');$methods=@('Prepare','OnNewRound','RestoreActor','RestoreDebt');$prefixes=@('PrepareBefore','RoundBefore','RestoreActorBefore','RestoreDebtBefore');$postfixes=@('PrepareAfter','RoundAfter','RestoreActorAfter','RestoreDebtAfter')
- for($i=0;$i-lt4;$i++){$h=$p.hooks[$i];Assert-KmcBootstrapInventoryString $h.method $methods[$i];Assert-KmcBootstrapInventoryString $h.prefix $prefixes[$i];Assert-KmcBootstrapInventoryString $h.postfix $postfixes[$i]
-  if($i-lt2){$type=if($i-eq0){'TurnBased.Controllers.TurnController'}else{'Kingmaker.Controllers.Combat.UnitCombatState'};Assert-KmcBootstrapInventoryString $h.declaringType $type;Assert-KmcBootstrapInventoryString $h.token $tokens[$i];Assert-KmcBootstrapInventoryString $h.moduleMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}else{Assert-KmcBootstrapInventoryString $h.moduleMvid $Request.dllMvid;Assert-KmcBootstrapInventoryString $h.declaringType 'KingmakerMountedCombat.Integration.NativeCombatActorPersistence';if($h.token-isnot[string]-or$h.token-cnotmatch'^06[0-9A-F]{6}$'){throw 'Product restore hook token invalid.'}}
- }
+ Assert-KmcChunk7RestorationHookRows $p.hooks $Request.dllMvid
  $a=$o.archive;[void](Assert-KmcChunk7NormalizedGraphVersion $a.schemaVersion 'Manual seed');foreach($pair in @(@('campaignId','gameId'),@('areaId','area'))){Assert-KmcBootstrapInventoryString $a.($pair[0]) $Request.persistenceLoad.($pair[1])}
  foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $a.$key 0 0};foreach($key in @('combatPresent','nativeRestorationGrantedByDiagnostic')){Assert-KmcChunk7Boolean $a.$key $false}
  $inventory=$o.nativeProfileInventory;Assert-KmcOrdinaryInteger $inventory.schemaVersion 1 1;Assert-KmcBootstrapInventoryString $inventory.captureStatus 'PASS';Assert-KmcBootstrapInventoryString $inventory.captureKind 'installed-native-small-body-catalogue';Assert-KmcBootstrapInventoryString $inventory.gameplayAssemblyMvid '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
@@ -143,6 +149,7 @@ function Assert-KmcManualSeedColdLineage($Request,$Observations,$InventoryArtifa
  Assert-KmcBootstrapInventoryString $cold.runId $s.inventoryRunId;Assert-KmcBootstrapInventoryString $cold.scenario 'chunk7-bootstrap-cold-inventory';Assert-KmcBootstrapInventoryString $cold.evidenceKind 'chunk7-bootstrap-inventory-evidence';Assert-KmcBootstrapInventoryString $cold.status 'PASS'
  if($cold.errors-isnot[Array]-or$cold.errors.Count-ne0){throw 'Manual seed requires error-free cold inventory.'}
  if((ConvertTo-KmcChunk7Canonical $Observations.sourceColdInventory)-cne(ConvertTo-KmcChunk7Canonical $cold.observations)){throw 'Manual seed substituted its qualified cold observations.'}
+ Assert-KmcChunk7RestorationHookRows $cold.observations.noPreparation.hooks $Request.dllMvid # Round 20: the copy's own identity, not only copy equality
  $p=$cold.observations.selection
  foreach($key in @('sourceRunId','sourceArtifactSha256','sourceArchiveSha256')){Assert-KmcBootstrapInventoryString $p.$key $s.$key}
  Assert-KmcBootstrapInventoryString $p.case 'authored-readonly-inventory';Assert-KmcChunk7Boolean $p.baseGameOnly $true

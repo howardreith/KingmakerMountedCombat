@@ -22,7 +22,7 @@ param()
 #      decoded strictly by the candidate's product codec (duplicate names, versioned StepTravel) and compared completely with the snapshot;
 #      Finalize2 (R18-F3) now reads both retained resaves' members through the same shared helper (Chunk7PersistenceEvidence.ps1).
 #   8. chunk7\Test-Chunk7ProducerObservations.ps1 (R13-F2, R18-F5, round 19): complete producer-shaped observations (hook rows reflected
-#      from the installed tokens the restoration probe patches; archive rows from the candidate codec decoding a schema-3 input) through
+#      from the installed tokens and the built bin\Release DLL the probes patch, in every copied observation; archive rows from the candidate codec decoding a schema-3 input) through
 #      the bootstrap, Manual seed, non-missing Manual-derived, pre-owned owner-seed and assisted cold readers (the last over the actual
 #      assisted scenario's emitted capture); wrong hook/version refusals and same-process 3/3, 4/4 and crossed records.
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
