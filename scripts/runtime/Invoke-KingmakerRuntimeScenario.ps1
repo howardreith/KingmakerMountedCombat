@@ -1696,7 +1696,7 @@ finally{
             # Admitted native achievement-cache churn is an expected external
             # change, not restored bytes, so it is recorded rather than implied
             # away by a bare "profile unchanged" result.
-            $profileCacheChanges=@(Wait-KmcPersistenceProfileUnchanged $profileSnapshot)
+            $profileCacheChanges=@(Wait-KmcPersistenceProfileUnchanged $profileSnapshot -Lock $lock)
             Complete-KmcRunObligation -Lock $lock -RunToken ([string]$lock.Token) -Name 'profile' -Evidence 'launcher: startup settings restored and the profile verified unchanged'
         }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
@@ -1823,7 +1823,7 @@ if($isManualReview){
     Write-Host "Manual review session safely restored; visual acceptance remains PENDING: $finalResultPath"
 }
 else{
-    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1') -ResultPath $finalResultPath -RequestPath $requestPath
+    & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1') -ResultPath $finalResultPath -RequestPath $requestPath -UseRunBoundObservation
     if((Read-KmcJson $finalResultPath).status-cne'PASS'){throw "Runtime scenario failed. Evidence: $finalResultPath"}
     Write-Host "Runtime scenario PASS: $finalResultPath"
 }

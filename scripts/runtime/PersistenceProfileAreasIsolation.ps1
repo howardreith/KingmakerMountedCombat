@@ -78,7 +78,7 @@ function Enter-KmcPersistenceAreasIsolation {
     foreach($path in @($paths.live,$paths.copy)){
         Assert-KmcDirectoryTreeCloneable $path 'owned Areas source'
     }
-    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -Lock $Lock)
     $before=Get-KmcDirectoryManifest $paths.live
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.copy) 'Areas intake/backup'
     $state=[ordered]@{schemaVersion=1;runId=[string]$Lock.RunId;token=[string]$Lock.Token
@@ -99,7 +99,7 @@ function Enter-KmcPersistenceAreasIsolation {
     Add-KmcReservationProgress $Lock ('disposable Areas copy live at '+$paths.live+'; original still held at '+$paths.original)
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.live) 'disposable Areas copy'
     $state.stage='isolated-ready';Write-KmcJsonAtomic $paths.state $state
-    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -Lock $Lock)
     return $paths.state
 }
 

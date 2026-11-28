@@ -59,6 +59,18 @@ $liveRequalificationRunId = $null
 $staleLockPath = Join-Path $fullStateRoot 'active-transaction.lock'
 if ($RecoverWorkingRequalification -and (Test-Path -LiteralPath $staleLockPath -PathType Leaf)) {
     $requalificationJournal = Join-Path $fullStateRoot ('fixture-requalifications\' + $RequalificationRunId + '.json')
+    if (-not (Test-Path -LiteralPath $requalificationJournal)) {
+        # A pre-journal interruption replaced nothing yet: the qualification must still be exactly the pinned existing one,
+        # and a prior-qualification backup, when it was already written, its exact copy. Checked before any takeover.
+        $pinnedQualification = Join-Path $fullStateRoot 'fixture-qualification.json'
+        if (-not (Test-Path -LiteralPath $pinnedQualification -PathType Leaf) -or (Get-KmcSha256 $pinnedQualification) -cne $ExpectedExistingQualificationSha256) {
+            throw 'The pre-journal requalification recovery finds no exact pinned qualification; recovery refuses before any takeover.'
+        }
+        $priorBackup = Join-Path $fullStateRoot ('fixture-requalifications\' + $RequalificationRunId + '.prior.json')
+        if ((Test-Path -LiteralPath $priorBackup) -and ((Test-Path -LiteralPath $priorBackup -PathType Container) -or (Get-KmcSha256 $priorBackup) -cne $ExpectedExistingQualificationSha256)) {
+            throw 'The pre-journal requalification recovery finds a prior-qualification backup that is not the pinned qualification; recovery refuses before any takeover.'
+        }
+    }
     $nativeReservation = Enter-KmcBoundRecoveryReservation -StateRoot $fullStateRoot -RunId $RequalificationRunId -AlternativeJournal @($requalificationJournal) -PreJournalObligation 'fixture-requalification' -ExpectedPurpose 'fixture-requalification' -Purpose 'fixture-requalification'
 }
 elseif ($RequalifyWorking) {

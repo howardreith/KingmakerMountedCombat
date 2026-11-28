@@ -11,7 +11,7 @@ $clone=Join-Path $testParent 'KingmakerMountedCombat'
 [void][IO.Directory]::CreateDirectory($clone)
 # The installed KMC folder is in the configured live Mods tree: each read of it (the clone here and the final check) is
 # made under a preparation reservation for that read (docs/NATIVE-RESERVATION.md).
-$leaves=@(Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Read {
+$leaves=@(Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Path @($installed) -Read {
     [void](Assert-KmcPhase3fStartingInstallation $installed)
     $names=@(Get-ChildItem -LiteralPath $installed -File -Force | ForEach-Object Name)
     foreach($leaf in $names){[IO.File]::Copy((Join-Path $installed $leaf),(Join-Path $clone $leaf),$false)}
@@ -83,5 +83,5 @@ finally { [IO.Directory]::Delete($nested,$true) }
 
 # The exact live installation is still accepted, unchanged, at the end.
 [void](Assert-KmcPhase3fStartingInstallation $clone);$passes++
-Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Read {[void](Assert-KmcPhase3fStartingInstallation $installed)};$passes++
+Invoke-KmcOwnedSharedRead -Purpose 'starting-installation' -Path @($installed) -Read {[void](Assert-KmcPhase3fStartingInstallation $installed)};$passes++
 Write-Host "REGISTERED STARTING INSTALLATION PASS=$passes FAIL=0; live bytes were read only."

@@ -186,7 +186,7 @@ included, and releases only after its last shared read or verified close):
 | `Test-KmcWorkingActorGraph.ps1` (Working diagnostic) | it holds a write-denying handle on the live qualified Working save: reserved before its first read, released after its last (no lock) |
 | `Invoke-KingmakerManualReview.ps1`, `Invoke-FinalizeF1Finish.ps1` | wrappers: they only call the runtime launcher, which reserves |
 | one-run `Recover-*` tools | before their first shared read through admit-then-bind (their journals and reviewed pins, and where pinned the lock token, verified before any takeover); ownership rechecked immediately before every direct loader-settings, timestamp, Areas and PlayerPrefs write, each custody change recorded; PASS reported only after cleanup |
-| `Test-RuntimeRequest.ps1`, `Test-RuntimeGameResult.ps1`, `Test-RuntimeResult.ps1` | an F11 request hashes the configured installation's Mono; `-VerifyLiveWorkingIdentity` reads the live Working save | each such read runs under the caller's held lock passed as `-OwnerLock` (the launcher's, verified before and after the read; the release stays with the owner), or standalone under a preparation reservation for that read; every other check reads recorded evidence only |
+| `Test-RuntimeRequest.ps1`, `Test-RuntimeGameResult.ps1`, `Test-RuntimeResult.ps1` | an F11 request hashes the configured installation's Mono; `-VerifyLiveWorkingIdentity` reads the live Working save | each such read runs under the caller's held lock passed as `-OwnerLock` (only a lock paired with its own verified reservation, every read input inside that reservation's convention; the release stays with the owner), or standalone under a preparation reservation for that read; under the launcher's lock the verified F11 observation is bound to the run (`f11-owned-observation.json`) and the launcher's final validation after its release uses it (`-UseRunBoundObservation`) instead of competing for a new reservation; every other check reads recorded evidence only |
 | `scripts/Test-Chunk2StartingInstallation.ps1` | the installed KMC folder in the configured live Mods tree, read at the start (and cloned) and again by the final check | each of those reads runs under a preparation reservation for that read; the clone in between is exercised without one |
 
 Excluded entrypoints (no reservation), each tied to its inputs and handles:
@@ -194,7 +194,7 @@ Excluded entrypoints (no reservation), each tied to its inputs and handles:
 | Entrypoint | Inputs and handles | Why excluded |
 | --- | --- | --- |
 | `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1`, and the runtime validators' evidence-only checks | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on the configured installation, live Mods, saves, profile, loader settings or PlayerPrefs |
-| `scripts/Build-Local.ps1`, `Package*.ps1`, `Validate-*.ps1`, icon exports, `Get-PinnedLoaderReferences.ps1`, `Reconcile-WorkflowBudget.ps1` | repository sources, `bin`/`obj`, pinned reference copies | build, packaging and bookkeeping: never open a shared Kingmaker surface and are not native preparation |
+| `scripts/Build-Local.ps1`, `Package*.ps1`, `Validate-*.ps1`, icon exports, `Get-PinnedLoaderReferences.ps1`, `Reconcile-WorkflowBudget.ps1`, `New-KmcStandInPackageAssembly.ps1` (gate-only stand-in DLL) | repository sources, `bin`/`obj`, pinned reference copies | build, packaging and bookkeeping: never open a shared Kingmaker surface and are not native preparation |
 | other `scripts/Test-*.ps1` self-tests | disposable stand-ins under temp or `obj`; some read the installed game's managed assemblies (`Kingmaker_Data\Managed\*.dll`) read-only | the stand-in suites run under a private reservation that refuses this lab's runtime-state and every non-disposable surface (PlayerPrefs use a disposable registry key); the assembly-contract readers open only immutable game binaries that no lab's transaction writes (no Mods, loader settings, saves or profile), and are not native preparation |
 | `runtime/*Evidence.ps1`, `runtime/*Fixtures.ps1`, `runtime/*Source.ps1` | dot-sourced libraries | not entrypoints; they run inside a participating entrypoint's reservation |
 
@@ -218,6 +218,14 @@ terminal record proves it closed (valid types and fields, bound to the run and t
 loader files re-verified); a missing, malformed, unbound or contradictory record, or run
 artifacts without a ledger, leave it open; a child absent from the ledger never started.
 
+The run-bound loader selection is written with the run's identity and its exact bytes are bound to
+the ledger entry by digest: a substituted or partly written selection is never trusted, before any
+of its named files is opened. A child registers before it creates any artifact of its own, and
+every artifact of the run on disk (journals, backup and quarantine directories, the prior
+qualification) must be accounted for by the ledger. Terminal records are judged by their writers'
+own read-only contracts (the Mods record shape, the restored Working record with its baseline and
+allowlist flags, the requalification state validator) and against the run's snapshot identities.
+
 Every recovery admits then binds (`Enter-KmcBoundRecoveryReservation`): the stale lock is read
 without being held, every mandatory journal must exist and at least one of its alternatives
 (combined or legacy Mods state), each naming exactly its run and token, and its reviewed pins must
@@ -237,7 +245,14 @@ with no owed follow-up, a writer that is gone (or a resumable lease), no KMC loc
 unchanged record at removal. Everything else (a foreign, malformed or mismatched lease, an owed
 follow-up, an open obligation, an ambiguous fixture repair) is left for the owner.
 
-The closed scoped preflight's nested admission has program-level evidence only. A private run of
+The closed scoped preflight's nested admission has program-level evidence only (a private-mode
+stop boundary after the borrowed admission, `entrypoint-after-borrowed-admission`, is in place for
+it). The guard program receives the closed case's frozen-source root, freeze record and pin, package
+and qualification-suite snapshot, and the launcher's unchanged prefix validates every one of them
+(frozen product source against its git freeze, suite snapshot against its state root, bootstrap
+selection files, workflow budget and installed-loader resolution against the fingerprint) before it
+reaches admission, so a disposable fixture would have to reproduce a complete frozen product
+release. A private run of
 the actual entry is not possible without weakening it: the entry refuses private mode and the
 machine-wide reservation is the only one it uses (its bootstrap writes the neutral record itself);
 it admits only the reviewed full-audit proof selected by path and SHA-256 and the pinned platform,

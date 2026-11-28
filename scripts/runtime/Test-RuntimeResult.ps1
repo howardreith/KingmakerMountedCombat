@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory = $true)][string]$ResultPath,
     [Parameter(Mandatory = $true)][string]$RequestPath,
     # The caller's held transaction lock, passed to the request validator; without it a shared read reserves for itself.
-    $OwnerLock
+    $OwnerLock,
+    # The launcher's final validation after its release: reuse its run-bound F11 observation (Test-RuntimeRequest).
+    [switch]$UseRunBoundObservation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -125,7 +127,7 @@ function Assert-SubscenarioResults {
     if (-not (Test-KmcCompoundRuntimeScenario ([string]$Result.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Result.scenario }).Count -eq 1 -and -not $names.Contains([string]$Result.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
 
-& (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath -OwnerLock $OwnerLock
+& (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath -OwnerLock $OwnerLock -UseRunBoundObservation:$UseRunBoundObservation
 Assert-KmcManifestJsonMembersUnique $ResultPath 'runtime result'
 $result = Read-KmcJson $ResultPath
 $request = Read-KmcJson $RequestPath

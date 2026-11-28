@@ -133,7 +133,7 @@ try{
     try{
         if($null-eq$key){throw 'Actual Kingmaker PlayerPrefs key disappeared.'}
         foreach($change in $changes){
-            $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
+            [void](Assert-KmcRuntimeLockOwner $lock);$key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary);Add-KmcReservationProgress $lock ('preference restored: '+$change.name)
         }
         $key.Flush()
         Add-KmcReservationProgress $lock 'PlayerPrefs values restored'

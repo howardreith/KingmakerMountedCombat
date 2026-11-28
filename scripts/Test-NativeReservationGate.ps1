@@ -69,13 +69,28 @@ try {
     [void](Invoke-Suite 'Test-BaseGameIsolation' 'scripts\Test-BaseGameIsolation.ps1' @() $exitZero)
     [void](Invoke-Suite 'Test-PersistenceProfileProtection' 'scripts\Test-PersistenceProfileProtection.ps1' @() $exitZero)
     [void](Invoke-Suite 'Test-TierSelection' 'scripts\Test-TierSelection.ps1' @() $exitZero)
-    $harness = Invoke-Suite 'Test-Harness' 'scripts\Test-Harness.ps1' @() {
-        param($exit, $lines, $fail)
-        if ($fail.Count -ne 0) { return 'failed' }
-        if ($exit -eq 0) { return 'passed' }
-        $text = $lines -join "`n"
-        if ($text -match "PathNotFound,Microsoft\.PowerShell\.Commands\.CopyItemCommand" -and $text -match 'bin\\Release\\KingmakerMountedCombat\.dll') { return 'passed (zero FAIL lines; stopped at the unbuilt-checkout prerequisite bin\Release\KingmakerMountedCombat.dll)' }
-        return 'failed'
+    # Test-Harness.ps1 packages bin\Release\KingmakerMountedCombat.dll. In an unbuilt checkout the gate supplies a
+    # stand-in assembly carrying exactly the identity the package validator reads (scripts\New-KmcStandInPackageAssembly.ps1),
+    # so every later case (the runtime request, game-result and live Working validators included) runs; it is removed
+    # afterwards and never replaces a real build output.
+    $standInDll = Join-Path $repoRoot 'bin\Release\KingmakerMountedCombat.dll'
+    $standInCreated = @()
+    if (-not (Test-Path -LiteralPath $standInDll)) {
+        $built = @(& powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'New-KmcStandInPackageAssembly.ps1') -OutputDirectory (Join-Path $logRoot 'stand-in-package'))[-1]
+        foreach ($dir in @((Join-Path $repoRoot 'bin'), (Join-Path $repoRoot 'bin\Release'))) { if (-not (Test-Path -LiteralPath $dir)) { [void][IO.Directory]::CreateDirectory($dir); $standInCreated += $dir } }
+        Copy-Item -LiteralPath $built -Destination $standInDll; $standInCreated += $standInDll
+        Write-Host ('   stand-in package assembly {0} sha256={1}' -f $built, (Get-FileHash -Algorithm SHA256 -LiteralPath $built).Hash.ToLowerInvariant())
+    }
+    try {
+        $harness = Invoke-Suite 'Test-Harness' 'scripts\Test-Harness.ps1' @() {
+            param($exit, $lines, $fail)
+            if ($exit -eq 0 -and $fail.Count -eq 0) { return $(if ($standInCreated.Count) { 'passed (every case ran; stand-in package assembly for the unbuilt checkout)' } else { 'passed' }) }
+            return 'failed'
+        }.GetNewClosure()
+    }
+    finally {
+        [array]::Reverse($standInCreated)
+        foreach ($path in $standInCreated) { if (Test-Path -LiteralPath $path -PathType Leaf) { [IO.File]::Delete($path) } elseif (Test-Path -LiteralPath $path) { [IO.Directory]::Delete($path) } }
     }
     $selected = @($harness | Where-Object { $_ -like 'PASS *' -and $_ -match '(?i)lock|adopt|recover|requalif|reservation|transaction' })
     Write-Host "   Test-Harness lock, adoption, recovery, requalification, reservation and transaction cases: $($selected.Count) PASS"

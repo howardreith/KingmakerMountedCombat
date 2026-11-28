@@ -605,8 +605,7 @@ function Read-KmcPriorSaveTransactionAuthority {
         'artifactPlan','artifactPlanDigest','recoveryPlannedAtUtc','baselineImmutable','artifactsQuarantinedAtUtc',
         'workingRestoredAtUtc','restoredInventoryDigest','restoredAtUtc'
     )
-    if ($state -isnot [pscustomobject]) { throw 'Prior save-transaction authority is not an exact JSON object.' }
-    Assert-KmcExactProperties $state $properties 'prior save-transaction authority'
+    Assert-KmcRestoredSaveTransactionRecord $state
     if ((($state.schemaVersion -isnot [int]) -and ($state.schemaVersion -isnot [long])) -or
         [long]$state.schemaVersion -ne 2 -or
         $state.runId -isnot [string] -or [string]$state.runId -cne $ExpectedRunId -or
@@ -2108,6 +2107,29 @@ function Assert-KmcWorkingFixtureRequalificationStateSchema {
     return $State
 }
 
+# The Working-save writer's restored-record contract, read-only: exact fields, terminal phase and restoration flags
+# (baseline protection and the write allowlist). Used by the prior-authority reader and the obligation judgement.
+function Assert-KmcRestoredSaveTransactionRecord {
+    param([Parameter(Mandatory = $true)]$State)
+    $properties = @(
+        'schemaVersion','runId','token','phase','preparedAtUtc','scenario','maxRuntimeArchiveWrites','saveRoot',
+        'baselinePath','baselineSha256','baselineLength','baselineLastWriteTimeUtcTicks',
+        'expectedGameName','expectedGameId','expectedArea','workingPath','workingSha256','workingLength',
+        'workingLastWriteTimeUtcTicks','backupPath','backupSha256','backupLength','artifactQuarantineRoot',
+        'beforeInventory','restoreStartedAtUtc','saveWriteAllowlistPassed','runtimeInventoryDigest','workingDisposition',
+        'artifactPlan','artifactPlanDigest','recoveryPlannedAtUtc','baselineImmutable','artifactsQuarantinedAtUtc',
+        'workingRestoredAtUtc','restoredInventoryDigest','restoredAtUtc'
+    )
+    if ($State -isnot [pscustomobject]) { throw 'The save-transaction record is not an exact JSON object.' }
+    Assert-KmcExactProperties $State $properties 'restored save-transaction record'
+    if ((($State.schemaVersion -isnot [int]) -and ($State.schemaVersion -isnot [long])) -or [long]$State.schemaVersion -ne 2 -or
+        $State.phase -isnot [string] -or [string]$State.phase -cne 'restored' -or $State.restoredInventoryDigest -isnot [string] -or
+        $State.baselineImmutable -isnot [bool] -or -not [bool]$State.baselineImmutable -or
+        $State.saveWriteAllowlistPassed -isnot [bool] -or -not [bool]$State.saveWriteAllowlistPassed) {
+        throw 'The save-transaction record schema, terminal phase or restoration flags are invalid.'
+    }
+}
+
 function Assert-KmcRecoveryLeafNoLinks {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
     if (-not (Test-Path -LiteralPath $Path)) { throw "$Description is missing: $Path" }
@@ -2528,6 +2550,8 @@ function Invoke-KmcWorkingFixtureRequalificationRecovery {
         }
     }
     $lock = Adopt-KmcStaleRuntimeLock -StateRoot $StateRoot -ExpectedPurpose 'fixture-requalification' -ExpectedRunId $RunId -Reservation $Reservation
+    # A run stopped before it registered its child (an empty bound ledger) records it now, before the first recovery write.
+    Register-KmcRunObligation -Lock $lock -Name 'fixture-requalification'
     try {
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
@@ -3070,6 +3094,7 @@ function Enter-KmcWorkingSaveTransaction {
     $backupRun = Assert-KmcChildPath (Join-Path $backupParent $runId) $backupParent 'save transaction backup'
     $stagingRun = Assert-KmcChildPath (Join-Path $stagingParent $runId) $stagingParent 'save transaction staging'
     if ((Test-Path -LiteralPath $backupRun) -or (Test-Path -LiteralPath $stagingRun)) { throw "Run ID already has save backup or staging state: $runId" }
+    Register-KmcRunObligation -Lock $Lock -Name 'working'
     New-Item -ItemType Directory -Path $backupRun -Force | Out-Null
     New-Item -ItemType Directory -Path $stagingRun -Force | Out-Null
     $backupPath = Join-Path $backupRun 'KMC_AUTOMATION_WORKING.original.zks'
@@ -3117,7 +3142,6 @@ function Enter-KmcWorkingSaveTransaction {
         artifactQuarantineRoot = $artifactQuarantineRoot
         beforeInventory = $beforeInventory
     }
-    Register-KmcRunObligation -Lock $Lock -Name 'working'
     Write-KmcJsonDurable $statePath $state
     return $statePath
 }
@@ -3568,7 +3592,9 @@ function Get-KmcPlayerPrefsKeyPath {
 }
 # The identity of an open file (volume serial and file index), and deletion through that same handle: the local lock is
 # removed only when the file at its path is the very file this transaction held.
-if (-not ('KingmakerMountedCombat.Reservation.FileIdentity' -as [type])) {
+# Compiled on first use only (a lock close), so importing the harness loads no generated assembly.
+function Initialize-KmcFileIdentity {
+    if ('KingmakerMountedCombat.Reservation.FileIdentity' -as [type]) { return }
     Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -3795,7 +3821,9 @@ function Read-KmcRunObligationLedger {
     $seen = @{}
     foreach ($entry in @($ledger.obligations)) {
         if ($entry -isnot [pscustomobject]) { throw 'An obligation ledger entry is not an object.' }
-        Assert-KmcExactProperties $entry @('name','startedAtUtc','closedAtUtc','closedBy') 'run obligation'
+        $entryFields = @($entry.PSObject.Properties.Name)
+        Assert-KmcExactProperties $entry $(if ($entryFields -ccontains 'evidenceSha256') { @('name','startedAtUtc','closedAtUtc','closedBy','evidenceSha256') } else { @('name','startedAtUtc','closedAtUtc','closedBy') }) 'run obligation'
+        if ($entryFields -ccontains 'evidenceSha256' -and ($entry.evidenceSha256 -isnot [string] -or $entry.evidenceSha256 -cnotmatch '^[0-9a-f]{64}$')) { throw 'An obligation ledger evidence digest is malformed.' }
         if ($entry.name -isnot [string] -or $script:KmcRunObligationNames -cnotcontains $entry.name -or $seen.ContainsKey($entry.name) -or $entry.startedAtUtc -isnot [string] -or
             ($null -ne $entry.closedAtUtc -and $entry.closedAtUtc -isnot [string]) -or ($null -ne $entry.closedBy -and $entry.closedBy -isnot [string])) {
             throw 'An obligation ledger entry is malformed.'
@@ -3814,8 +3842,15 @@ function Register-KmcRunObligation {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Run $($Lock.RunId) has no obligation ledger; no child may start." }
     $ledger = Read-KmcRunObligationLedger $path ([string]$Lock.RunId) ([string]$Lock.Token)
     if (@($ledger.obligations | Where-Object { $_.name -ceq $Name }).Count -ne 0) { return }
-    if ($null -ne $Evidence) { Write-KmcJsonCreateNewDurable -Path (Join-Path (Split-Path -Parent $path) ([string]$Lock.RunId + '.' + $Name + '.json')) -Value $Evidence }
-    $ledger.obligations = @(@($ledger.obligations) + @([pscustomobject][ordered]@{ name = $Name; startedAtUtc = [DateTime]::UtcNow.ToString('o'); closedAtUtc = $null; closedBy = $null }))
+    $entry = [pscustomobject][ordered]@{ name = $Name; startedAtUtc = [DateTime]::UtcNow.ToString('o'); closedAtUtc = $null; closedBy = $null }
+    if ($null -ne $Evidence) {
+        # The evidence (the run-bound loader receipt) names this run and transaction token, and its exact bytes are
+        # bound to the ledger entry by digest: a substituted or partly written file is never trusted.
+        $evidencePath = Join-Path (Split-Path -Parent $path) ([string]$Lock.RunId + '.' + $Name + '.json')
+        Write-KmcJsonCreateNewDurable -Path $evidencePath -Value ([ordered]@{ schemaVersion = 1; runId = [string]$Lock.RunId; token = [string]$Lock.Token; name = $Name; receipt = $Evidence })
+        $entry | Add-Member -NotePropertyName evidenceSha256 -NotePropertyValue (Get-KmcSha256 $evidencePath)
+    }
+    $ledger.obligations = @(@($ledger.obligations) + @($entry))
     Write-KmcJsonDurable $path $ledger
 }
 
@@ -3855,6 +3890,8 @@ function Get-KmcRunObligationGap {
     $int = { param($v, [string]$f) $p = $v.PSObject.Properties[$f]; if ($null -eq $p -or ($p.Value -isnot [int] -and $p.Value -isnot [long])) { return -1 }; return [long]$p.Value }
     switch ($Name) {
         'profile' {
+            $snapshot = & $readJournal (Join-Path $BackupRoot ('profile-' + $RunId + '\snapshot.json'))
+            if ($snapshot -is [string]) { return ('its profile snapshot is ' + $snapshot) }
             if ($Entry.closedAtUtc -is [string] -and $Entry.closedBy -is [string]) { return $null }
             return 'started; no verified profile restoration is recorded'
         }
@@ -3862,6 +3899,8 @@ function Get-KmcRunObligationGap {
             $v = & $readJournal (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-isolation.json'))
             if ($v -is [string]) { return & $text $v }
             if ((& $int $v 'schemaVersion') -ne 1 -or -not (& $hex $v 'originalDigest') -or -not (& $hex $v 'snapshotSha256') -or -not (& $str $v 'profileDigest') -or -not (& $str $v 'stage')) { return 'its isolation record lacks its schema fields' }
+            $snapshotPath = Join-Path $BackupRoot ('profile-' + $RunId + '\snapshot.json')
+            if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf) -or (Get-KmcSha256 $snapshotPath) -cne $v.snapshotSha256) { return 'its isolation record names another profile snapshot' }
             if ($v.stage -cne 'restored') { return 'its isolation is not restored' }
             return $null
         }
@@ -3883,16 +3922,16 @@ function Get-KmcRunObligationGap {
         'working' {
             $v = & $readJournal (Get-KmcSaveTransactionStatePath $StateRoot $RunId)
             if ($v -is [string]) { return & $text $v }
-            $before = $v.PSObject.Properties['beforeInventory']
-            if ((& $int $v 'schemaVersion') -ne 2 -or -not (& $hex $v 'workingSha256') -or -not (& $str $v 'workingPath') -or $null -eq $before -or $null -eq $before.Value -or -not (& $hex $before.Value 'digest')) { return 'its record lacks its schema fields' }
-            if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or -not (& $str $v 'restoredAtUtc') -or -not (& $str $v 'workingRestoredAtUtc') -or -not (& $hex $v 'restoredInventoryDigest') -or $v.restoredInventoryDigest -cne $before.Value.digest) { return 'it is not restored exactly to its recorded intake' }
+            # The writer's own restored-record contract (exact fields, terminal phase, restoration flags).
+            try { Assert-KmcRestoredSaveTransactionRecord $v } catch { return ('its restored record is invalid: ' + $_.Exception.Message) }
+            if (-not (& $hex $v.beforeInventory 'digest') -or $v.restoredInventoryDigest -cne $v.beforeInventory.digest) { return 'it is not restored exactly to its recorded intake' }
             return $null
         }
         'mods' {
             $v = & $readJournal (Get-KmcTransactionStatePath $StateRoot $RunId)
             if ($v -is [string]) { return & $text $v }
-            $schema = & $int $v 'schemaVersion'
-            if ($schema -lt 1 -or $schema -gt 4 -or -not (& $str $v 'liveModsRoot') -or -not (& $hex $v 'beforeDigest')) { return 'its record lacks its schema fields' }
+            # The writer's own record contract (exact required and allowed fields per schema).
+            try { [void](Assert-KmcModsTransactionStateShape $v) } catch { return ('its record lacks its schema fields: ' + $_.Exception.Message) }
             if ($v.phase -isnot [string] -or $v.phase -cne 'restored' -or -not (& $str $v 'restoredAtUtc') -or -not (& $hex $v 'restoredDigest') -or $v.restoredDigest -cne $v.beforeDigest) { return 'it is not restored exactly to its recorded intake' }
             return $null
         }
@@ -3900,8 +3939,15 @@ function Get-KmcRunObligationGap {
             # The run-bound loader selection recorded with the obligation, before any shared preparation.
             $path = Join-Path (Join-Path $StateRoot 'run-obligations') ($RunId + '.installed-dependencies.json')
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return 'its recorded loader selection is missing' }
+            $digest = $Entry.PSObject.Properties['evidenceSha256']
+            if ($null -eq $digest -or (Get-KmcSha256 $path) -cne [string]$digest.Value) { return 'its recorded loader selection is not the one bound to this run at registration (substituted or incomplete)' }
             $receipt = $null
-            try { $receipt = Read-KmcJson $path; Assert-KmcBaseGameDependencyReceipt $receipt } catch { return 'its recorded loader selection is invalid' }
+            try {
+                $wrapper = Read-KmcJson $path
+                Assert-KmcExactProperties $wrapper @('schemaVersion','runId','token','name','receipt') 'run-bound loader selection'
+                if ([long]$wrapper.schemaVersion -ne 1 -or [string]$wrapper.runId -cne $RunId -or [string]$wrapper.token -cne $Token -or [string]$wrapper.name -cne 'installed-dependencies') { throw 'unbound' }
+                $receipt = $wrapper.receipt; Assert-KmcBaseGameDependencyReceipt $receipt
+            } catch { return 'its recorded loader selection is invalid' }
             if ($PrivateOnly) { return $null }
             try { Assert-KmcBaseGameDependencyReceipt $receipt -VerifyFiles } catch { return ('the installed loader dependencies differ: ' + $_.Exception.Message) }
             return $null
@@ -3917,7 +3963,8 @@ function Get-KmcRunObligationGap {
         'fixture-requalification' {
             $v = & $readJournal (Join-Path $StateRoot ('fixture-requalifications\' + $RunId + '.json'))
             if ($v -is [string]) { return & $text $v }
-            if ((& $int $v 'schemaVersion') -lt 1) { return 'its record lacks its schema fields' }
+            # The requalification writer's own state validator.
+            try { [void](Assert-KmcWorkingFixtureRequalificationStateSchema $v) } catch { return ('its record is invalid: ' + $_.Exception.Message) }
             if ($v.phase -isnot [string] -or $v.phase -cnotin @('committed','recovered-committed','rolled-back','recovered-rolled-back','replacement-write-attempt-rolled-back','aborted-before-replacement')) { return 'it is not terminal' }
             return $null
         }
@@ -3932,7 +3979,10 @@ function Get-KmcRunArtifacts {
         @('combined', (Get-KmcRunTransactionStatePath $StateRoot $RunId)), @('mods', (Get-KmcTransactionStatePath $StateRoot $RunId)),
         @('working', (Get-KmcSaveTransactionStatePath $StateRoot $RunId)), @('fixture-recovery', (Join-Path $StateRoot ('fixture-recoveries\' + $RunId + '.json'))),
         @('fixture-requalification', (Join-Path $StateRoot ('fixture-requalifications\' + $RunId + '.json'))),
-        @('profile', (Join-Path $BackupRoot ('profile-' + $RunId + '\snapshot.json'))), @('areas', (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-isolation.json')))
+        @('profile', (Join-Path $BackupRoot ('profile-' + $RunId))), @('areas', (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-isolation.json'))),
+        @('areas', (Join-Path $BackupRoot ('profile-' + $RunId + '\Areas-original'))), @('mods', (Join-Path $BackupRoot $RunId)),
+        @('working', (Join-Path $BackupRoot ('save-transactions\' + $RunId))), @('fixture-recovery', (Join-Path $BackupRoot ('fixture-recoveries\' + $RunId))),
+        @('fixture-requalification', (Join-Path $StateRoot ('fixture-requalifications\' + $RunId + '.prior.json')))
     ) | Where-Object { Test-Path -LiteralPath $_[1] }
 }
 
@@ -4014,7 +4064,8 @@ function Enter-KmcBoundRecoveryReservation {
         # and before its journal (that obligation alone, open only for its missing record).
         $expected = $PreJournalObligation + ': its terminal record is missing'
         $startedText = @($state.Started) -join ','; $openText = @($state.Open) -join '|'
-        $proven = ($startedText -ceq '' -and $openText -ceq '') -or ($startedText -ceq $PreJournalObligation -and $openText -ceq $expected)
+        $priorArtifact = $PreJournalObligation + ': the artifact ' + (Join-Path $fullState ('fixture-requalifications\' + $RunId + '.prior.json')) + ' exists but the ledger records no such child'
+        $proven = ($startedText -ceq '' -and ($openText -ceq '' -or $openText -ceq $priorArtifact)) -or ($startedText -ceq $PreJournalObligation -and $openText -ceq $expected)
         if (-not (Test-Path -LiteralPath (Get-KmcRunObligationLedgerPath $fullState $RunId)) -or -not $proven) {
             throw ("Run $RunId has no recovery journal and its private evidence does not prove an interruption before the journal; recovery refuses before any takeover: " + (@($state.Open) -join '; '))
         }
@@ -4029,14 +4080,19 @@ function Enter-KmcBoundRecoveryReservation {
 # before and after), or, standalone, a preparation reservation taken for this read and released after it (the read's own
 # error wins; a cleanup failure is reported beside it).
 function Invoke-KmcOwnedSharedRead {
-    param($OwnerLock, [Parameter(Mandatory = $true)][ValidatePattern('^[a-z-]{1,60}$')][string]$Purpose, [Parameter(Mandatory = $true)][scriptblock]$Read, [string]$StateRoot)
+    param($OwnerLock, [Parameter(Mandatory = $true)][ValidatePattern('^[a-z-]{1,60}$')][string]$Purpose, [Parameter(Mandatory = $true)][scriptblock]$Read, [string]$StateRoot, [Parameter(Mandatory = $true)][string[]]$Path)
     if ($null -ne $OwnerLock) {
+        # Only a lock paired with its own (not borrowed) reservation authorizes the read, and every input it reads must be
+        # covered by that reservation's convention.
+        if ($null -eq $OwnerLock.PSObject.Properties['Reservation'] -or $null -eq $OwnerLock.Reservation -or $OwnerLock.Reservation.Borrowed) { throw 'The owner lock holds no verified reservation of its own; the shared read is refused.' }
+        Assert-KmcReservationCoversSurface -Lock $OwnerLock -Path $Path
         [void](Assert-KmcRuntimeLockOwner $OwnerLock)
         $result = & $Read
         [void](Assert-KmcRuntimeLockOwner $OwnerLock)
         return $result
     }
     if ([string]::IsNullOrEmpty($StateRoot)) { $StateRoot = Join-Path (Get-KmcLabRoot) 'runtime-state' }
+    Assert-KmcReservationCoversSurface -Path $Path
     $session = Enter-KmcNativeReservation -StateRoot $StateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-' + $Purpose) -Purpose ('preparation-' + $Purpose)
     $failed = $false
     try { & $Read }
@@ -4146,9 +4202,14 @@ function Set-KmcReservationState {
 function Exit-KmcUnlockedNativeReservation {
     param($Session, [switch]$PreserveError)
     if ($null -eq $Session -or $Session.Released -or $Session.LockHeld -or $Session.Borrowed) { return }
+    # An adopted session is handed back once: a later cleanup of the same exit never transitions the lease again.
+    if ($null -ne $Session.PSObject.Properties['HandedBack'] -and $Session.HandedBack) { return }
     Invoke-KmcReservationTestHook 'before-unlocked-release'
     try {
-        if ($Session.Adopted) { Set-KmcReservationState -Session $Session -PendingFollowUp ([string]$Session.PendingFollowUp) -Resumable $true }
+        if ($Session.Adopted) {
+            Set-KmcReservationState -Session $Session -PendingFollowUp ([string]$Session.PendingFollowUp) -Resumable $true
+            $Session | Add-Member -NotePropertyName HandedBack -NotePropertyValue $true -Force
+        }
         elseif (-not $Session.LockCreated) { Exit-KmcNativeReservation $Session }
     }
     catch {
@@ -4179,7 +4240,7 @@ function Enter-KmcEntrypointReservation {
         $session = New-KmcReservationSession $fullState ([string]$record.runId) $Purpose $borrow '' '' '' $convention $false $false
         $session.Borrowed = $true
         $session
-    }
+    } | ForEach-Object { Invoke-KmcReservationTestHook 'entrypoint-after-borrowed-admission'; $_ }
 }
 
 # Reads a stale lock's payload without holding the file (shared read, no exclusive handle) and validates its shape.
@@ -4316,7 +4377,7 @@ function Open-KmcRuntimeLock {
         try {
             $bytes = [Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress))
             $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true)
-            $lock = [pscustomobject]@{ Path = $lockPath; Stream = $stream; RunId = $RunId; Token = $token; Reservation = $Reservation }
+            $lock = [pscustomobject]@{ Path = $lockPath; Stream = $stream; RunId = $RunId; Token = $token; Reservation = $Reservation; Payload = [Convert]::ToBase64String($bytes) }
             if (-not [string]::IsNullOrWhiteSpace($Purpose)) {
                 $lock | Add-Member -NotePropertyName Purpose -NotePropertyValue $Purpose
             }
@@ -4353,6 +4414,7 @@ function Close-KmcRuntimeLock {
     }
     if ($null -ne $session -and -not [string]::IsNullOrEmpty($KeepFor)) { Set-KmcReservationState -Session $session -PendingFollowUp $KeepFor -Resumable $true }
     $path = [string]$Lock.Path
+    Initialize-KmcFileIdentity
     $heldIdentity = [KingmakerMountedCombat.Reservation.FileIdentity]::Of($Lock.Stream.SafeFileHandle)
     $Lock.Stream.Dispose()
     Invoke-KmcReservationTestHook 'close-before-unlink'
@@ -4363,11 +4425,21 @@ function Close-KmcRuntimeLock {
     }
     if ($null -ne $session -and -not (Test-KmcNativeReservationHeld $session)) { & $stop 'close: the reservation changed before the unlink' $(try { [IO.File]::ReadAllText([string]$session.Convention.RecordPath) } catch { $null }) }
     $unlink = $null
-    try { $unlink = New-Object IO.FileStream($path, [IO.FileMode]::Open, [Security.AccessControl.FileSystemRights]'Delete, ReadAttributes', [IO.FileShare]'ReadWrite, Delete', 4096, [IO.FileOptions]::None) }
+    # Read and delete access, sharing only reads: nobody can write or delete the file between this verification and the
+    # deletion through the same handle.
+    try { $unlink = New-Object IO.FileStream($path, [IO.FileMode]::Open, [Security.AccessControl.FileSystemRights]'Read, Delete', [IO.FileShare]::Read, 4096, [IO.FileOptions]::None) }
     catch { & $stop ('close: the local lock could not be opened for removal: ' + $_.Exception.Message) $path }
     try {
         $currentIdentity = [KingmakerMountedCombat.Reservation.FileIdentity]::Of($unlink.SafeFileHandle)
         if ($currentIdentity -cne $heldIdentity) { $unlink.Dispose(); $unlink = $null; & $stop ('close: another file replaced the held local lock (' + $currentIdentity + ', held ' + $heldIdentity + ')') $path }
+        if ($null -ne $Lock.PSObject.Properties['Payload'] -and -not [string]::IsNullOrEmpty([string]$Lock.Payload)) {
+            $content = New-Object byte[] ([int]$unlink.Length); $read = 0
+            while ($read -lt $content.Length) { $n = $unlink.Read($content, $read, $content.Length - $read); if ($n -le 0) { break }; $read += $n }
+            if ([Convert]::ToBase64String($content) -cne [string]$Lock.Payload) {
+                $observed = [Text.Encoding]::UTF8.GetString($content); $unlink.Dispose(); $unlink = $null
+                & $stop 'close: the local lock''s ownership bytes changed after its handle closed' $observed
+            }
+        }
         try { [KingmakerMountedCombat.Reservation.FileIdentity]::MarkForDeletion($unlink.SafeFileHandle) }
         catch { $unlink.Dispose(); $unlink = $null; & $stop ('close: the KMC lock could not be removed: ' + $_.Exception.Message) $path }
     }
@@ -4384,8 +4456,12 @@ function Close-KmcRuntimeLock {
 # token verified) so the transaction's own recovery can continue from any process while peers stay excluded.
 function Abandon-KmcRuntimeLock {
     param([Parameter(Mandatory = $true)]$Lock)
-    [void](Assert-KmcRuntimeLockStreamOwner $Lock)
-    $Lock.Stream.Dispose()
+    # Used on failure paths: it never throws over the caller's own failure. A handle a failed close already disposed is
+    # not reopened; the reservation is marked resumable only when it is still exactly this transaction's.
+    if ($null -ne $Lock.Stream -and $Lock.Stream.CanRead) {
+        try { [void](Assert-KmcRuntimeLockStreamOwner $Lock) } catch { Write-Warning "The lock handle could not be revalidated while abandoning: $($_.Exception.Message)" }
+    }
+    try { $Lock.Stream.Dispose() } catch { }
     if ($null -ne $Lock.PSObject.Properties['Reservation'] -and $null -ne $Lock.Reservation -and -not $Lock.Reservation.Released) {
         $Lock.Reservation.LockHeld = $false
         try { Set-KmcReservationState -Session $Lock.Reservation -PendingFollowUp ([string]$Lock.Reservation.PendingFollowUp) -Resumable $true }
@@ -4438,7 +4514,7 @@ function Adopt-KmcStaleRuntimeLock {
         Assert-KmcRecoveryLeafNoLinks $lockPath 'opened stale runtime lock'
         $payload.ownerProcessId=$PID
         $bytes=[Text.Encoding]::UTF8.GetBytes(($payload|ConvertTo-Json -Compress));$stream.SetLength(0);$stream.Position=0;$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)
-        $lock=[pscustomobject]@{Path=$lockPath;Stream=$stream;RunId=[string]$payload.runId;Token=[string]$payload.token;Reservation=$Reservation}
+        $lock=[pscustomobject]@{Path=$lockPath;Stream=$stream;RunId=[string]$payload.runId;Token=[string]$payload.token;Reservation=$Reservation;Payload=[Convert]::ToBase64String($bytes)}
         if (-not [string]::IsNullOrWhiteSpace($ExpectedPurpose)) {
             $lock | Add-Member -NotePropertyName Purpose -NotePropertyValue $ExpectedPurpose
         }
@@ -4653,6 +4729,8 @@ function Enter-KmcModsTransaction {
     $backupRun = Assert-KmcChildPath (Join-Path ([IO.Path]::GetFullPath($BackupRoot)) $runId) $BackupRoot 'transaction backup'
     $stagingRun = Assert-KmcChildPath (Join-Path ([IO.Path]::GetFullPath($StagingRoot)) $runId) $StagingRoot 'transaction staging'
     if ((Test-Path -LiteralPath $backupRun) -or (Test-Path -LiteralPath $stagingRun)) { throw "Run ID already has backup or staging state: $runId" }
+    Register-KmcRunObligation -Lock $Lock -Name 'mods'
+    if ($baseGameOnly) { Register-KmcRunObligation -Lock $Lock -Name 'installed-dependencies' -Evidence $BaseGameDependencies }
     New-Item -ItemType Directory -Path $backupRun | Out-Null; New-Item -ItemType Directory -Path $stagingRun | Out-Null
     $originalBackup = Join-Path $backupRun 'Mods-original'
     $ready = Join-Path $stagingRun 'Mods-ready'
@@ -4758,8 +4836,6 @@ function Enter-KmcModsTransaction {
         $carried=@($KmcCarryFiles|Where-Object{$null-ne$_})
         if($carried.Count-ne0){$state['kmcCarriedFiles']=@($carried|ForEach-Object{[ordered]@{name=[string]$_.name;length=[long]$_.length;sha256=[string]$_.sha256}})}
     }
-    Register-KmcRunObligation -Lock $Lock -Name 'mods'
-    if ($baseGameOnly) { Register-KmcRunObligation -Lock $Lock -Name 'installed-dependencies' -Evidence $BaseGameDependencies }
     Write-KmcJsonAtomic $statePath $state
     try {
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
@@ -4786,17 +4862,11 @@ function Enter-KmcModsTransaction {
     }
 }
 
-function Restore-KmcModsTransaction {
-    param(
-        [Parameter(Mandatory = $true)]$Lock,
-        [Parameter(Mandatory = $true)][string]$StatePath,
-        [Parameter(Mandatory = $true)][string]$LiveModsRoot,
-        [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [Parameter(Mandatory = $true)][string]$StagingRoot
-    )
-    [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
-    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($LiveModsRoot)
-    $state = Read-KmcJson $StatePath
+# The Mods transaction writer's record contract (exact required and allowed fields per schema), read-only: used by
+# restoration and by the run's obligation judgement. Returns the schema version.
+function Assert-KmcModsTransactionStateShape {
+    param([Parameter(Mandatory = $true)]$state)
+    if ($state -isnot [pscustomobject]) { throw 'Transaction state is not an exact JSON object.' }
     $requiredState = @('schemaVersion','runId','token','phase','preparedAtUtc','liveModsRoot','originalBackup','stagedReady','stagedAfter','frozenPackage','packageSha256','beforeDigest','beforeFileCount','beforeDirectoryCount','beforeTotalBytes','stagedDigest','stagedFileCount','stagedDirectoryCount','stagedTotalBytes')
     $schemaVersion = [int]$state.schemaVersion
     if ($schemaVersion -in @(3,4)) {
@@ -4810,6 +4880,21 @@ function Restore-KmcModsTransaction {
     if (@($requiredState | Where-Object { $_ -cnotin $actualState }).Count -ne 0 -or @($actualState | Where-Object { $_ -cnotin $allowedState }).Count -ne 0) {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
+    return $schemaVersion
+}
+
+function Restore-KmcModsTransaction {
+    param(
+        [Parameter(Mandatory = $true)]$Lock,
+        [Parameter(Mandatory = $true)][string]$StatePath,
+        [Parameter(Mandatory = $true)][string]$LiveModsRoot,
+        [Parameter(Mandatory = $true)][string]$BackupRoot,
+        [Parameter(Mandatory = $true)][string]$StagingRoot
+    )
+    [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
+    Assert-KmcReservationCoversSurface -Lock $Lock -Path @($LiveModsRoot)
+    $state = Read-KmcJson $StatePath
+    $schemaVersion = Assert-KmcModsTransactionStateShape $state
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
     $allowedModes=if($schemaVersion-eq4){@('base-game-only-kmc','base-game-only-kmc-observer')}else{@('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')}
     if($schemaVersion-eq4-and[string]$state.stagingMode-ceq'base-game-only-kmc-observer'-and
@@ -4892,10 +4977,12 @@ function Restore-KmcModsTransaction {
         Write-KmcJsonAtomic $StatePath $state
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
         Move-Item -LiteralPath $fullLive -Destination $stagedAfter
+        Add-KmcReservationProgress $Lock ('runtime Mods tree moved to ' + $stagedAfter + '; live Mods absent; the pre-run tree still held at ' + $backup)
+        Invoke-KmcReservationTestHook 'mods-restore-after-first-move'
     }
     [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
     Move-Item -LiteralPath $backup -Destination $fullLive
-    Add-KmcReservationProgress $Lock 'live Mods returned to the pre-run tree'
+    Add-KmcReservationProgress $Lock ('live Mods returned to the pre-run tree from ' + $backup)
     $restored=Get-KmcDirectoryManifest $fullLive; Assert-KmcManifestMatchesState $restored $state 'before'
     $state.phase='restored'; $state | Add-Member -NotePropertyName restoredAtUtc -NotePropertyValue ([DateTime]::UtcNow.ToString('o')) -Force; $state | Add-Member -NotePropertyName restoredDigest -NotePropertyValue $restored.digest -Force; Write-KmcJsonAtomic $StatePath $state
     return (Add-KmcModsRuntimeWriteFindings $restored $state $stagedAfter)

@@ -265,18 +265,20 @@ try{
 finally{
  # Each owner is attempted independently. A failed run can still report complete
  # resource release; prior guard failures are never erased by successful cleanup.
- $compilerSettled=$true
- foreach($compiler in $compilerOwners){try{Close-KmcScopedCompiler $compiler}catch{$compilerSettled=$false;$cleanupErrors.Add($_.Exception.ToString())}}
+ # Shared-resource settlement (compilers and every owned input handle) is tracked apart from process-context restoration
+ # (environment, module autoload, working location): only the former decides whether shared handles were released.
+ $compilerSettled=$true;$handleErrors=[Collections.Generic.List[string]]::new()
+ foreach($compiler in $compilerOwners){try{Close-KmcScopedCompiler $compiler}catch{$compilerSettled=$false;$handleErrors.Add($_.Exception.ToString())}}
  for($i=$environments.Count-1;$i-ge0;$i--){try{Exit-KmcScopedEnvironment $environments[$i]}catch{$cleanupErrors.Add($_.Exception.ToString())}}
  if($compilerSettled){
-  foreach($lease in $owned){try{$lease.Dispose()}catch{$cleanupErrors.Add($_.Exception.ToString())}}
-  foreach($lease in $rawOwners){try{$lease.Dispose()}catch{$cleanupErrors.Add($_.Exception.ToString())}}
- }else{$cleanupErrors.Add('Unsettled compiler retains its dependency handles; no qualification is eligible.')}
+  foreach($lease in $owned){try{$lease.Dispose()}catch{$handleErrors.Add($_.Exception.ToString())}}
+  foreach($lease in $rawOwners){try{$lease.Dispose()}catch{$handleErrors.Add($_.Exception.ToString())}}
+ }else{$handleErrors.Add('Unsettled compiler retains its dependency handles; no qualification is eligible.')}
  foreach($name in $bootstrapSaved.Keys){try{[Environment]::SetEnvironmentVariable($name,$bootstrapSaved[$name],'Process')}catch{$cleanupErrors.Add($_.Exception.ToString())}}
  try{if($hadAutoload){$global:PSModuleAutoLoadingPreference=$oldAutoloadValue}else{$ExecutionContext.SessionState.PSVariable.Remove('PSModuleAutoLoadingPreference')}}catch{$cleanupErrors.Add($_.Exception.ToString())}
  try{[Environment]::CurrentDirectory=$originalDirectory;if($null-ne$originalLocation){Set-Location -LiteralPath $originalLocation}}catch{$cleanupErrors.Add($_.Exception.ToString())}
- $released=$cleanupErrors.Count-eq0
- foreach($error in $cleanupErrors){$errors.Add($error)}
+ $released=$handleErrors.Count-eq0
+ foreach($error in @($handleErrors)+@($cleanupErrors)){$errors.Add($error)}
 }
 # The reservation is released (or kept) after every shared handle settled and before the lab-local receipt is written,
 # so the receipt reports the actual release result.

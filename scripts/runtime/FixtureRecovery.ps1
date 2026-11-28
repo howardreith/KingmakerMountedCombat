@@ -200,9 +200,10 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
         [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $before -Actual (Get-KmcQualificationTreeInventory -Root $SaveRoot -Scope save-root) -Description 'fixture-recovery under-lock save inventory')
         $recoveryRoot=Join-Path $fullState 'fixture-recoveries';if(-not(Test-Path -LiteralPath $recoveryRoot)){New-Item -ItemType Directory -Path $recoveryRoot|Out-Null}
         $quarantineRoot=Join-Path ([IO.Path]::GetFullPath($BackupRoot)) 'fixture-recoveries';if(-not(Test-Path -LiteralPath $quarantineRoot)){New-Item -ItemType Directory -Path $quarantineRoot|Out-Null}
-        $runQuarantine=Join-Path $quarantineRoot $RunId;if(Test-Path -LiteralPath $runQuarantine){throw 'Fixture-recovery quarantine already exists.'};New-Item -ItemType Directory -Path $runQuarantine|Out-Null
-        $state=[ordered]@{schemaVersion=1;runId=$RunId;token=[string]$lock.Token;phase='prepared';preparedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');saveRoot=[IO.Path]::GetFullPath($SaveRoot);workingPath=$workingPath;unexpectedSha256=[string]$currentWorking.sha256;unexpectedLength=[long]$currentWorking.length;unexpectedLastWriteTimeUtcTicks=[long]$currentWorking.lastWriteTimeUtcTicks;quarantinePath=$quarantinePath;qualifiedBackupPath=[string]$candidate.backup.path;qualifiedBackupSha256=[string]$candidate.backup.sha256;qualifiedBackupAuthorityPath=[string]$candidate.authorityPath;qualifiedBackupAuthoritySha256=[string]$candidate.authoritySha256;expectedWorkingSha256=[string]$expectedWorking.sha256;expectedWorkingLength=[long]$expectedWorking.length;expectedWorkingLastWriteTimeUtcTicks=[long]$expectedWorking.lastWriteTimeUtcTicks;unaffectedSaveDigest=(Get-KmcUnaffectedSaveDigest $before $workingPath)}
+        $runQuarantine=Join-Path $quarantineRoot $RunId;if(Test-Path -LiteralPath $runQuarantine){throw 'Fixture-recovery quarantine already exists.'}
         Register-KmcRunObligation -Lock $lock -Name 'fixture-recovery'
+        New-Item -ItemType Directory -Path $runQuarantine|Out-Null
+        $state=[ordered]@{schemaVersion=1;runId=$RunId;token=[string]$lock.Token;phase='prepared';preparedAtUtc=[DateTimeOffset]::UtcNow.ToString('o');saveRoot=[IO.Path]::GetFullPath($SaveRoot);workingPath=$workingPath;unexpectedSha256=[string]$currentWorking.sha256;unexpectedLength=[long]$currentWorking.length;unexpectedLastWriteTimeUtcTicks=[long]$currentWorking.lastWriteTimeUtcTicks;quarantinePath=$quarantinePath;qualifiedBackupPath=[string]$candidate.backup.path;qualifiedBackupSha256=[string]$candidate.backup.sha256;qualifiedBackupAuthorityPath=[string]$candidate.authorityPath;qualifiedBackupAuthoritySha256=[string]$candidate.authoritySha256;expectedWorkingSha256=[string]$expectedWorking.sha256;expectedWorkingLength=[long]$expectedWorking.length;expectedWorkingLastWriteTimeUtcTicks=[long]$expectedWorking.lastWriteTimeUtcTicks;unaffectedSaveDigest=(Get-KmcUnaffectedSaveDigest $before $workingPath)}
         Write-KmcJsonCreateNewDurable -Path $statePath -Value $state
         $journalCreated=$true
         [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared move
@@ -221,7 +222,12 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
             catch{
                 $inner=if($null-ne$_.Exception.InnerException){$_.Exception.InnerException}else{$_.Exception}
                 $occupied=$inner-is[IO.IOException]-and(([int]$inner.HResult-band0xFFFF)-eq80)
-                if(-not$occupied){Add-KmcReservationProgress $lock ('qualified copy failed ('+$_.Exception.Message+'); Working absent; original quarantined at '+$quarantinePath);throw}
+                if(-not$occupied){
+                    $copyFailure=$_
+                    Add-KmcReservationProgress $lock ('qualified copy failed ('+$copyFailure.Exception.Message+'); Working absent; original quarantined at '+$quarantinePath)
+                    Write-KmcReservationIncident -Session $lock.Reservation -Context 'fixture repair: the qualified copy failed after the quarantine move' -Observed ('qualified backup '+$(if(Test-Path -LiteralPath ([string]$candidate.backup.path) -PathType Leaf){'present'}else{'absent'})+' ('+[string]$candidate.backup.path+'); Working '+$(if(Test-Path -LiteralPath $workingPath){'present'}else{'absent'})+'; quarantined original '+$(if(Test-Path -LiteralPath $quarantinePath -PathType Leaf){Get-KmcSha256 $quarantinePath}else{'absent'})) -InitialDifferences $copyFailure.Exception.Message -RestorationPerformed @($lock.Reservation.Progress) -RemainingDifferences 'the qualified copy was not installed; a verified rollback of the quarantine move follows' -ResourcesReleased 'none yet: the KMC lock and the reservation are held'
+                    throw $copyFailure
+                }
             }
         }
         if($occupied){
@@ -271,18 +277,33 @@ function Invoke-KmcQualifiedWorkingFixtureRecovery {
                 Write-KmcReservationIncident -Session $lock.Reservation -Context ('fixture repair rollback refused: '+$Why) -Observed ('Working '+$(if(Test-Path -LiteralPath $workingPath -PathType Leaf){Get-KmcSha256 $workingPath}else{'absent'})+'; quarantine '+$(if(Test-Path -LiteralPath $quarantinePath -PathType Leaf){Get-KmcSha256 $quarantinePath}else{'absent'})) -RestorationPerformed @($lock.Reservation.Progress) -RemainingDifferences 'every file left as observed' -ResourcesReleased 'none: the KMC lock and the reservation stay'
                 throw "the rollback was refused: $Why"
             }
+            # Before any move the whole state is proven: the quarantined original present and exact; Working either the
+            # exact installed qualified copy (bytes, length and timestamp) with a free replacement quarantine, or absent
+            # when the copy never landed.
+            if($moved){
+                if(-not(Test-Path -LiteralPath $quarantinePath -PathType Leaf)-or(Get-KmcSha256 $quarantinePath)-cne[string]$currentWorking.sha256){& $refuseRollback 'the quarantined original is missing or changed'}
+                if($replaced){
+                    $installed=if(Test-Path -LiteralPath $workingPath -PathType Leaf){Get-Item -LiteralPath $workingPath}else{$null}
+                    if($null-eq$installed-or$installed.Length-ne[long]$expectedWorking.length-or$installed.LastWriteTimeUtc.Ticks-ne[long]$expectedWorking.lastWriteTimeUtcTicks-or(Get-KmcSha256 $workingPath)-cne[string]$candidate.backup.sha256-or(Test-Path -LiteralPath $replacementQuarantine)){& $refuseRollback 'Working is no longer the exact installed qualified copy, or its quarantine destination is occupied'}
+                }elseif(Test-Path -LiteralPath $workingPath){& $refuseRollback 'Working is occupied although the qualified copy never landed'}
+            }
             if($replaced-and(Test-Path -LiteralPath $workingPath)){
-                if((Get-KmcSha256 $workingPath)-cne[string]$candidate.backup.sha256-or(Test-Path -LiteralPath $replacementQuarantine)){& $refuseRollback 'Working is no longer the installed qualified copy, or its quarantine destination is occupied'}
                 [void](Assert-KmcRuntimeLockOwner $lock);Move-Item -LiteralPath $workingPath -Destination $replacementQuarantine
+                Add-KmcReservationProgress $lock ('installed qualified copy moved to '+$replacementQuarantine+'; Working absent')
             }
             if($moved-and(Test-Path -LiteralPath $quarantinePath)){
-                if((Get-KmcSha256 $quarantinePath)-cne[string]$currentWorking.sha256-or(Test-Path -LiteralPath $workingPath)){& $refuseRollback 'the quarantined original changed, or Working is occupied'}
-                [void](Assert-KmcRuntimeLockOwner $lock);Move-Item -LiteralPath $quarantinePath -Destination $workingPath;(Get-Item -LiteralPath $workingPath).LastWriteTimeUtc=[DateTime]::new([long]$currentWorking.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)}
+                if(Test-Path -LiteralPath $workingPath){& $refuseRollback 'Working is occupied'}
+                [void](Assert-KmcRuntimeLockOwner $lock);Move-Item -LiteralPath $quarantinePath -Destination $workingPath
+                Add-KmcReservationProgress $lock ('original Working moved back from '+$quarantinePath+'; its timestamp not yet restored')
+                [void](Assert-KmcRuntimeLockOwner $lock);(Get-Item -LiteralPath $workingPath).LastWriteTimeUtc=[DateTime]::new([long]$currentWorking.lastWriteTimeUtcTicks,[DateTimeKind]::Utc)}
             $restoredWorking=Read-KmcFixtureHeader -Path $workingPath -Kind working -SaveRoot $SaveRoot
             if([string]$restoredWorking.sha256-cne[string]$currentWorking.sha256-or[long]$restoredWorking.lastWriteTimeUtcTicks-ne[long]$currentWorking.lastWriteTimeUtcTicks){throw 'Working is not back to its exact pre-repair bytes.'}
             if((Get-KmcUnaffectedSaveDigest (Get-KmcQualificationTreeInventory -Root $SaveRoot -Scope save-root) $workingPath)-cne(Get-KmcUnaffectedSaveDigest $before $workingPath)){throw 'A save other than Working differs after rollback.'}
             if($journalCreated){ $rollback=Read-KmcJson $statePath;$rollback.phase='rolled-back';$rollback|Add-Member -NotePropertyName rollbackAtUtc -NotePropertyValue ([DateTimeOffset]::UtcNow.ToString('o')) -Force;$rollback|Add-Member -NotePropertyName failure -NotePropertyValue $failure -Force;Write-KmcJsonDurable $statePath $rollback }
+            Add-KmcReservationProgress $lock 'rollback verified: the original Working is back with its timestamp'
+            $closingRollback=$lock
             Close-KmcRuntimeLock $lock;$lock=$null
+            Write-KmcReservationIncident -Session $closingRollback.Reservation -Context 'fixture repair outcome: verified rollback' -Observed 'the original Working restored exactly' -RestorationPerformed @($closingRollback.Reservation.Progress) -RemainingDifferences 'none' -ResourcesReleased 'the KMC lock and the reservation released'
         }catch{if($null-ne$lock){try{Abandon-KmcRuntimeLock $lock}catch{}};throw "Fixture recovery failed and rollback could not be proven (ownership retained): $failure / $($_.Exception.Message)"}
         throw "Fixture recovery failed and the unexpected Working was restored: $failure"
     }

@@ -85,7 +85,7 @@ try {
  if((Get-KmcPersistencePlayerPrefs)-cne$prefs){throw 'Preference race before restoration.'}
  [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
- try{foreach($change in $changes){$key.SetValue($change.name,[Convert]::FromBase64String($change.value),[Microsoft.Win32.RegistryValueKind]::Binary)};$key.Flush()}finally{$key.Dispose()}
+ try{foreach($change in $changes){[void](Assert-KmcRuntimeLockOwner $lock);$key.SetValue($change.name,[Convert]::FromBase64String($change.value),[Microsoft.Win32.RegistryValueKind]::Binary);Add-KmcReservationProgress $lock ('preference restored: '+$change.name)};$key.Flush()}finally{$key.Dispose()}
  Add-KmcReservationProgress $lock 'PlayerPrefs values restored'
  [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::WriteAllBytes($snapshot.paramsPath,[IO.File]::ReadAllBytes($saved))

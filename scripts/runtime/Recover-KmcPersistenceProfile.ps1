@@ -112,7 +112,7 @@ try{
     Restore-KmcPersistenceStartupSettings -Lock $lock -RecoveredTransactionToken $(if($AfterTransactionRecovery){$runToken}else{''}) -Snapshot $snapshot -BackupRoot $backups -ExpectedCurrentParamsSha256 $CurrentParamsSha256 -ExpectedCurrentPrefsSha256 $CurrentPrefsSha256 -RemovalObserver:$removalObserver -BaseGameOnly:$baseGameOnly -Confirm:$false
     # Restore defers a zero-length native cache leaf; the settled-empty rule is the authority again after the mutation, and
     # the admitted leaf is recorded, so the PASS below never rests on a deferred check.
-    $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit)
+    $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit -Lock $lock)
     $acceptedEmpty=@($accepted|Where-Object change -CEQ 'created-empty')
     if((ConvertTo-Json -InputObject @($acceptedEmpty|ForEach-Object path) -Compress)-cne(ConvertTo-Json -InputObject @($admittedBefore|ForEach-Object path) -Compress)){throw 'The admitted empty native cache leaf changed during recovery.'}
     # The verified profile restoration closes the run's profile obligation; the release then needs the run's complete

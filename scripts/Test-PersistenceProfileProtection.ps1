@@ -341,11 +341,19 @@ try{
     $ptRun='post-transaction-test';$ptToken=('ab'*32);$ptState=Join-Path $root 'pt-state';$ptEvidence=Join-Path $root 'pt-evidence'
     foreach($dir in @((Join-Path $ptState 'run-transactions'),(Join-Path $ptState 'transactions'),(Join-Path $ptState 'save-transactions'),(Join-Path $ptEvidence $ptRun))){[void][IO.Directory]::CreateDirectory($dir)}
     $ptSnapshot=[pscustomobject]@{runId=$ptRun;token=$ptToken}
+    # The child records follow their writers' full contracts (Assert-KmcModsTransactionStateShape and
+    # Assert-KmcRestoredSaveTransactionRecord); a case varies only their run, token and phase.
     $writeState={param($combined,$mods,$save)
         $utf8=[Text.UTF8Encoding]::new($false)
+        $modsRecord=[ordered]@{schemaVersion=2;runId=$mods.runId;token=$mods.token;phase=$mods.phase;preparedAtUtc='2026-10-25T21:51:00Z';liveModsRoot='C:\Mods';originalBackup='C:\b';stagedReady='C:\r';stagedAfter='C:\a';frozenPackage='C:\p.zip';packageSha256=('9'*64)
+            beforeDigest=('0'*64);beforeFileCount=1;beforeDirectoryCount=1;beforeTotalBytes=1;stagedDigest=('8'*64);stagedFileCount=1;stagedDirectoryCount=1;stagedTotalBytes=1;restoredAtUtc='2026-10-25T21:59:57Z';restoredDigest=('0'*64)}
+        $saveRecord=[ordered]@{schemaVersion=2;runId=$save.runId;token=$save.token;phase=$save.phase;preparedAtUtc='x';scenario='fixture-intake';maxRuntimeArchiveWrites=0;saveRoot='C:\Saves';baselinePath='b';baselineSha256=('1'*64);baselineLength=1;baselineLastWriteTimeUtcTicks=1
+            expectedGameName='g';expectedGameId='i';expectedArea='a';workingPath='C:\Saves\Manual_2_KMC_AUTOMATION_WORKING.zks';workingSha256=('5'*64);workingLength=1;workingLastWriteTimeUtcTicks=1;backupPath='k';backupSha256=('3'*64);backupLength=1;artifactQuarantineRoot='q'
+            beforeInventory=[ordered]@{digest=('1'*64)};restoreStartedAtUtc='x';saveWriteAllowlistPassed=$true;runtimeInventoryDigest=('6'*64);workingDisposition='d';artifactPlan=@();artifactPlanDigest=('7'*64);recoveryPlannedAtUtc='x'
+            baselineImmutable=$true;artifactsQuarantinedAtUtc='x';workingRestoredAtUtc='x';restoredInventoryDigest=('1'*64);restoredAtUtc='x'}
         [IO.File]::WriteAllText((Join-Path $ptState ('run-transactions/'+$ptRun+'.json')),($combined|ConvertTo-Json -Depth 4),$utf8)
-        [IO.File]::WriteAllText((Join-Path $ptState ('transactions/'+$ptRun+'.json')),($mods|ConvertTo-Json -Depth 4),$utf8)
-        [IO.File]::WriteAllText((Join-Path $ptState ('save-transactions/'+$ptRun+'.json')),($save|ConvertTo-Json -Depth 4),$utf8)}
+        [IO.File]::WriteAllText((Join-Path $ptState ('transactions/'+$ptRun+'.json')),($modsRecord|ConvertTo-Json -Depth 4),$utf8)
+        [IO.File]::WriteAllText((Join-Path $ptState ('save-transactions/'+$ptRun+'.json')),($saveRecord|ConvertTo-Json -Depth 4),$utf8)}
     $newCombined={[ordered]@{schemaVersion=2;runId=$ptRun;token=$ptToken;mode='save-backed-v3-suite';phase='restored';preparedAtUtc='2026-10-25T21:51:00Z'
         liveModsRoot='C:\Mods';saveRoot='C:\Saves';modsDigestBefore=('0'*64);saveInventoryDigestBefore=('1'*64);qualificationSuiteSnapshotPath='C:\suite.json'
         qualificationSuiteId='suite-1';qualificationSuiteSnapshotSha256=('2'*64);restoreAttemptedAtUtc='2026-10-25T21:59:57Z';modsRestored=$true;saveProtectionPassed=$true

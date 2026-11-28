@@ -120,7 +120,7 @@ if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){throw 'Recovery req
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -RequiredJournal @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotSha} -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcBoundRecoveryReservation -StateRoot $stateRoot -RunId $runId -RequiredJournal @((Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json')),(Get-KmcRunTransactionStatePath $stateRoot $runId),(Get-KmcTransactionStatePath $stateRoot $runId)) -Pins @{(Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))=$snapshotSha} -Purpose 'recovery-one-run'
 trap{$trapReservation=Get-Variable -Name nativeReservation -ValueOnly -ErrorAction SilentlyContinue;if($null-ne$trapReservation-and-not$trapReservation.LockHeld){Exit-KmcUnlockedNativeReservation $trapReservation -PreserveError};break}
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/snapshot.json')) $backupRoot 'exact run profile snapshot'
@@ -217,7 +217,7 @@ try{
         try{
             if($null-eq$key){throw 'Actual Kingmaker PlayerPrefs key disappeared.'}
             foreach($change in $startup.changes){
-                $key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)
+                [void](Assert-KmcRuntimeLockOwner $lock);$key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary);Add-KmcReservationProgress $lock ('preference restored: '+$change.name)
             }
             $key.Flush()
             Add-KmcReservationProgress $lock 'PlayerPrefs values restored'

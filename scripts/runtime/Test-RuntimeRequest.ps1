@@ -3,7 +3,10 @@ param(
     [Parameter(Mandatory = $true)][string]$RequestPath,
     [string]$PackageManifestPath,
     # The caller's held transaction lock (the runtime launcher's); without it a shared read reserves for itself.
-    $OwnerLock
+    $OwnerLock,
+    # The launcher's final validation after its release: the F11 installed-file observation the launcher made under its
+    # lock (bound to this run in the evidence root) is verified instead of competing for a new reservation.
+    [switch]$UseRunBoundObservation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -136,9 +139,24 @@ if($hasF11AllocationProbe){
     Assert-KmcNotReparsePoint $expectedF11Path 'F11 staged helper'; Assert-KmcNotHardLink $expectedF11Path 'F11 staged helper'
     # The installed Mono belongs to the configured live installation: read under the caller's verified lock, or standalone
     # under a preparation reservation for this read (docs/NATIVE-RESERVATION.md).
-    Invoke-KmcOwnedSharedRead -OwnerLock $OwnerLock -Purpose 'request-validation' -Read {
-        if((Get-KmcSha256 $expectedF11Path)-cne$f11.sha256-or(Get-KmcSha256 $expectedMonoPath)-cne$f11.loadedMonoSha256){
-            throw 'F11 staged helper or installed Mono bytes differ from the closed request.'
+    $observationPath=Join-Path ([string]$request.evidenceRoot) 'f11-owned-observation.json'
+    if($UseRunBoundObservation){
+        $observation=Read-KmcJson $observationPath
+        Assert-KmcExactProperties $observation @('schemaVersion','runId','lockToken','helperSha256','monoPath','monoSha256','observedAtUtc') 'F11 owned observation'
+        if([long]$observation.schemaVersion-ne1-or[string]$observation.runId-cne[string]$request.runId-or[string]$observation.lockToken-cnotmatch'^[0-9a-f]{64}$'-or
+            [string]$observation.helperSha256-cne$f11.sha256-or[string]$observation.monoPath-cne$expectedMonoPath-or[string]$observation.monoSha256-cne$f11.loadedMonoSha256-or
+            (Get-KmcSha256 $expectedF11Path)-cne$f11.sha256){
+            throw 'The run-bound F11 observation does not match the closed request.'
+        }
+    }else{
+        Invoke-KmcOwnedSharedRead -OwnerLock $OwnerLock -Purpose 'request-validation' -Path @($expectedMonoPath) -Read {
+            if((Get-KmcSha256 $expectedF11Path)-cne$f11.sha256-or(Get-KmcSha256 $expectedMonoPath)-cne$f11.loadedMonoSha256){
+                throw 'F11 staged helper or installed Mono bytes differ from the closed request.'
+            }
+        }
+        # Under the launcher's lock the verified observation is bound to this run for its final validation after release.
+        if($null-ne$OwnerLock-and-not(Test-Path -LiteralPath $observationPath)){
+            Write-KmcJsonAtomic $observationPath ([ordered]@{schemaVersion=1;runId=[string]$request.runId;lockToken=[string]$OwnerLock.Token;helperSha256=[string]$f11.sha256;monoPath=$expectedMonoPath;monoSha256=[string]$f11.loadedMonoSha256;observedAtUtc=[DateTime]::UtcNow.ToString('o')})
         }
     }
     $isolationPath=Join-Path ([string]$request.evidenceRoot) 'base-game-isolation-admission.json'

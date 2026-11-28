@@ -51,6 +51,7 @@ function New-KmcPersistenceProfileSnapshot {
         if(Test-Path -LiteralPath $ancestor){Assert-KmcNotReparsePoint $ancestor 'persistence profile backup ancestor'}
         $parent=Split-Path -Parent $ancestor;if($parent-ceq$ancestor){break};$ancestor=$parent
     }
+    Register-KmcRunObligation -Lock $Lock -Name 'profile'
     [void][IO.Directory]::CreateDirectory($target)
     $copy=Join-Path $target 'profile'
     [void][IO.Directory]::CreateDirectory($copy)
@@ -71,9 +72,8 @@ function New-KmcPersistenceProfileSnapshot {
         runId=[string]$Lock.RunId;token=[string]$Lock.Token;profile=$profile
         inventory=$before;profileDigest=Get-KmcPersistenceProfileDigest $before;paramsPath=$params;paramsSha256=$paramsHash;playerPrefsJson=$prefs
     }
-    Register-KmcRunObligation -Lock $Lock -Name 'profile'
     Write-KmcJsonCreateNewDurable -Path (Join-Path $target 'snapshot.json') -Value $record
-    [void](Assert-KmcPersistenceProfileUnchanged $record)
+    [void](Assert-KmcPersistenceProfileUnchanged $record -Lock $Lock)
     return $record
 }
 
@@ -242,7 +242,8 @@ function Get-KmcNativeEmptyCacheAdmission {
 }
 
 function Assert-KmcPersistenceProfileUnchanged {
-    param($Snapshot,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse')
+    # -Lock: the held lock whose reservation convention selects the preference key (Get-KmcPlayerPrefsKeyPath).
+    param($Snapshot,[ValidateSet('Refuse','Admit','Defer')][string]$EmptyNewLeaf='Refuse',$Lock)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
@@ -250,7 +251,7 @@ function Assert-KmcPersistenceProfileUnchanged {
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
-    if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
+    if((Get-KmcPersistencePlayerPrefs -Lock $Lock)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
     $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
     $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after -EmptyNewLeaf $EmptyNewLeaf
     # Admitted native cache churn and appended analytics batches, for the caller
@@ -261,10 +262,10 @@ function Assert-KmcPersistenceProfileUnchanged {
 
 function Wait-KmcPersistenceProfileUnchanged {
     param($Snapshot,[ValidateRange(0,60000)][int]$MaximumWaitMilliseconds=60000,
-        [ValidateRange(25,1000)][int]$PollMilliseconds=250)
+        [ValidateRange(25,1000)][int]$PollMilliseconds=250,$Lock)
     $elapsed=[Diagnostics.Stopwatch]::StartNew()
     while($true){
-        try{return @(Assert-KmcPersistenceProfileUnchanged $Snapshot)}
+        try{return @(Assert-KmcPersistenceProfileUnchanged $Snapshot -Lock $Lock)}
         catch{
             # Only a newly created, not-yet-populated native achievement cache
             # receives a short read-only settlement window. Every other profile,
@@ -274,7 +275,7 @@ function Wait-KmcPersistenceProfileUnchanged {
                     -not$_.Exception.Message.EndsWith(' 0',[StringComparison]::Ordinal)){throw}
             # A zero-length leaf that never populated within the window: only the settled-empty admission may take it
             # (exact empty bytes, untouched for the whole settlement window); otherwise the original refusal stands.
-            if($elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){return @(Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Admit)}
+            if($elapsed.ElapsedMilliseconds-ge$MaximumWaitMilliseconds){return @(Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Admit -Lock $Lock)}
             Start-Sleep -Milliseconds $PollMilliseconds
         }
     }
@@ -559,7 +560,7 @@ function Restore-KmcPersistenceStartupSettings {
             }
         }finally{if($null-ne$key){$key.Dispose()}}
     }
-    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Defer)
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot -EmptyNewLeaf Defer -Lock $Lock)
 }
 
 # Exact one-run cache delta: native Unity analytics archived four new files on
