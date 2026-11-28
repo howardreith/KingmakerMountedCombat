@@ -8840,23 +8840,26 @@ namespace Harness
                     var physicalAfter = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
                     var nativeAfter = c.Pair.movementState.AllocationMetresStepped(w.Horse);
                     var stalls = w.MountStalls;
-                    // Round 18 (R16-F3): later ticks keep any verified positive displacement inside the completion margin (each at most half the
-                    // remaining interval), so the step can creep below 0.1 mm before native's denial branch ends it; the bound is unchanged.
-                    for (var i = 0; i < 60 && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                    // Round 18 (R16-F3): later ticks keep a verified positive displacement of at least 0.01 mm inside the completion margin, so the
+                    // step may move up to the 0.1 mm margin in a few short ticks before native's denial branch ends it; the bound is unchanged
+                    // (observed: 2 later frames, 0.1 mm of extra travel, then the native force-finish).
+                    var laterFrames = 0;
+                    for (var i = 0; i < 10 && !order.IsFinished && order.StruckTargets.Count == 0; i++) { Frame(c); laterFrames++; }
                     var strikes = order.StruckTargets.Count;
                     var finalPos = w.Horse.Position;
                     var physicalFinal = c.Pair.movementState.AllocationMetresStepTravelled(w.Horse);
                     ok = firstDebit.StartsWith("committed:order:") && Field(line, "finalStepPossible") == "False" && physicalAfter <= 1.524f + 1e-4f && nativeAfter <= 1.524f + 1e-4f && (control
                         ? Math.Abs(travel - 0.065f) < 1e-3f && toEndAfter < 1e-4f && strikes == 1
                         : travel <= left + 1e-4f && toEndAfter >= PairedAttackClickProbe.NativeLastSegmentArrivalMetres && tickLine.Contains("stepExecutable(") && strikes == 0 && order.IsFinished &&
-                          order.NativeApproachEndedCount == 1 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, finalPos) <= PairedAttackClickProbe.StepMarginMetres + 1e-5f &&
+                          order.NativeApproachEndedCount == 1 && laterFrames <= 3 && Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, finalPos) <= PairedAttackClickProbe.StepMarginMetres + 1e-5f &&
                           Kingmaker.Utility.GeometryUtils.MechanicsDistance(finalPos, end) >= PairedAttackClickProbe.NativeLastSegmentArrivalMetres && physicalFinal <= 1.524f + 1e-5f);
                     detail = "first debit " + firstDebit.Substring(0, Math.Min(45, firstDebit.Length)) + "...; pose " + pose + " (" + (Kingmaker.Utility.GeometryUtils.MechanicsDistance(pose, end) * 1000f).ToString("0.###") +
                         " mm before the end " + end + ", NearTheEnd); physical step travel " + physicalBefore.ToString("0.######") + " -> " + physicalAfter.ToString("0.######") + " m (left " + left.ToString("0.####") +
                         " m), native counter " + nativeBefore.ToString("0.######") + " -> " + nativeAfter.ToString("0.######") + " m; returned duration " + Field(tickLine, "physicalDelta") + " s" +
                         (tickLine.Contains("stepExecutable(") ? " (" + tickLine.Substring(tickLine.IndexOf("stepExecutable(", StringComparison.Ordinal)) + ")" : "") + "; after native completion: position " + after +
                         " (travel " + (travel * 1000f).ToString("0.###") + " mm, " + (toEndAfter * 1000f).ToString("0.###") + " mm from the end); mount Move " + moveBefore.ToString("0.#####") + " -> " +
-                        w.Horse.CombatState.Cooldown.MoveAction.ToString("0.#####") + " s; later ticks: stalls " + stalls + " -> " + w.MountStalls + ", final position " + finalPos + " (" +
+                        w.Horse.CombatState.Cooldown.MoveAction.ToString("0.#####") + " s; later ticks: " + laterFrames + " frames, stalls " + stalls + " -> " + w.MountStalls + ", extra travel " +
+                        (Kingmaker.Utility.GeometryUtils.MechanicsDistance(after, finalPos) * 1000f).ToString("0.######") + " mm, final position " + finalPos + " (" +
                         (Kingmaker.Utility.GeometryUtils.MechanicsDistance(finalPos, end) * 1000f).ToString("0.######") + " mm from the end, physical travel " + physicalFinal.ToString("0.######") + " m); disposition " +
                         (strikes == 1 ? "strike" : order.IsFinished ? "ended " + order.EndCause + " (native force-finish " + order.NativeApproachEndedCount + "), no strike" : "live");
                 }

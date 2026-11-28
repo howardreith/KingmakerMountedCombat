@@ -450,10 +450,13 @@ namespace KingmakerMountedCombat.Integration
         // above lower, otherwise the interval's midpoint (positive whenever upper is).
         private static float InsideVerified(float backed, float lower, float upper) => backed > lower && backed > 0f ? backed : (lower + upper) * 0.5f;
 
-        // Round 18: a duration of the interval above zero is executable when it settles within the step remainder AND actually displaces the
-        // mount (a shift below the position's float resolution leaves it where it is: no movement, so the step is not kept alive by it).
+        // Round 18: a duration of the interval above zero is executable when it settles within the step remainder AND displaces the mount by at
+        // least StepMinimumDisplacementMetres (0.01 mm: a hundredth of the established 1 mm sampling resolution, below every lawful interval the
+        // search must keep, e.g. the 0.025 mm of a 50.15 mm start). A shorter move is no movement: the search returns zero and native's denial
+        // branch ends the step promptly instead of a series of ever-smaller moves toward the completion margin.
+        internal const float StepMinimumDisplacementMetres = 0.00001f;
         private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft) =>
-            StepSettlementAdmits(tick, path, origin, physicalLeft) && tick.Moving && (tick.Stop.x != origin.x || tick.Stop.z != origin.z);
+            StepSettlementAdmits(tick, path, origin, physicalLeft) && tick.Moving && GeometryUtils.MechanicsDistance(origin, tick.Stop) >= StepMinimumDisplacementMetres;
 
         // PR #70 R8-F6 (round 10): the restricted single tick predicted with the installed steering rule from the agent's live state: its own
         // path and cursor, MoveDirection, speed (MaxSpeed), combat angular speed and waypoint-skip facts. The allowance is a time
