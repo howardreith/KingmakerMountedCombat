@@ -5932,8 +5932,7 @@ namespace Harness
         private static Action<Kingmaker.View.UnitMovementAgent> ForcedCallBody;
         private static void NativeFollowPrecomputedPath(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p, float radius)
         {
-            PatchMethods.CarrierForcedPathRequestPrefix(agent, p);
-            var body = ForcedCallBody; ForcedCallBody = null; body?.Invoke(agent);
+            var body = ForcedCallBody; ForcedCallBody = null; body?.Invoke(agent);   // native work before m_RequestedPath is assigned (may nest or throw)
             agent.RequestedPath = p;
             NativeOnPathComplete(agent.Unit, p, null);
         }
@@ -10499,6 +10498,59 @@ namespace Harness
                     " m; strikes " + (order == null ? 0 : order.StruckTargets.Count) + ", carriers " + (order == null ? -1 : order.DelegatedMoveStarts));
             }
 
+            // Round 23 (R22-F1): carrier A's forced call is in progress (its call made, native has not yet assigned m_RequestedPath) when a command B
+            // admitted on the same agent makes its own complete forced call (identical or different route): B's request and delivery are B's; native
+            // then installs and completes A's path, which is A's own request and delivery (recorded at A's own assignment). Through A's first debit:
+            // A's first-tick decision proceeds on A's delivery (no deferral), commits, moves the mount and the strike lands.
+            foreach (var kase in new[] { "identical routes", "different routes" })
+            {
+                var identical = kase.StartsWith("identical");
+                var c = FirstTickPair(0.12f, 1f / 60f);
+                var w = c.World;
+                w.NativeDenialCompletesMovement = true;
+                PriorSelectionAndHold(c);
+                var agent = w.Horse.View.AgentASP;
+                UnitMoveTo nestedB = null, carrierA = null; var phaseBAfterOwn = MountedCarrierApproachPhase.NotAdmitted; var bDeliveredInside = false;
+                w.InsideApproachBeforeForcedCall = move =>
+                {
+                    carrierA = move;
+                    nestedB = new UnitMoveTo(move.ApproachPoint, 0.1f) { ForcedPath = new Pathfinding.ForcedPath(identical ? new List<Vector3>(move.ForcedPath.vectorPath) : new List<Vector3> { w.Horse.Position, w.Horse.Position + new Vector3(0f, 0f, 0.6f) }) };
+                    MountedCarrierApproachLedger.Admit(nestedB, agent);
+                    // inside A's FollowPrecomputedPath, before native assigns A's m_RequestedPath: B's complete forced call
+                    ForcedCallBody = a =>
+                    {
+                        PatchMethods.MountedAttackApproachPrefix(nestedB);
+                        TakePath(w.Horse, nestedB);
+                        bDeliveredInside = MountedCarrierApproachLedger.HasDelivery(nestedB);
+                        phaseBAfterOwn = MountedCarrierPathObserver.PhaseOf(nestedB, agent);
+                    };
+                };
+                var deferralsBefore = c.Combat.FirstTickDeferralCount;
+                var click = ClickTick(c, w.Target);
+                var p = c.Combat.FirstTickProposalForDiagnostics;
+                var order = w.Rider.Commands.Standard as MountedPairAttackCommand;
+                var start = w.Horse.Position;
+                Frame(c);
+                var aPhaseAfterCall = carrierA == null ? MountedCarrierApproachPhase.NotAdmitted : MountedCarrierPathObserver.PhaseOf(carrierA, agent);
+                var bPhaseAfterCall = nestedB == null ? MountedCarrierApproachPhase.NotAdmitted : MountedCarrierPathObserver.PhaseOf(nestedB, agent);
+                for (var i = 0; i < 20 && order != null && !order.IsFinished && order.StruckTargets.Count == 0; i++) Frame(c);
+                var decision = c.Combat.LastFirstTickDecision;
+                var deferrals = c.Combat.FirstTickDeferralCount - deferralsBefore;
+                var moved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(start, w.Horse.Position);
+                var ok = click.Admitted && p != null && carrierA != null && ReferenceEquals(carrierA, p.CarrierMove) && nestedB != null &&
+                    bDeliveredInside && phaseBAfterOwn == MountedCarrierApproachPhase.Delivered &&
+                    aPhaseAfterCall == MountedCarrierApproachPhase.Delivered && bPhaseAfterCall == MountedCarrierApproachPhase.EndedByNative &&
+                    MountedCarrierApproachLedger.RequestCount(carrierA) == 1 && MountedCarrierApproachLedger.HasDelivery(carrierA) && MountedCarrierApproachLedger.MovedAlongDelivery(carrierA) &&
+                    MountedCarrierApproachLedger.RequestCount(nestedB) == 1 && MountedCarrierApproachLedger.HasDelivery(nestedB) && !MountedCarrierApproachLedger.MovedAlongDelivery(nestedB) &&
+                    deferrals == 0 && decision.StartsWith("committed:replacement:") && moved > 0f && order.StruckTargets.Count == 1 && order.DelegatedMoveStarts == 1;
+                Check(ok, "Round 23 (R22-F1) B's complete forced call inside carrier A's forced call (" + kase + "): B delivered inside " + bDeliveredInside + " (phase " + phaseBAfterOwn +
+                    "); after A's call A phase " + aPhaseAfterCall + ", B phase " + bPhaseAfterCall + "; A requests " + MountedCarrierApproachLedger.RequestCount(carrierA) + ", delivered " +
+                    MountedCarrierApproachLedger.HasDelivery(carrierA) + ", moved along its delivery " + MountedCarrierApproachLedger.MovedAlongDelivery(carrierA) + "; B requests " +
+                    MountedCarrierApproachLedger.RequestCount(nestedB) + ", delivered " + MountedCarrierApproachLedger.HasDelivery(nestedB) + ", credited movement " + MountedCarrierApproachLedger.MovedAlongDelivery(nestedB) +
+                    "; first-tick deferrals " + deferrals + ", decision " + decision.Substring(0, Math.Min(70, decision.Length)) + "; mount moved " + moved.ToString("0.###") + " m; strikes " +
+                    (order == null ? 0 : order.StruckTargets.Count) + ", carriers " + (order == null ? -1 : order.DelegatedMoveStarts));
+            }
+
             // (4) An unregistered actual issuer U whose route is identical to a stale admitted command S (whose own approach threw earlier this frame):
             // U's transpiled forced call is delivered natively, and S receives no credit (nor does U, which is not admitted).
             {
@@ -10556,9 +10608,10 @@ namespace Harness
                 TakePath(horse, outer);
                 var nestedOk = ReferenceEquals(issuerInsideOuter, outer) && ReferenceEquals(issuerInsideInner, inner) && ReferenceEquals(issuerAfterInner, outer) &&
                     MountedCarrierPathObserver.CurrentForcedIssuer == null && MountedCarrierApproachLedger.RequestCount(outer) == 1 && MountedCarrierApproachLedger.RequestCount(inner) == 1 &&
-                    MountedCarrierApproachLedger.HasDelivery(inner);
+                    MountedCarrierApproachLedger.HasDelivery(inner) && MountedCarrierApproachLedger.HasDelivery(outer) &&
+                    MountedCarrierPathObserver.PhaseOf(outer, agent) == MountedCarrierApproachPhase.Delivered && MountedCarrierPathObserver.PhaseOf(inner, agent) == MountedCarrierApproachPhase.EndedByNative;
                 var teardownReady = MountedServiceTeardownSequence.ModDisable(new ReadyModDisableSteps());
-                var ok = propagatedUnchanged && issuerAfterThrow == null && failingRequests == 1 && !failingDelivered && collected && nestedOk && teardownReady &&
+                var ok = propagatedUnchanged && issuerAfterThrow == null && failingRequests == 0 && !failingDelivered   /* round 23: native threw before assigning m_RequestedPath, so no request was installed */ && collected && nestedOk && teardownReady &&
                     MountedCarrierPathObserver.CurrentForcedIssuer == null;
                 Check(ok, "Round 22 (R19-F5) binding controls: native exception propagated unchanged " + propagatedUnchanged + ", issuer after it " + Id(issuerAfterThrow) +
                     " (the throwing call's own request " + failingRequests + ", delivered " + failingDelivered + "); failed command collected " + collected +

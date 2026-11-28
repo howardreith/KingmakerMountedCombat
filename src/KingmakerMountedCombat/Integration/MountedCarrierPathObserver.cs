@@ -15,8 +15,10 @@ namespace KingmakerMountedCombat.Integration
     //     (060027A6), which passes a FRESH ForcedPath copy of the ticking command's ForcedPath (or of the visualized path) with no command
     //     argument; FollowPrecomputedPath sets m_RequestedPath to it and calls OnPathComplete synchronously. Round 22 (R19-F5): the product's
     //     transpiler on TickApproaching (ForcedPathCallerTranspiler) replaces that single call with FollowPrecomputedPathFrom(agent, p,
-    //     radius, this), which carries the exact executing command across the call; the FollowPrecomputedPath prefix records the forced
-    //     request for that command only, and the OnPathComplete hooks then record the delivery under the same rule as a PathTo request.
+    //     radius, this), which carries the exact (agent, path, issuer) of every active forced call. Round 23 (R22-F1): the forced request is
+    //     recorded where native actually installs it: the OnPathComplete prefix of that call (p is then m_RequestedPath and matches the active
+    //     forced call's own agent and path), so an outstanding request stays outstanding until native replaces it, and the OnPathComplete
+    //     postfix records the delivery under the same rule as a PathTo request.
     // ForcePath (UnitMoveAlongPath and ability movement) is not called through the transpiled site and is never attributed to a carrier.
     // Both hooks are filtered to agents an admitted carrier was issued to (one weak-table lookup) and never change native state.
     internal static class MountedCarrierPathObserver
@@ -35,11 +37,19 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool Tracks(Kingmaker.View.UnitMovementAgent agent) => KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.Tracks(agent);
 
-        // PR #70 R19-F5 (round 22): the command whose TickApproaching is making the transpiled FollowPrecomputedPath call, for exactly the duration
-        // of that call (null otherwise). Written only by FollowPrecomputedPathFrom (and cleared by ReleaseForcedIssuer at teardown).
-        private static Kingmaker.UnitLogic.Commands.Base.UnitCommand forcedIssuer;
+        // PR #70 R19-F5 (round 22), R22-F1 (round 23): the active transpiled FollowPrecomputedPath calls, innermost first, each with its exact agent,
+        // path and issuer, for exactly the duration of the call. Written only by FollowPrecomputedPathFrom (and cleared by ReleaseForcedIssuer at
+        // teardown); the entries are immutable.
+        private sealed class ForcedCall
+        {
+            internal Kingmaker.View.UnitMovementAgent Agent;
+            internal Pathfinding.Path Path;
+            internal Kingmaker.UnitLogic.Commands.Base.UnitCommand Issuer;
+            internal ForcedCall Outer;
+        }
+        private static ForcedCall activeForcedCall;
 
-        internal static Kingmaker.UnitLogic.Commands.Base.UnitCommand CurrentForcedIssuer => forcedIssuer;
+        internal static Kingmaker.UnitLogic.Commands.Base.UnitCommand CurrentForcedIssuer => activeForcedCall?.Issuer;
 
         // The transpiled TickApproaching call site (ForcedPathCallerTranspiler): the native call is made exactly once with its original agent,
         // path and radius; the caller is `this` of the executing TickApproaching. The issuer is set in this method's own try/finally (exception-safe
@@ -48,24 +58,28 @@ namespace KingmakerMountedCombat.Integration
         internal static void FollowPrecomputedPathFrom(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p, float radius,
             Kingmaker.UnitLogic.Commands.Base.UnitCommand caller)
         {
-            var previous = forcedIssuer;
-            forcedIssuer = caller;
+            var call = new ForcedCall { Agent = agent, Path = p, Issuer = caller, Outer = activeForcedCall };
+            activeForcedCall = call;
             try { agent.FollowPrecomputedPath(p, radius); }
-            finally { forcedIssuer = previous; }
+            finally { activeForcedCall = call.Outer; }
         }
 
-        // Teardown (MountedServiceTeardownSequence.ModDisable on success): no issuer survives disable or unload.
-        internal static void ReleaseForcedIssuer() => forcedIssuer = null;
+        // Teardown (MountedServiceTeardownSequence.ModDisable on success): no forced call survives disable or unload.
+        internal static void ReleaseForcedIssuer() => activeForcedCall = null;
 
-        // FollowPrecomputedPath prefix: the forced request of the exact executing command. It is recorded only for a carrier admitted on this
-        // agent (MountedCarrierApproachLedger.RecordRequest records nothing for an unregistered issuer and only releases the replaced
-        // outstanding request); no other command, whatever its route, receives credit.
-        internal static void BeforeForcedRequest(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
+        // Called from the OnPathComplete prefix once native has installed p as m_RequestedPath: an active forced call with this exact agent and
+        // path made that request, and it is recorded now (the outstanding request it replaces was outstanding until this assignment). It is
+        // recorded only for an issuer admitted on this agent (RecordRequest records nothing for an unregistered issuer and only releases the
+        // replaced outstanding request); no other command, whatever its route, receives credit.
+        private static void RecordForcedRequestAtAssignment(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
         {
-            var issuer = forcedIssuer;
-            if (p == null || issuer == null || !Tracks(agent)) return;
-            KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent,
-                KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.IsAdmittedOn(issuer, agent) ? issuer : null, p);
+            for (var call = activeForcedCall; call != null; call = call.Outer)
+            {
+                if (!ReferenceEquals(call.Agent, agent) || !ReferenceEquals(call.Path, p)) continue;
+                KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.RecordRequest(agent,
+                    KingmakerMountedCombat.Domain.MountedCarrierApproachLedger.IsAdmittedOn(call.Issuer, agent) ? call.Issuer : null, p);
+                return;
+            }
         }
 
         // PathTo prefix: the outstanding request before native decides.
@@ -86,6 +100,7 @@ namespace KingmakerMountedCombat.Integration
         internal static int BeforeCompletion(Kingmaker.View.UnitMovementAgent agent, Pathfinding.Path p)
         {
             if (p == null || !Tracks(agent) || !ReferenceEquals(RequestedPathOf(agent), p)) return CompletionIgnored;
+            RecordForcedRequestAtAssignment(agent, p);
             return ReferenceEquals(agent.Path, p) ? CompletionOfHeldPath : CompletionOfRequest;
         }
 
