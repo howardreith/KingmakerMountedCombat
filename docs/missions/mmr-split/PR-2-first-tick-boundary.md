@@ -1388,3 +1388,129 @@ and case C end through native's denial.
 ### 19.4 Validation
 
 See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
+
+## 20. Round 22 (owner authorization 2026-11-28c; owner amendment revision 1 unchanged)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 and owner authorization
+2026-11-28c (`docs/missions/mmr-split/owner-authorization-2026-11-28c.md`, sha256 432b0066aeb0d67158946a5dfd79a1d7a38911ed576eadcbdffa9b4c5f7d6062).
+Round 21 (candidate `ba5fbed6`) verified R20-F2, R20-F3 and R20-F4. This round corrects the four blockers R19-F5, R20-F1, R21-F1, R21-F2 and the
+optional R21-F3 (section 19.3 now cites the round-21 receipt and build dd4aea93, `7a79efb4`). Per section 3 of the authorization, no claimed fix
+keeps an exception to its expected behavior and no required case asserts a defective outcome: the round-21 identical-route "attribute nothing"
+outcome and the unsupported-steering affordable-end exemption are removed. The lead inspected each production path and acceptance assertion,
+asked for two follow-ups (the transpile proven on the real installed method; current-build hook bindings failing closed without the candidate
+artifact) and ran the combined harness before the gate. All evidence is offline (nativeProof=false).
+
+### 20.1 Forced-path issuer bound to the actual caller (R19-F5)
+
+A Harmony12 transpiler on the existing `TickApproaching` patch (060027A6, `PatchExact`) replaces the single installed
+`callvirt UnitMovementAgent.FollowPrecomputedPath` (060018B6) with `ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(agent, p,
+radius, caller)`. Installation fails closed unless the method holds exactly one call to 060018B6, as an unlabelled `callvirt` preceded by
+`newobj ForcedPath(List<Vector3>); ldarg.0; call get_ApproachRadius`, and the helper's signature matches. The helper sets the issuer, calls
+`agent.FollowPrecomputedPath(p, radius)` once with the original arguments inside its own try, restores the previous issuer in finally (no Harmony
+finalizer needed; native exceptions propagate unchanged; nesting exact) and is the only writer besides teardown (`ModDisable` ->
+`ReleaseForcedIssuer`). The `FollowPrecomputedPath` prefix records the request for that issuer only when it is admitted on that agent; an
+unregistered issuer credits no one. Retired: the scope stack, `EnterApproach`/`ExitApproach` and the scope postfix, `CurrentIssuer`, route
+equality (`ForcedPathIssuer`, `SameRoute`) and the frame-stale logic. `PathTo` and `OnPathComplete` observation are unchanged.
+
+Native contract 87/0:
+- the installed method has one such site;
+- the transpiler throws for zero sites, two sites, or a different argument shape;
+- applied through the installed Harmony12 (1.2.0.1 over HarmonyLib 2.3.6.0) to the real `TickApproaching`, it yields 234 instructions against
+  233, one `ldarg.0; call FollowPrecomputedPathFrom`, no remaining call to 060018B6, and an identical opcode sequence elsewhere;
+- unpatched afterwards with 0 owners.
+
+The direct detached patch was refused at Harmony's detour into the live original ("ECall methods must be packaged into a system module"), so
+the contract skips only that detour for this method, as `Test-GunslingerClickComposition.ps1` already does. The jump into the live original is
+observable only in game. Lifecycle contract 113/0 checks the single writer and the retired members.
+
+Cases (connected harness, through the helper):
+- (1, 2) outer A and inner B admitted on one agent, B throws inside A's approach and is caught, then A issues its forced path: with different
+  AND identical routes A gets 1 request and its delivery, B 0;
+- (3) connected first-tick flow with a stale command throwing inside route-bound carrier A's approach, identical and different routes: 0
+  deferrals, `committed:replacement:first-tick`, moved 0.17 m, 1 strike, 1 carrier;
+- (4) an unregistered actual issuer U with a route identical to a stale admitted command S: S 0 requests, no delivery; U unrecorded;
+- (5) a native exception propagates as the same object and leaves no issuer; the failed command is collected; nested calls keep exact issuers;
+  `ModDisable` leaves none; the R17-F1, R18-F2, R19-F2, route-bound, pooled-path, pending and genuine-delivery cases pass.
+
+Discrimination (round-21 code): identical routes give A 0 requests, and the first-tick flow defers (decision stays pending, 0 m, no strike);
+the stale command receives the unregistered issuer's request and delivery.
+
+Limit: if another mod's transpiler alters this call site, installation fails closed, which aborts the product's patch installation.
+
+### 20.2 Explicit step-bound result (R20-F1)
+
+`MountedMovementStateAdapter.StepExecutableTick` returns `StepBound`:
+- **NoBoundApplies** only for a forced line, or when no physical step remainder applies (infinite);
+- **Bounded** for a verified executable duration;
+- **Unestablished** (0) when the displacement cannot be established: no readable path, speed or permitted duration; steering unreadable,
+  not combat steering, or a negative or non-finite combat angular speed; the search finding no representable legal move; or a readable zero
+  combat angular speed whose selected tick needs a non-zero turn.
+
+The affordable end plays no part. Readable zero angular speed is used only when the selected tick's unit direction equals `MoveDirection`
+exactly (the pinned native rule then turns by exactly 0 and `SimulateTick` computes the shift). `TickDelegated` handles each result
+explicitly:
+- **Bounded:** `deltaTime = min(deltaTime, executable)`;
+- **Unestablished, an unknown result, an exception (caught, `fault=` detail) or no agent:** `deltaTime = 0`, so no debit, and native's denial
+  ends the step on the next frame;
+- **NoBoundApplies:** only `Advance`'s limits.
+
+`Advance` never lengthens a step tick.
+
+| Case (X = 256 m, 9 m/s) | Result | Returned | Settled | Physical | Native | Disposition |
+|---|---|---|---|---|---|---|
+| A readable interior, affordable end | Bounded | 0.011099115 s | 99.88403 mm | 1.424008 -> 1.523892 m | 0.762 -> 0.861892 m | fixture target-drift re-path (section 19.2), no strike |
+| B readable, native counter nearly exhausted | Unestablished | 0 | 0 | unchanged | unchanged | native denial |
+| C readable affordable snap | Bounded | 0.0111102266 s | on the end | 1.424008 -> 1.50399458 m | 0.762 -> 0.861992 m | native denial, no strike |
+| A2 A geometry, steering unreadable | Unestablished | 0 | 0 | unchanged | unchanged | native denial |
+| B2 B geometry, steering unreadable | Unestablished | 0 | 0 | unchanged | unchanged | native denial |
+| A3 zero angular speed, aligned | Bounded | 0.011099115 s | 99.88403 mm | as A | as A | as A |
+| A4 zero angular speed, 5.7 degrees off | Unestablished | 0 | 0 | unchanged | unchanged | native denial |
+
+Discrimination (round-21 adapter): A2 and A3 move 100.0061 mm to physical 1.52401412 m, B2 charges 5.5631e-7 s with X unchanged, and A4 charges
+0.0111102266 s through unverified steering. Native contract checks the return type.
+
+### 20.3 Complete hook records bound to the candidate artifact (R21-F1)
+
+`ConvertTo-KmcChunk7HookBindingRows` validates each row's shape (exactly one of `declaringType` for restoration rows or `type` for Manual-save
+rows, scalar method/token/module, a MethodDef token, a canonical module GUID). `Assert-KmcChunk7SameModuleHookTokens` then requires one token per
+(module, method) and one method per (module, token) across:
+- **Manual seed:** its restoration rows, its cold-inventory copy and its `nativeSave` rows;
+- **Manual-derived:** its own, source and source-cold-inventory restoration rows and the `nativeSave` rows.
+
+That is the four restoration and three Manual-save rows. Trusted metadata comes from `Get-KmcChunk7CandidateProductHooks`: the built candidate
+DLL is used only if its SHA-256 equals the record's `request.dllSha256` and its module MVID equals `request.dllMvid`. It reflects
+`NativeCombatActorPersistence.RestoreActor`/`RestoreDebt` and the single one-parameter `MountedPersistenceService.RecordCompletedSave` from
+exactly those bytes, and every current-module row must equal it.
+
+A record whose chain reports the current writer (4: the seed's normalized graph; Manual-derived's own Manual write) must obtain that artifact
+or is refused ("Current-build hook bindings require the candidate artifact"). A record whose chain reports the previous writer (3) keeps the
+module-consistency checks only; there is no historical registry. The synthetic earlier-build control keeps module `33333333-...`, product
+tokens 06001230/06001231 and one completion token 06001234 throughout source, copy and outer record (fixtures corrected from 0600A777). It is
+labelled synthetic and is not presented as reflection of the current build or as native evidence.
+
+Producer child 87/0 (15 positives, 72 refusals). Accepted: the reflected current 4/4 records (Manual-derived paid and existing Horse; Manual
+seed) and the coherent synthetic 3/3 records. Refused:
+- differing RecordCompletedSave tokens for one method and module (synthetic and current);
+- a uniform RestoreActor/RestoreDebt swap across agreeing copies (Manual-derived paid, existing Horse, Manual seed);
+- a uniform completion-token change;
+- the candidate SHA-256 under another MVID;
+- current records with the artifact absent or stale (Manual seed, both Manual-derived cases);
+- the existing collision, source-only and native-hook refusals are kept.
+
+The gate build's bindings, as reflected in this round's receipt, are the authoritative values (the developer's local runs used the round-21
+build dd4aea93).
+
+### 20.4 Seed and cold-inventory normalized versions agree (R21-F2)
+
+At the standalone Manual-seed boundary the reader validates the seed's normalized graph version and its cold inventory's and requires them to be
+equal, on top of the existing same-DLL lineage and copy checks. The input files' source schemas stay independent. Through the complete reader:
+coherent 3/3 (synthetic earlier build) and 4/4 (historical input 3 normalized to 4) accepted; 3/4 and 4/3 refused when only the seed's version
+changes and both cold-inventory copies agree; the downstream Manual-derived writer checks are unchanged.
+
+### 20.5 Validation
+
+Suites (developer runs): Manual seed 70/0, Manual-derived 118/0, Cumulative evidence 87/0, Medium acquisition 55/0, Medium continuation 14/0,
+Manual-derived source 30/0. Lead runs: combined harness on `162e1178` 581 connected/0; ordinary save descriptor reader 87/0 (another caller of
+the changed readers). `Test-Chunk7SixthHireNativeReader.ps1` cannot run in this lab: it requires the frozen runtime evidence
+`runtime-evidence/20261022-c7b-world184-b184s1-sixthhorse-manual/runtime-request.json`, which is absent, so it stops before any reader runs. It is
+not counted as passing. See the developer report and the ledger excerpt for the candidate's focused gate. Not run: Test-Tiers Full, any game.
