@@ -2,7 +2,7 @@
 
 Scoped, read-only excerpt of `analysis-cache/mounted-alpha2-melee-pose-20261124/decomposition/TRANSITION-LEDGER.jsonl`, the
 append-only, hash-chained operator ledger the owner asked for (each entry carries the SHA-256 of the previous line in
-`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-28T02:19:01+00:00.
+`prev_sha256`). The lines below are copied byte for byte; each is followed by its own SHA-256. Generated 2026-11-28T03:50:55+00:00.
 
 ```json
 {"authority": "owner instruction 2026-11-26e", "budget": "210 minutes unchanged, no new minutes", "caps": {"PR-1": 15, "PR-2": 3, "PR-3": 5, "PR-4": 8, "PR-5": "9 after round-7 settlement", "PR-6": 2}, "exceptions": "one owner resume of PR-4's R4-F3 no-progress stop within cap 8; one ordinary resume to settle Bite round 7; one owner resume of an R4-F2 no-progress stop after settlement, cap 9", "file": "owner-continuations/owner-continuation-2026-11-26e-continuation.md", "kind": "owner_instruction", "prev_sha256": "6bc4aaa433798efb37014d888d7ae61d4e99be42aee3f96a80b2e03c7e6d122d", "program_ceilings": "42 child / 49 lifetime (including 7 on PR #64)", "seq": 100, "sha256": "e16e9b72bfe4588e59c6b0f3f628b0528a3d1c48e744b4dced67da5252b0354b", "utc": "2026-11-27T01:47:39+00:00"}
@@ -233,6 +233,31 @@ SHA-256 `634d79b18abd1be193d69660c443aa86185f6ef66e6604b3cd4c99df37a3c822`
 {"authority": "owner instruction 2026-11-27f (cap 12; the last authorized PR-2 review)", "budget": "spent ~391.8 of 450 min", "candidate": "the records commit regenerating PR-2-ledger-excerpt.md with this entry (source commit b795585e)", "checks": "harness 473/0, approach native contract 52/0, components 1545/0, lifecycle 99/0, presentation 239/0, Validate-Source 153/0", "executions": "product child 55 -> 56 of 60; lifetime 62 -> 63 of 67; combined 70 -> 71 of 75", "kind": "pre_review_check", "lead_inspection": "MountedMovementPersistenceRows (R11-F1): unchanged 7-field save row; MetresStepped carries max(native counter, physical travel); restore sets both ledgers from it; never a larger remainder; older rows compatible", "pr": "PR-2", "prev_sha256": "634d79b18abd1be193d69660c443aa86185f6ef66e6604b3cd4c99df37a3c822", "round": 12, "seq": 218, "utc": "2026-11-28T02:19:01+00:00"}
 ```
 SHA-256 `72ef6b36c1216cdb97c6b4d3a81e1af9a50c0618d5b095d8a0e85ff0dbabcd34`
+
+```json
+{"candidate": "694aea89a8541ca0e1c1fd64c9395dd5caa94a53", "consequence": "PR-6 not enrolled; integrated alpha not produced", "controller_status": "BLOCKED: no progress: R10-F2, R6-F7 open for 3 consecutive reviews; review cap 12 of 12 reached", "decision": "changes_required", "disposition": "genuine new controller stop preserved (owner instruction 2026-11-27f lifted only the round-nine stop); no resume; counters untouched", "executions": "PR-2 12 of 12; product child 56 of 60; lifetime 63 of 67; infrastructure 8 of 8; combined 71 of 75", "kind": "child_stop", "new": ["R12-F1 P1 genuinely final step debit treated as ordinary route progress", "R12-F2 P2 larger ordinary grant can hide a legal shortened first tick", "R12-F3 P1 short ordinary approaches bypass the full arrival-route check", "R12-F4 P1 disable and unload can strand newly retained cleanup", "R12-F5 P2 failed speed reread removes provisional protection", "R12-F6 P2 forecast reports exhaustion with movement time left"], "pr": "PR-2", "prev_sha256": "72ef6b36c1216cdb97c6b4d3a81e1af9a50c0618d5b095d8a0e85ff0dbabcd34", "rejected": ["R10-F2 (first debit commits on an assumed duration for later frames)", "R11-F1 (saved step collapses two commitments into one value)", "R11-F3 (displacement threshold can hide a live arrival chord)", "R11-F8 (assignment observation can end before a detached mount clear settles)", "R6-F7 (fixture installs the successor path after testing cleanup)"], "result": "state rounds/r12/result-1.json sha256 7101d5b12a8ee2ab285177ccfe3df50d1194630bb5599e8d1b5f47faf7fa2468 (unedited)", "round": 12, "seq": 219, "utc": "2026-11-28T02:36:00+00:00", "verified": ["R11-F2", "R11-F4", "R11-F5", "R11-F6", "R11-F7", "R11-F9", "R11-F10"]}
+```
+SHA-256 `5b1e27e21dd14ab615b499f9724d5d7111119769655cf4af587372d5b76dda62`
+
+```json
+{"authority": "owner instruction 2026-11-27g (follows FINAL-HANDOFF-2026-11-27f)", "budget": "450 unchanged", "ceilings": "63 child / 70 lifetime / 8 infrastructure / 78 combined", "file": "owner-continuations/owner-continuation-2026-11-27g-continuation.md", "file_sha256": "fdb32097971a23122bb7f0591bba76756c04cde27fc72a20fb4936ee46043f84", "kind": "owner_instruction", "persistence": "versioned compatible extension authorized (section 6)", "pr2": "lift the round-12 no-progress and cap stop on kmc-codex-mmr-tb-approach-20261126213805-50cc (candidate 694aea89); total cap 15; narrow mission amendment: ordinary movement follows verified native semantics (section 3)", "prev_sha256": "604bcdd0c94659429f02c5926eee0f1026ef143c1914d1db85409d31deaf18f9", "seq": 222, "utc": "2026-11-28T03:10:55+00:00"}
+```
+SHA-256 `1ca4be7248f85e9ba90ea9b9baedf477901a5cbe524c94e1a008902a06244db1`
+
+```json
+{"after": "ACTIVE, develop, 12 of 15; findings preserved; documented no-progress-resume bookkeeping", "authority": "owner instruction 2026-11-27g section 2", "before": "BLOCKED no progress (R10-F2, R6-F7 open 3 consecutive reviews) and cap 12 of 12 on 694aea89", "enrollment": "kmc-codex-mmr-tb-approach-20261126213805-50cc", "kind": "resume", "operation": "agent_review.py resume --max-rounds 15 --reason ... (foreground)", "pr": "PR-2", "prev_sha256": "1ca4be7248f85e9ba90ea9b9baedf477901a5cbe524c94e1a008902a06244db1", "records": "owner-continuations/pre-resume-pr2-27g-status.json, resume-pr2-27g-output.txt", "seq": 223, "utc": "2026-11-28T03:11:53+00:00"}
+```
+SHA-256 `5f3902d76d50a433607446b38d2f5ca479f751e6b31e19064e1bd6be91d35352`
+
+```json
+{"authority": "owner instruction 2026-11-27g section 3", "displayed": "status --instructions --part 1 and --part 2 read in-session", "kind": "mission_amendment", "operation": "agent_review.py resume --amend-mission owner-continuation-2026-11-27g-continuation.md (separate from the cap resume; foreground; no guidance route)", "pr": "PR-2", "prev_sha256": "5f3902d76d50a433607446b38d2f5ca479f751e6b31e19064e1bd6be91d35352", "records": "owner-continuations/amend-pr2-27g-output.txt", "report_citation": "prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825", "result": "OWNER AMENDMENT revision 1, sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 (message sha256 fdb32097...)", "seq": 224, "utc": "2026-11-28T03:11:53+00:00"}
+```
+SHA-256 `6bc26a8e3213bafca180d969af2a75324238e7a5df6244005ab5964976d66660`
+
+```json
+{"authority": "owner instruction 2026-11-27g (cap 15; OWNER AMENDMENT revision 1)", "budget": "spent ~395.1 of 450 min", "candidate": "the records commit regenerating PR-2-ledger-excerpt.md with this entry (source commit 044841ba, by a fresh in-session developer agent)", "checks": "harness 487/0, approach native contract 58/0, lifecycle 100/0, presentation 239/0, persistence 103/0 and 56/0, components 1545/0, Validate-Source 153/0", "executions": "product child 56 -> 57 of 63; lifetime 63 -> 64 of 70; combined 71 -> 72 of 78", "kind": "pre_review_check", "lead_inspection": "boundary-note section 11.1 native baseline (IL of Assembly-CSharp sha256 3B6450FF..., MVID 07fa1e4d...); HandleModDisable drains outstanding cleanup and refuses before any unpatching, drains again after its own cleanup", "pr": "PR-2", "prev_sha256": "6bc26a8e3213bafca180d969af2a75324238e7a5df6244005ab5964976d66660", "report_citation": "prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825", "round": 13, "seq": 225, "utc": "2026-11-28T03:50:55+00:00"}
+```
+SHA-256 `e6d2b19c672a434445c98394a7f6a0b3580f7263ab8e8f6c855688b620eabfb7`
 
 Reconciliation (PR #70 review R1-F11): the original round-1 pre-review record exists. Seq 110 (2026-11-27T02:40:02Z) was
 written before the review request, and its budget figure was corrected by seq 111. It was not committed into the round-1
