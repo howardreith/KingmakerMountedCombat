@@ -429,7 +429,13 @@ function Assert-KmcNativeAcquisitionProof($Request,$Artifact,$SourceArtifact,$Se
  }elseif($null-eq$AssistedProjection){$sourceWrite=$sourceValues.nativeWrite;$sourceWorld=$sourceValues.savedWorld
   # Round 20 (R13-F2): the same-candidate Manual seed source and its cold inventory copy must carry the reflected hook identity themselves;
   # the outer record's copies are compared with them, so agreeing copies cannot carry an identity the installed module cannot emit.
-  if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid}}
+  if(-not$Cumulative){Assert-KmcChunk7RestorationHookRows $sourceValues.noPreparation.hooks $Request.dllMvid;Assert-KmcChunk7RestorationHookRows $sourceValues.sourceColdInventory.noPreparation.hooks $Request.dllMvid
+   # Round 21 (R20-F3): this record and its same-candidate sources bind each product method to one token of the shared module.
+   Assert-KmcChunk7SameModuleHookTokens (@(,$o.noPreparation.hooks)+@(,$sourceValues.noPreparation.hooks)+@(,$sourceValues.sourceColdInventory.noPreparation.hooks))
+   # Round 21 (R20-F2): the same-candidate Manual seed and cold-inventory processes decoded with the same build, so their normalized graphs
+   # carry this record's writer (its own Manual write). Their inputs' versions are independent and are not recorded.
+   $sameBuildWriter=Assert-KmcChunk7WriterSchema $o.nativeWrite.schema 'Manual-derived output writer'
+   foreach($row in @($sourceValues.archive,$sourceValues.sourceColdInventory.archive)){if((Assert-KmcChunk7NormalizedGraphVersion $row.schemaVersion 'Manual-derived same-candidate source')-ne$sameBuildWriter){throw 'A same-candidate source normalized graph differs from the build''s writer.'}}}}
  if($null-ne$AssistedProjection){
   if(-not$Cumulative-or-not(Test-KmcAssistedCumulativeMode $s)){throw 'An assisted projection belongs only to the closed cumulative source mode.'}
   $sourceValues=$AssistedProjection;$sourceWrite=$source.observations.finalManual;$sourceWorld=$source.observations.settledWorld
