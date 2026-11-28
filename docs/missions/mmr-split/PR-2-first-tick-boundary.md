@@ -975,3 +975,88 @@ command while a carrier is live; approach steering is read as "unstarted and not
 Merged harness (e48956ed, before the schema commits): TOTAL 547/0. After the reader refactor in the last schema commit, the lead re-ran the
 small-fixture evidence suite (78/0) and the world evidence suite (437/0). The candidate's focused gate is recorded in the developer report and
 the ledger excerpt. Not run: Test-Tiers Full, any game.
+
+## 16. Round 18 (owner authorization 2026-11-28a; owner amendment revision 1 unchanged; the last authorized PR-2 review)
+
+Round 17 (candidate `12441f6a`) verified R13-F3, R16-F2, R16-F4 and R16-F5. This round corrects the seven findings still open: R13-F2,
+R16-F1, R16-F3 and R17-F1..F4. The same three in-session developers worked in separate local worktrees, and the lead inspected and merged
+their branches. All evidence is offline (nativeProof=false).
+
+**Correction to section 15.3.** Section 15.3 overstated the round-17 sweep: schema-3 literals that read current output remained.
+- Producers that record the version of a graph they decoded record the normalized version, which is 4 in this candidate even for a genuine
+  schema-3 input: bootstrap, assisted cold, Manual seed, nonempty Manual-derived, acquired Manual, owner-seed world and restored starts,
+  six-pair checkpoint source and third-Horse cold.
+- Finalize2's resave and consumer checks, the ordinary autosave's observed and on-disk versions, and the UPG-01 resave's on-disk format were
+  not bound either.
+- Round 18 corrects these. The schema-3 literals that remain are historical schema-1/2 inputs, the pinned Finalize2 bridge producer (schema 3),
+  and protocol or evidence versions.
+
+### 16.1 Movement (R16-F3, R17-F2)
+
+- **R16-F3.** The step-duration search never backs off out of a verified interval. A 0.1 mm margin back-off that would leave the interval is
+  replaced by the interval's midpoint and re-checked; otherwise the verified sample itself is used (`InsideVerified`). A duration is executable
+  only when it settles within the step remainder and moves the mount at least 0.01 mm (`Executable`, `StepMinimumDisplacementMetres`: a
+  hundredth of the 1 mm sampling resolution), so a step ends promptly instead of creeping. Zero is returned only when no executable positive
+  duration was verified. Later step tick, 8.9 mm left, 9 m/s:
+  - 50.15 mm from the end: 2.778e-6 s, 0.025 mm unsnapped, physical 1.5151 -> 1.515125 m, native counter 0.762 -> 0.762025 m;
+  - 50.6 mm: 0.4 mm;
+  - 45 mm: 0;
+  - round-15 65 mm case: 2 later frames, 0.100003 mm extra travel (inside the 0.1 mm margin), then native force-finish, no strike.
+- **R17-F2.** The first-tick search judges every candidate at its native settled stop (`SimulateTick`), including durations whose shift carries
+  the mount beyond a retained interior waypoint (no snap back on an interior segment; the cursor advances) and the full permitted duration.
+  Restricted 0.0139 s tick, collinear waypoint at 111.2 mm, agent speed 8, MaxSpeed 9:
+  - sight 115-121 mm: strikes once from (0.115, 0) after 0.0127778 s; debit equals the approved duration; cursor 2;
+  - blind control: refused before any effect.
+- **Changed expectation:** the round-8 "short waypoint at 0.05 m" case now commits at its native stop beyond the waypoint, (0.12, 0); its
+  former refusal was the R17-F2 defect.
+- **Discrimination:** with round-17 behavior restored, the new cases and both round-8 short-waypoint cases fail.
+
+### 16.2 Ownership (R17-F1, R16-F1)
+
+- **R17-F1.** On entry, before any decision or native denial, `MountedMovementStateAdapter.TickDelegated` records that the agent holds a
+  delivered Path for the mount's Move-slot command (`MountedCarrierMovementLedger.RecordDelivered`). `CarrierAcquiredPath` reads this delivery
+  fact with the positive-tick fact. A path delivered and then lost on a denied zero-duration first tick, before the rider samples it, still
+  ends the issued approach before drift; an outstanding request with no Path keeps waiting. Harness (rider-first, first tick denied): 0 rider
+  observations, delivery recorded, no positive tick, 1 carrier, zero debit, no strike, Standard unspent; the admitted ground order then moves the
+  mount 0.5 m. Without the delivery term, 2 carriers.
+- **R16-F1.** Under `ModDisabled` the successor is decided by ownership, not proximity. With any live command on the mount that the pair does
+  not own, `CancelMountMovement(trigger)` and `RestoreMovementAuthority` never call native `InterruptMove` (which interrupts every `IsMoveUnit`
+  command); they interrupt only the pair's own movement commands (`InterruptOwnedMountCommands`). The mount view is not stopped while an unowned
+  command holds the Move slot, carries `IsMoveUnit`, or is still approaching (`MountSuccessor`). The exact-carrier cleanup likewise keeps an
+  unstarted unowned `IsMoveUnit` command's motion. A promoted Standard command whose target enters reach before its next native action tick
+  keeps its command, `IsMoveUnit`, Path (identity and contents), owner and cursor, with 0 interruptions and 0 stops, through the fence
+  refusals, disable and unload. Owned cleanup and Manual dismount are unchanged. Discrimination: without the delivery term and the
+  `IsMoveUnit` readings, exactly the two new cases fail.
+
+### 16.3 Persistence evidence (R13-F2, R17-F3, R17-F4)
+
+A producer-driven audit traced every schema/version field recorded by the C# Diagnostics producers to its dispatched reader.
+- **Normalized graph versions** (a graph decoded by the reading build carries that build's writer: 4 here, 3 in earlier builds) pass through one
+  shared leaf, `Assert-KmcChunk7NormalizedGraphVersion` (4 or 3; refuses 2, 5 and non-integers). This covers bootstrap, assisted cold, Manual
+  seed, Manual-derived, acquired Manual, owner-seed world and restored starts (the checkpoint start must also equal `nativeSchema`), six-pair
+  checkpoint source and third-Horse cold. These observations never carry the input version.
+- **Ordinary autosave (R17-F3):** the observed `schema` (from `archive.SourceSchema`) must equal the parsed ZIP member's `SchemaVersion`.
+- **UPG-01 (R17-F4):** the reader reads the `kmc-mounted-state` member from the hash-verified resave. The member and the reported snapshot must
+  both pass the exact versioned shape check (`StepTravel` for 4) and carry the same version.
+- **Finalize2:** a same-candidate producer's resaves may carry the current writer; the consumer must read exactly the version of its producer's
+  resaves. The declared bridge remains the pinned schema-3 producer, and the pinned historical input checks are unchanged.
+
+Evidence in the focused gate:
+- current-writer reader child 139/0: bootstrap through its reader (normalized 4 and the earlier-build 3 accepted; 2 and 5 refused), the
+  normalized leaf, UPG-01 current and historical resaves accepted and three crossed cases refused with matching hash, length and pair ids;
+- new child `chunk7\Test-Chunk7OrdinaryArchive.ps1` 23/0: 3/3 and 4/4 accepted, both crossings refused with the digest unchanged;
+- new child `Test-Finalize2UpgradeReaders.ps1 -SkipRetainedBridge` 77/0: same-candidate producer and consumer accepted, crossings refused,
+  schema-3 producer/consumer and synthetic bridge cases kept. The skipped section reads the frozen r05 run's lab receipts (missing here) and pins
+  that bridge's own source tree, so it cannot run on any other candidate.
+
+Other suites: bootstrap 151/0, Manual seed 70/0, Manual-derived 118/0, persistence save fixtures 687/0.
+
+Limits:
+- assisted cold, Manual seed, Manual-derived, acquired Manual, owner-seed world, six-pair checkpoint and third-Horse cold have schema-4
+  coverage at the shared leaf only;
+- the acquired-Manual suite timed out at 90 s (156 pass, no failure printed);
+- the assisted-cold and six-pair checkpoint suites cannot run in this lab.
+
+### 16.4 Validation
+
+See the developer report and the ledger excerpt for the candidate's focused gate (19 children). After the last schema commit, the lead re-ran the owned two-pair reader suite (205 s): 1,429 pass / 52 fail. The result is identical to round 16, and all 52 failures are the unchanged `Chunk7RealtimeEvidence.ps1:108` default-off Charge check, so the restored-start edits introduced none. Not run: Test-Tiers Full, any game.
