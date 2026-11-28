@@ -381,13 +381,20 @@ namespace KingmakerMountedCombat.Integration
         // itself when it settles within it; otherwise a downward scan at the established resolution (InDiscSampleMetres of shift, at least
         // InteriorStopCandidatesPerTick candidates), the boundary refined by bisection and backed off by StepMarginMetres of shift (re-checked);
         // 0 when no positive duration settles within the remainder. Selected is the tick at the returned duration.
+        // Round 20 (R19-F1): EVERY positive return (the permitted duration, the scan back-off, the verified scan sample and the final bisection's
+        // result) is Executable: its settled stop, the float-representable position SimulateTick computes (origin + shift, rounded as the world
+        // position will be), displaces the mount by at least StepMinimumDisplacementMetres and by no more than the physical remainder, and keeps
+        // the completion margin. Far from the origin a remainder smaller than the spacing of adjacent positions along the heading can round the
+        // stop back onto the origin (no movement while the native counter advances) or forward beyond the remainder; such a duration is not
+        // returned. A scan sample that settles but is not executable falls through to the classified bisection below; zero when no representable
+        // legal move is verified (native's denial ends the step promptly). Not a step (physicalLeft +Infinity): the permitted duration, unchanged.
         internal static float StepExecutableDuration(IList<Vector3> path, int cursor, Vector3 origin, Vector2 moveDirection, float speed, float agentSpeed,
             float combatAngular, bool followPrecomputedPath, float physicalLeft, float permitted, out NativeTick selected, out int evaluated)
         {
             evaluated = 1;
             selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, permitted, followPrecomputedPath);
             if (!(permitted > 0f) || !(speed > 0f)) return Math.Max(0f, permitted);
-            if (StepSettlementAdmits(selected, path, origin, physicalLeft)) return permitted;
+            if (float.IsPositiveInfinity(physicalLeft) || Executable(selected, path, origin, physicalLeft)) return permitted;
             var step = Math.Max(InDiscSampleMetres / speed, permitted / InteriorStopCandidatesPerTick);
             var bad = permitted;
             var t = permitted;
@@ -409,14 +416,18 @@ namespace KingmakerMountedCombat.Integration
                 }
                 // Round 18 (R16-F3): the margin back-off stays inside the verified interval [t, low]; when it would leave it, the interval's
                 // midpoint is taken instead, and the verified sample t itself when that re-check fails (never zero while a verified positive
-                // duration exists).
+                // duration exists). Round 20 (R19-F1): both are returned only when Executable (settled representable displacement within
+                // [floor, remainder], completion margin kept); otherwise the interval below the smallest unsettled sample is resolved by the
+                // classified bisection.
                 var backed = InsideVerified(low - StepMarginMetres / speed, t, low);
                 evaluated++;
                 var candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, backed, followPrecomputedPath);
-                if (StepSettlementAdmits(candidate, path, origin, physicalLeft)) { selected = candidate; return backed; }
+                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return backed; }
                 evaluated++;
-                selected = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath);
-                return t;
+                candidate = SimulateTick(path, cursor, origin, moveDirection, speed, agentSpeed, combatAngular, t, followPrecomputedPath);
+                if (Executable(candidate, path, origin, physicalLeft)) { selected = candidate; return t; }
+                bad = high;
+                break;
             }
             // Round 17 (R16-F3): the interval between zero and the last bad sample (below one scan step) is resolved before returning zero.
             // Round 19 (R18-F1): each bisection sample is classified by the existing evaluator (ClassifyStep) instead of one executable/not
@@ -472,12 +483,17 @@ namespace KingmakerMountedCombat.Integration
         // Round 19 (R18-F1): the same two guards, reported separately (ClassifyStep) so the search moves the bound the failing guard implies:
         // TooLong when the tick does not settle within the remainder (StepSettlementAdmits, which keeps the 0.1 mm completion margin), TooShort
         // when it settles but does not move or moves less than the floor. Executable is exactly ClassifyStep == Executable.
+        // Round 20 (R19-F1): the settled stop is the float-representable position (SimulateTick: origin + shift); an unsnapped stop whose
+        // settled displacement exceeds the physical remainder (a rounding forward) is TooLong as well, and one rounded back below the floor
+        // (or onto the origin) TooShort.
         internal const float StepMinimumDisplacementMetres = 0.00001f;
         internal enum StepSample { Executable, TooShort, TooLong }
         internal static StepSample ClassifyStep(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft)
         {
             if (!StepSettlementAdmits(tick, path, origin, physicalLeft)) return StepSample.TooLong;
-            return tick.Moving && GeometryUtils.MechanicsDistance(origin, tick.Stop) >= StepMinimumDisplacementMetres ? StepSample.Executable : StepSample.TooShort;
+            var settled = GeometryUtils.MechanicsDistance(origin, tick.Stop);
+            if (tick.Moving && settled > physicalLeft) return StepSample.TooLong;
+            return tick.Moving && settled >= StepMinimumDisplacementMetres ? StepSample.Executable : StepSample.TooShort;
         }
         private static bool Executable(NativeTick tick, IList<Vector3> path, Vector3 origin, float physicalLeft) =>
             ClassifyStep(tick, path, origin, physicalLeft) == StepSample.Executable;
