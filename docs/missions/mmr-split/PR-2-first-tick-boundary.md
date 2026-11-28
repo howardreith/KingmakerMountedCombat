@@ -738,3 +738,154 @@ Residual: offline evidence only (nativeProof=false); N02/N03 remain the owner's 
 against the round-14 code (by inspection the round-14 sampler took only the endpoint sample on the oblique chord, the second speed read was
 consumed by the click, and the shortened-stop search had no interior candidate). The step endpoint bound keeps 0.1 mm beyond native's 50 mm
 completion distance and may end a step up to 0.1 mm short of a lawful position. The R11-F1 and R12-F4 cases keep the stand-ins named above.
+
+## 14. Round 16 (owner authorization 2026-11-28a; owner amendment revision 1 unchanged)
+
+Authority: owner instruction 2026-11-28a (`docs/missions/mmr-split/owner-authorization-2026-11-28a.md`, sha256
+`4bf2995dc4124d63e479725d1cea77e0b0601cec4c86535bef559f39c713f442`). It resumes the round-15 stop to cap 18. OWNER AMENDMENT 1 (revision 1,
+sha256 `aa3ab2f5...`) remains the selected amendment and is not replaced or strengthened; the accepted native baseline (R13-F4) is not
+reopened. One correction pass covers all seven open findings. Three in-session developer agents worked in separate local worktrees (movement
+tick; ownership and teardown; schema-4 readers). The lead inspected each production path and merged the branches. All evidence below is offline
+(nativeProof=false); none of it is gameplay.
+
+### 14.1 The executable current tick (R13-F5, R15-F1, R15-F2, R15-F3)
+
+Invariant (owner, section 3): a replacement never commits on a stop that a later adapter adjustment prevents; the returned duration, the
+waypoint native selects, endpoint behavior and the debit agree.
+
+- **One production simulation of the installed tick.** `PairedAttackClickProbe.SimulateTick` returns the waypoint native selects at a given
+  duration, skipping included (a follow-precomputed, non-last waypoint closer than m_Speed x that duration is skipped), the combat steering
+  shift at MaxSpeed x the duration, and the endpoint completion (final plane passed, or within 0.05 m) only when the selected waypoint is the
+  path's last. It serves the first-tick decision's waypoint candidates, its interior-stop search, and the step bound.
+- **Step bound before the decision.** `MountedMovementStateAdapter.TickDelegated` resolves a step tick's permitted duration (the frame delta
+  within the allocation's `Remaining`) to the longest duration whose settled stop keeps physical step travel within the remainder
+  (`StepExecutableTick` / `StepExecutableDuration`, replacing the cursor-based `StepEndpointCap`). The gate receives that executable tick and the
+  physical remainder (`IMountedFirstTickGate.Decide` gains `stepTravelLeft`); a candidate whose settled travel exceeds the remainder is not
+  admitted. After a commit the approved duration is returned and debited unchanged (an alteration would be reported as
+  `approvedTickAltered`; none occurs). A step's native-counter finality is judged for the tick actually executed.
+- **Route check on every final debit.** The final ordinary tick and the step whose native counter becomes final now run the common
+  `EvaluateRemainingRoute` check before their executable-stop decision (`final-ordinary-tick-` / `final-step-counter-route-arrival-not-admitted`),
+  as the larger ordinary grant and the non-final step already did. The restricted single-move first tick keeps its executable-stop admission:
+  its only movement is this tick's stop under the single-action restriction.
+
+Connected cases through the real `TickDelegated` and the connected scheduler:
+
+| Case | Result |
+|---|---|
+| Later step tick, reviewer's multi-skip polyline, 0.245 m left | returned 0.0133278 s (permitted 0.0136111 s); native selects interior waypoint #2; settled stop (0.198, 0.192), travel 0.169635 m, no snap; physical 1.279 -> 1.448635 m, native counter 0.762 -> 0.88195 m (round 15: snap, 1.579 m) |
+| Interior corner (0,0) -> (0.30,0) -> (0.12,0.05), 0.10 m left | full 0.0055556 s returned; interior waypoint #1; stop (0.175, 0.075), 0.100 m; physical 1.424 -> 1.524 m; then native force-finish, no strike (round 15: no travel) |
+| Provisional final-step click displaced to 65 mm, 43.9 mm left, sight only near the endpoint | refused before effects (`route-beyond-current-grant`, 0.065 > 0.0439); returned 0; both counters 1.4801 m unchanged; generation, manual target and both Holds unchanged; no strike |
+| Affordable 40 mm endpoint snap | committed (`final-step-counter`), 0.0044444 s, stop on the endpoint, both counters 1.4801 -> 1.5201 m, one strike |
+| Blind 2 mm stripe 35 mm before a visible endpoint 0.13 m away, 9 m/s, 1/60 s | refused before movement under the 0.14 m grant (final ordinary tick) and the 0.16 m grant (ordinary branch); visible-route control commits on the endpoint and strikes once under both; lawful shortened stop (0.035, 0.035) commits and strikes once under both |
+| Same stripe, step whose counter becomes final vs step whose physical reservation binds | both refused before movement, counters 1.383375 m unchanged; visible controls commit and strike once |
+
+The round-15 65 mm / 70 mm cases still pass. Discrimination: with round-15 behavior restored locally, the six new movement cases failed.
+Limits: the multi-skip and corner geometries are injected into the agent's path (the engine stand-in); the 0.1 mm back-off applies at the
+searched boundary; unreadable or non-combat steering gives a step no executable movement (conservative).
+
+### 14.2 Native-accepted approach termination (R13-F3)
+
+`MountedPairAttackCommand.EndIfNativeTurnBasedApproachEnded` ends both supported ordinary entries (override route and native-accepted click)
+on a live carrier whose issued approach has ended, before the target-drift re-path. "Issued" means the exact carrier acquired its path while
+it owned the mount's Move slot: either the agent held a Path other than the one recorded at issue (`NoteCarrierIssued` /
+`ObserveCarrierPath`), or a request was seen in flight for that carrier (`WantsToMove` with no Path; 2.1.7b exposes no `RequestedPath`
+getter) and later delivered, whatever the Path object (A* pools Path objects). The route-bound carrier also counts its displacement. A carrier
+still awaiting its first path keeps the existing handling. Charge, automatic, real-time and provisional orders are unchanged; an
+already-legal strike still strikes.
+
+| Case | Result |
+|---|---|
+| Native-accepted click; carrier acquires a path and moves 0.188 m; path cleared while the carrier is unfinished; target drifts 0.8 m on the same frame | 1 carrier; native force-finish disposition; mount Move 0.0333 s kept; 0 strikes; rider Standard unspent; the player's ground order (through production `CompleteGroundCommandAdmission`) then moves the mount 0.5 m on its own path |
+| Same, delivered Path is the pooled object held at issue | path acquired; 1 carrier; same disposition |
+| Pending-first-path control (request in flight at the drift) | not acquired; no disposition; the existing re-path serves the order |
+
+### 14.3 Successor preservation through production dismount cleanup (R12-F4)
+
+Under `CleanupTrigger.ModDisabled` only (mod disable and unload), the pair yields a mount Move command it does not own:
+- `MountedCombatController.HandleDismounting` calls `CancelCore(..., modDisableYieldsSuccessor: true)`. It releases the admitted rider-turn
+  ground order's admission, owner and accounting without interrupting it (`ReleaseRiderTurnGroundMovementForModDisable`), and cancels mount
+  movement through `KingmakerMountedPairRuntime.CancelMountMovement(CleanupTrigger)`, which keeps the non-owned successor and still interrupts
+  any other `IsMoveUnit` command. (Without this, the cancellation interrupted the successor before the restoration ran; native `InterruptMove`
+  interrupts every `IsMoveUnit` command.)
+- `KingmakerMountedPairRuntime.RestoreMovementAuthority` consults `PreservesMountSuccessor` before stopping anything: a live non-owned mount
+  Move command receives neither `InterruptMove` nor the mount view's `StopMoving`. Leases, rider placement beside the mount and the rider's own
+  stops are unchanged.
+- Ownership (`MountCommandOwned`, bound by the relationship): the combat owner's `OwnsMountMotionCommand` (exact paired native commands and
+  carriers, door/carried/recovery moves, retained carrier cleanups) or the stick movement's bound or retained command. The admitted ground
+  order is native's own command (ClickGroundHandler's `UnitMoveTo`, rerouted to the mount), so it is never counted as the pair's.
+- Every other trigger, the player's ordinary dismount (`Manual`) and update-failure cleanup (`Exception`) included, still stops both actors.
+
+Test path: spliced production `MountedServiceTeardownSequence`, `MountedLifecycleSubscriber.HandleModDisable` and its steps,
+`MountedWorldService.Visit`/`SettleOutstandingPairCleanup`, `GameMountedRelationshipService.Dismount` and its ownership members, the real Domain
+`MountedRelationshipCoordinator` and `MountedPairRegistry`, the runtime restoration and cancellation members, and the controller's
+`HandleDismounting`, `Cancel`/`CancelCore` and retained-cleanup drain. Substituted: engine `InterruptMove`/`StopMoving`, the agent,
+`Translocate`, lease acquisition, presentation attachment, Shield release and Harmony unpatch.
+
+| Case | Result |
+|---|---|
+| Untracked steering successor (Path (0.45,0) -> (-0.05,0), cursor 1) | save-fence disable RefusedSaveOrOwners (0 drains), load-fence unload RefusedLoad, disable Ready (leases released, rider placed, AI restored), unload Ready (hooks removed); command, Path id and contents, owner, cursor, 0 interrupts and 0 stops unchanged at every step |
+| Ground-routed successor (it is `activeRiderTurnGroundMove` before the first request) | same verdicts; the controller releases its tracking at disable (no retained pair command, readiness unaffected); command, path, owner, cursor and stops unchanged throughout |
+| Failed mount stop in the restoration | RefusedResidue; enabled and hooks kept; recovery then Ready, unload Ready |
+| Cancellation-created carrier stop | RefusedResidue; retried; unload Ready, hooks removed |
+| Manual dismount control | the successor is interrupted (ordinary dismount unchanged) |
+
+Retry ownership, stated plainly: on a refused attempt the registry owner retires (owners 1 -> 0, because registry teardown readiness does not
+include the Faulted relationship). The retry is carried by the world roster, which still lists the pair, and by the Faulted coordinator's
+movement-authority residue; the next request revisits the pair (`Cleanup` -> `CleanupOwner` -> `Dismount`), re-runs the restoration and settles.
+Discrimination: with the fixes disabled, exactly the pooled-path, untracked-successor and ground-routed-successor cases failed. Limits:
+re-enable after the release was not exercised; the real `TryAdmitGroundCommand`/`RouteGroundCommand` are stood in for by their admitted
+outcome; native `IsMoveUnit` on a player `UnitMoveTo` is assumed set by TickApproaching, as modelled.
+
+### 14.4 Schema-4 consumers (R13-F2)
+
+The readers that consume this candidate's output share one version definition (`scripts/runtime/Chunk7PersistenceEvidence.ps1`:
+`Get-KmcChunk7CurrentWriterSchema` 4, `Get-KmcChunk7PreviousWriterSchema` 3, `Assert-KmcChunk7WriterArchive` with exact versioned field sets).
+Concepts kept distinct:
+- the observed historical input keeps its own version (schema-1 `inputSchema` 1; schema-2 `inputSchema` and `loadedSourceSchema` 2);
+- the normalized graph and every writer-output field (`nativeWrite.sourceSchema`, the written graph, `loadedArchive`/`migratedArchive`) equal
+  the producer's `nativeSchema`, its build's writer;
+- schema 4 requires `StepTravel` with exact, unique, finite rows covering every movement allocation; schema 3 refuses it and is accepted only as
+  the previous writer's self-consistent evidence;
+- a parent-child relationship requires parent writer = parent write = child writer.
+
+Routes updated: the current-format migration child and its parent verifier (and the runner-side qualification of that parent), the owned and
+legacy schema-1 migrations, the schema-2 migration projection (the codec's single-value `StepTravel` for writer 4), the owner-seed checkpoint
+start and candidate writer fields, the ordinary and inherited persistence dispatch, and the capital arrival/cold, repeated-world, six-pair
+persistence, rider-fall and world-scenario Manual readers. Readers of frozen or historical inputs (Finalize2 upgrade, stock mammoth,
+progression, assisted, bootstrap and ordinary-acquisition fixtures) are unchanged.
+
+New focused-gate child `scripts/chunk7/Test-Chunk7CurrentWriterReaders.ps1`. It compiles the candidate's `MountedArchiveCodec`, binds the
+reader constant to `MountedArchiveData.Schema` and `SelectedWriterSchema` (4), re-encodes the synthetic fixtures with the production writer
+and drives them through `Assert-KmcChunk7PersistenceObservation` and `Assert-KmcChunk7OwnerSeedCheckpointColdSource`: 89 pass / 0 fail, including
+a schema-4 resave and cold child for two current-migration families through the dispatcher and parent verifier, schema-1 and schema-2
+historical inputs migrated to schema-4 output, six protected ordinary/inherited current-output cases, schema-3 controls for all ten families,
+and 67 refusals (missing, null or extra `StepTravel` fields, malformed rows, wrong-version graphs, historical relabelling, mismatched
+parent-child versions). Every observation is labelled offline (`nativeInvoked=false`).
+
+Other reader suites against the changed readers (metered): Mounted Shield readers 220/0; schema-2 resave 41/0; persistence evidence 41/0;
+combat persistence evidence 103/0 and observation 199/0; schema-1 persistence 103/0; owned schema-1 evidence 56/0; repeated world 220/0.
+Pre-existing failures, not caused by this round:
+- owned schema-2 input 40/1 (`$f2Consumer` request-shape facade gap from 3a7f8a84; the same 40/1 at base 6410d150);
+- capital arrival 162/3 (frozen Batch196-198 native evidence absent from the lab);
+- owned two-pair reader 1,429/52, all 52 `Default-off native Charge refusal differs` in `Chunk7RealtimeEvidence.ps1:108`. That reader, its fixture
+  JSON and the suite script are unchanged by this branch.
+The six-pair suites stop at start-up on a missing frozen runtime-evidence file. Limits: no schema-4 gate cases for the capital,
+repeated-world, six-pair and rider-fall families (their fixtures are suite-local); the runner-side parent qualification has no offline test.
+
+### 14.5 PR-2 / PR-4 lifecycle composition
+
+Recorded in `docs/missions/mmr-split/PR-2-PR-4-lifecycle-composition.md`: disable runs PR-2's safe pre-drain, readiness, load fence and
+mod-disable cleanup, then PR-4's Mounted Shield release, selection rollback, disabled state, repair stop and remaining services. Enable and
+failure cleanup stay as PR-4 has them; the per-frame retry and unload stay as PR-2 has them. A local probe of that ordering passed 23/0. This
+round's R12-F4 changes sit below CompositionRoot, MountedServiceTeardownSequence and MountedLifecycleSubscriber, so the mapping is unaffected.
+
+### 14.6 Validation (metered) and records note
+
+Per stream, by the developers: movement harness 546/0, native contract 74/0, Validate-Source 153/0, Release build OK; ownership harness 525/0,
+lifecycle contract 108/0, components 1,545/0, Validate-Source 153/0, Release build OK; schema child 89/0 and the reader suites above. On the
+merged source (83d3fa93): attack-path harness, all 554 checks pass including the 22 round-16 cases. The candidate's focused gate (17 children
+with the new reader child) is recorded in the developer report and the ledger excerpt. Not run: Test-Tiers Full, any game.
+
+Records note: the cherry-pick of the ownership branch onto this branch left conflict markers in the harness template in commit 66079b32 (a
+lead tooling error: a relative path resolved outside the worktree). 83d3fa93 removes them, keeping both added blocks; the stray empty file the
+error created in the main checkout was deleted. No history was rewritten.
