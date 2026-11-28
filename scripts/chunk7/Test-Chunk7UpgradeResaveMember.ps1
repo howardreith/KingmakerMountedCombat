@@ -46,14 +46,16 @@ $combat4=$combat4Json|ConvertFrom-Json
 $root=Join-Path ([IO.Path]::GetTempPath()) ('kmc-upg01-member-'+[Guid]::NewGuid().ToString('N'))
 Add-Type -AssemblyName System.IO.Compression
 # One UPG-01 producer root: the retained older Quick and the resave Manual_1_KMC_P01.zks. Shape: zip (header and one mounted member),
-# plain (a text file), none (a ZIP without the mounted member) or twice (two kmc-mounted-state members). The rows record the bytes on disk.
+# plain (a text file), none (a ZIP without the mounted member), twice (two kmc-mounted-state members), utf16 (the member as UTF-16LE
+# with its byte-order mark) or utf8bom (UTF-8 preceded by its byte-order mark). The rows record the bytes on disk.
 function New-Case([string]$Name,[string]$Member,$Snapshot,[string]$Shape='zip'){
  $dir=Join-Path $root $Name;[void][IO.Directory]::CreateDirectory($dir);[IO.File]::WriteAllBytes((Join-Path $dir 'Quick_1.zks'),[Text.Encoding]::ASCII.GetBytes('retained older quick '+$Name))
  $quick=Get-KmcSha256 (Join-Path $dir 'Quick_1.zks');$path=Join-Path $dir 'Manual_1_KMC_P01.zks'
  if($Shape-ceq'plain'){[IO.File]::WriteAllBytes($path,[Text.Encoding]::ASCII.GetBytes($Member))}
  else{$entries=@(,@('header.json','{"Name":"KMC_P01","Type":"Manual"}'));if($Shape-cne'none'){$entries+=,@('kmc-mounted-state',$Member)};if($Shape-ceq'twice'){$entries+=,@('kmc-mounted-state',$Member)}
   $s=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None);$z=$null
-  try{$z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false);foreach($e in $entries){$w=[IO.StreamWriter]::new($z.CreateEntry($e[0]).Open(),[Text.UTF8Encoding]::new($false));try{$w.Write($e[1])}finally{$w.Dispose()}}}finally{if($z){$z.Dispose()};$s.Dispose()}}
+  try{$z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false);foreach($e in $entries){$data=[Text.UTF8Encoding]::new($false).GetBytes($e[1]);if($e[0]-ceq'kmc-mounted-state'-and$Shape-ceq'utf16'){$data=[byte[]]([Text.Encoding]::Unicode.GetPreamble()+[Text.Encoding]::Unicode.GetBytes($e[1]))}elseif($e[0]-ceq'kmc-mounted-state'-and$Shape-ceq'utf8bom'){$data=[byte[]](@(0xEF,0xBB,0xBF)+$data)}
+   $w=$z.CreateEntry($e[0]).Open();try{$w.Write($data,0,$data.Length)}finally{$w.Dispose()}}}finally{if($z){$z.Dispose()};$s.Dispose()}}
  [pscustomobject]@{root=$dir;request=[pscustomobject]@{persistenceLoad=[pscustomobject]@{sha256=$quick;area=$area;gameId=$campaign}}
   rows=@([pscustomobject]@{kind='initial';rider=[pscustomobject]@{Id=$script:rider};mount=[pscustomobject]@{Id=$script:mount}},[pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{ordinal=1;path=$path;sha256=(Get-KmcSha256 $path);length=(Get-Item -LiteralPath $path).Length;nativeType='Manual';nativeCallback=$true;operation='None';sourceSha256=$quick;snapshot=(Copy-Graph $Snapshot)}})}}
 function Invoke-Upgrade($c){Assert-KmcUpgradeResaveEvidence $c.request $c.rows $c.root}
@@ -91,6 +93,18 @@ try{
  Reject 'UPG-01: plain-text resave with matching recorded hash and length' {New-Case 'plain' 'kept resave as plain text' ($explore4Json|ConvertFrom-Json) 'plain'} 'not a ZIP save archive'
  Reject 'UPG-01: ZIP resave without the mounted member' {New-Case 'no-member' $explore4Json ($explore4Json|ConvertFrom-Json) 'none'} 'lacks exactly one bounded kmc-mounted-state member'
  Reject 'UPG-01: ZIP resave with two mounted members' {New-Case 'two-members' $explore4Json ($explore4Json|ConvertFrom-Json) 'twice'} 'lacks exactly one bounded kmc-mounted-state member'
+ # --- R19-F3 (round 20): the production byte semantics. Same graph and matching descriptors; only the member's encoding differs. ---
+ Reject 'UPG-01: the same schema-4 graph encoded as UTF-16LE with its byte-order mark (hash and length match)' {New-Case 'utf16-4' $explore4Json ($explore4Json|ConvertFrom-Json) 'utf16'} 'not valid UTF-8'
+ Reject 'UPG-01: the same schema-3 graph encoded as UTF-16LE with its byte-order mark' {New-Case 'utf16-3' $explore3Json $explore3 'utf16'} 'not valid UTF-8'
+ Reject 'UPG-01: the same schema-4 graph as UTF-8 preceded by a byte-order mark (the product keeps U+FEFF and its codec refuses it)' {New-Case 'utf8bom-4' $explore4Json ($explore4Json|ConvertFrom-Json) 'utf8bom'} 'refused by the product codec \(Invalid\)'
+ # --- R19-F4 (round 20): a valid toolbar row of another player character (the producer captures every authoring character's rows). ---
+ $other='66666666-6666-4666-8666-666666666666'
+ $withOther3=Edit $explore3Json {param($g)$g.Slots=@(@($g.Slots)+[pscustomobject][ordered]@{ActorId=$other;Index=0;Kind=7})};$withOther4=ConvertTo-Current $withOther3
+ Check 'UPG-01: current one-pair resave with a valid placement row of another player character, matching observation, accepted' {Invoke-Upgrade (New-Case 'other-pc-4' $withOther4 ($withOther4|ConvertFrom-Json))}
+ Check 'UPG-01: historical one-pair resave with a valid placement row of another player character, matching observation, accepted' {Invoke-Upgrade (New-Case 'other-pc-3' $withOther3 ($withOther3|ConvertFrom-Json))}
+ Reject 'UPG-01: the observation drops the other character''s row' {New-Case 'other-dropped' $withOther4 (Edit $withOther4 {param($g)$g.Slots=@($g.Slots|Where-Object ActorId -CNE $other)}|ConvertFrom-Json)} 'slot rows are not the reported rows'
+ Reject 'UPG-01: the observation relabels the other character''s row to the rider' {New-Case 'other-relabelled' $withOther4 (Edit $withOther4 {param($g)foreach($r in $g.Slots){if($r.ActorId-ceq$other){$r.ActorId=$rider}}}|ConvertFrom-Json)} 'slot rows are not the reported rows'
+ Reject 'UPG-01: the observation changes the other character''s row kind' {New-Case 'other-changed' $withOther4 (Edit $withOther4 {param($g)foreach($r in $g.Slots){if($r.ActorId-ceq$other){$r.Kind=6}}}|ConvertFrom-Json)} 'slot rows are not the reported rows'
  Reject 'UPG-01: recorded sourceSchema 3 for schema-4 bytes' {$c=New-Case 'labelled' $explore4Json ($explore4Json|ConvertFrom-Json);$c.rows[1].detail|Add-Member NoteProperty sourceSchema 3;$c} 'recorded source schema differs'
 }finally{if(Test-Path -LiteralPath $root){Remove-Item -LiteralPath $root -Recurse -Force}}
 

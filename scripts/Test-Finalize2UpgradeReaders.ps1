@@ -41,13 +41,13 @@ function Member([int]$Version,$Slots,[string]$Area=('a'*32)){ $j=(Graph3 $Slots 
  $r=$codec.decode.Invoke($null,@([string]$j)); if($codec.kind.GetValue($r).ToString() -cne 'Current'){ throw ('fixture graph refused by the product codec: '+$codec.feedback.GetValue($r)) }
  [string]$codec.encode.Invoke($null,@($codec.data.GetValue($r))) }
 # A versioned native save fixture: a header member and the mounted member. The tag only makes each fixture's bytes distinct.
-function Write-Zip([string]$Path,[string]$Json,[string]$Tag){ Add-Type -AssemblyName System.IO.Compression; $s=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None); $z=$null
- try { $z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false); foreach($m in @(@('header.json',('{"Name":"fixture","Type":"Manual","Tag":"'+$Tag+'"}')),@('kmc-mounted-state',$Json))){ $w=[IO.StreamWriter]::new($z.CreateEntry($m[0]).Open(),[Text.UTF8Encoding]::new($false)); try { $w.Write($m[1]) } finally { $w.Dispose() } } } finally { if($z){ $z.Dispose() }; $s.Dispose() }
+function Write-Zip([string]$Path,[string]$Json,[string]$Tag,[string]$Encoding='utf8'){ Add-Type -AssemblyName System.IO.Compression; $s=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None); $z=$null
+ try { $z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false); foreach($m in @(@('header.json',('{"Name":"fixture","Type":"Manual","Tag":"'+$Tag+'"}')),@('kmc-mounted-state',$Json))){ $data=[Text.UTF8Encoding]::new($false).GetBytes($m[1]); if($m[0] -ceq 'kmc-mounted-state' -and $Encoding -ceq 'utf16'){ $data=[byte[]]([Text.Encoding]::Unicode.GetPreamble()+[Text.Encoding]::Unicode.GetBytes($m[1])) } elseif($m[0] -ceq 'kmc-mounted-state' -and $Encoding -ceq 'utf8bom'){ $data=[byte[]](@(0xEF,0xBB,0xBF)+$data) }; $w=$z.CreateEntry($m[0]).Open(); try { $w.Write($data,0,$data.Length) } finally { $w.Dispose() } } } finally { if($z){ $z.Dispose() }; $s.Dispose() }
  [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
 # One retained resave: the written member (version, slots, area) and the producer's snapshot of its own write, which is its normalized read
 # of a correct member at the CLAIMED version (default: the written one) and the expected area.
-function Resave([string]$Root,[string]$Leaf,[int]$Version,$Slots,[string]$Tag,[string]$Area=('a'*32),[int]$Claim=0,[string]$Json=$null){
- if([string]::IsNullOrEmpty($Json)){ $Json=Member $Version $Slots $Area }; $a=Write-Zip (Join-Path $Root $Leaf) $Json $Tag; $a.snapshot=((Member $(if($Claim){$Claim}else{$Version}) $Slots) | ConvertFrom-Json); $a }
+function Resave([string]$Root,[string]$Leaf,[int]$Version,$Slots,[string]$Tag,[string]$Area=('a'*32),[int]$Claim=0,[string]$Json=$null,[string]$Encoding='utf8'){
+ if([string]::IsNullOrEmpty($Json)){ $Json=Member $Version $Slots $Area }; $a=Write-Zip (Join-Path $Root $Leaf) $Json $Tag $Encoding; $a.snapshot=((Member $(if($Claim){$Claim}else{$Version}) $Slots) | ConvertFrom-Json); $a }
 function Write-Archive([string]$Path,[string]$Text){ [IO.File]::WriteAllBytes($Path,[Text.Encoding]::ASCII.GetBytes($Text)); [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
 function Accept($Request,$Rows,$Game,$SaveRoot,$Parent){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
 function Refuse($Request,$Rows,$Game,$SaveRoot,$Parent,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; Check $false $Name } catch { Check $true $Name } }
@@ -219,6 +219,15 @@ try {
  RefuseWith $other.cRequest (Normalized 4) $cGame $other.cSave 'differs from the decoded archive member' 'consumer: valid schema-4 inputs of another area under their producer snapshots refuse'
  $rowsDiffer=New-Chain 'slots' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'r' -Json (Member 4 @((S $R 8 6),(S $R 0 7)))),(Resave $dir $ids.removedLeaf 4 $goneSlots 'r') }
  RefuseWith $pRequest $rowsDiffer.pRows $pGame $rowsDiffer.pSave 'archive member: rows are' 'producer: a kept member whose slot rows differ from the observed rows refuses'
+
+ # R19-F3 (round 20): the production byte semantics. The UTF-8 chains above are the positives; the same graphs encoded as UTF-16LE with
+ # its byte-order mark, with matching recorded and selected descriptors, are refused by the strict UTF-8 conversion before the codec runs.
+ $utf16=New-Chain 'utf16' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'u' -Encoding 'utf16'),(Resave $dir $ids.removedLeaf 4 $goneSlots 'u' -Encoding 'utf16') }
+ RefuseWith $pRequest $utf16.pRows $pGame $utf16.pSave 'not valid UTF-8' 'producer: the same schema-4 graphs encoded as UTF-16LE with a byte-order mark refuse (hash and length match)'
+ RefuseWith $utf16.cRequest (Normalized 4) $cGame $utf16.cSave 'not valid UTF-8' 'consumer: the same schema-4 graphs encoded as UTF-16LE with a byte-order mark refuse (hash and length match)'
+ $bom=New-Chain 'utf8bom' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'b' -Encoding 'utf8bom'),(Resave $dir $ids.removedLeaf 4 $goneSlots 'b' -Encoding 'utf8bom') }
+ RefuseWith $pRequest $bom.pRows $pGame $bom.pSave 'refused by the product codec \(Invalid\)' 'producer: UTF-8 members preceded by a byte-order mark refuse as the product refuses them (U+FEFF kept)'
+ RefuseWith $bom.cRequest (Normalized 4) $cGame $bom.cSave 'refused by the product codec \(Invalid\)' 'consumer: UTF-8 members preceded by a byte-order mark refuse as the product refuses them (U+FEFF kept)'
 
  # ---- the declared producer/consumer bridge: real git commits and source trees, a synthetic producer and suite ----------
  $head=(git -C $repo rev-parse HEAD).Trim(); $tree=(git -C $repo rev-parse 'HEAD:src').Trim()
