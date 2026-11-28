@@ -36,7 +36,7 @@ $receipt=$null;$outputOwner=$null;$verified=$false;$released=$false;$actualExecu
 # writes a KMC lease under the Global mutex (refusing any present record, which it never removes), and after every
 # handle is settled it removes exactly its own lease. If settlement retained a handle, the lease stays for the owner.
 # It runs only under the machine-wide reservation (never a self-test selection).
-$scopedReservationToken=$null;$scopedReservationRecord=Join-Path $env:ProgramData 'KingmakerNativeTest\reservation.v1.json'
+$scopedReservationToken=$null;$scopedReservationRunId=$null;$scopedReservationRecord=Join-Path $env:ProgramData 'KingmakerNativeTest\reservation.v1.json'
 function Invoke-KmcScopedReservationMutex([scriptblock]$Body){
  $mutex=New-Object Threading.Mutex($false,'Global\KingmakerNativeTest.Reservation.v1');$owned=$false
  try{try{$owned=$mutex.WaitOne([TimeSpan]::FromSeconds(10))}catch [Threading.AbandonedMutexException]{$owned=$true};if(-not$owned){throw 'The Kingmaker native-test reservation mutex stayed busy.'};& $Body}
@@ -51,15 +51,20 @@ function Enter-KmcScopedReservation([string]$StateRoot){
   $value=[ordered]@{protocol='kingmaker-native-test-reservation/1';lab='KingmakerMountedCombat';runId=([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-scoped-preflight');purpose='preparation-scoped-preflight';token=$token;holderProcessId=$PID
    holderStartUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o');host=$env:COMPUTERNAME;createdUtc=[DateTime]::UtcNow.ToString('o');stateRoot=[IO.Path]::GetFullPath($StateRoot).TrimEnd('\');kmcRunToken=$runToken;kmcLockToken=$null;kmcPendingFollowUp=$null;kmcResumable=$false;adopted=$null}
   $temporary=$scopedReservationRecord+'.'+$token+'.tmp';[IO.File]::WriteAllText($temporary,($value|ConvertTo-Json),[Text.UTF8Encoding]::new($false));[IO.File]::Move($temporary,$scopedReservationRecord)
-  $script:scopedReservationToken=$token
+  $script:scopedReservationToken=$token;$script:scopedReservationRunId=$value.runId
  }
 }
 function Exit-KmcScopedReservation{
  if($null-eq$script:scopedReservationToken){return}
  Invoke-KmcScopedReservationMutex {
+  # Only exactly its own record (strict protocol-1 common fields and its own identity) is removed; anything else,
+  # unreadable or of another protocol, is left alone.
   $record=$null;try{$record=[IO.File]::ReadAllText($scopedReservationRecord)|ConvertFrom-Json}catch{}
-  if($null-eq$record-or[string]$record.lab-cne'KingmakerMountedCombat'-or[string]$record.token-cne$script:scopedReservationToken){throw 'The scoped preflight''s reservation is no longer its own; it is left alone.'}
-  Remove-Item -LiteralPath $scopedReservationRecord -Force;$script:scopedReservationToken=$null
+  $fields=if($record-is[pscustomobject]){@($record.PSObject.Properties.Name)}else{@()}
+  $common=@('protocol','lab','runId','purpose','token','holderProcessId','holderStartUtc','host','createdUtc')
+  if(@($common|Where-Object{$fields-cnotcontains$_}).Count-ne0-or[string]$record.protocol-cne'kingmaker-native-test-reservation/1'-or[string]$record.lab-cne'KingmakerMountedCombat'-or
+     [string]$record.runId-cne$script:scopedReservationRunId-or[string]$record.purpose-cne'preparation-scoped-preflight'-or[string]$record.token-cne$script:scopedReservationToken-or[string]$record.holderProcessId-cne[string]$PID){throw 'The scoped preflight''s reservation is no longer exactly its own; it is left alone.'}
+  [IO.File]::Delete($scopedReservationRecord);$script:scopedReservationToken=$null
  }
 }
 function BootstrapPath([string]$Path,[string]$Parent){
@@ -234,7 +239,9 @@ try{
  $beforeAssemblies=Assert-KmcScopedLoadedAssemblies $platform $generated
  [Environment]::CurrentDirectory=$repo;Set-Location -LiteralPath $repo
  Assert-KmcScopedEnvironment $environment
- $result=Invoke-KmcScopedFreshGuards $proof $code $inputs $owned $rows
+ # The embedded launcher guard prefix borrows this preflight's own reservation (exact token) instead of competing for it.
+ [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN',$scopedReservationToken,'Process')
+ try{$result=Invoke-KmcScopedFreshGuards $proof $code $inputs $owned $rows}finally{[Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN',$null,'Process')}
  Assert-KmcScopedEnvironment $environment
  [void](Assert-KmcScopedPlatformPlan $platformPlan)
  $afterAssemblies=Assert-KmcScopedLoadedAssemblies $platform $generated
@@ -260,19 +267,22 @@ finally{
  $released=$cleanupErrors.Count-eq0
  foreach($error in $cleanupErrors){$errors.Add($error)}
 }
+# The reservation is released (or kept) after every shared handle settled and before the lab-local receipt is written,
+# so the receipt reports the actual release result.
+$reservationReleased=$false
+if($released){try{Exit-KmcScopedReservation;$reservationReleased=$true}catch{$released=$false;$errors.Add($_.Exception.ToString())}}
+elseif($null-ne$scopedReservationToken){$errors.Add('A shared handle was retained; the Kingmaker native-test reservation stays for the owner.')}
 try{
  if($null-ne$outputOwner-and$null-ne$outputOwner.receiptHandle){
   if($null-eq$receipt){$receipt=[ordered]@{schemaVersion=1;kind='closed-chunk7-scoped-preflight';status='FAIL';startedUtc=$started.ToString('o');nativeExecution=$false;freshWholeRootPurity=$false;historicalRootsStatus='NOT RE-EVALUATED';guards=@($rows);errors=@()}}
   $receipt.status=if($verified-and$released-and$errors.Count-eq0){'PASS'}else{'FAIL'}
   $receipt['actualExecutor']=$actualExecutor
   $receipt['compilerProcesses']=@($compilerOwners|ForEach-Object{[pscustomobject]@{source=$_.source;output=$_.output;processStarted=$_.processStarted;processId=$_.processId;arguments=$_.arguments;exitCode=$_.exitCode;outputSha256=$_.outputSha256;outputProvenance=$_.outputProvenance}})
-  $receipt.errors=@($errors);$receipt['finishedUtc']=[DateTimeOffset]::UtcNow.ToString('o');$receipt['ownedInputHandlesReleased']=$released
+  $receipt.errors=@($errors);$receipt['finishedUtc']=[DateTimeOffset]::UtcNow.ToString('o');$receipt['ownedInputHandlesReleased']=$released;$receipt['nativeReservationReleased']=$reservationReleased
   Publish-KmcScopedOutput $outputOwner $receipt
  }
 }finally{
  foreach($owner in $outputOwners){try{Close-KmcScopedOutput $owner}catch{$released=$false;$errors.Add($_.Exception.ToString())}}
 }
-if($released){try{Exit-KmcScopedReservation}catch{$released=$false;$errors.Add($_.Exception.ToString())}}
-elseif($null-ne$scopedReservationToken){$errors.Add('A shared handle was retained; the Kingmaker native-test reservation stays for the owner.')}
 if(-not$verified-or-not$released-or$errors.Count-ne0){throw ('Closed scoped preflight FAIL: '+[string]::Join([Environment]::NewLine,$errors))}
 Write-Output 'Closed scoped preflight PASS; exact selected guards ran freshly. Unreferenced historical roots NOT RE-EVALUATED. No native execution authorized.'

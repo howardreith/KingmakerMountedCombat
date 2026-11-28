@@ -120,7 +120,7 @@ if($sid-cne'S-1-5-21-1108991106-2476425705-1721024090-1001'){throw 'Recovery req
 $lab=Get-KmcLabRoot;$stateRoot=Join-Path $lab 'runtime-state';$backupRoot=Join-Path $lab 'runtime-backups'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -ExpectedLockToken ([string](Read-KmcJson (Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))).token) -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)
 $snapshotPath=Assert-KmcChildPath (Join-Path $backupRoot ('profile-'+$runId+'/snapshot.json')) $backupRoot 'exact run profile snapshot'

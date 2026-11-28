@@ -182,8 +182,19 @@ included, and releases only after its last shared read or verified close):
 | `Recover-KmcQualifiedFixture.ps1` (`FixtureRecovery.ps1`) | fresh before the save audit; ownership rechecked before each Working move, copy and rollback move; a repair interrupted after its prepared journal is continued by rerunning with its `-RunId` (identity-bound takeover, derived destinations, unaffected saves and quarantined bytes verified before any write, `ShouldProcess`), anything ambiguous is left in place |
 | `Test-KmcFixtureGuard.ps1` | every mode; initialization refuses a stale local lock |
 | suite snapshot, protected-save authority producers | held from the first shared read until the authority is published (ownership rechecked immediately before publishing) |
-| `Invoke-Chunk7ScopedPreflight.ps1` | own minimal participation (it loads no harness): before its first write-denying shared handle; released only when every handle settled, otherwise left for the owner |
-| one-run `Recover-*` tools | before their first shared read, bound to their own fixed run |
+| `Invoke-Chunk7ScopedPreflight.ps1` | own minimal participation (it loads no harness): before its first write-denying shared handle; the embedded launcher guard prefix borrows exactly this lease (`KMC_NATIVE_RESERVATION_BORROW_TOKEN`; a borrower never releases or locks); released, strictly validated as exactly its own record, only when every handle settled and before its receipt (which records the release result), otherwise left for the owner |
+| `Test-KmcWorkingActorGraph.ps1` (Working diagnostic) | it holds a write-denying handle on the live qualified Working save: reserved before its first read, released after its last (no lock) |
+| `Invoke-KingmakerManualReview.ps1`, `Invoke-FinalizeF1Finish.ps1` | wrappers: they only call the runtime launcher, which reserves |
+| one-run `Recover-*` tools | before their first shared read, bound to their own fixed run and, where pinned, its lock token; the timeout tools recheck ownership immediately before their direct loader-settings and PlayerPrefs writes |
+
+Excluded entrypoints (no reservation), each tied to its inputs and handles:
+
+| Entrypoint | Inputs and handles | Why excluded |
+| --- | --- | --- |
+| `Test-RuntimeRequest.ps1`, `Test-RuntimeResult.ps1`, `Test-RuntimeGameResult.ps1`, `Test-KmcManualReviewReady.ps1`, `Test-KmcManualReviewResult.ps1`, `Test-KmcNormalPlayerResult.ps1`, `Test-KmcObserverResult.ps1` | request, result, observer and evidence JSON under the lab's evidence roots; package manifests | validators of recorded evidence: no handle on live Mods, saves, profile, loader settings or the game |
+| `scripts/Build-Local.ps1`, `Package*.ps1`, `Validate-*.ps1`, icon exports, `Get-PinnedLoaderReferences.ps1`, `Reconcile-WorkflowBudget.ps1` | repository sources, `bin`/`obj`, pinned reference copies | build, packaging and bookkeeping: never open a shared Kingmaker surface and are not native preparation |
+| `scripts/Test-*.ps1` self-tests | disposable stand-ins under temp or `obj` | run under a private reservation that refuses this lab's runtime-state and every non-disposable surface (PlayerPrefs use a disposable registry key) |
+| `runtime/*Evidence.ps1`, `runtime/*Fixtures.ps1`, `runtime/*Source.ps1` | dot-sourced libraries | not entrypoints; they run inside a participating entrypoint's reservation |
 
 An exit before a lock is held releases a fresh reservation and leaves a taken-over one
 resumable (exact token verified) so its own recovery can continue from any process; an
@@ -196,10 +207,10 @@ runtime-state and for any non-disposable shared surface.
 
 Unresolved state stays reserved. `Complete-KmcInterruptedReservation -StateRoot -RunId
 -LeaseToken` (owner-invoked) completes only an acquisition interrupted before its lock or a
-release interrupted after its verified unlink: it needs the exact lease token, KMC's lease for
-that root and run with no owed follow-up, a writer that is gone (or a resumable lease), no KMC
-lock and no unresolved journal for the run, and rechecks the exact token under the mutex at
-removal. Everything else (a foreign, malformed or mismatched lease, an owed follow-up, an
+release interrupted after its verified unlink: under the mutex it needs the exact lease token,
+KMC's lease for that root and run with no owed follow-up, a writer that is gone (or a resumable
+lease), no KMC lock, and every journal of the run (combined, Mods, Working save, fixture repair,
+requalification) absent or terminal and bound to the lease's run and token. Everything else (a foreign, malformed or mismatched lease, an owed follow-up, an
 ambiguous fixture repair) is left for the owner. Evidence: `scripts/Test-NativeReservationGate.ps1`.
 
 An unexpected write that reaches the staged tree during a run is preserved

@@ -110,6 +110,8 @@ try{
     $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot -EmptyNewLeaf Admit)
     $acceptedEmpty=@($accepted|Where-Object change -CEQ 'created-empty')
     if((ConvertTo-Json -InputObject @($acceptedEmpty|ForEach-Object path) -Compress)-cne(ConvertTo-Json -InputObject @($admittedBefore|ForEach-Object path) -Compress)){throw 'The admitted empty native cache leaf changed during recovery.'}
+    # The installed loader dependencies the run staged around are verified against their files before release.
+    if($baseGameOnly){[void](Assert-KmcRuntimeLockOwner $lock);Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies -VerifyFiles}
     Close-KmcRuntimeLock $lock;$lock=$null
     Write-KmcJsonCreateNewDurable -Path (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-recovery.json')) -Value ([ordered]@{
         runId=$RunId;status='PASS';mode=$(if($AfterTransactionRecovery){'after-transaction-recovery'}else{'stale-lock'});recoveredAtUtc=[DateTimeOffset]::UtcNow.ToString('o')

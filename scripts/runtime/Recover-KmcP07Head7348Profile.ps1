@@ -21,7 +21,7 @@ $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $runId -ExpectedLockToken ([string](Read-KmcJson (Join-Path (Join-Path $lab 'runtime-backups') ('profile-'+$runId+'/snapshot.json'))).token) -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $backupRoot=Join-Path $lab 'runtime-backups'
 $evidenceRoot=Join-Path $lab ('runtime-evidence/'+$runId)

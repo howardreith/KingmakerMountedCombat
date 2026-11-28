@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 # Read-only protection for native caches/settings outside the already guarded
 # Saves/Mods trees. Never restores stale data over a possibly newer human profile.
 function Get-KmcPersistencePlayerPrefs {
-    $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$false)
+    $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath),$false)
     try {
         if($null-eq$key){return 'null'}
         $items=@(foreach($name in @($key.GetValueNames()|Sort-Object)){
@@ -442,7 +442,12 @@ function Assert-KmcCompletedTransactionRecovery {
         if([string]$combined.restoredSaveInventoryDigest-cne[string]$combined.saveInventoryDigestBefore){throw 'Post-transaction profile recovery of a no-save transaction has no exact save-inventory proof.'}
     }else{$parts+=,@('save',(Get-KmcSaveTransactionStatePath $StateRoot $RunId))}
     foreach($part in $parts){
-        if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt.')}
+        if(-not(Test-Path -LiteralPath $part[1] -PathType Leaf)){
+            # A Mods transaction that never started (the run stopped before staging) has no receipt: live Mods must be
+            # proven exact by the combined receipt's restored digest equal to its recorded before digest.
+            if($part[0]-ceq'Mods'-and[string]$combined.restoredModsDigest-ceq[string]$combined.modsDigestBefore){continue}
+            throw ('Post-transaction profile recovery has no '+$part[0]+' transaction receipt and no exact never-started proof.')
+        }
         $value=Read-KmcJson $part[1]
         if([string]$value.runId-cne$RunId-or[string]$value.token-cne[string]$Snapshot.token-or[string]$value.phase-cne'restored'){
             throw ('Post-transaction profile recovery '+$part[0]+' transaction is not restored under this run and token.')
@@ -530,10 +535,11 @@ function Restore-KmcPersistenceStartupSettings {
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
         [IO.File]::WriteAllBytes($expectedParams,[IO.File]::ReadAllBytes($saved))
         [IO.File]::SetLastWriteTimeUtc($expectedParams,[IO.File]::GetLastWriteTimeUtc($saved))
+        Add-KmcReservationProgress $Lock 'loader settings (Params.xml) restored'
     }
     if($changes.Count-ne0){
         [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared write
-        $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
+        $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey((Get-KmcPlayerPrefsKeyPath),$true)
         try{
             if($null-eq$key){throw 'Exact PlayerPrefs key disappeared.'}
             foreach($change in $changes){$key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)}

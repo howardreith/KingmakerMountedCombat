@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "native-reservation-gate-base-rows",
+  "case": "OriginalGuardEffects",
+  "baseCommit": "11e8e22b32439adf57ab16b9a42791244f0eadc0",
+  "recordedUtc": "2026-11-28T15:05:13Z",
+  "recordedBy": "scripts/chunk7/Test-ScopedPreflight.ps1 -Case OriginalGuardEffects, run from a clean clone of the base commit",
+  "baseTestSha256LF": "809c4fe54974443edb58e6f6214901d0823e7248e70c77352643a7700fea835b",
+  "summary": "\ufffd\ufffdO\u0000r\u0000i\u0000g\u0000i\u0000n\u0000a\u0000l\u0000 \u0000g\u0000u\u0000a\u0000r\u0000d\u0000 \u0000e\u0000f\u0000f\u0000e\u0000c\u0000t\u0000s\u0000:\u0000 \u00007\u0000 \u0000P\u0000A\u0000S\u0000S\u0000 \u0000/\u0000 \u00007\u0000 \u0000F\u0000A\u0000I\u0000L\u0000\n\u0000\n\u0000",
+  "rows": [
+    {
+      "name": "actual zero-exit Git warning is preserved and does not terminate fixture",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "actual nonzero Git exit remains failure with raw stderr retained",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "actual unchanged bare-git repository guard resolves admitted executable",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "original bare-git guard succeeds under exact held Git metadata",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "unchanged package body extracts only owned DLL and invokes actual exact child metadata guard",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "duplicate entry fails unchanged allowlist before scratch and child",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "extra entry fails unchanged exact allowlist",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "empty DLL fails unchanged size guard",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "oversize DLL metadata fails unchanged limit without allocating data",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "Info identity mismatch fails exact original identity guard",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "actual foreign assembly metadata fails then owned scratch settles",
+      "status": "FAIL",
+      "error": "System.Management.Automation.CommandNotFoundException: The term '<case>\\repo\\scripts\\UmmLoaderContracts.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+    },
+    {
+      "name": "planted undeclared package scratch cannot inherit empty-tree proof",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "restored empty namespace is only before-after equality",
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "name": "all original source bytes and scoped command environment remain unchanged",
+      "status": "PASS",
+      "error": null
+    }
+  ]
+}

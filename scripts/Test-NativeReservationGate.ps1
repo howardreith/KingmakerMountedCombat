@@ -46,7 +46,8 @@ function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments, [scr
     $log = Join-Path $logRoot ($Name + '.log')
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $ErrorActionPreference = 'Continue'
-    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $repoRoot $Script) @Arguments *> $log
+    $path = if ([IO.Path]::IsPathRooted($Script)) { $Script } else { Join-Path $repoRoot $Script }
+    & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $path @Arguments *> $log
     $exit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
     $timer.Stop()
@@ -55,7 +56,7 @@ function Invoke-Suite([string]$Name, [string]$Script, [string[]]$Arguments, [scr
     $verdict = & $Judge $exit $lines $fail
     Write-Host ("== {0}: exit={1} PASS-lines={2} FAIL-lines={3} seconds={4:N0} -> {5}" -f $Name, $exit, @($lines | Where-Object { $_ -like 'PASS *' }).Count, $fail.Count, $timer.Elapsed.TotalSeconds, $verdict)
     foreach ($line in $fail) { Write-Host "   $line" }
-    foreach ($line in @($lines | Where-Object { $_ -like 'RESULT *' -or $_ -like 'TOTAL *' -or $_ -like '* PASS=*' -or $_ -like 'INFO *' })) { Write-Host "   $line" }
+    foreach ($line in @($lines | Where-Object { $_ -like 'RESULT *' -or $_ -like 'TOTAL *' -or $_ -like '* PASS=*' -or $_ -like 'INFO *' -or $_ -like 'PASS actual held-lock copy *' })) { Write-Host "   $line" }
     if ($verdict -notlike 'passed*') { $failures.Add("$Name $verdict (log $log)") }
     return $lines
 }
@@ -94,21 +95,51 @@ try {
     foreach ($case in @('AstExecution', 'Closure', 'BootstrapOwnership')) {
         [void](Invoke-Suite ('Test-ScopedPreflight-' + $case) 'scripts\chunk7\Test-ScopedPreflight.ps1' @('-Case', $case, '-OutputRoot', (Join-Path $cacheRoot ('scoped-' + $case))) $exitZero)
     }
-    # OriginalGuardEffects and the six-pair copy have environment prerequisites this machine does not meet; base 11e8e22b
-    # fails identically (7 PASS / 7 FAIL; the installed-loader pin). Each is accepted only with exactly that signature and
-    # reported as a matched-base partial result, not as a pass.
-    $ogeLog = Join-Path $cacheRoot 'scoped-OriginalGuardEffects\test.log'
-    [void](Invoke-Suite 'Test-ScopedPreflight-OriginalGuardEffects' 'scripts\chunk7\Test-ScopedPreflight.ps1' @('-Case', 'OriginalGuardEffects', '-OutputRoot', (Join-Path $cacheRoot 'scoped-OriginalGuardEffects')) {
+    # OriginalGuardEffects: base 11e8e22b fails 7 of its 14 rows on this machine (its fixture pins Validate-Package.ps1 but
+    # not the UmmLoaderContracts.ps1 it dot-sources). The candidate is accepted only when every row (name, status and the
+    # first error line with the case root normalized) equals the base rows recorded independently from a clean base clone
+    # (scripts\native-reservation-gate\OriginalGuardEffects.base-11e8e22b.json); reported as a matched-base partial result.
+    $ogeRoot = Join-Path $cacheRoot 'scoped-OriginalGuardEffects'
+    $ogeBase = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'native-reservation-gate\OriginalGuardEffects.base-11e8e22b.json') | ConvertFrom-Json
+    [void](Invoke-Suite 'Test-ScopedPreflight-OriginalGuardEffects' 'scripts\chunk7\Test-ScopedPreflight.ps1' @('-Case', 'OriginalGuardEffects', '-OutputRoot', $ogeRoot) {
         param($exit, $lines, $fail)
         if ($exit -eq 0) { return 'passed' }
-        $summary = if (Test-Path -LiteralPath $ogeLog) { (Get-Content -LiteralPath $ogeLog -Raw).Trim() } else { '' }
-        if ($summary -ceq 'Original guard effects: 7 PASS / 7 FAIL') { return 'passed as a matched-base partial result (7 PASS / 7 FAIL, identical to 11e8e22b)' }
-        return 'failed'
+        $receiptPath = Join-Path $ogeRoot 'case\receipt.json'
+        if (-not (Test-Path -LiteralPath $receiptPath)) { return 'failed (no receipt)' }
+        $mark = Join-Path $ogeRoot 'case\'
+        $rows = @((Get-Content -Raw -LiteralPath $receiptPath | ConvertFrom-Json).rows | ForEach-Object {
+            $first = if ($_.status -ceq 'FAIL') { ([string]$_.error).Split("`n")[0].TrimEnd("`r").Replace($mark, '<case>\') } else { $null }
+            '{0}|{1}|{2}' -f $_.name, $_.status, $first })
+        $expected = @($ogeBase.rows | ForEach-Object { '{0}|{1}|{2}' -f $_.name, $_.status, $_.error })
+        Write-Host ('   OriginalGuardEffects rows: candidate {0}, recorded base {1} ({2})' -f $rows.Count, $expected.Count, $ogeBase.summary)
+        for ($i = 0; $i -lt [Math]::Max($rows.Count, $expected.Count); $i++) {
+            $c = if ($i -lt $rows.Count) { $rows[$i] } else { '<missing>' }; $b = if ($i -lt $expected.Count) { $expected[$i] } else { '<missing>' }
+            Write-Host ('     {0} {1}' -f $(if ($c -ceq $b) { 'same' } else { 'DIFF' }), ($c -split '\|')[1] + ' ' + ($c -split '\|')[0])
+            if ($c -cne $b) { return "failed (row $i differs from base: candidate '$c', base '$b')" }
+        }
+        return ('passed as a matched-base partial result ({0}; every row identical to the recorded 11e8e22b rows)' -f $ogeBase.summary)
     }.GetNewClosure())
+    # Six-pair copy: unchanged, it stops in its source qualification on this machine's installed-loader observation (the
+    # recorded evidence does not match the measured loader profile; base 11e8e22b stops identically). It runs twice: as-is
+    # (accepted only with exactly that stop, a partial result), and with only that loader observation replaced by a
+    # recording stand-in, so the actual sixteen-pin source, the private lock and the copy helper run all ten cases.
     [void](Invoke-Suite 'Test-Chunk7SixPairSourceCopy' 'scripts\chunk7\Test-Chunk7SixPairSourceCopy.ps1' @() {
         param($exit, $lines, $fail)
         if ($exit -eq 0 -and $fail.Count -eq 0) { return 'passed' }
-        if ((($lines -join ' ') -replace '\s+', ' ') -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'passed as a matched-base partial result (installed-loader prerequisite unmet before any lock call, identical to 11e8e22b)' }
+        if ((($lines -join ' ') -replace '\s+', ' ') -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'passed as a matched-base partial result (installed-loader prerequisite unmet; base 11e8e22b stops identically)' }
+        return 'failed'
+    })
+    $sixPairSource = Join-Path $PSScriptRoot 'chunk7\Test-Chunk7SixPairSourceCopy.ps1'
+    $sixPairText = [IO.File]::ReadAllText($sixPairSource)
+    $initialize = ". (Join-Path `$PSScriptRoot 'Initialize-Chunk7Tests.ps1')"
+    if (-not $sixPairText.Contains($initialize)) { throw 'The six-pair test no longer has its initialization anchor.' }
+    $standIn = $initialize.Replace('$PSScriptRoot', "'" + (Split-Path -Parent $sixPairSource) + "'") + [Environment]::NewLine +
+        "`$loaderStandIn=[Collections.Generic.List[string]]::new();function Assert-KmcExactObservedLoaderDependency(`$Assemblies,`$Dependencies,[string]`$RelativePath,[string]`$Name){`$loaderStandIn.Add(`$Name);Write-Host ('INFO installed-loader observation stand-in: '+`$Name+' ('+`$RelativePath+')')}"
+    $standInPath = Join-Path $logRoot 'Test-Chunk7SixPairSourceCopy.loader-stand-in.ps1'
+    [IO.File]::WriteAllText($standInPath, $sixPairText.Replace($initialize, $standIn))
+    [void](Invoke-Suite 'Test-Chunk7SixPairSourceCopy-loader-stand-in' $standInPath @() {
+        param($exit, $lines, $fail)
+        if ($exit -eq 0 -and $fail.Count -eq 0 -and @($lines | Where-Object { $_ -ceq 'SIX-PAIR COPY PASS=10 FAIL=0' }).Count -eq 1 -and @($lines | Where-Object { $_ -like 'PASS actual held-lock copy *' }).Count -eq 10) { return 'passed (loader observation stand-in only; all ten held-lock copy cases)' }
         return 'failed'
     })
 }

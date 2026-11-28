@@ -65,6 +65,7 @@ elseif ($RequalifyWorking) {
     $nativeReservation = Enter-KmcNativeReservation -StateRoot $fullStateRoot -RunId $liveRequalificationRunId -Purpose 'fixture-requalification'
 }
 else { $nativeReservation = Enter-KmcNativeReservation -StateRoot $fullStateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-fixture-guard') -Purpose 'preparation-fixture-guard' }
+$guardFailed = $false
 try {
 $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
 if ($RequalifyWorking -or $RecoverWorkingRequalification -or $AuditWorkingContinuity) {
@@ -339,6 +340,12 @@ elseif ($RecoverWorkingRequalification) {
     return
 }
 $WhatIfPreference = $false
+if ($InitializeQualification) {
+    # Immediately before initialization may write the qualification: still reserved, and still no local transaction.
+    Invoke-KmcReservationTestHook 'guard-before-initialize'
+    Assert-KmcNativeReservationHeld -Session $nativeReservation -Context 'fixture initialization'
+    if (Test-Path -LiteralPath $activeLockPath) { throw 'A stale or active KMC runtime transaction lock appeared before fixture initialization.' }
+}
 $pair = Assert-KmcFixtureQualification -Pair $pair -QualificationPath $qualificationPath -InitializeQualification:$InitializeQualification
 Write-Host 'KMC fixture guard PASS.'
 Write-Host "Baseline: $($pair.baseline.fileName) / $($pair.baseline.sha256)"
@@ -346,8 +353,9 @@ Write-Host "Working:  $($pair.working.fileName) / $($pair.working.sha256)"
 Write-Host "Campaign: $($pair.expectedGameName) / $($pair.expectedGameId) / $($pair.expectedArea)"
 Write-Host 'Writable save allowlist: KMC_AUTOMATION_WORKING only.'
 }
+catch { $guardFailed = $true; throw }
 finally {
     # Preparation and audit reservations end here (after the last shared read); a transaction's reservation ends with
-    # its lock (released on a verified close, kept with an abandoned lock).
-    Exit-KmcUnlockedNativeReservation $nativeReservation
+    # its lock (released on a verified close, kept with an abandoned lock). A failed release fails a successful guard.
+    Exit-KmcUnlockedNativeReservation $nativeReservation -PreserveError:$guardFailed
 }

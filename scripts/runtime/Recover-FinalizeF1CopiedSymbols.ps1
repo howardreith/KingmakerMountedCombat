@@ -6,11 +6,11 @@ $WhatIfPreference=$false
 $lab=Get-KmcLabRoot
 $stateRoot=Join-Path $lab 'runtime-state'
 $run='20261104-finalize-f1c-creator-scroll'
+$token='6afaf1c419f8840d8b1f6737c5aa9e5386d93aa9e9a425ce35ce00bab7862596'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -ExpectedLockToken $token -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
-$token='6afaf1c419f8840d8b1f6737c5aa9e5386d93aa9e9a425ce35ce00bab7862596'
 $combinedPath=Get-KmcRunTransactionStatePath $stateRoot $run
 $modsPath=Get-KmcTransactionStatePath $stateRoot $run
 $evidence=Join-Path $lab ('runtime-evidence\'+$run)

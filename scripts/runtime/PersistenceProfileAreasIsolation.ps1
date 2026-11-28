@@ -88,7 +88,9 @@ function Enter-KmcPersistenceAreasIsolation {
     [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared move
     [IO.Directory]::Move($paths.live,$paths.original)
     $state.stage='original-held';Write-KmcJsonAtomic $paths.state $state
+    [void](Assert-KmcRuntimeLockOwner $Lock)  # ownership pair immediately before the shared copy
     [void](Copy-KmcDirectoryTreeExact -SourceRoot $paths.copy -DestinationRoot $paths.live)
+    Add-KmcReservationProgress $Lock 'Areas isolated (original held, disposable copy live)'
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $paths.live) 'disposable Areas copy'
     $state.stage='isolated-ready';Write-KmcJsonAtomic $paths.state $state
     [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)

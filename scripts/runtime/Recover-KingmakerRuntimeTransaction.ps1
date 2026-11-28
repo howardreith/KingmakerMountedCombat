@@ -44,8 +44,9 @@ else{throw 'Stale lock has no matching combined or legacy durable transaction st
 # lock's. The Kingmaker native-test reservation naming exactly that run and lock is then taken over before the shared
 # reads below (live Mods, saves), for a -WhatIf preview too; without it (missing, foreign, mismatched or live) recovery
 # refuses and leaves the state for the owner. Any exit before the lock is held leaves the lease resumable for a retry.
-$journalToken=if($legacyMode){[string](Read-KmcJson $legacyModsStatePath).token}else{[string]$combined.token}
-if($journalToken-cne[string]$raw.token){throw 'The recovery journal token differs from the stale lock token; recovery refuses.'}
+$journal=if($legacyMode){Read-KmcJson $legacyModsStatePath}else{$combined}
+$journalToken=[string]$journal.token
+if([string]$journal.runId-cne[string]$raw.runId-or$journalToken-cne[string]$raw.token){throw 'The recovery journal run or token differs from the stale lock; recovery refuses.'}
 $lock=$null
 $nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId ([string]$raw.runId) -ExpectedLockToken $journalToken -Purpose $(if($requestedWhatIf){'transaction-recovery-preview'}else{'transaction-recovery'})
 trap { try{if($null-eq$lock){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{}; break }
@@ -138,8 +139,17 @@ try{
     # A run that snapshotted the persistence profile still owes Recover-KmcPersistenceProfile.ps1
     # -AfterTransactionRecovery: the lock closes, but the lease (bound to this run and token) is kept for that recovery
     # and released only after its profile verification. Nothing else can continue it.
-    $profilePending=(Test-Path -LiteralPath (Join-Path $backupRoot ('profile-'+[string]$raw.runId+'/snapshot.json')) -PathType Leaf)-and
-        -not(Test-Path -LiteralPath (Join-Path $labRoot ('runtime-evidence/'+[string]$raw.runId+'/profile-recovery.json')) -PathType Leaf)
+    $profileDirectory=Join-Path $backupRoot ('profile-'+[string]$raw.runId)
+    $profilePending=$false
+    if(Test-Path -LiteralPath $profileDirectory){
+        # Owed unless this run's profile recovery left its PASS receipt bound to this run and to the exact snapshot bytes.
+        $profilePending=$true
+        $snapshotFile=Join-Path $profileDirectory 'snapshot.json';$receiptFile=Join-Path $labRoot ('runtime-evidence/'+[string]$raw.runId+'/profile-recovery.json')
+        if((Test-Path -LiteralPath $snapshotFile -PathType Leaf)-and(Test-Path -LiteralPath $receiptFile -PathType Leaf)){
+            $receipt=Read-KmcJson $receiptFile
+            if([string]$receipt.runId-ceq[string]$raw.runId-and[string]$receipt.status-ceq'PASS'-and[string]$receipt.snapshotSha256-ceq(Get-KmcSha256 $snapshotFile)){$profilePending=$false}
+        }
+    }
     if($profilePending){Close-KmcRuntimeLock $lock -KeepFor 'profile-recovery'}else{Close-KmcRuntimeLock $lock}
     $lock=$null
     if($profilePending){Write-Host "Reservation kept for Recover-KmcPersistenceProfile.ps1 -AfterTransactionRecovery -RunId $($raw.runId)."}

@@ -431,10 +431,23 @@ try {
         $session = Enter-KmcNativeReservation -StateRoot $state -RunId 'before-lock' -Purpose 'runtime-scenario'
         Set-LeaseField 'holderProcessId' (Get-DeadProcessId)
         Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken ('0' * 32) } 'completable lease' 'completion with another token'
-        [void][IO.Directory]::CreateDirectory((Join-Path $state 'run-transactions'))
-        [IO.File]::WriteAllText((Join-Path $state 'run-transactions\before-lock.json'), '{"phase":"prepared"}')
-        Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token } 'unresolved transaction journal' 'completion over an unresolved journal'
-        [IO.File]::WriteAllText((Join-Path $state 'run-transactions\before-lock.json'), '{"phase":"restored"}')
+        $combined = Get-KmcRunTransactionStatePath $state 'before-lock'
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $combined))
+        [IO.File]::WriteAllText($combined, ('{"runId":"before-lock","token":"' + $session.RunToken + '","phase":"prepared"}'))
+        Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token } 'not terminal for this transaction' 'completion over an unresolved journal'
+        # A terminal-looking journal that is unbound, or bound to another token, is not evidence either.
+        [IO.File]::WriteAllText($combined, '{"phase":"restored"}')
+        Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token } 'not terminal for this transaction' 'completion over an unbound journal'
+        [IO.File]::WriteAllText($combined, ('{"runId":"before-lock","token":"' + ('f' * 64) + '","phase":"restored"}'))
+        Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token } 'not terminal for this transaction' 'completion over another token''s journal'
+        [IO.File]::WriteAllText($combined, ('{"runId":"before-lock","token":"' + $session.RunToken + '","phase":"restored"}'))
+        # Every child journal of the run counts: an unresolved Working-save child still refuses.
+        $child = Get-KmcSaveTransactionStatePath $state 'before-lock'
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $child))
+        [IO.File]::WriteAllText($child, ('{"runId":"before-lock","token":"' + $session.RunToken + '","phase":"original-moved"}'))
+        Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token } 'not terminal for this transaction' 'completion over an unresolved child journal'
+        Assert-That (Test-Path -LiteralPath $convention.RecordPath) 'a refused completion removed the lease'
+        [IO.File]::WriteAllText($child, ('{"runId":"before-lock","token":"' + $session.RunToken + '","phase":"restored"}'))
         Complete-KmcInterruptedReservation -StateRoot $state -RunId 'before-lock' -LeaseToken $session.Token
         Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'the interrupted acquisition was not completed'
         # Interrupted after the verified unlink: the lock is gone, the lease remains; a replaced lease is left alone.
@@ -462,10 +475,160 @@ try {
         finally { Close-KmcRuntimeLock $lock }
     }
 
+    Invoke-Case 'a -WhatIf caller removes exactly its own lease (never simulated) and is released only after the removal; a failed release surfaces and keeps the lease' {
+        param($case)
+        $state = Get-State $case
+        $session = Enter-KmcNativeReservation -StateRoot $state -RunId 'preview' -Purpose 'runtime-preview'
+        & { $WhatIfPreference = $true; Exit-KmcUnlockedNativeReservation $session }
+        Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'a -WhatIf release left the real lease behind'
+        Assert-That $session.Released 'the session is not marked released after its removal'
+        $replaced = Enter-KmcNativeReservation -StateRoot $state -RunId 'audit' -Purpose 'preparation-fixture-guard'
+        Set-LeaseField 'token' ([Guid]::NewGuid().ToString('N'))
+        $before = Get-Sha $convention.RecordPath
+        Assert-Throws { Exit-KmcUnlockedNativeReservation $replaced } 'no longer this transaction' 'a release over a replaced lease (success path)'
+        Assert-That (-not $replaced.Released) 'a failed release marked the session released'
+        Assert-That ((Get-Sha $convention.RecordPath) -ceq $before) 'a failed release changed the current record'
+        # On an error path the operation's own error wins: the cleanup failure is reported, not thrown.
+        Exit-KmcUnlockedNativeReservation $replaced -PreserveError -WarningAction SilentlyContinue
+        Assert-That ((Get-Sha $convention.RecordPath) -ceq $before) 'an error-path cleanup changed the current record'
+        Remove-Item -LiteralPath $convention.RecordPath -Force
+        $malformed = Enter-KmcNativeReservation -StateRoot (Get-State $case 'malformed') -RunId 'malformed' -Purpose 'runtime-preview'
+        [IO.File]::WriteAllText($convention.RecordPath, '{"protocol":"kingmaker-native-test-reservation/9"}')
+        Assert-Throws { Exit-KmcUnlockedNativeReservation $malformed } 'no longer this transaction' 'a release over an unknown-protocol record'
+        Assert-That ([IO.File]::ReadAllText($convention.RecordPath) -ceq '{"protocol":"kingmaker-native-test-reservation/9"}') 'an unknown-protocol record was removed'
+        Remove-Item -LiteralPath $convention.RecordPath -Force
+    }
+
+    Invoke-Case 'a caller-supplied reservation stays with the caller when its lock cannot be created' {
+        param($case)
+        $state = Get-State $case
+        $session = Enter-KmcNativeReservation -StateRoot $state -RunId 'supplied' -Purpose 'runtime-scenario'
+        [IO.File]::WriteAllText((Get-LockPath $state), 'foreign')
+        Assert-Throws { [void](Open-KmcRuntimeLock -StateRoot $state -RunId 'supplied' -Reservation $session) } 'already exists' 'a lock over an existing lock file'
+        Assert-That ([string](Read-Lease).token -ceq [string]$session.Token -and -not $session.Released) 'Open released the caller''s reservation before the caller''s final shared reads'
+        Remove-Item -LiteralPath (Get-LockPath $state) -Force
+        Exit-KmcUnlockedNativeReservation $session
+        Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'the caller could not release its own reservation afterwards'
+    }
+
+    Invoke-Case 'KMC''s own holder start is compared at full round-trip precision; a shortened instant is a live writer' {
+        param($case)
+        $state = Get-State $case
+        $own = (Get-Process -Id $PID).StartTime.ToUniversalTime()
+        $session = Enter-KmcNativeReservation -StateRoot $state -RunId 'precision' -Purpose 'runtime-scenario'
+        Assert-That ([string](Read-Lease).holderStartUtc -cmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z$') 'KMC writes a shortened holder start'
+        foreach ($shortened in @($own.ToString('yyyy-MM-ddTHH:mm:ssZ'), $own.ToString('yyyy-MM-ddTHH:mm:ss.fffZ'), ($own.ToString('yyyy-MM-ddTHH:mm:ss.fffffff') + '+00:00'))) {
+            Set-LeaseField 'holderStartUtc' $shortened
+            Assert-That (Test-KmcReservationHolderAlive (Read-KmcReservationRecord $convention)) "the live writer with start $shortened counted as gone"
+            Assert-Throws { Complete-KmcInterruptedReservation -StateRoot $state -RunId 'precision' -LeaseToken $session.Token } 'may still run' "completion over a live writer recorded as $shortened"
+        }
+        Set-LeaseField 'holderStartUtc' $own.ToString('o')
+        Assert-That (Test-KmcReservationHolderAlive (Read-KmcReservationRecord $convention)) 'the exact live writer counted as gone'
+        Set-LeaseField 'holderProcessId' (Get-DeadProcessId)
+        Assert-That (-not (Test-KmcReservationHolderAlive (Read-KmcReservationRecord $convention))) 'a gone writer with an exact start counted as live'
+        Complete-KmcInterruptedReservation -StateRoot $state -RunId 'precision' -LeaseToken $session.Token
+    }
+
+    Invoke-Case 'recovery binds the journal run and token: a same-run wrong-token takeover refuses byte-identically' {
+        param($case)
+        $state = Get-State $case
+        $lock = New-AbandonedTransaction $state 'pinned'
+        $before = Get-Sha $convention.RecordPath; $lockBefore = Get-Sha $lock.Path
+        Assert-Throws { [void](Enter-KmcStaleTransactionReservation -StateRoot $state -ExpectedRunId 'pinned' -ExpectedLockToken ('e' * 64) -Purpose 'recovery-one-run') } 'differs from the recovery''s expected token' 'a same-run takeover with a wrong pinned token'
+        Assert-That ((Get-Sha $convention.RecordPath) -ceq $before -and (Get-Sha $lock.Path) -ceq $lockBefore) 'a refused takeover changed the lease or lock'
+        $session = Enter-KmcStaleTransactionReservation -StateRoot $state -ExpectedRunId 'pinned' -ExpectedLockToken ([string]$lock.Token) -Purpose 'recovery-one-run'
+        $adopted = Adopt-KmcStaleRuntimeLock -StateRoot $state -ExpectedRunId 'pinned' -ExpectedLockToken ([string]$lock.Token) -Reservation $session
+        Close-KmcRuntimeLock $adopted
+        Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'the bound recovery did not release'
+    }
+
+    Invoke-Case 'an ownership loss records what the transaction already restored and what remains' {
+        param($case)
+        $state = Get-State $case
+        $lock = Open-KmcRuntimeLock -StateRoot $state -RunId 'progress'
+        Add-KmcReservationProgress $lock 'live Mods returned to the pre-run tree'
+        Set-LeaseField 'token' ([Guid]::NewGuid().ToString('N'))
+        Assert-Throws { [void](Assert-KmcRuntimeLockOwner $lock) } 'lost' 'the ownership pair after a replacement'
+        $incident = Read-KmcJson (Join-Path $state 'native-reservation-incidents\progress.first.json')
+        Assert-That (@($incident.restorationPerformed) -join '|' -like '*live Mods returned to the pre-run tree*') 'the incident does not record the restoration performed'
+        Assert-That ([string]$incident.remainingDifferences -like '*progress*') 'the incident does not record the remaining differences'
+        $lock.Stream.Dispose()
+    }
+
+    Invoke-Case 'the closed preflight''s embedded launcher guard borrows its exact lease; a foreign contender stays out until the owner releases' {
+        param($case)
+        $state = Get-State $case
+        $signals = Get-State $case 'signals'
+        $outer = Enter-KmcNativeReservation -StateRoot $state -RunId 'closed-preflight' -Purpose 'preparation-scoped-preflight'
+        try {
+            [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN', ('0' * 32), 'Process')
+            Assert-Throws { [void](Enter-KmcEntrypointReservation -StateRoot $state -RunId 'launcher' -Purpose 'runtime-preview') } 'not the running scoped preflight' 'borrowing with another token'
+            [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN', [string]$outer.Token, 'Process')
+            $inner = Enter-KmcEntrypointReservation -StateRoot $state -RunId 'launcher' -Purpose 'runtime-preview'
+            Assert-That ($inner.Borrowed -and [string]$inner.Token -ceq [string]$outer.Token) 'the guard did not borrow the closed preflight''s lease'
+            Assert-KmcNativeReservationHeld -Session $inner -Context 'borrowed guard'
+            Assert-LoserRefused (Get-State $case 'foreign') 'foreign-during-guard' $signals 'closed-preflight'
+            Exit-KmcUnlockedNativeReservation $inner
+            Assert-Throws { Exit-KmcNativeReservation $inner } 'borrowed' 'a borrower releasing'
+            Assert-Throws { [void](Open-KmcRuntimeLock -StateRoot $state -RunId 'closed-preflight' -Reservation $inner) } 'borrowed' 'a borrower taking a lock'
+            Assert-That ([string](Read-Lease).token -ceq [string]$outer.Token) 'the borrower changed the owner''s lease'
+        }
+        finally { [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN', $null, 'Process') }
+        $standalone = $null
+        Assert-Throws { $standalone = Enter-KmcEntrypointReservation -StateRoot (Get-State $case 'standalone') -RunId 'standalone' -Purpose 'runtime-preview' } 'reserved by KingmakerMountedCombat run closed-preflight' 'standalone launcher admission while the closed preflight holds'
+        Exit-KmcNativeReservation $outer
+        Start-Contender (Get-State $case 'foreign') 'foreign-after' $signals
+        foreach ($phase in @('prepare', 'run', 'restore')) {
+            $outcome = Wait-Signal $signals 'foreign-after' @($phase, 'refused')
+            if ($outcome.What -eq 'refused') { throw "the foreign contender was refused after the owner released: $($outcome.Text)" }
+            Send-Go $signals 'foreign-after' $phase
+        }
+        [void](Wait-Signal $signals 'foreign-after' @('released'))
+    }
+
+    Invoke-Case 'the closed preflight removes only exactly its own strictly valid record' {
+        param($case)
+        # The inline closed-entry participation, extracted from the entry and bound to this case's private mutex and record.
+        $tokens = $null; $errors = $null
+        $ast = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime\Invoke-Chunk7ScopedPreflight.ps1'), [ref]$tokens, [ref]$errors)
+        $names = @('Invoke-KmcScopedReservationMutex', 'Enter-KmcScopedReservation', 'Exit-KmcScopedReservation')
+        $text = [string]::Join("`n", @($ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $names -ccontains $n.Name }, $false) | ForEach-Object { $_.Extent.Text }))
+        Assert-That ($text.Contains("'Global\KingmakerNativeTest.Reservation.v1'")) 'the closed entry does not use the machine-wide mutex'
+        $text = $text.Replace("'Global\KingmakerNativeTest.Reservation.v1'", "'" + $convention.MutexName + "'").Replace("'KMC_NATIVE_RESERVATION_TEST_ROOT'", "'KMC_SCOPED_SELFTEST_UNSET'")
+        $script:scopedReservationRecord = $convention.RecordPath; $script:scopedReservationToken = $null; $script:scopedReservationRunId = $null
+        . ([scriptblock]::Create($text))
+        Enter-KmcScopedReservation (Get-State $case)
+        $own = [IO.File]::ReadAllText($convention.RecordPath)
+        foreach ($variant in @('{"lab":"KingmakerMountedCombat","token":"' + $script:scopedReservationToken + '"}',
+                ($own -replace 'kingmaker-native-test-reservation/1', 'kingmaker-native-test-reservation/2'),
+                ($own -replace '"preparation-scoped-preflight"', '"runtime-scenario"'))) {
+            [IO.File]::WriteAllText($convention.RecordPath, $variant)
+            Assert-Throws { Exit-KmcScopedReservation } 'no longer exactly its own' "the closed release over: $variant"
+            Assert-That ([IO.File]::ReadAllText($convention.RecordPath) -ceq $variant) "the closed release removed: $variant"
+        }
+        [IO.File]::WriteAllText($convention.RecordPath, $own)
+        Exit-KmcScopedReservation
+        Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'the closed release left its own record'
+    }
+
+    Invoke-Case 'a failed private setup never falls back to the production reservation; private fixture and profile paths refuse real surfaces' {
+        param($case)
+        $selected = [Environment]::GetEnvironmentVariable('KMC_NATIVE_RESERVATION_TEST_ROOT', 'Process')
+        try {
+            [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_TEST_ROOT', 'C:\Windows\kmc-not-disposable', 'Process')
+            Assert-Throws { [void](Enter-KmcNativeReservation -StateRoot (Get-State $case) -RunId 'setup' -Purpose 'runtime-scenario') } 'not a disposable root' 'a reservation under a failed private setup'
+            Assert-Throws { Invoke-KmcReservationTestHook 'none'; [void](Get-KmcReservationConvention -StateRoot (Get-State $case)) } 'not a disposable root' 'the convention under a failed private setup'
+        }
+        finally { [Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_TEST_ROOT', $selected, 'Process') }
+        Assert-That ((Get-KmcPlayerPrefsKeyPath) -like 'Software\KmcNativeReservationSelfTest\*') 'private mode reads the owner''s PlayerPrefs key'
+        Assert-Throws { [void](Invoke-KmcQualifiedWorkingFixtureRecovery -RunId 'fixture' -SaveRoot 'C:\Windows\kmc-saves' -StateRoot (Get-State $case) -BackupRoot (Get-State $case 'b') -QualificationPath (Join-Path $case 'q.json') -HistoricalAuthority ([pscustomobject]@{}) -Confirm:$false) } 'cannot cover the shared surface' 'a private fixture repair over a real save root'
+        Assert-That (-not (Test-Path -LiteralPath $convention.RecordPath)) 'a refused private fixture repair reserved'
+    }
+
     Invoke-Case 'entrypoints keep the reservation boundaries: launcher admission, cleanup and verified close; ownership before shared moves' {
         param($case)
         $launcher = Get-Text 'runtime\Invoke-KingmakerRuntimeScenario.ps1'
-        $enter = $launcher.IndexOf('Enter-KmcNativeReservation -StateRoot $runtimeState', [StringComparison]::Ordinal)
+        $enter = $launcher.IndexOf('Enter-KmcEntrypointReservation -StateRoot $runtimeState', [StringComparison]::Ordinal)
         Assert-That ($enter -gt $launcher.IndexOf('Request-KmcWorkflowAdmission -RepoRoot', [StringComparison]::Ordinal)) 'the launcher reserves before workflow admission'
         foreach ($read in @('Get-KmcBaseGameDependencies -GameRoot', '$beforeMods=', '$beforeSaves=')) { Assert-That ($enter -lt $launcher.IndexOf($read, [StringComparison]::Ordinal)) "the launcher reads $read before reserving" }
         Assert-That ($launcher.Contains('trap { try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{}')) 'the launcher has no exception cleanup boundary'
@@ -475,7 +638,7 @@ try {
         Assert-That ($launcher.Contains("[void](Assert-KmcRuntimeLockOwner `$lock)`n    Invoke-KmcFinalizeF1GameStart")) 'no ownership check immediately before launch'
         $recovery = Get-Text 'runtime\Recover-KingmakerRuntimeTransaction.ps1'
         Assert-That ($recovery.IndexOf('Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId', [StringComparison]::Ordinal) -lt $recovery.IndexOf('$beforeMods=Get-KmcDirectoryManifest', [StringComparison]::Ordinal)) 'transaction recovery reads before reserving'
-        Assert-That ($recovery.IndexOf("if(`$journalToken-cne[string]`$raw.token)", [StringComparison]::Ordinal) -lt $recovery.IndexOf('Enter-KmcStaleTransactionReservation', [StringComparison]::Ordinal)) 'transaction recovery changes ownership before binding its journal'
+        Assert-That ($recovery.IndexOf("if([string]`$journal.runId-cne[string]`$raw.runId-or`$journalToken-cne[string]`$raw.token)", [StringComparison]::Ordinal) -lt $recovery.IndexOf('Enter-KmcStaleTransactionReservation', [StringComparison]::Ordinal)) 'transaction recovery changes ownership before binding its journal'
         Assert-That ($recovery.Contains("if(`$profilePending){Close-KmcRuntimeLock `$lock -KeepFor 'profile-recovery'}else{Close-KmcRuntimeLock `$lock}")) 'transaction recovery releases before the owed profile recovery'
         Assert-That ($recovery.Contains('Assert-KmcBaseGameDependencyReceipt $modsState.baseGameDependencies -VerifyFiles')) 'transaction recovery does not verify the installed dependencies'
         $profile = Get-Text 'runtime\Recover-KmcPersistenceProfile.ps1'
@@ -487,14 +650,28 @@ try {
         }
         $scoped = Get-Text 'runtime\Invoke-Chunk7ScopedPreflight.ps1'
         Assert-That ($scoped.IndexOf("Enter-KmcScopedReservation (Join-Path `$LabRoot 'runtime-state')", [StringComparison]::Ordinal) -lt $scoped.IndexOf('$bytes=BootstrapHold $pin.path', [StringComparison]::Ordinal)) 'the scoped preflight holds shared handles before reserving'
-        Assert-That ($scoped.Contains("if(`$released){try{Exit-KmcScopedReservation}")) 'the scoped preflight releases without settled handles'
+        Assert-That ($scoped.Contains("if(`$released){try{Exit-KmcScopedReservation;`$reservationReleased=`$true}")) 'the scoped preflight releases without settled handles'
+        Assert-That ($scoped.IndexOf('if($released){try{Exit-KmcScopedReservation', [StringComparison]::Ordinal) -lt $scoped.IndexOf('Publish-KmcScopedOutput $outputOwner $receipt', [StringComparison]::Ordinal)) 'the scoped receipt is written before the release result is known'
+        Assert-That ($scoped.Contains("[Environment]::SetEnvironmentVariable('KMC_NATIVE_RESERVATION_BORROW_TOKEN',`$scopedReservationToken,'Process')`n try{`$result=Invoke-KmcScopedFreshGuards")) 'the embedded launcher guard does not borrow the closed preflight''s reservation'
+        foreach ($tool in @('Recover-KmcB34S3Profile', 'Recover-KmcB75S1Profile', 'Recover-KmcP07Head7348Profile', 'Recover-FinalizeF1CreatorPreferences', 'Recover-FinalizeF1CopiedSymbols')) {
+            Assert-That ((Get-Text "runtime\$tool.ps1") -match 'Enter-KmcStaleTransactionReservation -StateRoot \$stateRoot -ExpectedRunId \$\w+ -ExpectedLockToken ') "$tool takes over without binding its pinned token"
+        }
+        foreach ($tool in @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'runtime') -Filter 'Recover-KmcProfileAfterCombinedTimeout*.ps1')) {
+            $text = Get-Text "runtime\$($tool.Name)"
+            foreach ($write in @(' [IO.File]::WriteAllBytes($paramsPath,$capturedParams)', " `$key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',`$true)")) {
+                $at = $text.IndexOf($write, [StringComparison]::Ordinal)
+                Assert-That ($at -gt 0 -and $text.LastIndexOf('[void](Assert-KmcRuntimeLockOwner $lock)', $at, [StringComparison]::Ordinal) -gt ($at - 100)) "$($tool.Name) has no ownership check immediately before: $write"
+            }
+        }
+        $areas = Get-Text 'runtime\PersistenceProfileAreasIsolation.ps1'
+        Assert-That ($areas.Contains("[void](Assert-KmcRuntimeLockOwner `$Lock)  # ownership pair immediately before the shared copy`n    [void](Copy-KmcDirectoryTreeExact -SourceRoot `$paths.copy -DestinationRoot `$paths.live)")) 'no ownership check immediately before the live Areas copy'
         $common = Get-Text 'runtime\RuntimeHarness.Common.ps1'
         foreach ($move in @('Move-Item -LiteralPath $fullLive -Destination $originalBackup', 'Move-Item -LiteralPath $ready -Destination $fullLive', 'Move-Item -LiteralPath $fullLive -Destination $stagedAfter', 'Move-Item -LiteralPath $backup -Destination $fullLive', 'Move-Item -LiteralPath $sourcePath -Destination $quarantinePath')) {
             $at = $common.IndexOf($move, [StringComparison]::Ordinal)
             $check = $common.LastIndexOf('[void](Assert-KmcRuntimeLockOwner $Lock)', $at, [StringComparison]::Ordinal)
             Assert-That ($at -gt 0 -and $check -gt 0 -and ($at - $check) -lt 140) "no ownership check immediately before: $move"
         }
-        Assert-That ($common.Contains('if (-not $workingIsOriginal) { [void](Assert-KmcRuntimeLockOwner $Lock); Copy-Item -LiteralPath $backupPath -Destination $workingPath }')) 'no ownership check before the Working restore copy'
+        Assert-That ($common.Contains('if (-not $workingIsOriginal) { [void](Assert-KmcRuntimeLockOwner $Lock); Copy-Item -LiteralPath $backupPath -Destination $workingPath;')) 'no ownership check before the Working restore copy'
     }
 }
 finally {

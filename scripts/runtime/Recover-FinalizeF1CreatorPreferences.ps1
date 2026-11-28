@@ -38,7 +38,7 @@ if($ContractOnly){return}
 $lab=Get-KmcLabRoot;$run='20261105-finalize-f1c-owner-creator-01';$stateRoot=Join-Path $lab 'runtime-state'
 # Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) for exactly this tool's run, before its first shared
 # read and for -WhatIf too; an exit before the lock is held leaves it resumable for a retry.
-$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -Purpose 'recovery-one-run'
+$nativeReservation=Enter-KmcStaleTransactionReservation -StateRoot $stateRoot -ExpectedRunId $run -ExpectedLockToken '02cdfbe10c95284bf1463bbf4d296dd381db2202758c285c864dbe2747d413c5' -Purpose 'recovery-one-run'
 trap{try{if(-not$nativeReservation.LockHeld){Exit-KmcUnlockedNativeReservation $nativeReservation}}catch{};break}
 $evidence=Join-Path $lab ('runtime-evidence/'+$run);$backup=Join-Path $lab ('runtime-backups/profile-'+$run)
 $snapshotPath=Join-Path $backup 'snapshot.json';$saved=Join-Path $backup 'Params.xml'

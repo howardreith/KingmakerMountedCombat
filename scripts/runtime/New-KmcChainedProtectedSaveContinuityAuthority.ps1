@@ -25,13 +25,14 @@ $WhatIfPreference = $false
 
 $fullSaveRoot = [IO.Path]::GetFullPath($SaveRoot).TrimEnd('\')
 $fullStateRoot = [IO.Path]::GetFullPath($StateRoot).TrimEnd('\')
-if (-not (Test-Path -LiteralPath $fullSaveRoot -PathType Container)) { throw 'Kingmaker save root is missing.' }
 if (-not (Test-Path -LiteralPath $fullStateRoot -PathType Container)) { throw 'Runtime-state root is missing.' }
-# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before the first save read, -WhatIf included, held until
-# the authority is published; released afterwards (no lock is taken).
+# Kingmaker native-test reservation (docs/NATIVE-RESERVATION.md) before the first save observation (even its existence),
+# -WhatIf included, held until the authority is published; released afterwards (no lock is taken).
 Assert-KmcReservationCoversSurface -Path @($fullSaveRoot)
 $preparationReservation = Enter-KmcNativeReservation -StateRoot $fullStateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ') + '-save-authority') -Purpose 'preparation-save-authority'
+$preparationFailed = $false
 try {
+if (-not (Test-Path -LiteralPath $fullSaveRoot -PathType Container)) { throw 'Kingmaker save root is missing.' }
 Assert-KmcNotReparsePoint $fullSaveRoot 'Kingmaker save root'
 Assert-KmcNotReparsePoint $fullStateRoot 'runtime-state root'
 Assert-KmcPathsDoNotOverlap -First $fullSaveRoot -Second $fullStateRoot -Description 'KMC save and runtime-state roots'
@@ -167,4 +168,5 @@ Write-Host "PIN_SET_SHA256=$pinSetSha256"
 Write-Host "INVENTORY=$([string]$validated.saveMetadata.digest)"
 Write-Host "TRANSITIONS=$(@($finalRecord.authorizedProtectedTransitions | ForEach-Object currentPath) -join ',')"
 }
-finally { Exit-KmcUnlockedNativeReservation $preparationReservation }
+catch { $preparationFailed = $true; throw }
+finally { Exit-KmcUnlockedNativeReservation $preparationReservation -PreserveError:$preparationFailed }

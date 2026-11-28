@@ -368,6 +368,14 @@ try{
     & $writeState (& $newCombined) (& $newPart) (& $newPart);[IO.File]::Delete($savePart)
     $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
     if(!$rejected){throw 'A save-backed transaction without its save receipt was admitted.'};$passes++
+    # A run stopped before its Mods transaction started has no Mods receipt: the combined receipt's exact Mods digest proves
+    # live Mods unchanged; without that exact proof it still refuses.
+    $modsPart=Join-Path $ptState ('transactions/'+$ptRun+'.json')
+    & $writeState (& $newCombined) (& $newPart) (& $newPart);[IO.File]::Delete($modsPart)
+    [void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot);$passes++
+    $changedMods=& $newCombined;$changedMods.restoredModsDigest=('8'*64);& $writeState $changedMods (& $newPart) (& $newPart);[IO.File]::Delete($modsPart)
+    $rejected=$false;try{[void](Assert-KmcCompletedTransactionRecovery -StateRoot $ptState -EvidenceRoot $ptEvidence -RunId $ptRun -Snapshot $ptSnapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'A missing Mods receipt without an exact Mods proof was admitted.'};$passes++
     & $writeState (& $newCombined) (& $newPart) (& $newPart)
     $ptLockPath=Join-Path $ptState 'active-transaction.lock';$ptReceipt=Join-Path $ptEvidence ($ptRun+'/profile-recovery.json')
     $ptCases=@(
@@ -474,6 +482,6 @@ try{
         -not$recoverText.Contains("if(`$staleProfileLock){`$lock=Adopt-KmcStaleRuntimeLock `$stateRoot -ExpectedPurpose 'profile-recovery' -Reservation `$nativeReservation}")-or
         -not$recoverText.Contains("-RunId `$RunId -Snapshot `$snapshot -HeldLock `$lock`n")-or
         -not$recoverText.Contains('Assert-KmcCompletedTransactionRecovery -StateRoot $stateRoot')){throw 'The profile recovery tool lost its post-transaction admission or lock.'};$passes++
-    Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
+    Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; PlayerPrefs used the disposable self-test registry key, never the owner's."
 }finally{Close-KmcRuntimeLock $lock}
 Restore-KmcTestReservationConvention $reservationPrevious

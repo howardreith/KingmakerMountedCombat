@@ -114,8 +114,10 @@ try{
     (Get-KmcSaveMetadataInventory $state.saveRoot).digest-cne$expectedSaves){
   throw 'External state changed after exact profile recovery review.'
  }
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  [IO.File]::WriteAllBytes($paramsPath,$capturedParams)
  [IO.File]::SetLastWriteTimeUtc($paramsPath,[IO.File]::GetLastWriteTimeUtc($saved))
+ [void](Assert-KmcRuntimeLockOwner $lock)  # ownership pair immediately before the shared write
  $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
  try{
   if($null-eq$key){throw 'Exact Kingmaker PlayerPrefs key disappeared.'}

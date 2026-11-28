@@ -460,7 +460,7 @@ trap { try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{}; try{Com
 # transaction closes restored; a preview or declined run releases it after its last shared read; a refusal before the
 # lock exists releases it through the trap above.
 $actualRunId=if([string]::IsNullOrWhiteSpace($RunId)){[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-'+$Scenario}else{$RunId}
-$nativeReservation=Enter-KmcNativeReservation -StateRoot $runtimeState -RunId $actualRunId -Purpose $(if($requestedWhatIf){'runtime-preview'}else{'runtime-scenario'})
+$nativeReservation=Enter-KmcEntrypointReservation -StateRoot $runtimeState -RunId $actualRunId -Purpose $(if($requestedWhatIf){'runtime-preview'}else{'runtime-scenario'})
 $f11SourcePath='C:\Dev\KingmakerMountedCombatLab\analysis-cache\chunk7-continuation\f11-native-shim-20261021\KmcF11AllocationProbe.dll'
 $f11HelperSha='fd7454205bc1b9be2e777f470b40559ed86c7c903dc9a338bd9cda41fab3c13d'
 $f11MonoPath='C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Kingmaker\MonoBleedingEdge\EmbedRuntime\mono-2.0-bdwgc.dll'
@@ -1734,7 +1734,7 @@ finally{
             if($modsRestored-and$saveProtection-and$processExited-and(-not$BaseGameOnly-or$baseGameDependenciesUnchanged)){Close-KmcRuntimeLock $lock}else{Abandon-KmcRuntimeLock $lock}
         }catch{$errors.Add('Runtime lock finalization failed: '+$_.Exception.Message)}
     }
-    elseif($null-ne$nativeReservation){Exit-KmcUnlockedNativeReservation $nativeReservation}
+    elseif($null-ne$nativeReservation){try{Exit-KmcUnlockedNativeReservation $nativeReservation}catch{$errors.Add('Reservation release after the final shared reads failed: '+$_.Exception.Message)}}
     if($BaseGameOnly){
         try{$isolationResult=[ordered]@{
             schemaVersion=1;runId=$actualRunId;stagingMode=$(if($isNormalPlayer){'base-game-only-kmc-observer'}else{'base-game-only-kmc'});dependencyDigest=[string]$baseGameDependencies.dependencyDigest;

@@ -23,6 +23,7 @@ $modsRoot=[string]$intake.requestedLayout.kingmakerModsRoot
 # included, held until the snapshot is published; released afterwards (no lock is taken).
 Assert-KmcReservationCoversSurface -Path @($saveRoot,$modsRoot)
 $preparationReservation=Enter-KmcNativeReservation -StateRoot $stateRoot -RunId ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffffffZ')+'-suite-snapshot') -Purpose 'preparation-suite-snapshot'
+$preparationFailed=$false
 try{
 $PackagePath=[IO.Path]::GetFullPath($PackagePath);$manifestPath=$PackagePath+'.manifest.json'
 $manifest=Assert-KmcPackageManifest $PackagePath $manifestPath
@@ -105,4 +106,4 @@ $modsAfter=Get-KmcQualificationTreeInventory -Root $modsRoot -Scope mods-root
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $saveSecond -Actual $saveAfter -Description 'qualification-suite committed save inventory')
 [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $modsSecond -Actual $modsAfter -Description 'qualification-suite committed Mods inventory')
 [pscustomobject]@{suiteId=$SuiteId;path=$snapshotPath;sha256=$snapshotSha;saveDigest=[string]$saveAfter.digest;modsDigest=[string]$modsAfter.digest;packageSha256=[string]$record.package.sha256;manifestSha256=[string]$record.package.manifestSha256;dllSha256=[string]$record.package.dllSha256;dllMvid=[string]$record.package.dllMvid}|ConvertTo-Json -Compress
-}finally{Exit-KmcUnlockedNativeReservation $preparationReservation}
+}catch{$preparationFailed=$true;throw}finally{Exit-KmcUnlockedNativeReservation $preparationReservation -PreserveError:$preparationFailed}
