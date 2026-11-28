@@ -18,6 +18,9 @@ param()
 #   7. chunk7\Test-Chunk7OrdinaryArchive.ps1 and Test-Finalize2UpgradeReaders.ps1 (R13-F2/R17-F3, round 18): the ordinary autosave ZIP
 #      reader binding the observed schema to the parsed member, and the Finalize2 same-candidate schema-4 resave/consumer path
 #      (-SkipRetainedBridge: its frozen r05 lab-receipt section is not candidate-bound).
+#   7a. chunk7\Test-Chunk7UpgradeResaveMember.ps1 (R18-F4, round 19): the UPG-01 resave handler over generated ZIP resaves, the member
+#      decoded strictly by the candidate's product codec (duplicate names, versioned StepTravel) and compared completely with the snapshot;
+#      Finalize2 (R18-F3) now reads both retained resaves' members through the same shared helper (Chunk7PersistenceEvidence.ps1).
 #   8. chunk7\Test-Chunk7ProducerObservations.ps1 (R13-F2, R18-F5, round 19): complete producer-shaped observations (hook rows reflected
 #      from the installed tokens the restoration probe patches; archive rows from the candidate codec decoding a schema-3 input) through
 #      the bootstrap, Manual seed, non-missing Manual-derived, pre-owned owner-seed and assisted cold readers (the last over the actual
@@ -39,6 +42,7 @@ $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
     @('Test-MmrTbApproachNativeContract.ps1'),@('Test-MmrAttackOrdersNativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),@('chunk7\Test-Chunk7CurrentWriterReaders.ps1'),@('chunk7\Test-Chunk7ProducerObservations.ps1'),@('chunk7\Test-Chunk7OrdinaryArchive.ps1'),@('Test-Finalize2UpgradeReaders.ps1','-SkipRetainedBridge'),
+    @('chunk7\Test-Chunk7UpgradeResaveMember.ps1'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

@@ -1,6 +1,9 @@
 # F2 upgrade-chain reader: synthetic producer and consumer evidence (archives and screenshots written to a temporary
 # root) and targeted negatives, plus the source contracts the route depends on. No game, no build. A reader-only
 # assertion is never native evidence.
+# Round 19 (R18-F3): the retained resaves are versioned ZIP saves with the required kmc-mounted-state member (offline fixtures, not native
+# saves): schema-3 members as the previous writer wrote them, schema-4 members written by the candidate's production serializer
+# (MountedArchiveCodec.Encode, compiled from src/ by the shared reader helper). The reader decodes each member with that product codec.
 param([switch]$SkipRetainedBridge)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
@@ -26,6 +29,25 @@ function Strings{ [ordered]@{tableFound=$true;packPresent=$true;keys=@([ordered]
  controls=@([ordered]@{guid=$P;name='Mount / Dismount';hidden=$false},[ordered]@{guid=$ids.mountShell;name='Mount Companion';hidden=$true},[ordered]@{guid=$ids.dismountShell;name='Dismount';hidden=$true},[ordered]@{guid=$ids.mountedChargeShell;name='Charge';hidden=$true})} }
 function Shot([string]$Name,[string]$Root,$Umm=$null){ $file='movement-visuals/finalize-f2-p05-'+$Name+'.png'; $full=Join-Path $Root ($file.Replace('/','\')); [void](New-Item -ItemType Directory -Force (Split-Path -Parent $full))
  [IO.File]::WriteAllBytes($full,[Text.Encoding]::ASCII.GetBytes('png:'+$Name)); $s=[ordered]@{name=$Name;file=$file;sha256=(Get-KmcSha256 $full)}; if($null -ne $Umm){ $s.ummOpenAtCapture=$Umm }; $s }
+$codec=Get-KmcChunk7ProductArchiveCodec
+$G='44444444-4444-4444-8444-444444444444'
+function Nat([string]$Id){ [ordered]@{Id=$Id;Standard=0.0;Move=0.5;Swift=0.0;Initiative=0.0;Reaction=0.0;ReactionsRemaining=1;LastSurpriseTicks=0} }
+# A schema-3 mounted member as the previous writer (the pinned bridge's format) wrote it.
+function Graph3($Slots,[string]$Area){ [ordered]@{SchemaVersion=3;CampaignId=$G;AreaId=$Area;GameTimeTicks=10000000;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1'
+ Pairs=@([ordered]@{PairId='11111111111141118111111111111111';Generation=1;ProfileId='medium-humanoid-horse-v1';Rider=(Nat $R);Mount=(Nat $M)});Participations=@();Slots=@($Slots);Combat=$null} }
+# The member text of one writer version: 3 is the previous writer's graph; 4 is the candidate's production serializer over the codec's
+# own decoding of that graph (what the current writer writes for that state).
+function Member([int]$Version,$Slots,[string]$Area=('a'*32)){ $j=(Graph3 $Slots $Area)|ConvertTo-Json -Depth 20 -Compress; if($Version -eq 3){ return $j }
+ $r=$codec.decode.Invoke($null,@([string]$j)); if($codec.kind.GetValue($r).ToString() -cne 'Current'){ throw ('fixture graph refused by the product codec: '+$codec.feedback.GetValue($r)) }
+ [string]$codec.encode.Invoke($null,@($codec.data.GetValue($r))) }
+# A versioned native save fixture: a header member and the mounted member. The tag only makes each fixture's bytes distinct.
+function Write-Zip([string]$Path,[string]$Json,[string]$Tag){ Add-Type -AssemblyName System.IO.Compression; $s=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None); $z=$null
+ try { $z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false); foreach($m in @(@('header.json',('{"Name":"fixture","Type":"Manual","Tag":"'+$Tag+'"}')),@('kmc-mounted-state',$Json))){ $w=[IO.StreamWriter]::new($z.CreateEntry($m[0]).Open(),[Text.UTF8Encoding]::new($false)); try { $w.Write($m[1]) } finally { $w.Dispose() } } } finally { if($z){ $z.Dispose() }; $s.Dispose() }
+ [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
+# One retained resave: the written member (version, slots, area) and the producer's snapshot of its own write, which is its normalized read
+# of a correct member at the CLAIMED version (default: the written one) and the expected area.
+function Resave([string]$Root,[string]$Leaf,[int]$Version,$Slots,[string]$Tag,[string]$Area=('a'*32),[int]$Claim=0,[string]$Json=$null){
+ if([string]::IsNullOrEmpty($Json)){ $Json=Member $Version $Slots $Area }; $a=Write-Zip (Join-Path $Root $Leaf) $Json $Tag; $a.snapshot=((Member $(if($Claim){$Claim}else{$Version}) $Slots) | ConvertFrom-Json); $a }
 function Write-Archive([string]$Path,[string]$Text){ [IO.File]::WriteAllBytes($Path,[Text.Encoding]::ASCII.GetBytes($Text)); [ordered]@{sha=(Get-KmcSha256 $Path);length=(Get-Item -LiteralPath $Path).Length} }
 function Accept($Request,$Rows,$Game,$SaveRoot,$Parent){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }
 function Refuse($Request,$Rows,$Game,$SaveRoot,$Parent,[string]$Name){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $Parent -LegacyInputSha256 $script:legacy; Check $false $Name } catch { Check $true $Name } }
@@ -39,12 +61,13 @@ try {
  $quick=Write-Archive (Join-Path $pSave 'Quick_1.zks') 'legacy'; $script:legacy=$quick.sha
  $script:runId='20991231-finalize-f2-test-p'; $script:procId=100; $script:case='quick'
  $pRequest=[pscustomobject][ordered]@{runId=$script:runId;scenario='persistence-p05-load';persistenceCase='quick';upgradeChain=$true;finalize2Controls=$true;commit=('c'*40);dllSha256=('d'*64);evidenceRoot=$pEv
-  persistenceLoad=[pscustomobject]@{fileName='Quick_1.zks';sha256=$quick.sha;area=('a'*32);gameId='game'}}
+  persistenceLoad=[pscustomobject]@{fileName='Quick_1.zks';sha256=$quick.sha;area=('a'*32);gameId=$G}}
  $loaded=Bar @{14=$P}; $before=Bar @{13=''}; $placed=Bar @{13=$P}; $swapped=Bar @{9=$P;13=(A 9)}; $removedBar=Bar @{9='';13=(A 9)}
- $kept=Write-Archive (Join-Path $pSave $ids.keptLeaf) 'kept'; $gone=Write-Archive (Join-Path $pSave $ids.removedLeaf) 'removed'
- function Snapshot($Slots){ [ordered]@{SchemaVersion=3;AreaId=('a'*32);CampaignId='game';Pairs=@([ordered]@{Rider=[ordered]@{Id=$R};Mount=[ordered]@{Id=$M}});Slots=@($Slots)} }
+ $keptSlots=@((S $R 9 6),(S $R 0 7)); $goneSlots=@((S $R 0 7))
+ # The historical base case: two schema-3 ZIP resaves (the previous writer's format, the pinned bridge's).
+ $kept=Resave $pSave $ids.keptLeaf 3 $keptSlots 'base'; $gone=Resave $pSave $ids.removedLeaf 3 $goneSlots 'base'
  function Written([int]$O,[string]$Name,[string]$Leaf,$Arch,[int]$Index,$Bar,$Slots){ Row 'native-write-complete' ([ordered]@{ordinal=$O;name=$Name;path=(Join-Path $pSave $Leaf);sha256=$Arch.sha;length=$Arch.length;nativeType='Manual';
-  nativeCallback=$true;operation='None';sourceSha256=$quick.sha;controlIndex=$Index;barBeforeSave=$Bar;scan=[ordered]@{publicHits=0;hitCount=0;members=5};snapshot=(Snapshot $Slots)}) }
+  nativeCallback=$true;operation='None';sourceSha256=$quick.sha;controlIndex=$Index;barBeforeSave=$Bar;scan=[ordered]@{publicHits=0;hitCount=0;members=5};snapshot=$Arch.snapshot}) }
  $pRows=@(
   (Row 'f2-cold-observed' ([ordered]@{contract='finalize-f2-upgrade-public-control-v1';role='producer';sourceSchema=2;savedRows=@((S $R 14 2),(S $R 15 3));liveRows=@((S $R 14 6),(S $R 0 7));
    actor=(Actor $loaded @(14) (Counters 0 1 0));retiredHelpersSelected=$false;identities=[ordered]@{publicControl=$P;mountShell=$ids.mountShell;dismountShell=$ids.dismountShell};legacyIndex=14;
@@ -109,7 +132,7 @@ try {
  Copy-Item -LiteralPath (Join-Path $pSave $ids.keptLeaf) -Destination $cSave; Copy-Item -LiteralPath (Join-Path $pSave $ids.removedLeaf) -Destination $cSave
  $script:runId='20991231-finalize-f2-test-c'; $script:procId=200; $script:case='manual'
  $cRequest=[pscustomobject][ordered]@{runId=$script:runId;scenario='persistence-p05-load';persistenceCase='manual';upgradeChain=$true;finalize2Controls=$true;commit=('c'*40);dllSha256=('d'*64);evidenceRoot=$cEv
-  persistenceLoad=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length;area=('a'*32);gameId='game';gameName='cvb'};persistenceAlternate=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length;area=('a'*32);gameId='game';gameName='cvb'}}
+  persistenceLoad=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length;area=('a'*32);gameId=$G;gameName='cvb'};persistenceAlternate=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length;area=('a'*32);gameId=$G;gameName='cvb'}}
  $cRows=@(
   (Row 'initial' $null),
   (Row 'f2-cold-observed' ([ordered]@{contract='finalize-f2-upgrade-public-control-v1';role='consumer';sourceSchema=3;savedRows=@((S $R 9 6),(S $R 0 7));liveRows=@((S $R 0 7),(S $R 9 6));
@@ -153,18 +176,49 @@ try {
  $cand=Copy-F2 $cRequest; $cand.dllSha256=('9'*64); $cr=Copy-F2 $cRows; foreach($x in $cr){ $x.dll=('9'*64) }; Refuse $cand $cr $cGame $cSave $parent 'consumer: a consumer on another candidate than its producer refuses'
  CNeg { param($r) (Kind $r 'f2-complete').detail.shots[0].ummOpenAtCapture=$true } 'consumer: a view captured under the mod-manager overlay refuses'
 
- # ---- R13-F2 (round 18): a same-candidate producer writes current (schema-4) resaves; its consumer reads exactly that version ------
- $p4=Copy-F2 $pRows; foreach($x in @($p4 | Where-Object kind -CEQ 'native-write-complete')){ $x.detail.snapshot.SchemaVersion=4 }
- Check (Accept $pRequest $p4 $pGame $pSave $parent) 'producer: same-candidate current schema-4 resaves accepted'
- $p5=Copy-F2 $p4; (Kind $p5 'native-write-complete').detail.snapshot.SchemaVersion=5; Refuse $pRequest $p5 $pGame $pSave $parent 'producer: an unsupported resave schema 5 refuses'
- $observed=Join-Path $pEv 'persistence-observations.jsonl'; $originalBytes=[IO.File]::ReadAllBytes($observed)
- try {
-  @($p4 | ForEach-Object { $_ | ConvertTo-Json -Depth 40 -Compress }) | Set-Content -LiteralPath $observed -Encoding UTF8
-  $c4=Copy-F2 $cRows; (Kind $c4 'f2-cold-observed').detail.sourceSchema=4
-  Check (Accept $cRequest $c4 $cGame $cSave $parent) 'consumer: same-candidate schema-4 resave consumed with source schema 4'
-  Refuse $cRequest (Copy-F2 $cRows) $cGame $cSave $parent 'consumer: a schema-3 source under schema-4 producer resaves refuses'
- } finally { [IO.File]::WriteAllBytes($observed,$originalBytes) }
- $c4=Copy-F2 $cRows; (Kind $c4 'f2-cold-observed').detail.sourceSchema=4; Refuse $cRequest $c4 $cGame $cSave $parent 'consumer: a schema-4 source under schema-3 producer resaves refuses'
+ # ---- R13-F2 (round 18), R18-F3 (round 19): the actual mounted member of BOTH retained resaves, through the same-candidate producer and consumer -
+ # Each chain is a complete synthetic producer (its own save root, retained Quick and two ZIP resaves, its recorded evidence) and the consumer
+ # that staged its two files. Every refusal below keeps the file identity consistent: the recorded and selected SHA-256 and length are the
+ # bytes on disk, so only the archive member can refuse. Offline fixtures; none of this is a native save or load.
+ function New-Chain([string]$Tag,[scriptblock]$Make){
+  $ps=Join-Path $temp ('p-'+$Tag); $cs=Join-Path $temp ('c-'+$Tag); $ev=Join-Path $parent ('20991231-finalize-f2-test-p-'+$Tag)
+  foreach($d in @($ps,$cs,$ev)){ [void](New-Item -ItemType Directory -Force $d) }; Copy-Item -LiteralPath (Join-Path $pSave 'Quick_1.zks') -Destination $ps
+  $made=@(& $Make $ps); $rows=Copy-F2 $pRows; $w=@($rows | Where-Object kind -CEQ 'native-write-complete')
+  foreach($i in 0,1){ $leaf=@($ids.keptLeaf,$ids.removedLeaf)[$i]; $w[$i].detail.path=(Join-Path $ps $leaf); $w[$i].detail.sha256=$made[$i].sha; $w[$i].detail.length=$made[$i].length; $w[$i].detail.snapshot=(Copy-F2 $made[$i].snapshot); Copy-Item -LiteralPath (Join-Path $ps $leaf) -Destination $cs }
+  $pRequest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath (Join-Path $ev 'runtime-request.json') -Encoding UTF8
+  @($rows | ForEach-Object { $_ | ConvertTo-Json -Depth 40 -Compress }) | Set-Content -LiteralPath (Join-Path $ev 'persistence-observations.jsonl') -Encoding UTF8
+  [ordered]@{status='PASS'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $ev 'runtime-result.json') -Encoding UTF8
+  $q=Copy-F2 $cRequest; $q.persistenceLoad.sha256=$made[0].sha; $q.persistenceLoad.length=$made[0].length; $q.persistenceAlternate.sha256=$made[1].sha; $q.persistenceAlternate.length=$made[1].length
+  [pscustomobject]@{pRows=$rows;pSave=$ps;cSave=$cs;cRequest=$q}
+ }
+ function Normalized([int]$V){ $r=Copy-F2 $cRows; (Kind $r 'f2-cold-observed').detail.sourceSchema=$V; ,$r }
+ function RefuseWith($Request,$Rows,$Game,$SaveRoot,[string]$Expect,[string]$Name){
+  try { Assert-KmcFinalize2UpgradeEvidence -Request $Request -Rows $Rows -GameResult $Game -SaveRoot $SaveRoot -EvidenceParent $parent -LegacyInputSha256 $script:legacy; Check $false $Name }
+  catch { $ok=$_.Exception.Message -match $Expect; if(-not $ok){ Write-Output ('      reader: '+$_.Exception.Message) }; Check $ok ($Name+' ('+$_.Exception.Message+')') } }
+ $hist=New-Chain 'historical' { param($dir) (Resave $dir $ids.keptLeaf 3 $keptSlots 'h'),(Resave $dir $ids.removedLeaf 3 $goneSlots 'h') }
+ $curr=New-Chain 'current' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'c'),(Resave $dir $ids.removedLeaf 4 $goneSlots 'c') }
+ Check (Accept $pRequest $hist.pRows $pGame $hist.pSave $parent) 'producer: historical schema-3 ZIP resaves (members decoded by the product codec, snapshots the decoded graphs) accepted'
+ Check (Accept $hist.cRequest (Normalized 3) $cGame $hist.cSave $parent) 'consumer: the historical schema-3 resaves consumed by a build normalizing to 3 accepted'
+ Check (Accept $pRequest $curr.pRows $pGame $curr.pSave $parent) 'producer: same-candidate schema-4 ZIP resaves (production serializer members, StepTravel) accepted'
+ Check (Accept $curr.cRequest (Normalized 4) $cGame $curr.cSave $parent) 'consumer: same-candidate schema-4 resaves consumed with normalized graph 4 accepted'
+ RefuseWith $curr.cRequest (Normalized 3) $cGame $curr.cSave 'normalized graph version differs' 'consumer: normalized graph 3 over schema-4 resave bytes refuses'
+ RefuseWith $hist.cRequest (Normalized 4) $cGame $hist.cSave 'normalized graph version differs' 'consumer: normalized graph 4 over schema-3 resave bytes refuses'
+ $p5=Copy-F2 $curr.pRows; (Kind $p5 'native-write-complete').detail.snapshot.SchemaVersion=5; Refuse $pRequest $p5 $pGame $curr.pSave $parent 'producer: an unsupported resave schema 5 refuses'
+ $plain=New-Chain 'plain' { param($dir) foreach($x in @(@($ids.keptLeaf,$keptSlots,'kept'),@($ids.removedLeaf,$goneSlots,'removed'))){ $a=Write-Archive (Join-Path $dir $x[0]) ($x[2]+' plain text'); $a.snapshot=((Member 4 $x[1]) | ConvertFrom-Json); $a } }
+ RefuseWith $pRequest $plain.pRows $pGame $plain.pSave 'is not a ZIP save archive' 'producer: plain-text resaves refuse despite matching recorded hash and length'
+ RefuseWith $plain.cRequest (Normalized 4) $cGame $plain.cSave 'is not a ZIP save archive' 'consumer: plain-text inputs refuse despite matching selected and recorded hash and length'
+ $crossed=New-Chain 'crossed' { param($dir) (Resave $dir $ids.keptLeaf 3 $keptSlots 'x' -Claim 4),(Resave $dir $ids.removedLeaf 3 $goneSlots 'x' -Claim 4) }
+ RefuseWith $pRequest $crossed.pRows $pGame $crossed.pSave 'written as schema 3' 'producer: schema-3 bytes attributed to a schema-4 write refuse (hash and length match)'
+ RefuseWith $crossed.cRequest (Normalized 4) $cGame $crossed.cSave 'written as schema 3' 'consumer: schema-3 bytes attributed to schema-4 producer writes refuse (hash and length match)'
+ function NoStep($Slots){ $graph=(Member 4 $Slots) | ConvertFrom-Json; $graph.PSObject.Properties.Remove('StepTravel'); $graph | ConvertTo-Json -Depth 20 -Compress }
+ $missing=New-Chain 'missing' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'm' -Json (NoStep $keptSlots)),(Resave $dir $ids.removedLeaf 4 $goneSlots 'm' -Json (NoStep $goneSlots)) }
+ RefuseWith $pRequest $missing.pRows $pGame $missing.pSave 'refused by the product codec' 'producer: schema-4 members missing required StepTravel refuse (hash and length match)'
+ RefuseWith $missing.cRequest (Normalized 4) $cGame $missing.cSave 'refused by the product codec' 'consumer: schema-4 members missing required StepTravel refuse (hash and length match)'
+ $other=New-Chain 'area' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'a' ('b'*32)),(Resave $dir $ids.removedLeaf 4 $goneSlots 'a' ('b'*32)) }
+ RefuseWith $pRequest $other.pRows $pGame $other.pSave 'retained area and campaign' 'producer: valid schema-4 members of another area under the expected snapshots refuse'
+ RefuseWith $other.cRequest (Normalized 4) $cGame $other.cSave 'differs from the decoded archive member' 'consumer: valid schema-4 inputs of another area under their producer snapshots refuse'
+ $rowsDiffer=New-Chain 'slots' { param($dir) (Resave $dir $ids.keptLeaf 4 $keptSlots 'r' -Json (Member 4 @((S $R 8 6),(S $R 0 7)))),(Resave $dir $ids.removedLeaf 4 $goneSlots 'r') }
+ RefuseWith $pRequest $rowsDiffer.pRows $pGame $rowsDiffer.pSave 'archive member: rows are' 'producer: a kept member whose slot rows differ from the observed rows refuses'
 
  # ---- the declared producer/consumer bridge: real git commits and source trees, a synthetic producer and suite ----------
  $head=(git -C $repo rev-parse HEAD).Trim(); $tree=(git -C $repo rev-parse 'HEAD:src').Trim()
@@ -176,7 +230,7 @@ try {
  $bRequest=Copy-F2 $cRequest; $bRequest.commit=$head; $bRequest | Add-Member -NotePropertyName dllMvid -NotePropertyValue 'm-consumer'; $bRequest | Add-Member -NotePropertyName qualificationSuite -NotePropertyValue ([pscustomobject]@{suiteId='c-suite';snapshotSha256=(Get-KmcSha256 (Join-Path $suites 'c-suite.json'))})
  $bRows=Copy-F2 $cRows; foreach($x in $bRows){ $x.source=$head }
  function NewBridge(){ [pscustomobject][ordered]@{producerRunId='20991231-finalize-f2-test-p';producerCommit='ff1f2e5a1200b3f2ecfe3be04304a08768e9e280';producerDllSha256=('5'*64);producerDllMvid='m-producer';producerSuiteId='p-suite';producerSuiteSha256=$pSuiteSha;producerPackageSha256=('4'*64)
-   riderId=$R;mountId=$M;gameId='game';gameName='cvb';area=('a'*32)
+   riderId=$R;mountId=$M;gameId=$G;gameName='cvb';area=('a'*32)
    kept=[pscustomobject]@{fileName=$ids.keptLeaf;internalName='KMC_P01';sha256=$kept.sha;length=$kept.length};removed=[pscustomobject]@{fileName=$ids.removedLeaf;internalName='KMC_F2_REMOVED';sha256=$gone.sha;length=$gone.length}
    consumerSourceTree=$tree;changedSourceFiles=@(git -C $repo diff --name-only ff1f2e5a1200b3f2ecfe3be04304a08768e9e280 $head -- src)} }
  function BAccept($Req,$Rows,$B){ try { Assert-KmcFinalize2UpgradeEvidence -Request $Req -Rows $Rows -GameResult $cGame -SaveRoot $cSave -EvidenceParent $parent -Bridge $B -RepoRoot $repo -SuiteRoot $suites; $true } catch { Write-Output ('      reader: '+$_.Exception.Message); $false } }

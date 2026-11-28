@@ -2275,8 +2275,8 @@ function Assert-KmcAreaPersistenceEvidence {
     }
 }
 
-# Sprint 1 UPG-01: the one native Manual resave after the cold load of the retained older Quick. The current product
-# writes the schema-3 archive member; the restored pair, area and campaign must be the retained input's, and the
+# Sprint 1 UPG-01: the one native Manual resave after the cold load of the retained older Quick. The product writes
+# its writer's archive member (schema 4 in this candidate, schema 3 in earlier builds); the restored pair, area and campaign must be the retained input's, and the
 # written bytes must differ from it (a new archive, never the input rewritten).
 function Assert-KmcUpgradeResaveEvidence {
     param($Request,$Rows,[string]$Root)
@@ -2295,15 +2295,19 @@ function Assert-KmcUpgradeResaveEvidence {
     }
     if(@(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne2){throw 'UPG-01 producer root holds other than the retained Quick and its resave.'}
     # R17-F4 (round 18): the snapshot is the decoded (normalized) graph; the written format is the archive member of the hash-verified file.
-    # Both carry exactly one writer version with its complete field set (StepTravel for 4), so a current record cannot rest on schema-3 bytes.
-    Add-Type -AssemblyName System.IO.Compression
-    $stream=[IO.File]::Open($archive,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$zip=$null
-    try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$true);$entries=@($zip.Entries|Where-Object{$_.FullName-ceq'kmc-mounted-state'})
-     if($entries.Count-ne1-or$entries[0].Length-gt131072){throw 'UPG-01 resave lacks exactly one bounded mounted archive member.'}
-     $reader=[IO.StreamReader]::new($entries[0].Open(),[Text.UTF8Encoding]::new($false,$true));try{$member=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}}
-    finally{if($zip){$zip.Dispose()};$stream.Dispose()}
-    if((Get-KmcSha256 $archive)-cne$w.sha256){throw 'UPG-01 resave changed while its member was read.'}
-    $onDisk=Assert-KmcChunk7WriterArchive $member 'UPG-01 resave archive member'
-    if((Assert-KmcChunk7WriterArchive $w.snapshot 'UPG-01 resave snapshot')-ne$onDisk){throw 'UPG-01 snapshot version differs from its on-disk archive member.'}
+    # R18-F4 (round 19): the member is decoded strictly by the product codec before any lossy parse (duplicate names, shape, bounds and
+    # the versioned StepTravel rule are the codec's); its ACTUAL source schema is kept and compared separately from the snapshot version.
+    $member=Read-KmcChunk7MountedArchiveMember $archive $w.sha256 $w.length 'UPG-01 resave'
+    # The retained identity expectations apply to the real member, not only to the snapshot: area, campaign, the one restored pair, slot
+    # rows owned by that pair, and the independent step travel actually written (schema 4) or absent from the bytes (schema 3).
+    $g=$member.graph;$mp=@($g.Pairs);$actors=@($initial[0].rider.Id,$initial[0].mount.Id)
+    if($g.AreaId-cne$Request.persistenceLoad.area-or$g.CampaignId-cne$Request.persistenceLoad.gameId){throw 'UPG-01 resave archive member is not in the retained area and campaign.'}
+    if($mp.Count-ne1-or$mp[0].Rider.Id-cne$initial[0].rider.Id-or$mp[0].Mount.Id-cne$initial[0].mount.Id){throw 'UPG-01 resave archive member does not carry exactly the restored mounted pair.'}
+    if(@(@($g.Slots)|Where-Object{[string]$_.ActorId-cnotin$actors}).Count-ne0-or(ConvertTo-KmcChunk7NumericCanonical @($g.Slots))-cne(ConvertTo-KmcChunk7NumericCanonical @($w.snapshot.Slots))){throw 'UPG-01 resave archive member slot rows are not the restored pair''s reported rows.'}
+    $written=if($member.sourceSchema-eq(Get-KmcChunk7CurrentWriterSchema)){@($member.raw.StepTravel)}elseif($null-eq$member.raw.PSObject.Properties['StepTravel']){@()}else{throw 'UPG-01 resave schema-3 member carries step travel.'}
+    $reported=if($null-ne$w.snapshot.PSObject.Properties['StepTravel']){@($w.snapshot.StepTravel)}else{@()}
+    if((ConvertTo-KmcChunk7NumericCanonical $written)-cne(ConvertTo-KmcChunk7NumericCanonical $reported)){throw 'UPG-01 resave archive member step travel differs from the reported snapshot.'}
+    # The complete decoded member against the snapshot (explicit version view only), with the written version compared on its own.
+    $onDisk=Assert-KmcChunk7ArchiveMemberSnapshot $member $w.snapshot 'UPG-01 resave'
     if($null-ne$w.PSObject.Properties['sourceSchema']-and$w.sourceSchema-ne$onDisk){throw 'UPG-01 recorded source schema differs from its on-disk archive member.'}
 }
