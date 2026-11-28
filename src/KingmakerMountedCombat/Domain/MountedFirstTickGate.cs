@@ -9,6 +9,18 @@ namespace KingmakerMountedCombat.Domain
 
     public enum MountedFirstTickProposalState { Pending, Committed, Refused }
 
+    // PR #70 round 17 (follow-up to R16-F4, the R14-F2 single-read rule): the installed steering facts of one movement tick, read ONCE by the
+    // movement adapter at the start of that tick (the same read the step bound uses) and handed to the decision, which reads no speed input
+    // itself. Heading is the agent's MoveDirection (x, z); AgentSpeed its m_Speed (native waypoint skipping); Readable false: no assumed value.
+    public struct MountedSteeringFacts
+    {
+        public bool Readable;
+        public float HeadingX, HeadingZ, CombatAngularSpeed, AgentSpeed;
+        public bool FollowPrecomputedPath, ForceMode, InCombat;
+        public override string ToString() => !Readable ? "steering=unreadable" : "steering(heading=(" + HeadingX.ToString("R") + "," + HeadingZ.ToString("R") + ");combatAngular=" +
+            CombatAngularSpeed.ToString("R") + ";agentSpeed=" + AgentSpeed.ToString("R") + ";follow=" + FollowPrecomputedPath + ";force=" + ForceMode + ";combat=" + InCombat + ")";
+    }
+
     public interface IMountedFirstTickGate
     {
         // The exact carrier command the request installed; the gate applies only to a tick of this command.
@@ -20,6 +32,8 @@ namespace KingmakerMountedCombat.Domain
         // Round 17 (R16-F4): the allowance and the approval are DURATIONS (allowedTick: the permitted duration exactly as the adapter would
         // return it; approvedTick: the selected duration the adapter returns and debits unchanged) and speed is the MaxSpeed the adapter
         // captured for this tick: no duration is reconstructed from metres, so the decision and the engine select waypoints with the same float.
-        MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail);
+        // steering: the tick's single steering read (MountedSteeringFacts).
+        MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, MountedSteeringFacts steering, float stepTravelLeft,
+            out float approvedTick, out string detail);
     }
 }

@@ -6170,7 +6170,7 @@ namespace Harness
         {
             public object Carrier { get; set; }
             public int Decisions;
-            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail) { Decisions++; approvedTick = allowedTick; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, MountedSteeringFacts steering, float stepTravelLeft, out float approvedTick, out string detail) { Decisions++; approvedTick = allowedTick; detail = "recorded"; return MountedFirstTickVerdict.Commit; }
         }
 
         // PR #70 R12-F4 (round 16): disable and unload through the PRODUCTION cleanup chain: MountedServiceTeardownSequence (BeginDisable/Unload,

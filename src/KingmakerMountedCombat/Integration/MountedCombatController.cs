@@ -1586,8 +1586,9 @@ namespace KingmakerMountedCombat.Integration
                 if (EffectMountHold) owed.Add("mount-hold");
                 return "outstanding(" + string.Join(",", owed.ToArray()) + ")";
             }
-            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, out float approvedTick, out string detail) =>
-                Owner.DecideFirstTickProposal(this, movementContext, allowedTick, deltaTime, speed, stepTravelLeft, false, out approvedTick, out detail);
+            public MountedFirstTickVerdict Decide(object movementContext, float allowedTick, float deltaTime, float speed, MountedSteeringFacts steering, float stepTravelLeft,
+                out float approvedTick, out string detail) =>
+                Owner.DecideFirstTickProposal(this, movementContext, allowedTick, deltaTime, speed, steering, stepTravelLeft, false, out approvedTick, out detail);
         }
 
         private FirstTickProposal firstTickProposal;
@@ -1791,8 +1792,8 @@ namespace KingmakerMountedCombat.Integration
         // wrapper's three plans must agree before any commit (R7-F2); a stationary strike commits in place on the rider's own entitlement, any
         // movement needs the mount's current authority read on that same context (R7-F4, R8-F5), the agent's own live route (R6-F2, R8-F1),
         // and, for the restricted single tick, the installed shift contract (R8-F6).
-        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft,
-            bool inPlaceOnly, out float approvedTick, out string detail)
+        internal MountedFirstTickVerdict DecideFirstTickProposal(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, MountedSteeringFacts steering,
+            float stepTravelLeft, bool inPlaceOnly, out float approvedTick, out string detail)
         {
             approvedTick = 0f;
             // Reporting only (round 17, R16-F4): the decision works in durations; metres are speed x duration for the record.
@@ -1809,7 +1810,7 @@ namespace KingmakerMountedCombat.Integration
             string refusal;
             bool inPlace = false;
             float granted = 0f;
-            try { refusal = EvaluateFirstTickDecision(p, movementContext, allowedTick, deltaTime, speed, stepTravelLeft, inPlaceOnly, out inPlace, out granted); }
+            try { refusal = EvaluateFirstTickDecision(p, movementContext, allowedTick, deltaTime, speed, steering, stepTravelLeft, inPlaceOnly, out inPlace, out granted); }
             catch (Exception error)
             {
                 TryLogException("Turn-based first-tick decision failed; the request is refused", error);
@@ -1886,9 +1887,11 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // The decision's predicates and its geometry, in order; null admits (p.Detail then describes the commit).
-        // Round 17 (R16-F4): allowedTick is the permitted duration and speed the captured MaxSpeed; granted is the approved DURATION.
-        private string EvaluateFirstTickDecision(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, float stepTravelLeft, bool inPlaceOnly,
-            out bool inPlace, out float granted)
+        // Round 17 (R16-F4): allowedTick is the permitted duration and speed the captured MaxSpeed; granted is the approved DURATION. Round 17
+        // follow-up: steering is the tick's single steering read (agent speed, heading, angular speed, follow, force, combat); no speed or
+        // steering input is read again here, and unreadable steering refuses any moving commit.
+        private string EvaluateFirstTickDecision(FirstTickProposal p, object movementContext, float allowedTick, float deltaTime, float speed, MountedSteeringFacts steering,
+            float stepTravelLeft, bool inPlaceOnly, out bool inPlace, out float granted)
         {
             inPlace = false; granted = 0f;
             var rider = relationship.Rider;
@@ -1928,6 +1931,8 @@ namespace KingmakerMountedCombat.Integration
                 Kingmaker.Utility.GeometryUtils.MechanicsDistance(new Vector3(waypoint.x, agentPath[cursor].y, waypoint.y), agentPath[cursor]) > PairedAttackClickProbe.WaypointPassedMetres)
                 return "agent-cursor-inconsistent(" + cursor + ")";
             if (!(speed > 0f) || !(allowedTick >= 0f)) return "agent-speed-unreadable";
+            if (!steering.Readable || !(steering.AgentSpeed >= 0f)) return "agent-steering-unreadable(" + steering + ")";
+            var heading = new Vector2(steering.HeadingX, steering.HeadingZ);
             // Round 13 (owner amendment 2026-11-27g, sections 3-5): only a genuinely single-tick allowance is decided on its executable stop before
             // the debit: the restricted single tick, an ORDINARY (time-limited) grant this tick exhausts, and a STEP whose native counter this tick
             // makes final (R12-F1: (1.524 - MetresStepped) / CurrentSpeedMps binds and fits this tick, so no later debit can follow whatever the
@@ -1958,12 +1963,10 @@ namespace KingmakerMountedCombat.Integration
             if (mode == "single-move-first-tick" || finalTick || finalStep)
             {
                 // R8-F6 (round 10): the installed combat steering rule at the delta that will be returned (PairedAttackClickProbe.EvaluateFirstTickNative).
-                Vector2 heading; float combatAngular, agentSpeed; bool followPrecomputed, forceMode, inCombat;
-                if (!MountedAgentSteering.TryReadSteering(agent, out heading, out combatAngular, out agentSpeed, out followPrecomputed, out forceMode, out inCombat))
-                    return "agent-steering-unreadable";
-                if (forceMode || !inCombat || !(combatAngular > 0f)) return "agent-steering-unsupported(force=" + forceMode + ";combat=" + inCombat + ")";
-                var probe = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, combatAngular,
-                    agentSpeed, followPrecomputed, stepTravelLeft);
+                if (steering.ForceMode || !steering.InCombat || !(steering.CombatAngularSpeed > 0f))
+                    return "agent-steering-unsupported(force=" + steering.ForceMode + ";combat=" + steering.InCombat + ")";
+                var probe = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, steering.CombatAngularSpeed,
+                    steering.AgentSpeed, steering.FollowPrecomputedPath, stepTravelLeft);
                 if (p.Command.ClickPlan.Valid && !probe.Plan.Matches(p.Command.ClickPlan)) return "plan-changed(forecast)";
                 var label = finalTick ? "final-ordinary-tick" : finalStep ? "final-step-counter" : null;
                 if (!probe.RouteProven) return (label != null ? label + "-" : "") + "no-affordable-strike-position(" + probe.Detail + ";grant=" + grant.ToString("R") + ")";
@@ -1987,12 +1990,10 @@ namespace KingmakerMountedCombat.Integration
             // ordinary route proceeds with the full tick under the amended admission rule. Round 17 (R16-F2): this executable immediate strike
             // is tested once the live route and arrival geometry above has passed and BEFORE the cost of the full destination is compared with
             // the grant: an affordable strike within the executable tick is not refused because the carrier's destination costs more.
-            Vector2 headingS; float angularS, agentSpeedS; bool followS, forceS, combatS;
-            if (allowedTick > 0f && MountedAgentSteering.TryReadSteering(agent, out headingS, out angularS, out agentSpeedS, out followS, out forceS, out combatS) && !forceS && combatS &&
-                angularS > 0f)
+            if (allowedTick > 0f && !steering.ForceMode && steering.InCombat && steering.CombatAngularSpeed > 0f)
             {
-                var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, headingS, angularS, agentSpeedS, followS,
-                    stepTravelLeft);
+                var shortened = PairedAttackClickProbe.EvaluateFirstTickNative(rider, mount, p.Target, agentPath, cursor, allowedTick, speed, heading, steering.CombatAngularSpeed,
+                    steering.AgentSpeed, steering.FollowPrecomputedPath, stepTravelLeft);
                 if (shortened.RouteProven && (!p.Command.ClickPlan.Valid || shortened.Plan.Matches(p.Command.ClickPlan)))
                 {
                     granted = shortened.Duration;
@@ -2070,7 +2071,7 @@ namespace KingmakerMountedCombat.Integration
             if (p.State != MountedFirstTickProposalState.Pending) return false;
             string detail;
             float granted;
-            return DecideFirstTickProposal(p, null, 0f, 0f, float.NaN, float.PositiveInfinity, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
+            return DecideFirstTickProposal(p, null, 0f, 0f, float.NaN, default(MountedSteeringFacts), float.PositiveInfinity, true, out granted, out detail) != MountedFirstTickVerdict.Refuse;
         }
 
         // R8-F4 (round 9): the command released its own carrier because its strike became admissible where the pair stands (TickApproach). A

@@ -281,6 +281,9 @@ namespace KingmakerMountedCombat.Integration
             // debited unchanged. Ordinary movement (and its NearTheEnd borrowed time) is unchanged.
             var stepTravelLeft = float.PositiveInfinity;
             var endpointDetail = "";
+            // Round 17 follow-up (R14-F2 single-read rule): the steering facts of this tick are read ONCE here and serve both the step bound and
+            // the first-tick decision; neither reads a speed or steering input again.
+            var steering = ReadSteeringFacts(mount.View?.AgentASP);
             if (stepMode && speedsReadable && deltaTime > 0f)
             {
                 var stepAgent = mount.View?.AgentASP;
@@ -291,7 +294,7 @@ namespace KingmakerMountedCombat.Integration
                         Math.Max(mount.CombatState.Cooldown.MoveAction, allocation.MoveUsed), allocation.StandardUsed || mount.UsedStandardAction(),
                         mount.IsMoveActionRestricted(), true, inputTurn.EnabledSingleActionMove)));
                     float executable;
-                    if (StepExecutableTick(stepAgent, mount.Position, stepTravelLeft, physicalSpeed, permitted, out executable, out endpointDetail) && executable < deltaTime)
+                    if (StepExecutableTick(stepAgent, steering, mount.Position, stepTravelLeft, physicalSpeed, permitted, out executable, out endpointDetail) && executable < deltaTime)
                         deltaTime = executable;
                 }
             }
@@ -308,7 +311,7 @@ namespace KingmakerMountedCombat.Integration
                 var allowedMetres = speedsReadable ? allowedTick * physicalSpeed : float.NaN;   // reporting only
                 string gateDetail;
                 float decidedTick;
-                var verdict = gate.Decide(inputTurn, allowedTick, deltaTime, speedsReadable ? physicalSpeed : float.NaN, stepTravelLeft, out decidedTick, out gateDetail);
+                var verdict = gate.Decide(inputTurn, allowedTick, deltaTime, speedsReadable ? physicalSpeed : float.NaN, steering, stepTravelLeft, out decidedTick, out gateDetail);
                 // PR #70 R6-F2 (round 8): a commit on the restricted tick grants only the travel to its predicted stop; the tick is shortened to
                 // it (the agent moves and is debited exactly that), so the stop never depends on how the agent would round a waypoint.
                 // R11-F5 (round 12): the duration the decision approved is the duration returned and debited, also inside native's NearTheEnd
@@ -391,8 +394,9 @@ namespace KingmakerMountedCombat.Integration
         // installed steering facts (MoveDirection, m_CombatAngularSpeed, m_Speed for skipping, m_FollowPrecomputedPath) and the shift's speed
         // (MaxSpeed): PairedAttackClickProbe.StepExecutableDuration (the installed tick at each candidate duration, SimulateTick). False (no
         // bound) when the agent has no readable path or its end lies within the physical remainder (any completion is affordable). Steering that
-        // cannot be read, or is not the turn-based combat steering, gives no executable movement (0): the shift cannot be predicted.
-        internal static bool StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, Vector3 position, float physicalLeft, float speed, float permitted,
+        // cannot be read, or is not the turn-based combat steering, gives no executable movement (0): the shift cannot be predicted. Round 17
+        // follow-up: the steering facts are the tick's single read (ReadSteeringFacts in TickDelegated), never read again here.
+        internal static bool StepExecutableTick(Kingmaker.View.UnitMovementAgent agent, MountedSteeringFacts steering, Vector3 position, float physicalLeft, float speed, float permitted,
             out float executable, out string detail)
         {
             executable = permitted; detail = "";
@@ -401,9 +405,7 @@ namespace KingmakerMountedCombat.Integration
             var end = path[path.Count - 1];
             var toEnd = Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, end);
             if (toEnd <= physicalLeft) return false;
-            Vector2 heading; float combatAngular, agentSpeed; bool follow, forceMode, inCombat;
-            if (!MountedAgentSteering.TryReadSteering(agent, out heading, out combatAngular, out agentSpeed, out follow, out forceMode, out inCombat) ||
-                forceMode || !inCombat || !(combatAngular > 0f))
+            if (!steering.Readable || steering.ForceMode || !steering.InCombat || !(steering.CombatAngularSpeed > 0f))
             {
                 executable = 0f;
                 detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";steering-unsupported;tick=0)";
@@ -411,12 +413,23 @@ namespace KingmakerMountedCombat.Integration
             }
             PairedAttackClickProbe.NativeTick selected;
             int evaluated;
-            executable = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, heading, speed, agentSpeed, combatAngular, follow, physicalLeft, permitted,
-                out selected, out evaluated);
+            executable = PairedAttackClickProbe.StepExecutableDuration(path, cursor, position, new Vector2(steering.HeadingX, steering.HeadingZ), speed, steering.AgentSpeed,
+                steering.CombatAngularSpeed, steering.FollowPrecomputedPath, physicalLeft, permitted, out selected, out evaluated);
             detail = ";stepExecutable(toEnd=" + toEnd.ToString("R") + ";physicalLeft=" + physicalLeft.ToString("R") + ";cursor=" + cursor + ";permitted=" + permitted.ToString("R") +
                 ";tick=" + executable.ToString("R") + ";selected=" + selected + ";settledTravel=" +
                 Kingmaker.Utility.GeometryUtils.MechanicsDistance(position, selected.Stop).ToString("R") + ";evaluated=" + evaluated + ")";
             return true;
+        }
+
+        // Round 17 follow-up: the installed steering facts of one tick, read once (MountedAgentSteering.TryReadSteering, contained); Readable
+        // false when any is unreadable (no assumed value).
+        internal static MountedSteeringFacts ReadSteeringFacts(Kingmaker.View.UnitMovementAgent agent)
+        {
+            Vector2 heading; float combatAngular, agentSpeed; bool follow, forceMode, inCombat;
+            if (agent == null || !MountedAgentSteering.TryReadSteering(agent, out heading, out combatAngular, out agentSpeed, out follow, out forceMode, out inCombat))
+                return new MountedSteeringFacts { Readable = false, HeadingX = float.NaN, HeadingZ = float.NaN, CombatAngularSpeed = float.NaN, AgentSpeed = float.NaN };
+            return new MountedSteeringFacts { Readable = true, HeadingX = heading.x, HeadingZ = heading.y, CombatAngularSpeed = combatAngular, AgentSpeed = agentSpeed,
+                FollowPrecomputedPath = follow, ForceMode = forceMode, InCombat = inCombat };
         }
 
         // The agent's own speed (MaxSpeed), contained; NaN when unreadable.
