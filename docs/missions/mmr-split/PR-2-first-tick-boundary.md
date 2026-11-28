@@ -889,3 +889,89 @@ with the new reader child) is recorded in the developer report and the ledger ex
 Records note: the cherry-pick of the ownership branch onto this branch left conflict markers in the harness template in commit 66079b32 (a
 lead tooling error: a relative path resolved outside the worktree). 83d3fa93 removes them, keeping both added blocks; the stray empty file the
 error created in the main checkout was deleted. No history was rewritten.
+
+## 15. Round 17 (owner authorization 2026-11-28a; owner amendment revision 1 unchanged)
+
+Round 16 (candidate `bb537828`) verified R12-F4, R13-F5, R15-F1, R15-F2 and R15-F3. This round corrects the two findings still open (R13-F2,
+R13-F3) and the five new ones (R16-F1..F5) in one pass, by the same three in-session developers in separate local worktrees, merged by the lead
+after inspection. All evidence is offline (nativeProof=false).
+
+### 15.1 Durations end to end in the first-tick decision (R16-F4), immediate strike before the destination cost (R16-F2), the step interval above zero (R16-F3)
+
+- **R16-F4.** The decision works in the adapter's own float duration. `IMountedFirstTickGate.Decide` receives the permitted duration
+  (`allowedTick`), the MaxSpeed captured for this tick and the steering facts read once in this tick (`MountedSteeringFacts`: heading, combat
+  angular speed, agent speed m_Speed, follow-precomputed, force mode, in-combat; `MountedMovementStateAdapter.ReadSteeringFacts`). It returns
+  `approvedTick`. `EvaluateFirstTickNative`'s candidates are durations (`Result.Duration`), and the adapter returns the approved duration
+  unchanged; no metres-to-time reconstruction remains. The decision reads no speed or steering input itself (one read per tick, shared with
+  the step bound). Unreadable steering or speed refuses any moving commit. Restricted tick, MaxSpeed 9, agent speed 8, interior waypoint at
+  0.1112f m on a bent path, sight only at the final stop:
+  - at 0.0139f s native keeps the waypoint (threshold 0.1112 m); the decision predicts the blind interior stop and refuses before any effect
+    or debit (generation, target and Hold unchanged);
+  - at the adjacent 0.0140f s native skips it; predicted and executed waypoint (#2, end), stop (0.1112, 0.06), duration and debit (0.014 s)
+    agree; one strike.
+- **R16-F2.** In the non-final branch, once `EvaluateRemainingRoute` has proven the live route and arrival geometry (the R15-F3 order is kept),
+  the immediate strike within the executable tick is tested before the full-destination cost (`RouteWithinGrant`). The displaced 65 mm step
+  (43.9 mm left on both counters, pose blind, sight open within 20 mm of the endpoint and at 14 mm of travel) strikes once from the shortened
+  stop (-0.008, 0) after 0.00155556 s; both balances 1.4801 -> 1.4941 m. The all-blind 65 mm case keeps its refusal.
+- **R16-F3.** `StepExecutableDuration` resolves the interval between zero and its last bad sample by bisection, then backs off 0.1 mm and
+  re-checks against the selected segment, endpoint completion and the physical remainder. Later step tick 50.6 mm from the end with 8.9 mm left
+  at 9 m/s: 4.444e-5 s, 0.4 mm unsnapped, 50.2 mm from the end; physical 1.5151 -> 1.5155 m, native counter 0.762 -> 0.7624 m. Inside the
+  completion radius (45 mm), every positive tick would overspend: 0 returned.
+
+Discrimination: with round-16 behavior restored the three new cases fail. Limits: the R16-F4 and R16-F3 geometries are injected into the
+agent's path; the agreement holds to the extent the engine stand-in matches the installed rule; the agent's path and cursor are still read
+separately by the step bound and by the decision (no speed input is).
+
+### 15.2 Exact-carrier movement fact (R13-F3) and steering successors outside the Move slot (R16-F1)
+
+- **R13-F3.** Approach termination no longer depends on the rider seeing the path. At its debit, `MountedMovementStateAdapter.TickDelegated`
+  records that the mount's Move-slot command received a positive returned tick (`Domain/MountedCarrierMovementLedger`, weakly keyed by the
+  command object). `MountedPairAttackCommand.CarrierAcquiredPath` reads that record, so a path delivered, used and lost between rider ticks
+  still ends the issued approach before drift can re-path. A carrier with no positive tick and only an outstanding first request keeps
+  waiting; the strike-entitlement check is unchanged. Rider-first harness, path cleared before the rider's first observation (0 observations),
+  and the same with a pooled Path reused and no pending frame: 1 carrier, mount Move 0.0167 s kept, 0 strikes, Standard unspent, the admitted
+  ground order then moves the mount 0.5 m. Pending-request control: not acquired, re-path.
+- **R16-F1.** Under `ModDisabled`, `KingmakerMountedPairRuntime.MountSuccessor` (used by `PreservesMountSuccessor`/`RestoreMovementAuthority`
+  and by `CancelMountMovement(trigger)`) preserves a live unowned command that steers the mount: the Move-slot command, or an unowned
+  approaching command in another slot, judged by the exact-carrier cleanup's own reading (`MountedCarrierCleanup.ApproachSteers`, now shared).
+  The pair's own command types always count as owned. A Standard command promoted after the exact carrier's removal (Path (0.45,0) ->
+  (-5.55,0), cursor 1) keeps its command, Path identity and contents, owner and cursor, with 0 interruptions and 0 stops, through a save-fence
+  refusal, a load-fence refusal, disable Ready and unload Ready. Owned-command cleanup and Manual dismount are unchanged.
+
+Discrimination: with the ledger term removed and the successor reading reduced to the Move slot, exactly the two unobserved R13-F3 cases (2
+carriers) and the promoted Standard case (interrupted, disable refused) fail. Harness stand-in change: unforced moves in the older harness world
+now hold a straight-line agent path while moving, as native does. Limits: the ledger relies on native moving the mount only for its Move-slot
+command while a carrier is live; approach steering is read as "unstarted and not close" (the existing cleanup's reading).
+
+### 15.3 The remaining current-write readers (R13-F2) and the world writer capability (R16-F5)
+
+- **R16-F5.** `Chunk7WorldScenarioEngine` records `capability.nativeWriterSchema` as the selected writer
+  (`NativeMountedSaveFormat.SelectedWriterSchema`), and the owned schema-1 scenario records its own source save's writer the same way. The
+  capability readers (world, owned pairs, six-pair stress) accept only the current (4) or previous (3) writer. The third-Horse and owner-seed
+  Manual readers require the advertised capability to equal the Manual output's `sourceSchema` and archive version.
+- **R13-F2.** The remaining current-write leaves use the shared writer rule: the rider-fall post-fall archive on save and cold
+  (`Assert-KmcFinalize6PostFallArchive`), the small-fixture and stock-Mammoth Manual archive and `sourceSchema`, the progression write and its
+  source qualification, the Manual-derived output version, the ordinary-acquisition autosave (its `StepTravel` member bound to the version),
+  the bootstrap and assisted metadata, and the UPG-01 resave. A sweep of `scripts/runtime` leaves no reader that requires schema 3 for current
+  output. The remaining literals are evidence-protocol versions, schema-2 historical inputs, or Finalize2 version relations in pinned upgrade
+  evidence.
+- **Gate child** `Test-Chunk7CurrentWriterReaders.ps1` adds:
+  - rider-fall save and cold through the dispatcher: schema 4 and the schema-3 control accepted; missing `StepTravel`, an extra field and both
+    wrong-version pairings refused;
+  - the fixture Manual leaf, shared by small-fixture and stock-Mammoth;
+  - owner-seed Manual capability/output 4/4 and 3/3 accepted, 3/4 and 4/3 refused;
+  - leaf-level offline cases (each leaf called directly with codec-written graphs): the progression write (`Assert-KmcProgressionWrite`),
+    the fixture Manual write binding shared by stock-Mammoth and small-fixture (`Assert-KmcChunk7FixtureManualWrite`) and the third-Horse capability
+    cross-check (`Assert-KmcChunk7ManualWriterCapability`): schema 4 and the schema-3 control accepted; missing `StepTravel` and both wrong-version pairings
+    refused (capability 3/4 and 4/3 refused).
+  - Result: 125 PASS / 0 FAIL (89 expected refusals), all offline (`nativeInvoked=false`).
+- **Suites:** components 1,545/0; Finalize6 readers 76/0; small fixture 78/0; progression 101/0; bootstrap inventory 151/0; Manual-derived
+  118/0; ordinary archive 19/0.
+- **Limits:** not run were the owned two-pair suite (timed out at 150 s in round 16), the stock-Mammoth suites, the assisted-fixture archive
+  suite and the six-pair suites (missing frozen files).
+
+### 15.4 Validation
+
+Merged harness (e48956ed, before the schema commits): TOTAL 547/0. After the reader refactor in the last schema commit, the lead re-ran the
+small-fixture evidence suite (78/0) and the world evidence suite (437/0). The candidate's focused gate is recorded in the developer report and
+the ledger excerpt. Not run: Test-Tiers Full, any game.
