@@ -133,8 +133,8 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if(-not(Test-Path -LiteralPath $path -PathType Leaf) -or (Get-KmcSha256 $path) -cne (Text (P $d 'sha256')) -or (Get-Item -LiteralPath $path).Length -ne (Int (P $d 'length') 'write length') -or
      (Text (P $d 'sha256')) -ceq [string]$Request.persistenceLoad.sha256){ Fail ('write '+$Ordinal+' bytes differ from its observation or alias the input') }
   $s=P $d 'snapshot'; $pairs=@(P $s 'Pairs')
-  if((P $s 'SchemaVersion') -ne 3 -or (Text (P $s 'AreaId')) -cne [string]$Request.persistenceLoad.area -or (Text (P $s 'CampaignId')) -cne [string]$Request.persistenceLoad.gameId -or
-     $pairs.Count -ne 1 -or (Text (P (P $pairs[0] 'Rider') 'Id')) -cne $riderId -or (Text (P (P $pairs[0] 'Mount') 'Id')) -cne $mountId){ Fail ('write '+$Ordinal+' does not carry the restored mounted pair in schema 3') }
+  if(-not(Test-KmcChunk7WriterSchema (P $s 'SchemaVersion')) -or (Text (P $s 'AreaId')) -cne [string]$Request.persistenceLoad.area -or (Text (P $s 'CampaignId')) -cne [string]$Request.persistenceLoad.gameId -or
+     $pairs.Count -ne 1 -or (Text (P (P $pairs[0] 'Rider') 'Id')) -cne $riderId -or (Text (P (P $pairs[0] 'Mount') 'Id')) -cne $mountId){ Fail ('write '+$Ordinal+' does not carry the restored mounted pair in a writer schema') }
   RowsAre (P $s 'Slots') $ExpectRows ('write '+$Ordinal+' archive')
   if((Int (P (P $d 'scan') 'publicHits') 'public hits') -ne 0 -or (Int (P (P $d 'scan') 'members') 'scanned members') -lt 1){ Fail ('write '+$Ordinal+': a native archive member names the public control, or nothing was scanned') }
   $d
@@ -263,7 +263,12 @@ function Assert-KmcFinalize2UpgradeEvidence {
   if(@($source.rows | Where-Object processId -EQ $GameResult.processId).Count -ne 0){ Fail 'the consumer is the producer''s process' }
   $chosen=[int](Int (P $pw[0].detail 'controlIndex') 'producer kept index')
   $keptRows=@(($riderId+'|'+$chosen+'|6'),($riderId+'|0|7'))
-  if((Int (P $c 'sourceSchema') 'source schema') -ne 3){ Fail 'the consumer input is not the current schema' }
+  # R13-F2 (round 18): the consumer's input is the producer's resave: exactly the version every producer write recorded. A same-candidate
+  # producer writes the current writer's version; the one declared bridge is the pinned schema-3 producer run.
+  $consumed=Int (P $c 'sourceSchema') 'source schema'
+  if(-not(Test-KmcChunk7WriterSchema $consumed)){ Fail 'the consumer input is not a writer schema' }
+  foreach($write in $pw){ if((Int (P (P $write.detail 'snapshot') 'SchemaVersion') 'producer resave schema') -ne $consumed){ Fail 'the consumer input version differs from its producer''s resave' } }
+  if(($source.request.commit -cne $Request.commit -or $source.request.dllSha256 -cne $Request.dllSha256) -and $consumed -ne 3){ Fail 'the bridged pinned producer wrote schema 3' }
   RowsAre (P $c 'savedRows') $keptRows 'consumer saved rows'; RowsAre (P $c 'liveRows') $keptRows 'consumer live rows'
   if(@(P $coldActor 'indices').Count -ne 1 -or [int]@(P $coldActor 'indices')[0] -ne $chosen -or (P $coldActor 'placementRecorded') -ne $true){ Fail 'the control is not restored at its saved slot with its record' }
   $cc=P $coldActor 'counters'

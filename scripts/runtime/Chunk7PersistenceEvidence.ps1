@@ -61,6 +61,10 @@ function Assert-KmcChunk7WriterArchive($Archive,[string]$Label){
     if($schema-eq(Get-KmcChunk7CurrentWriterSchema)){Assert-KmcChunk7StepTravel $Archive}
     return $schema
 }
+# Round 18 (R13-F2): a producer that records the version of a graph it DECODED records the normalized in-memory version, which is the
+# reading build's writer (this candidate normalizes every read, a genuine schema-3 input included, to 4; earlier builds normalized to 3).
+# It is never the observed input version, which these observations do not carry.
+function Assert-KmcChunk7NormalizedGraphVersion($Value,[string]$Label){return (Assert-KmcChunk7WriterSchema $Value ($Label+' normalized graph version'))}
 # Round 17 (R16-F5): a record's advertised writer capability is the writer of its own Manual output (recorded version and graph).
 function Assert-KmcChunk7ManualWriterCapability($Capability,$Write,[string]$Label){
     $writer=Assert-KmcChunk7WriterSchema $Capability.nativeWriterSchema ($Label+' writer capability')

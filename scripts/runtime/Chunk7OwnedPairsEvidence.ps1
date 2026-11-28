@@ -769,7 +769,7 @@ function Assert-KmcChunk7OwnerSeedWorldSetup($Request,$Observations){
  if($preOwned){
   $m6=Get-KmcChunk7Mounted6Seed;$e=$u.ownerMadeEmptyArchive
   Assert-KmcExactProperties $e @('schemaVersion','campaignId','areaId','pairs','participations','slots','combatPresent','nativeRestorationGrantedByDiagnostic') 'owner-made seed empty archive'
-  Assert-KmcOrdinaryInteger $e.schemaVersion 3 3;Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
+  [void](Assert-KmcChunk7NormalizedGraphVersion $e.schemaVersion 'Owner-seed world');Assert-KmcBootstrapInventoryString $e.campaignId $Request.persistenceLoad.gameId;Assert-KmcBootstrapInventoryString $e.areaId $Request.persistenceLoad.area
   foreach($key in @('pairs','participations','slots')){Assert-KmcOrdinaryInteger $e.$key 0 0};Assert-KmcChunk7Boolean $e.combatPresent $false;Assert-KmcChunk7Boolean $e.nativeRestorationGrantedByDiagnostic $false
   $q=$u.preOwnedRiderA
   Assert-KmcExactProperties $q @('riderId','horseId','petIsKmcHorse','petReciprocal','petInField','horseFeature','horseRank','characterLevel','rangerLevel','experience','readyLevel','source') 'mounted6 pre-owned rider A'
@@ -1362,7 +1362,9 @@ function Assert-KmcChunk7OwnerSeedCheckpointStart($Request,$Observations,$Archiv
  Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','newSlotBindings','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','loadedArchive') 'owner-seed checkpoint restored start'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-checkpoint-restored-start-v1';Assert-KmcBootstrapInventoryString $m.archivePhase 'all-pair-presentation-restored'
  foreach($key in @('restoredFromColdLoad','loadedEqualsProducerReadback','debtRetained')){Assert-KmcChunk7Boolean $m.$key $true}
- foreach($pair in @(@('nativeMountInputs',0),@('newSlotBindings',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
+ # R13-F2 (round 18): the restored start records its decoded (normalized) graph version: this build's writer.
+ [void](Assert-KmcChunk7NormalizedGraphVersion $m.schemaVersion 'Owner-seed checkpoint restored start');if($m.schemaVersion-ne$o.nativeSchema){throw 'The restored start graph version differs from the producer''s writer schema.'}
+ foreach($pair in @(@('nativeMountInputs',0),@('newSlotBindings',0),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId-or$m.processId-ne$o.processId){throw 'A same-process world cannot prove the restored mounted start.'}
  if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'The owner-seed checkpoint producer requires both restored pairs.'}
  if($single){Assert-KmcChunk7OwnerSeedCheckpointPreparation $Request $o}
@@ -1489,7 +1491,8 @@ function Assert-KmcChunk7OwnerSeedDerivedCombatStart($Request,$Observations){
  Assert-KmcExactProperties $m @('contract','restoredFromColdLoad','nativeMountInputs','archivePhase','schemaVersion','semanticRestores','presentationRestores','nativePostLoads','nativeCastRequests','snapshots','profiles','owners','slots','loadedEqualsProducerReadback','producerProcessId','processId','debtRetained','elapsedSeconds','debt','world') 'owner-seed-derived mounted start'
  Assert-KmcBootstrapInventoryString $m.contract 'owner-seed-derived-mounted-start-v1';Assert-KmcBootstrapInventoryString $m.archivePhase 'all-pair-presentation-restored'
  foreach($key in @('restoredFromColdLoad','loadedEqualsProducerReadback','debtRetained')){Assert-KmcChunk7Boolean $m.$key $true}
- foreach($pair in @(@('nativeMountInputs',0),@('schemaVersion',3),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
+ [void](Assert-KmcChunk7NormalizedGraphVersion $m.schemaVersion 'Owner-seed derived combat restored start') # R13-F2 (round 18): normalized graph version
+ foreach($pair in @(@('nativeMountInputs',0),@('semanticRestores',4),@('presentationRestores',2),@('nativePostLoads',4),@('nativeCastRequests',0),@('snapshots',0))){Assert-KmcOrdinaryInteger $m.($pair[0]) $pair[1] $pair[1]}
  Assert-KmcOrdinaryInteger $m.producerProcessId 1 ([int]::MaxValue);Assert-KmcOrdinaryInteger $m.processId 1 ([int]::MaxValue);if($m.producerProcessId-eq$m.processId){throw 'A same-process world cannot prove the restored mounted start.'}
  if(-not(Test-KmcChunk7FiniteNumber $m.elapsedSeconds)-or$m.elapsedSeconds-lt0){throw 'Mounted-start clock observation is invalid.'}
  if(@($m.profiles).Count-ne2-or@($m.owners).Count-ne2){throw 'Owner-seed-derived combat requires both restored pairs.'}

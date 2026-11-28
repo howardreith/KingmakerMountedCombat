@@ -2294,4 +2294,16 @@ function Assert-KmcUpgradeResaveEvidence {
         throw 'UPG-01 resave is not one new native Manual carrying the restored mounted pair in the retained area and campaign.'
     }
     if(@(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne2){throw 'UPG-01 producer root holds other than the retained Quick and its resave.'}
+    # R17-F4 (round 18): the snapshot is the decoded (normalized) graph; the written format is the archive member of the hash-verified file.
+    # Both carry exactly one writer version with its complete field set (StepTravel for 4), so a current record cannot rest on schema-3 bytes.
+    Add-Type -AssemblyName System.IO.Compression
+    $stream=[IO.File]::Open($archive,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);$zip=$null
+    try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$true);$entries=@($zip.Entries|Where-Object{$_.FullName-ceq'kmc-mounted-state'})
+     if($entries.Count-ne1-or$entries[0].Length-gt131072){throw 'UPG-01 resave lacks exactly one bounded mounted archive member.'}
+     $reader=[IO.StreamReader]::new($entries[0].Open(),[Text.UTF8Encoding]::new($false,$true));try{$member=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}}
+    finally{if($zip){$zip.Dispose()};$stream.Dispose()}
+    if((Get-KmcSha256 $archive)-cne$w.sha256){throw 'UPG-01 resave changed while its member was read.'}
+    $onDisk=Assert-KmcChunk7WriterArchive $member 'UPG-01 resave archive member'
+    if((Assert-KmcChunk7WriterArchive $w.snapshot 'UPG-01 resave snapshot')-ne$onDisk){throw 'UPG-01 snapshot version differs from its on-disk archive member.'}
+    if($null-ne$w.PSObject.Properties['sourceSchema']-and$w.sourceSchema-ne$onDisk){throw 'UPG-01 recorded source schema differs from its on-disk archive member.'}
 }

@@ -109,6 +109,8 @@ function Assert-KmcChunk7OrdinaryNativeArchive($Request,$Artifact) {
         $schema=Assert-KmcChunk7WriterSchema $archive.SchemaVersion 'Ordinary native autosave version'
         if(($schema-eq(Get-KmcChunk7CurrentWriterSchema))-ne($null-ne$archive.PSObject.Properties['StepTravel'])){throw 'Ordinary native autosave StepTravel member does not match its version.'}
         if($schema-eq(Get-KmcChunk7CurrentWriterSchema)){Assert-KmcChunk7StepTravel $archive}
+        # R17-F3 (round 18): the producer records nativeWrite.schema from archive.SourceSchema: it must be this parsed member's version.
+        if(-not(Test-KmcExactJsonInteger $w.schema)-or$w.schema-ne$schema){throw 'Ordinary autosave observed schema differs from its parsed archive member version.'}
         if($archive.CampaignId-cne$Request.fixture.working.gameId-or$archive.AreaId-cne$Request.fixture.working.area-or
            $archive.Pairs-isnot[Array]-or$archive.Pairs.Count-ne0-or$archive.Participations-isnot[Array]-or$archive.Participations.Count-ne0-or$null-ne$archive.Combat){throw 'Ordinary unmounted autosave invented mounted/combat ownership or changed campaign/area.'}
     }finally{if($reader){$reader.Dispose()};if($zip){$zip.Dispose()};if($stream){$stream.Dispose()}}

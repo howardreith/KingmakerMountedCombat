@@ -1,7 +1,7 @@
 # F2 upgrade-chain reader: synthetic producer and consumer evidence (archives and screenshots written to a temporary
 # root) and targeted negatives, plus the source contracts the route depends on. No game, no build. A reader-only
 # assertion is never native evidence.
-param()
+param([switch]$SkipRetainedBridge)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime\Finalize2UpgradeEvidence.ps1')
@@ -153,6 +153,19 @@ try {
  $cand=Copy-F2 $cRequest; $cand.dllSha256=('9'*64); $cr=Copy-F2 $cRows; foreach($x in $cr){ $x.dll=('9'*64) }; Refuse $cand $cr $cGame $cSave $parent 'consumer: a consumer on another candidate than its producer refuses'
  CNeg { param($r) (Kind $r 'f2-complete').detail.shots[0].ummOpenAtCapture=$true } 'consumer: a view captured under the mod-manager overlay refuses'
 
+ # ---- R13-F2 (round 18): a same-candidate producer writes current (schema-4) resaves; its consumer reads exactly that version ------
+ $p4=Copy-F2 $pRows; foreach($x in @($p4 | Where-Object kind -CEQ 'native-write-complete')){ $x.detail.snapshot.SchemaVersion=4 }
+ Check (Accept $pRequest $p4 $pGame $pSave $parent) 'producer: same-candidate current schema-4 resaves accepted'
+ $p5=Copy-F2 $p4; (Kind $p5 'native-write-complete').detail.snapshot.SchemaVersion=5; Refuse $pRequest $p5 $pGame $pSave $parent 'producer: an unsupported resave schema 5 refuses'
+ $observed=Join-Path $pEv 'persistence-observations.jsonl'; $originalBytes=[IO.File]::ReadAllBytes($observed)
+ try {
+  @($p4 | ForEach-Object { $_ | ConvertTo-Json -Depth 40 -Compress }) | Set-Content -LiteralPath $observed -Encoding UTF8
+  $c4=Copy-F2 $cRows; (Kind $c4 'f2-cold-observed').detail.sourceSchema=4
+  Check (Accept $cRequest $c4 $cGame $cSave $parent) 'consumer: same-candidate schema-4 resave consumed with source schema 4'
+  Refuse $cRequest (Copy-F2 $cRows) $cGame $cSave $parent 'consumer: a schema-3 source under schema-4 producer resaves refuses'
+ } finally { [IO.File]::WriteAllBytes($observed,$originalBytes) }
+ $c4=Copy-F2 $cRows; (Kind $c4 'f2-cold-observed').detail.sourceSchema=4; Refuse $cRequest $c4 $cGame $cSave $parent 'consumer: a schema-4 source under schema-3 producer resaves refuses'
+
  # ---- the declared producer/consumer bridge: real git commits and source trees, a synthetic producer and suite ----------
  $head=(git -C $repo rev-parse HEAD).Trim(); $tree=(git -C $repo rev-parse 'HEAD:src').Trim()
  $suites=Join-Path $temp 'suites'; [void](New-Item -ItemType Directory -Force $suites)
@@ -210,6 +223,9 @@ Check ($isolation.Contains("request.OwnedPairs?.IsAreaOverwrite(request.Persiste
 Check ($gameResult.Contains("elseif(`$f2Upgrade-and`$request.persistenceCase-ceq'quick'){2}") -and $gameResult.Contains("elseif(`$f2Upgrade-and`$request.persistenceCase-ceq'manual'){2}")) 'the game-result quotas are two writes for the producer and two loads for the consumer'
 Check ($requestValidator.Contains("throw 'The F2 public-control chain is an explicit true opt-in beside the upgrade chain only.'") -and $requestValidator.Contains("elseif(`$second-and`$f2Consumer){'Manual_2_KMC_F2_REMOVED.zks'}")) 'the external request validator pins the F2 flag and the removed archive leaf'
 Check ($runner.Contains("-ArtifactRole upgrade-removed-manual") -and $runner.Contains("if(-not`$UpgradeChain){throw 'The F2 public-control chain runs only on the upgrade chain.'}")) 'the runner stages the removed archive only from its exact role, on the upgrade chain'
+# -SkipRetainedBridge (round 18, used by the focused candidate gate): the section below reads the frozen r05 run's retained receipts
+# and archives from the lab and pins the consumer source tree of that bridge; it is lab- and tree-specific, not candidate-bound.
+if($SkipRetainedBridge){ Write-Output '    SKIP the retained r05 bridge declaration (frozen lab receipts and pinned bridge source tree)' } else {
 # ---- the real declaration against r05's retained receipts and archives, and the frozen consumer source ----------------
 $rb=Get-KmcFinalize2ProducerBridge; $lab=Get-KmcLabRoot
 $r5=Join-Path $lab ('runtime-evidence\'+$rb.producerRunId); $r5req=Get-Content -LiteralPath (Join-Path $r5 'runtime-request.json') -Raw | ConvertFrom-Json
@@ -224,5 +240,6 @@ Check ((git -C $repo rev-parse 'HEAD:src').Trim() -ceq $rb.consumerSourceTree -a
 $fixtures=[IO.File]::ReadAllText((Join-Path $repo 'scripts\runtime\PersistenceSaveFixtures.ps1'))
 $call=@($fixtures -split "`n" | Where-Object { $_ -match 'Assert-KmcFinalize2UpgradeEvidence ' })
 Check ($call.Count -eq 1 -and $call[0] -notmatch '-Bridge|-RepoRoot|-SuiteRoot|-LegacyInputSha256') 'the acceptance call passes no declaration, root or input override: only the one exact bridge and the real repository/suites apply'
+}
 Write-Output ('F2 upgrade readers: PASS='+$script:pass+' FAIL='+$script:fail)
 if($script:fail -ne 0){ exit 1 }

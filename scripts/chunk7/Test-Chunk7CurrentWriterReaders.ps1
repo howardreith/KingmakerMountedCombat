@@ -9,12 +9,15 @@ param()
 # and cold paths, previous-writer (schema 3) controls, and refusals of malformed/missing/extra StepTravel and mismatched versions.
 # Round 17: the rider-fall save and cold observations through the dispatcher, the small-fixture/stock-Mammoth Manual archive leaf,
 # and the owner-seed Manual world evidence whose writer capability must equal its Manual output version (R16-F5).
+# Round 18: producer-recorded normalized graph versions (bootstrap through its reader; the shared leaf) and the UPG-01 resave reader bound
+# to its on-disk archive member.
 # All observations are generated offline (nativeInvoked=false): they establish reader behavior only, never that a native save or load ran.
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'));$kmcRepo=$repo;$ReaderDirectory=Join-Path $repo 'scripts/runtime'
 . (Join-Path $ReaderDirectory 'RuntimeHarness.Common.ps1')
 . (Join-Path $ReaderDirectory 'Chunk7OwnedPairsFixtures.ps1')
 . (Join-Path $ReaderDirectory 'Chunk7PersistenceSaveFixtures.ps1')
+. (Join-Path $ReaderDirectory 'PersistenceSaveFixtures.ps1')
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedCheckpointPreparationFixtures.ps1')
 . (Join-Path $repo 'tests/Chunk7Diagnostics/OwnerSeedMigrationFixtures.ps1')
 $fixtures=(Read-KmcJson (Join-Path $repo 'tests/Chunk7Diagnostics/OwnedPairsEvidenceFixtures.json')).fixtures
@@ -254,6 +257,40 @@ Reject 'leaf-level offline: stock-Mammoth Manual write leaf, schema-3 graph reco
 # Third-Horse Manual capability cross-check leaf (Assert-KmcChunk7ManualWriterCapability, also used by the owner-seed reader).
 foreach($pair in @(@(4,4),@(3,3))){$c=$pair[0];$out=$pair[1];Check ('leaf-level offline: third-Horse capability '+$c+' with Manual output '+$out+' accepted') {Assert-KmcChunk7ManualWriterCapability ([pscustomobject]@{nativeWriterSchema=$c}) (New-FixtureWrite ($out-eq4)) 'Third-Horse world'}}
 foreach($pair in @(@(3,4),@(4,3))){$c=$pair[0];$out=$pair[1];Reject ('leaf-level offline: third-Horse capability '+$c+' with Manual output '+$out) {New-FixtureWrite ($out-eq4)} {param($w)Assert-KmcChunk7ManualWriterCapability ([pscustomobject]@{nativeWriterSchema=$c}) $w 'Third-Horse world'}}
+
+# --- (6) Round 18 (R13-F2, R17-F4): producer-recorded normalized graph versions and the UPG-01 resave. ---
+# Bootstrap inventory: its producer records data.SchemaVersion of the graph it decoded, i.e. the normalized version (4 in this candidate
+# even for a genuine schema-3 input). The bootstrap reader suite's own fixture, through the dispatched reader.
+$bootstrapFixture=[IO.File]::ReadAllText((Join-Path $repo 'tests/Chunk7Diagnostics/BootstrapInventoryEvidenceFixture.json'))|ConvertFrom-Json
+function Invoke-Bootstrap($f){Assert-KmcChunk7BootstrapInventoryEvidence $f.request $f.artifact $f.source}
+Check 'bootstrap inventory: current producer-shaped observation, normalized graph 4, through the reader' {$f=Copy-Value $bootstrapFixture;$f.artifact.observations.archive.schemaVersion=4;Invoke-Bootstrap $f}
+Check 'bootstrap inventory: historical (earlier build) normalized graph 3 control' {Invoke-Bootstrap (Copy-Value $bootstrapFixture)}
+Reject 'bootstrap inventory: historical input version 2 recorded as the normalized graph' {Copy-Value $bootstrapFixture} {param($f)$f.artifact.observations.archive.schemaVersion=2;Invoke-Bootstrap $f}
+Reject 'bootstrap inventory: unsupported normalized graph 5' {Copy-Value $bootstrapFixture} {param($f)$f.artifact.observations.archive.schemaVersion=5;Invoke-Bootstrap $f}
+# The same normalized-version leaf used by the assisted cold, Manual seed, Manual-derived, acquired Manual, owner-seed world, six-pair
+# checkpoint source and third-Horse cold readers (leaf-level offline).
+foreach($v in @(4,3)){Check ('leaf-level offline: normalized graph version '+$v+' accepted') {[void](Assert-KmcChunk7NormalizedGraphVersion $v 'Assisted cold inventory')}}
+foreach($v in @(2,5,'4')){Reject ('leaf-level offline: normalized graph version '+$v+' refused') {$v} {param($x)[void](Assert-KmcChunk7NormalizedGraphVersion $x 'Assisted cold inventory')}}
+# UPG-01 resave reader (Assert-KmcUpgradeResaveEvidence): generated ZIP resaves beside a retained Quick; the snapshot is the decoded graph.
+$upgRoot=Join-Path ([IO.Path]::GetTempPath()) ('kmc-upg01-'+[Guid]::NewGuid().ToString('N'))
+$upgOne=Copy-Graph $ordinary.save.artifact.observations.nativeWrite.archive;$rider=$upgOne.Pairs[0].Rider.Id;$upgOne.Pairs=@($upgOne.Pairs[0]);$upgOne.Slots=@($upgOne.Slots|Where-Object ActorId -CEQ $rider)
+$upgThree=Copy-Graph $upgOne;$upgFour=ConvertTo-CurrentWriterArchive $upgOne
+function New-UpgradeCase([string]$Name,$Member,$Snapshot){
+ $root=Join-Path $upgRoot $Name;[void][IO.Directory]::CreateDirectory($root);[IO.File]::WriteAllBytes((Join-Path $root 'Quick_1.zks'),[Text.Encoding]::ASCII.GetBytes('retained older quick'))
+ $quick=Get-KmcSha256 (Join-Path $root 'Quick_1.zks');$path=Join-Path $root 'Manual_1_KMC_P01.zks'
+ Add-Type -AssemblyName System.IO.Compression;$s=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None);$z=$null
+ try{$z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false);foreach($row in @(@('header.json','{"Name":"KMC_P01","Type":"Manual"}'),@('kmc-mounted-state',($Member|ConvertTo-Json -Depth 64 -Compress)))){$wr=[IO.StreamWriter]::new($z.CreateEntry($row[0]).Open(),[Text.UTF8Encoding]::new($false));try{$wr.Write($row[1])}finally{$wr.Dispose()}}}finally{if($z){$z.Dispose()};$s.Dispose()}
+ $p=$Snapshot.Pairs[0]
+ [pscustomobject]@{root=$root;request=[pscustomobject]@{persistenceLoad=[pscustomobject]@{sha256=$quick;area=$Snapshot.AreaId;gameId=$Snapshot.CampaignId}}
+  rows=@([pscustomobject]@{kind='initial';rider=[pscustomobject]@{Id=$p.Rider.Id};mount=[pscustomobject]@{Id=$p.Mount.Id}},[pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{ordinal=1;path=$path;sha256=(Get-KmcSha256 $path);length=(Get-Item -LiteralPath $path).Length;nativeType='Manual';nativeCallback=$true;operation='None';sourceSha256=$quick;snapshot=(Copy-Graph $Snapshot)}})}}
+function Invoke-Upgrade($c){Assert-KmcUpgradeResaveEvidence $c.request $c.rows $c.root}
+try{
+ Check 'UPG-01 resave reader: current schema-4 resave (codec-written member and decoded snapshot) accepted' {Invoke-Upgrade (New-UpgradeCase 'current' $upgFour $upgFour)}
+ Check 'UPG-01 resave reader: genuine historical (earlier build) schema-3 resave control accepted' {Invoke-Upgrade (New-UpgradeCase 'historical' $upgThree $upgThree)}
+ Reject 'UPG-01 resave reader: current schema-4 record backed by schema-3 bytes (hash, length and pair ids match)' {New-UpgradeCase 'crossed' $upgThree $upgFour} {param($c)Invoke-Upgrade $c}
+ Reject 'UPG-01 resave reader: schema-4 snapshot missing StepTravel (hash, length and pair ids match)' {New-UpgradeCase 'missing' $upgFour $upgFour} {param($c)$c.rows[1].detail.snapshot.PSObject.Properties.Remove('StepTravel');Invoke-Upgrade $c}
+ Reject 'UPG-01 resave reader: recorded sourceSchema 3 for schema-4 bytes' {New-UpgradeCase 'labelled' $upgFour $upgFour} {param($c)$c.rows[1].detail|Add-Member NoteProperty sourceSchema 3;Invoke-Upgrade $c}
+}finally{if(Test-Path -LiteralPath $upgRoot){Remove-Item -LiteralPath $upgRoot -Recurse -Force}}
 
 $clock.Stop();$passed=@($results|Where-Object pass -EQ $true).Count;$failed=@($results|Where-Object pass -EQ $false).Count;$refusals=@($results|Where-Object{$_.pass-and$_.expectedRefusal}).Count
 Write-Output ('CURRENT-WRITER READERS RESULT '+$passed+' PASS / '+$failed+' FAIL ('+$refusals+' expected refusals; '+[Math]::Round($clock.Elapsed.TotalSeconds,1)+' s; offline generated observations, nativeInvoked=false, no native save/load claim)')

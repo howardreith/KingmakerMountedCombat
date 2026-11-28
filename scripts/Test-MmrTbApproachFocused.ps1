@@ -15,6 +15,9 @@ param()
 #      schema-4 output, through the real dispatcher and the runner's parent verifier, over graphs written by the candidate's own
 #      archive codec (compiled from src/): current-format migration child and parent, historical schema-1/2 migrations to current
 #      output, ordinary and inherited save/cold, previous-writer (schema 3) controls and malformed/mismatched-version refusals.
+#   7. chunk7\Test-Chunk7OrdinaryArchive.ps1 and Test-Finalize2UpgradeReaders.ps1 (R13-F2/R17-F3, round 18): the ordinary autosave ZIP
+#      reader binding the observed schema to the parsed member, and the Finalize2 same-candidate schema-4 resave/consumer path
+#      (-SkipRetainedBridge: its frozen r05 lab-receipt section is not candidate-bound).
 #   Regression neighbors (preserved behavior): Test-MountedShieldNativeContract.ps1 and Test-MountedShieldSelectionRollback.ps1
 #   (Mounted Shield registration, amounts, AC/check writes, publication, embedded icon identity); Test-MountedArcheryFeatContract.ps1;
 #   chunk7\Test-Chunk7RangerSelectionContract.ps1 (Horse/Riding Dog selection); chunk7\Test-Chunk7ReplaySubscriberContract.ps1
@@ -31,7 +34,7 @@ $env:PSModulePath=$null
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $reference=Join-Path $repoRoot 'obj\references\umm-0.31.1\UnityModManager.dll'
 $children=@(
-    @('Test-MmrTbApproachNativeContract.ps1'),@('Test-MmrAttackOrdersNativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),@('chunk7\Test-Chunk7CurrentWriterReaders.ps1'),
+    @('Test-MmrTbApproachNativeContract.ps1'),@('Test-MmrAttackOrdersNativeContract.ps1'),@('Test-MountedAlpha2LifecycleContract.ps1'),@('Test-MountedAlpha2AttackPathHarness.ps1'),@('Test-MountedPresentationContracts.ps1'),@('chunk7\Test-Chunk7CurrentWriterReaders.ps1'),@('chunk7\Test-Chunk7OrdinaryArchive.ps1'),@('Test-Finalize2UpgradeReaders.ps1','-SkipRetainedBridge'),
     @('Test-MountedShieldNativeContract.ps1'),@('Test-MountedShieldSelectionRollback.ps1'),@('Test-MountedArcheryFeatContract.ps1'),
     @('chunk7\Test-Chunk7RangerSelectionContract.ps1'),@('chunk7\Test-Chunk7ReplaySubscriberContract.ps1'),
     @('Test-FinalizeF1LocalizationKeys.ps1'),

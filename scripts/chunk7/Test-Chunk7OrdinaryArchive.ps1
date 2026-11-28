@@ -65,4 +65,11 @@ Bad 'duplicate JSON header member' {$f=New-ArchiveFixture;$json=(ConvertTo-KmcCh
 Bad 'duplicate JSON metadata member' {$f=New-ArchiveFixture;$json=(ConvertTo-KmcChunk7Canonical $f.metadata).Insert(1,'"SchemaVersion":3,');Write-ArchiveFixture $f -MetadataJson $json;Assert-KmcChunk7OrdinaryNativeArchive $f.request $f.artifact}
 Bad 'oversized native metadata' {$f=New-ArchiveFixture;Write-ArchiveFixture $f -MetadataJson (' '*131073);Assert-KmcChunk7OrdinaryNativeArchive $f.request $f.artifact}
 Bad 'completed archive hash mismatch' {$f=New-ArchiveFixture;Write-ArchiveFixture $f;$f.artifact.observations.nativeWrite.sha256='0'*64;Assert-KmcChunk7OrdinaryNativeArchive $f.request $f.artifact}
+# R17-F3 (round 18): the observed nativeWrite.schema (the producer's archive.SourceSchema) is bound to the parsed member version. Each
+# crossing keeps the written bytes and digest unchanged and must be refused by that binding, not by another check.
+function New-VersionedArchiveFixture([int]$Member){$f=New-ArchiveFixture;if($Member-eq4){$f.metadata.SchemaVersion=4;$f.metadata|Add-Member NoteProperty StepTravel @()};Write-ArchiveFixture $f;$f}
+foreach($pair in @(@(3,3),@(4,4))){$m=$pair[0];$seen=$pair[1];Good ('R17-F3 member schema '+$m+' with observed schema '+$seen+' accepted') {$f=New-VersionedArchiveFixture $m;$f.artifact.observations.nativeWrite.schema=$seen;Assert-KmcChunk7OrdinaryNativeArchive $f.request $f.artifact}}
+foreach($pair in @(@(3,4),@(4,3))){$m=$pair[0];$seen=$pair[1];Good ('R17-F3 member schema '+$m+' with observed schema '+$seen+' refused with bytes and digest fixed') {$f=New-VersionedArchiveFixture $m;$w=$f.artifact.observations.nativeWrite;$sha=$w.sha256;$w.schema=$seen;$why=$null
+ try{Assert-KmcChunk7OrdinaryNativeArchive $f.request $f.artifact}catch{$why=$_.Exception.Message}
+ if($why-notmatch'observed schema differs from its parsed archive member'-or$w.sha256-cne$sha-or(Get-KmcSha256 $w.path)-cne$sha){throw ('The crossing was not refused by the version binding: '+$why)}}}
 Write-Host ('TOTAL PASS '+$script:passes+' FAIL 0; synthetic archives and read-only isolated filesystem checks only; fixtures='+$private)
