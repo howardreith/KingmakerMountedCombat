@@ -409,4 +409,72 @@ Check ($null -ne $forcedCtor22 -and $null -ne $helper22 -and (@($helper22.GetPar
     $out22[2].opcode -eq [Reflection.Emit.OpCodes]::Call -and $out22[3].opcode -eq [Reflection.Emit.OpCodes]::Ldarg_0 -and $out22[4].opcode -eq [Reflection.Emit.OpCodes]::Call -and
     $out22[4].operand -eq $helper22 -and $null -eq $twice22 -and $null -eq $none22 -and $null -eq $shape22 -and
     (IlText $helper22).Contains(';callvirt FollowPrecomputedPath;') -and @([regex]::Matches((IlText $helper22), 'FollowPrecomputedPath;')).Count -eq 1) 'PR-2 round 22 (R19-F5): the product transpiler (on the existing TickApproaching PatchExact) turns the installed site `newobj ForcedPath(List<Vector3>); ldarg.0; call get_ApproachRadius; callvirt FollowPrecomputedPath` into `...; ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom(UnitMovementAgent, Path, float, UnitCommand)`, which makes the native call once; it refuses two sites, no site and a different argument shape (fail closed at install)'
+# ---- PR-2 round 22 (R19-F5), real transpile: the product's TickApproaching transpiler alone, applied with the installed Harmony12 to the REAL installed
+# UnitCommand.TickApproaching (060027A6) in this detached process, its patched instructions read back with HarmonyLib, then unpatched ----
+$h12Assembly = $ciType22.Assembly
+$hiType22 = $h12Assembly.GetType('Harmony12.HarmonyInstance', $true); $hmType22 = $h12Assembly.GetType('Harmony12.HarmonyMethod', $true)
+$harmonyLib22 = @([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -ceq '0Harmony' }) | Select-Object -First 1
+if ($null -eq $harmonyLib22) { $harmonyLib22 = [Reflection.Assembly]::LoadFrom((Join-Path $managed 'UnityModManager\0Harmony.dll')) }
+$processor22 = $harmonyLib22.GetType('HarmonyLib.PatchProcessor', $true)
+$getCurrent22 = @($processor22.GetMethods() | Where-Object { $_.Name -ceq 'GetCurrentInstructions' -and $_.IsStatic -and $_.GetParameters().Count -eq 3 })[0]
+$getOriginal22 = @($processor22.GetMethods() | Where-Object { $_.Name -ceq 'GetOriginalInstructions' -and $_.IsStatic -and $_.GetParameters().Count -eq 2 })[0]
+$tick22 = MemberAt 0x060027A6
+$patchMethod22 = @($hiType22.GetMethods() | Where-Object { $_.Name -ceq 'Patch' -and $_.GetParameters().Count -eq 4 })[0]
+$contractId22 = 'kmc.contract.forcedpath-transpile'; $boundaryId22 = 'kmc.contract.forcedpath-transpile.boundary'
+$harmony22 = $hiType22.GetMethod('Create').Invoke($null, @($contractId22)); $boundary22 = $hiType22.GetMethod('Create').Invoke($null, @($boundaryId22))
+$transpilerHm22 = [Activator]::CreateInstance($hmType22, @([Reflection.MethodInfo]$transpiler22))
+$original22 = @($getOriginal22.Invoke($null, @($tick22, $null)))
+$directError22 = $null; $detourSkipped22 = $false; $current22 = $null; $patchError22 = $null; $ownersAfter22 = -1
+try
+{
+    try { [void]$patchMethod22.Invoke($harmony22, @($tick22, $null, $null, $transpilerHm22)) }
+    catch { $directError22 = $_.Exception; while ($directError22.InnerException) { $directError22 = $directError22.InnerException } }
+    if ($null -ne $directError22)
+    {
+        # The precedent of scripts/Test-GunslingerClickComposition.ps1: only the jump into the live original (HarmonyLib.PatchTools.DetourMethod) is
+        # skipped, for this one method; the transpiler and Harmony's replacement build run for real.
+        Write-Host ('INFO real-transpile direct patch refused detached: ' + $directError22.GetType().FullName + ': ' + $directError22.Message)
+        if (-not ('KmcForcedPathBoundary' -as [type])) { Add-Type -TypeDefinition 'public static class KmcForcedPathBoundary { public static System.Reflection.MethodBase Target; public static int Skipped; public static bool SkipDetour(System.Reflection.MethodBase method) { if (Target == null || method != Target) return true; Skipped++; return false; } }' }
+        [KmcForcedPathBoundary]::Target = $tick22
+        $detour22 = $harmonyLib22.GetType('HarmonyLib.PatchTools', $true).GetMethod('DetourMethod', [Reflection.BindingFlags]'Static,Public,NonPublic')
+        [void]$patchMethod22.Invoke($boundary22, @($detour22, [Activator]::CreateInstance($hmType22, @([Reflection.MethodInfo][KmcForcedPathBoundary].GetMethod('SkipDetour'))), $null, $null))
+        try { [void]$patchMethod22.Invoke($harmony22, @($tick22, $null, $null, $transpilerHm22)); $detourSkipped22 = [KmcForcedPathBoundary]::Skipped -ge 1 }
+        catch { $patchError22 = $_.Exception; while ($patchError22.InnerException) { $patchError22 = $patchError22.InnerException }; Write-Host ('INFO real-transpile patch with the detour skipped also refused: ' + $patchError22.GetType().FullName + ': ' + $patchError22.Message) }
+    }
+    if ($null -eq $patchError22) { $current22 = @($getCurrent22.Invoke($null, @($tick22, [int]::MaxValue, $null))) }
+}
+finally
+{
+    $hiType22.GetMethod('UnpatchAll', [Type[]]@([string])).Invoke($harmony22, @($contractId22))
+    $info22 = $hiType22.GetMethod('GetPatchInfo').Invoke($harmony22, @($tick22))
+    $ownersAfter22 = if ($null -eq $info22) { 0 } else { @($info22.Owners).Count }
+    $hiType22.GetMethod('UnpatchAll', [Type[]]@([string])).Invoke($boundary22, @($boundaryId22))
+    if ('KmcForcedPathBoundary' -as [type]) { [KmcForcedPathBoundary]::Target = $null }
+}
+function Norm22($op) { $op.Name -replace '\.s$', '' }
+$sites22 = @(); $remaining22 = 0; $sameRest22 = $false
+if ($null -ne $current22)
+{
+    for ($k = 0; $k -lt $current22.Count; $k++)
+    {
+        $operand = $current22[$k].operand
+        if ($current22[$k].opcode -eq [Reflection.Emit.OpCodes]::Call -and $operand -eq $helper22) { $sites22 += $k }
+        if ($operand -is [Reflection.MethodBase] -and $operand.Name -ceq 'FollowPrecomputedPath' -and $operand.MetadataToken -eq 0x060018B6) { $remaining22++ }
+    }
+    if ($sites22.Count -eq 1 -and $sites22[0] -ge 1 -and $current22.Count -eq $original22.Count + 1)
+    {
+        $site = $sites22[0]; $sameRest22 = $true
+        for ($k = 0; $k -lt $original22.Count; $k++)
+        {
+            $c = if ($k -lt $site - 1) { $k } elseif ($k -eq $site - 1) { $site } else { $k + 1 }
+            if ($k -eq $site - 1) { $sameRest22 = $sameRest22 -and $original22[$k].opcode -eq [Reflection.Emit.OpCodes]::Callvirt -and $original22[$k].operand.MetadataToken -eq 0x060018B6; continue }
+            if ((Norm22 $original22[$k].opcode) -cne (Norm22 $current22[$c].opcode)) { $sameRest22 = $false; break }
+        }
+    }
+}
+$originalSites22 = @($original22 | Where-Object { $_.operand -is [Reflection.MethodBase] -and $_.operand.MetadataToken -eq 0x060018B6 }).Count
+Write-Host ('INFO real-transpile: Harmony12 ' + $h12Assembly.GetName().Version + ' over HarmonyLib ' + $harmonyLib22.GetName().Version + '; original instructions ' + $original22.Count + ' (FollowPrecomputedPath sites ' + $originalSites22 +
+    '); patched ' + $(if ($null -eq $current22) { 'none' } else { $current22.Count }) + '; direct patch ' + $(if ($null -eq $directError22) { 'succeeded' } else { 'refused, detour skipped ' + $detourSkipped22 }) + '; owners after UnpatchAll ' + $ownersAfter22)
+Check ($null -eq $patchError22 -and $null -ne $current22 -and $originalSites22 -eq 1 -and $sites22.Count -eq 1 -and $current22[$sites22[0] - 1].opcode -eq [Reflection.Emit.OpCodes]::Ldarg_0 -and
+    $remaining22 -eq 0 -and $current22.Count -eq $original22.Count + 1 -and $sameRest22 -and $ownersAfter22 -eq 0) ('PR-2 round 22 (R19-F5), real transpile: the product''s TickApproaching transpiler alone, applied through the installed Harmony12 to the REAL installed UnitCommand.TickApproaching (060027A6), yields exactly one `ldarg.0; call MountedCarrierPathObserver.FollowPrecomputedPathFrom`, no remaining FollowPrecomputedPath call, one more instruction than the original and the same opcode sequence elsewhere (short and long branch forms equated); UnpatchAll leaves no patch (' + $(if ($null -eq $directError22) { 'detour into the live original performed' } else { 'detour into the live original skipped for this method only, as in Test-GunslingerClickComposition.ps1' }) + ')')
 Write-Host ('Mounted alpha 2 native contract (approach) PASS=' + $script:passed + ' FAIL=0')
