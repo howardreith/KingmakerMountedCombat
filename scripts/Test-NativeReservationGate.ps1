@@ -108,7 +108,7 @@ try {
     [void](Invoke-Suite 'Test-Chunk7SixPairSourceCopy' 'scripts\chunk7\Test-Chunk7SixPairSourceCopy.ps1' @() {
         param($exit, $lines, $fail)
         if ($exit -eq 0 -and $fail.Count -eq 0) { return 'passed' }
-        if (($lines -join "`n") -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'passed as a matched-base partial result (installed-loader prerequisite unmet before any lock call, identical to 11e8e22b)' }
+        if ((($lines -join ' ') -replace '\s+', ' ') -match 'The exact installed loader contract was not pinned in both dependency and native observations: UnityModManager') { return 'passed as a matched-base partial result (installed-loader prerequisite unmet before any lock call, identical to 11e8e22b)' }
         return 'failed'
     })
 }
