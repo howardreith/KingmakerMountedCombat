@@ -1332,8 +1332,9 @@ namespace KingmakerMountedCombat.Integration
         // retained order's and active command's own carriers, and a carrier whose cleanup is retained. Read by the relationship's mod-disable
         // restoration (KingmakerMountedPairRuntime.PreservesMountSuccessor).
         // The player's admitted ground order is native's own command, never the pair's (ReleaseRiderTurnGroundMovementForModDisable).
+        // Round 17 (R16-F1): the pair's own command types on the mount (its pair wrapper and child attack) are always its own.
         internal bool OwnsMountMotionCommand(UnitCommand command) => command != null && !ReferenceEquals(command, activeRiderTurnGroundMove) &&
-            (OwnsExactPairedNativeCommand(command) || IsOwnDelegatedMove(command) || retainedCarrierCleanups.Any(record => ReferenceEquals(record.Carrier, command)));
+            (command is MountedPairAttackCommand || command is MountedPairSingleAttack || OwnsExactPairedNativeCommand(command) || IsOwnDelegatedMove(command) || retainedCarrierCleanups.Any(record => ReferenceEquals(record.Carrier, command)));
 
         // The pair's own exact carrier moves: the retained order's, and the active pair command's (a charge included).
         internal bool IsOwnDelegatedMove(UnitCommand command) => command is UnitMoveTo &&

@@ -324,11 +324,25 @@ namespace KingmakerMountedCombat.Integration
         // that the exact-carrier drain has already yielded to: the mod's obligations are its own leases, not that order, so its command, path
         // and cursor stay the engine's. The ownership query runs before anything is stopped; if it throws, nothing is stopped and the
         // restoration keeps its residue for the coordinator's retry.
-        internal bool PreservesMountSuccessor(CleanupTrigger trigger)
+        internal bool PreservesMountSuccessor(CleanupTrigger trigger) => MountSuccessor(trigger) != null;
+
+        // PR #70 R16-F1 (round 17): the steering successor is the live command the pair does not own that currently steers the mount: the Move
+        // slot's command, or (with that slot empty or owned) an approaching command in another slot (an unstarted command not yet close enough,
+        // the reading the exact-carrier cleanup uses: MountedCarrierCleanup.ApproachSteers), e.g. a newer Standard command native promoted
+        // after the exact carrier was removed.
+        internal Kingmaker.UnitLogic.Commands.Base.UnitCommand MountSuccessor(CleanupTrigger trigger)
         {
-            if (trigger != CleanupTrigger.ModDisabled || MountCommandOwned == null) return false;
-            var move = mount?.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
-            return move != null && !move.IsFinished && !MountCommandOwned(move);
+            if (trigger != CleanupTrigger.ModDisabled || MountCommandOwned == null) return null;
+            var commands = mount?.Commands;
+            if (commands == null) return null;
+            var move = commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
+            if (move != null && !move.IsFinished && !MountCommandOwned(move)) return move;
+            foreach (var command in commands.Raw)
+            {
+                if (command == null || command.IsFinished || command is Kingmaker.UnitLogic.Commands.UnitMoveTo || MountCommandOwned(command)) continue;
+                if (MountedCarrierCleanup.ApproachSteers(command)) return command;
+            }
+            return null;
         }
 
         public string ValidateMountedInvariants()
@@ -954,9 +968,9 @@ namespace KingmakerMountedCombat.Integration
         // trigger is the ordinary CancelMountMovement.
         public void CancelMountMovement(CleanupTrigger trigger)
         {
-            if (!PreservesMountSuccessor(trigger)) { CancelMountMovement(); return; }
+            var successor = MountSuccessor(trigger);
+            if (successor == null) { CancelMountMovement(); return; }
             var commands = mount.Commands;
-            var successor = commands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move);
             foreach (var command in commands.Raw.ToArray())
                 if (command != null && !command.IsFinished && command.IsMoveUnit && !ReferenceEquals(command, successor)) command.Interrupt();
             PreservedMountSuccessorCount++;

@@ -462,8 +462,13 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Round 17 (R13-F3): the rider's samples can miss a path delivered, used and lost between its ticks. The movement fact of the exact
+        // carrier (MountedCarrierMovementLedger: the delegated movement entry returned a positive tick while this carrier held the Move slot)
+        // survives that interval and is the issuance fact both entries rely on; a carrier with no positive tick and only an outstanding first
+        // request (no delivered Path observed) is still awaiting its first path.
         internal bool CarrierAcquiredPath => delegatedMove != null &&
-            (ReferenceEquals(pathAcquiredCarrier, delegatedMove) || RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
+            (MountedCarrierMovementLedger.HasPositiveTick(delegatedMove) || ReferenceEquals(pathAcquiredCarrier, delegatedMove) ||
+             RouteBound && GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position) > 0f);
 
         // The live carrier's issued approach has ended: it acquired its path and the mount's agent no longer wants to move (installed
         // CompleteMovement/Stop cleared Path and RequestedPath) while UnitMoveTo has not yet reported finished.
@@ -2771,12 +2776,19 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (command == null || command.IsFinished || ReferenceEquals(command, exactMove) || ReferenceEquals(command, except) ||
                     command is UnitMoveTo) continue;
-                bool close;
-                try { close = command.IsUnitEnoughClose; }
-                catch (Exception) { close = false; }
-                if (!command.IsStarted && !close) return true;
+                if (ApproachSteers(command)) return true;
             }
             return false;
+        }
+
+        // An unfinished, unstarted command that is not close enough: native TickApproaching steers its executor toward it. PR #70 R16-F1
+        // (round 17): also the mod-disable restoration's reading of a steering successor outside the Move slot.
+        internal static bool ApproachSteers(UnitCommand command)
+        {
+            bool close;
+            try { close = command.IsUnitEnoughClose; }
+            catch (Exception) { close = false; }
+            return !command.IsStarted && !close;
         }
     }
 }

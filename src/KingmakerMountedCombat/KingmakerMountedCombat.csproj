@@ -200,6 +200,7 @@
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\MountedDoorApproachPolicy.cs" />
+    <Compile Include="Domain\MountedCarrierMovementLedger.cs" />
     <Compile Include="Domain\MountedDoorOccupancyPolicy.cs" />
     <Compile Include="Domain\MountedDoorSettlementLifecycle.cs" />
     <Compile Include="Domain\MountedDoorApproachLifecycle.cs" />

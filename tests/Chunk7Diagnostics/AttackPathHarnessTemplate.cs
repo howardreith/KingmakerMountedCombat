@@ -2128,7 +2128,15 @@ namespace Harness
                     if (dl > 1e-6f) steering.MoveDirection = new UnityEngine.Vector2(dx / dl, dz / dl);
                 }
             }
-            else goal = move.Point;
+            else
+            {
+                goal = move.Point;
+                // PR #70 R13-F3 (round 17): native follows an unforced move along the path its pathfinder delivered, so the agent holds that path
+                // (WantsToMove) while this mover moves it; the path is the straight line in this open fixture.
+                var steering = mover.View.AgentASP;
+                if (steering != null && !ReferenceEquals(steering.PathOwner, move))
+                { steering.Path = new Pathfinding.Path { vectorPath = new List<Vector3> { mover.Position, goal } }; steering.PathOwner = move; steering.NextPointIndex = 1; }
+            }
             var length = Kingmaker.Utility.GeometryUtils.MechanicsDistance(goal, mover.Position);
             var step = Math.Min(mover == world.Horse && world.TickSeconds > 0f ? mover.CurrentSpeedMps * world.TickSeconds : 0.25f, length);
             if (mover == world.Horse && world.MountMoveTick != null)
@@ -5854,7 +5862,7 @@ namespace Harness
             if (agent.Path != null) foreach (var v in agent.Path.vectorPath) points.Add("(" + v.x.ToString("0.###") + "," + v.z.ToString("0.###") + ")");
             return new PathSnap { Path = agent.Path, Owner = agent.PathOwner, Points = agent.Path == null ? "none" : string.Join(" ", points.ToArray()), Cursor = agent.NextPointIndex, Stops = horse.View.StopMovingCount };
         }
-        private static bool SuccessorPathKept(PathSnap before, PathSnap after, UnitMoveTo successor) =>
+        private static bool SuccessorPathKept(PathSnap before, PathSnap after, UnitCommand successor) =>
             before != null && after != null && before.Path != null && ReferenceEquals(before.Owner, successor) && ReferenceEquals(after.Path, before.Path) &&
             ReferenceEquals(after.Owner, successor) && after.Points == before.Points && after.Cursor == before.Cursor && after.Stops == before.Stops;
 
@@ -6180,11 +6188,13 @@ namespace Harness
             Action clearFaults = () => Kingmaker.View.UnitEntityView.StopMovingFault = null;
             foreach (var kase in new[] { "steering successor through save/load fences, disable and unload",
                 "ground-routed successor (the admitted rider-turn ground order, activeRiderTurnGroundMove) through save/load fences, disable and unload",
+                "promoted Standard successor (a newer unowned Standard command native promoted after the exact carrier's removal, approaching; Move slot empty) through save/load fences, disable and unload",
                 "failed mount stop in the restoration (no successor)",
                 "cancellation-created carrier stop (no successor)", "player dismount control (Manual trigger, steering successor)" })
             {
                 var groundRouted = kase.StartsWith("ground-routed");
-                var successorCase = kase.StartsWith("steering") || kase.StartsWith("player") || groundRouted;
+                var promotedStandard = kase.StartsWith("promoted");
+                var successorCase = kase.StartsWith("steering") || kase.StartsWith("player") || groundRouted || promotedStandard;
                 var cancelling = kase.StartsWith("cancellation");
                 var failingRestore = kase.StartsWith("failed");
                 var c = FirstTickPair(1.2f, 1f / 60f, false, false);
@@ -6214,7 +6224,7 @@ namespace Harness
                 };
                 var lifecycle = new KingmakerMountedCombat.Integration.MountedLifecycleSubscriber(service, c.Combat);
                 var steps = new ProductionTeardownSteps(world, service, lifecycle);
-                var handled = false; var log = new List<string>(); var ok = true; UnitMoveTo successor = null; PathSnap before = null;
+                var handled = false; var log = new List<string>(); var ok = true; UnitCommand successor = null; PathSnap before = null;
                 Func<string> state = () =>
                 {
                     var snap = successor != null ? Snap(w.Horse) : null;
@@ -6222,10 +6232,11 @@ namespace Harness
                         ", drains " + steps.DrainCalls + ", participation ends " + lifecycle.UnifiedTurnEndsForHarness + ", horse InterruptMove " + w.Horse.Commands.InterruptMoveCalls +
                         ", horse stops " + w.Horse.View.StopMovingCount + ", successor preserved " + runtime.PreservedMountSuccessorCount +
                         ", ground move tracked " + Id(c.Combat.ActiveRiderTurnGroundMoveForHarness) + " (released " + c.Combat.ModDisableGroundMoveReleases + "), retained pair commands " + c.Combat.HasRetainedPairCommands + ", registry owners " + registry.Owners.Length + ", horse path owner " + Id(w.Horse.View.AgentASP.PathOwner) +
-                        (successor != null ? ", Move slot " + Id(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move)) + " (successor " + Id(successor) + ", finished " + successor.IsFinished + "), {" + snap + "}" : "");
+                        (successor != null ? ", Move slot " + Id(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move)) + ", Standard slot " + Id(w.Horse.Commands.Standard) + " (successor " + Id(successor) + " " + successor.Type +
+                            ", finished " + successor.IsFinished + ", interrupted " + (successor.Result == UnitCommand.ResultType.Interrupt) + "), {" + snap + "}" : "");
                 };
                 Func<int, int, bool> successorKept = (interrupts, stops) =>
-                    successor != null && !successor.IsFinished && ReferenceEquals(w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move), successor) &&
+                    successor != null && !successor.IsFinished && ReferenceEquals(w.Horse.Commands.GetCommand(successor.Type), successor) &&
                     SuccessorPathKept(before, Snap(w.Horse), successor) && w.Horse.Commands.InterruptMoveCalls == interrupts && w.Horse.View.StopMovingCount == stops;
                 if (!cancelling) { armStop(); c.ActionStage = () => w.Target.Descriptor.State.IsDead = true; }
                 c.BeforeDrive = () =>
@@ -6233,14 +6244,30 @@ namespace Harness
                     if (handled || wrapper == null) return;
                     if (cancelling ? (wrapper.IsFinished || LiveMountCarrier(c) == null) : !wrapper.IsFinished) return;
                     handled = true;
-                    if (successorCase)
+                    if (promotedStandard)
+                    {
+                        // R16-F1 (round 17): queued behind the exact carrier, promoted by native's sweep once that carrier left the Move slot; native
+                        // TickApproaching gives the agent its approach path and marks it approaching (IsMoveUnit).
+                        var at = w.Horse.Position;
+                        var standard = new HarnessApproachingCommand(at + new Vector3(-6f, 0f, 0f));
+                        w.Horse.Commands.Enqueue(standard);
+                        w.Horse.Commands.RemoveFinishedAndUpdateQueue();
+                        var agent = w.Horse.View.AgentASP;
+                        agent.Path = new Pathfinding.Path { vectorPath = new List<Vector3> { at, at + new Vector3(-6f, 0f, 0f) } };
+                        agent.PathOwner = standard; agent.NextPointIndex = 1;
+                        standard.IsMoveUnit = true;
+                        successor = standard;
+                        before = Snap(w.Horse);
+                        ok &= ReferenceEquals(w.Horse.Commands.Standard, standard) && w.Horse.Commands.GetCommand(UnitCommand.CommandType.Move) == null && !standard.IsStarted && !standard.IsUnitEnoughClose;
+                    }
+                    else if (successorCase)
                     {
                         var at = w.Horse.Position;
                         successor = new UnitMoveTo(at + new Vector3(-0.5f, 0f, 0f), 0.1f) { CreatedByPlayer = true, ForcedPath = new Pathfinding.ForcedPath(new List<Vector3> { at, at + new Vector3(-0.5f, 0f, 0f) }) };
                         if (groundRouted) c.Combat.AdmitRiderTurnGroundOrderForHarness();
                         w.Horse.Commands.Run(successor);
                         if (groundRouted) c.Combat.CompleteGroundCommandAdmission(w.Horse);   // the production GroundCommandPostfix step
-                        TakePath(w.Horse, successor);
+                        TakePath(w.Horse, (UnitMoveTo)successor);
                         successor.IsMoveUnit = true;   // native TickApproaching marks the approaching move (InterruptMove's selector)
                         before = Snap(w.Horse);
                         if (groundRouted) ok &= ReferenceEquals(c.Combat.ActiveRiderTurnGroundMoveForHarness, successor) && c.Combat.HasRetainedPairCommands;
@@ -9265,8 +9292,14 @@ namespace Harness
             // request stays in flight (WantsToMove, no Path): not acquired.
             foreach (var kase in new[] { "native-accepted click, issued path cleared while the carrier is unfinished, target drifts 0.8 m",
                 "native-accepted click, pooled Path object reused for the delivered path, issued path cleared, target drifts 0.8 m",
+                "native-accepted click (rider-first), path delivered, debited and cleared before the rider observes it, target drifts 0.8 m",
+                "native-accepted click (rider-first), pooled Path object reused without an observed pending frame, cleared before the rider observes it, target drifts 0.8 m",
                 "pending-first-path control (request in flight), target drifts 0.8 m" })
             {
+                // Round 17 (R13-F3): the unobserved cases clear the issued path in the action stage of the first frame whose delegated tick moved the
+                // mount, before the rider's command tick: the rider never samples a Path; only the exact carrier's movement fact
+                // (MountedCarrierMovementLedger, recorded at the TickDelegated debit) remains.
+                var unobserved = kase.Contains("before the rider observes");
                 var pending = kase.StartsWith("pending");
                 var pooled = kase.Contains("pooled");
                 var c = FirstTickPair(0.6f, 1f / 60f, false, false);
@@ -9274,7 +9307,7 @@ namespace Harness
                 w.NativeDenialCompletesMovement = true;
                 w.PathfindUnforcedMoves = true;
                 Pathfinding.Path pooledPath = null;
-                if (pooled || pending) w.RequestPathFirst = true;
+                if (pooled && !unobserved || pending) w.RequestPathFirst = true;
                 if (pending) w.DeliverRequests = false;
                 if (pooled)
                 {
@@ -9289,14 +9322,27 @@ namespace Harness
                 UnitMoveTo first = null; var cleared = false; var acquiredAtClear = false; var origin = w.Horse.Position; var moveAtClear = -1f; var movedAtClear = 0f;
                 object pathAtClear = null; var requestInFlightAtClear = false;
                 var targetBefore = w.Target.Position;
+                Action clearNow = null;
                 for (var i = 0; i < 40 && order != null && !order.IsFinished && !cleared; i++)
                 {
                     var carrier = order.DelegatedMove;
                     if (carrier != null && first == null) { first = carrier; origin = w.Horse.Position; }
                     var ready = carrier != null && !carrier.IsFinished && (pending ? i >= 3 : Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin, w.Horse.Position) > 0.05f);
-                    if (ready)
+                    if (unobserved && first != null)
                     {
                         c.ActionStage = () =>
+                        {
+                            var live = order.DelegatedMove;
+                            if (!cleared && live != null && !live.IsFinished && Kingmaker.Utility.GeometryUtils.MechanicsDistance(origin, w.Horse.Position) > 0f) clearNow();
+                        };
+                    }
+                    else if (ready)
+                    {
+                        c.ActionStage = () => clearNow();
+                    }
+                    if (clearNow == null)
+                    {
+                        clearNow = () =>
                         {
                             var agent = w.Horse.View.AgentASP;
                             pathAtClear = agent.Path; requestInFlightAtClear = agent.RequestedPath != null;
@@ -9313,6 +9359,7 @@ namespace Harness
                     }
                     Frame(c);
                 }
+                var positiveTickRecorded = KingmakerMountedCombat.Domain.MountedCarrierMovementLedger.HasPositiveTick(first);
                 var unfinishedAtClear = first != null && (pending ? !first.IsFinished || order.DelegatedMoveStarts > 1 : true);
                 Frame(c); Frame(c);
                 var moveAfter = w.Horse.CombatState.Cooldown.MoveAction;
@@ -9337,18 +9384,18 @@ namespace Harness
                     for (var f = 0; f < 4 && !successor.IsFinished; f++) Frame(c);
                     var successorMoved = Kingmaker.Utility.GeometryUtils.MechanicsDistance(at, w.Horse.Position);
                     var carriersAfterSuccessor = order.DelegatedMoveStarts;
-                    ok = cleared && acquiredAtClear && order.CarrierPathObservations == 1 && endedNatively && carriers == 1 && order.StruckTargets.Count == 0 &&
+                    ok = cleared && acquiredAtClear && order.CarrierPathObservations == (unobserved ? 0 : 1) && (!unobserved || positiveTickRecorded) && endedNatively && carriers == 1 && order.StruckTargets.Count == 0 &&
                         moveAtClear > 0f && moveAfter == moveAtClear && carrierCleared && w.Rider.CombatState.Cooldown.StandardAction == standardBefore &&
                         admittedAsGroundMove && ReferenceEquals(slot, successor) && ReferenceEquals(ownerAfterTake, successor) && successorMoved > 0f && carriersAfterSuccessor == 1 &&
                         !order.RouteBound && !click.Admitted && (!pooled || ReferenceEquals(pathAtClear, pooledPath));
-                    successorDetail = (pooled ? "; delivered path is the pooled object held at issue " + ReferenceEquals(pathAtClear, pooledPath) : "") +
+                    successorDetail = "; exact carrier's positive delegated tick recorded " + positiveTickRecorded + (pooled ? "; delivered path is the pooled object held at issue " + ReferenceEquals(pathAtClear, pooledPath) : "") +
                         "; the player's newer ground order (admitted as the rider-turn ground move " + admittedAsGroundMove + ") owns the Move slot " + ReferenceEquals(slot, successor) + ", the agent steers its own path " + ReferenceEquals(ownerAfterTake, successor) +
                         ", mount moved " + successorMoved.ToString("0.###") + " m by it (now at " + w.Horse.Position + "), attack carriers still " + carriersAfterSuccessor;
                 }
                 else
                 {
-                    successorDetail = "; request in flight at the drift " + requestInFlightAtClear;
-                    ok = cleared && requestInFlightAtClear && !acquiredAtClear && order != null && order.CarrierPathObservations == 0 && order.NativeApproachEndedCount == 0 &&
+                    successorDetail = "; request in flight at the drift " + requestInFlightAtClear + ", positive delegated tick recorded " + positiveTickRecorded;
+                    ok = cleared && requestInFlightAtClear && !positiveTickRecorded && !acquiredAtClear && order != null && order.CarrierPathObservations == 0 && order.NativeApproachEndedCount == 0 &&
                         !(order.IsFinished && order.EndCauseDetail != null && order.EndCauseDetail.Contains("native turn-based approach ended")) && carriers == 2 &&
                         order.StruckTargets.Count == 0 && w.Rider.CombatState.Cooldown.StandardAction == standardBefore && !order.RouteBound;
                 }

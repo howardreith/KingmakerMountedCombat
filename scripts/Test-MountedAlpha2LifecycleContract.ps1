@@ -476,6 +476,9 @@ $ownsMotion = @(Method $controller 'OwnsMountMotionCommand')[0]
 $driveOwnsCommand = (KmcType 'KingmakerMountedCombat.Domain.MountedContinuousDriveOwner').GetMethod('OwnsCommand', $any)
 $restoreMovement = @(Method $runtimeType 'RestoreMovementAuthority')[0]
 $preserves = @(Method $runtimeType 'PreservesMountSuccessor')[0]
+# Round 17 (R16-F1): CancelMountMovement(trigger) and PreservesMountSuccessor both read the steering successor (MountSuccessor).
+$mountSuccessor = @(Method $runtimeType 'MountSuccessor')[0]
+$commandOwnedGetter = $runtimeType.GetProperty('MountCommandOwned', $any).GetGetMethod($true)
 $interruptMove = @(Method (GameType 'Kingmaker.UnitLogic.Commands.UnitCommands') 'InterruptMove')[0]
 $relationshipDismount = @(Method $relationshipType 'Dismount')[0]
 $cleanupOwner = @(Method $lifecycleSubscriber 'CleanupOwner')[0]
@@ -490,5 +493,14 @@ $cancelMountTrigger = @($runtimeType.GetMethods($any) | Where-Object { $_.Name -
 $cancelMountPlain = @($runtimeType.GetMethods($any) | Where-Object { $_.Name -ceq 'CancelMountMovement' -and $_.GetParameters().Count -eq 0 })[0]
 Check ((Calls $handleDismounting $cancelCore) -eq 1 -and (Calls $cancelCore (@(Method $controller 'ReleaseRiderTurnGroundMovementForModDisable')[0])) -eq 1 -and
     (Calls $cancelCore (@(Method $controller 'CancelRiderTurnGroundMovement')[0])) -eq 1 -and (Calls $cancelCore $cancelMountTrigger) -eq 1 -and (Calls $cancelCore $cancelMountPlain) -eq 1 -and
-    (Calls $cancelMountTrigger $preserves) -eq 1 -and (Calls $cancelMountTrigger $interruptMove) -eq 0) 'PR-2 R12-F4 (round 16): the combat owner''s Dismounting handler reaches CancelCore, which at mod disable releases the admitted ground order''s accounting (no interrupt) and cancels mount movement through the successor-yielding CancelMountMovement(trigger)'
+    (Calls $cancelMountTrigger $mountSuccessor) -eq 1 -and (Calls $cancelMountTrigger $interruptMove) -eq 0) 'PR-2 R12-F4 (round 16): the combat owner''s Dismounting handler reaches CancelCore, which at mod disable releases the admitted ground order''s accounting (no interrupt) and cancels mount movement through the successor-yielding CancelMountMovement(trigger)'
+# ---- PR-2 round 17: R16-F1 the mod-disable successor includes an unowned approaching command outside the Move slot; R13-F3 the exact carrier's
+# movement fact is recorded at the delegated movement debit and read by the approach termination ----
+$approachSteers = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCarrierCleanup') 'ApproachSteers')[0]
+$ledgerType = KmcType 'KingmakerMountedCombat.Domain.MountedCarrierMovementLedger'
+$tickDelegatedMethod = @(Method (KmcType 'KingmakerMountedCombat.Integration.MountedMovementStateAdapter') 'TickDelegated')[0]
+$acquiredGetter = (KmcType 'KingmakerMountedCombat.Integration.MountedPairAttackCommand').GetProperty('CarrierAcquiredPath', $any).GetGetMethod($true)
+Check ((Calls $preserves $mountSuccessor) -eq 1 -and (Calls $mountSuccessor $approachSteers) -eq 1 -and (Calls $mountSuccessor $commandOwnedGetter) -ge 2 -and
+    (Calls (@(Method (KmcType 'KingmakerMountedCombat.Integration.MountedCarrierCleanup') 'OtherCommandSteers')[0]) $approachSteers) -eq 1 -and
+    (Calls $tickDelegatedMethod ($ledgerType.GetMethod('RecordPositiveTick'))) -eq 1 -and (Calls $acquiredGetter ($ledgerType.GetMethod('HasPositiveTick'))) -eq 1) 'PR-2 round 17: MountSuccessor (read by PreservesMountSuccessor and CancelMountMovement(trigger)) takes an unowned Move-slot command or an unowned approaching command in another slot by the exact-carrier cleanup''s ApproachSteers (R16-F1); TickDelegated records the Move-slot command''s positive tick and CarrierAcquiredPath reads it (R13-F3)'
 Write-Host ('Mounted alpha 2 lifecycle contract PASS=' + $script:passed + ' FAIL=0 nativeProof=false')

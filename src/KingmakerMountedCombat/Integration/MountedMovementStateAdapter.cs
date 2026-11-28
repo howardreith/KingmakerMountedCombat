@@ -358,6 +358,8 @@ namespace KingmakerMountedCombat.Integration
                 allocation.StepTickReserved = allocation.Movement.MetresStepTravelled - steppedBefore;
             }
             cooldown.MoveAction = used + debit;
+            // PR #70 R13-F3 (round 17): the exact Move-slot command moved on this returned tick (MountedCarrierMovementLedger).
+            if (deltaTime > 0f) KingmakerMountedCombat.Domain.MountedCarrierMovementLedger.RecordPositiveTick(mount.Commands?.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move));
             allocation.MoveUsed = allocation.Prepared ? cooldown.MoveAction : allocation.MoveUsed + debit;
             // Before Prepare only the new debit belongs to this allocation; an
             // old native Standard is not converted into a guessed fresh action.
