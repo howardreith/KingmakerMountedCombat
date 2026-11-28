@@ -2298,12 +2298,15 @@ function Assert-KmcUpgradeResaveEvidence {
     # R18-F4 (round 19): the member is decoded strictly by the product codec before any lossy parse (duplicate names, shape, bounds and
     # the versioned StepTravel rule are the codec's); its ACTUAL source schema is kept and compared separately from the snapshot version.
     $member=Read-KmcChunk7MountedArchiveMember $archive $w.sha256 $w.length 'UPG-01 resave'
-    # The retained identity expectations apply to the real member, not only to the snapshot: area, campaign, the one restored pair, slot
-    # rows owned by that pair, and the independent step travel actually written (schema 4) or absent from the bytes (schema 3).
-    $g=$member.graph;$mp=@($g.Pairs);$actors=@($initial[0].rider.Id,$initial[0].mount.Id)
+    # The retained identity expectations apply to the real member, not only to the snapshot: area, campaign, the one restored pair, the
+    # complete reported slot rows, and the independent step travel actually written (schema 4) or absent from the bytes (schema 3).
+    $g=$member.graph;$mp=@($g.Pairs)
     if($g.AreaId-cne$Request.persistenceLoad.area-or$g.CampaignId-cne$Request.persistenceLoad.gameId){throw 'UPG-01 resave archive member is not in the retained area and campaign.'}
     if($mp.Count-ne1-or$mp[0].Rider.Id-cne$initial[0].rider.Id-or$mp[0].Mount.Id-cne$initial[0].mount.Id){throw 'UPG-01 resave archive member does not carry exactly the restored mounted pair.'}
-    if(@(@($g.Slots)|Where-Object{[string]$_.ActorId-cnotin$actors}).Count-ne0-or(ConvertTo-KmcChunk7NumericCanonical @($g.Slots))-cne(ConvertTo-KmcChunk7NumericCanonical @($w.snapshot.Slots))){throw 'UPG-01 resave archive member slot rows are not the restored pair''s reported rows.'}
+    # R19-F4 (round 20): the producer (MountedPersistenceService.World via CapturePersistentSlots) writes the toolbar rows of every authoring
+    # player character, not only the restored pair's, and the archive validator admits any valid actor; the observation is the complete
+    # decoded graph. So the complete slot rows of the member must equal the reported rows, row for row, whatever actor owns them.
+    if((ConvertTo-KmcChunk7NumericCanonical @($g.Slots))-cne(ConvertTo-KmcChunk7NumericCanonical @($w.snapshot.Slots))){throw 'UPG-01 resave archive member slot rows are not the reported rows.'}
     $written=if($member.sourceSchema-eq(Get-KmcChunk7CurrentWriterSchema)){@($member.raw.StepTravel)}elseif($null-eq$member.raw.PSObject.Properties['StepTravel']){@()}else{throw 'UPG-01 resave schema-3 member carries step travel.'}
     $reported=if($null-ne$w.snapshot.PSObject.Properties['StepTravel']){@($w.snapshot.StepTravel)}else{@()}
     if((ConvertTo-KmcChunk7NumericCanonical $written)-cne(ConvertTo-KmcChunk7NumericCanonical $reported)){throw 'UPG-01 resave archive member step travel differs from the reported snapshot.'}

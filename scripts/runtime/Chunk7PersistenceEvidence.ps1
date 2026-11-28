@@ -113,7 +113,13 @@ function Read-KmcChunk7MountedArchiveMember([string]$Path,$Sha256,$Length,[strin
         try{$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$true)}catch{throw ($Label+' is not a ZIP save archive.')}
         $entries=@($zip.Entries|Where-Object{$_.FullName-ceq'kmc-mounted-state'})
         if($entries.Count-ne1-or$entries[0].Length-le0-or$entries[0].Length-gt$codec.maximumBytes){throw ($Label+' lacks exactly one bounded kmc-mounted-state member.')}
-        $reader=[IO.StreamReader]::new($entries[0].Open(),[Text.UTF8Encoding]::new($false,$true));try{$json=$reader.ReadToEnd()}finally{$reader.Dispose()}
+        # R19-F3 (round 20): the production byte semantics (NativeMountedSaveStorage.Read): the bounded member bytes, their actual length equal to
+        # the declared size, then strict UTF-8 GetString (new UTF8Encoding(false, true)). No byte-order-mark detection: a UTF-16 member is not
+        # UTF-8 and is refused, and a UTF-8 BOM is kept as U+FEFF, which the product codec then refuses exactly as the product does.
+        $declared=[long]$entries[0].Length;$bytes=[byte[]]::new($codec.maximumBytes+1);$count=0;$in=$entries[0].Open()
+        try{while($count-lt$bytes.Length){$n=$in.Read($bytes,$count,$bytes.Length-$count);if($n-le0){break};$count+=$n}}finally{$in.Dispose()}
+        if($count-ne$declared){throw ($Label+' mounted member length differs from its declared size.')}
+        try{$json=[Text.UTF8Encoding]::new($false,$true).GetString($bytes,0,$count)}catch{throw ($Label+' mounted member is not valid UTF-8.')}
     }finally{if($zip){$zip.Dispose()};$stream.Dispose()}
     if((Get-KmcSha256 $Path)-cne$Sha256){throw ($Label+' changed while its member was read.')}
     $result=$codec.decode.Invoke($null,@([string]$json));$kind=$codec.kind.GetValue($result).ToString()
