@@ -1060,3 +1060,176 @@ Limits:
 ### 16.4 Validation
 
 See the developer report and the ledger excerpt for the candidate's focused gate (19 children). After the last schema commit, the lead re-ran the owned two-pair reader suite (205 s): 1,429 pass / 52 fail. The result is identical to round 16, and all 52 failures are the unchanged `Chunk7RealtimeEvidence.ps1:108` default-off Charge check, so the restored-start edits introduced none. Not run: Test-Tiers Full, any game.
+
+## 17. Round 19 (owner authorization 2026-11-28b; owner amendment revision 1 unchanged)
+
+Prepared under owner amendments revision 1 sha256 aa3ab2f52199b92d03230c72d2fc9f43f813b176ae5c1ee7003e4f7926de1825 and owner authorization
+2026-11-28b (`docs/missions/mmr-split/owner-authorization-2026-11-28b.md`, sha256 6256ad14a1bc7a5ddabc374f6d2466f110a911a95a7ecc59e136bd409eddae43).
+Round 18 (candidate `1703bd53`) verified R16-F1, R16-F3, R17-F2, R17-F3 and R17-F4. This round corrects the seven open findings: R13-F2, R17-F1
+and R18-F1..F5. Four in-session developers worked in separate local worktrees: carrier issuance (R17-F1 with R18-F2), the step search (R18-F1),
+the shared archive decode/compare boundary (R18-F3 with R18-F4) and producer-shaped observations (R13-F2 with R18-F5). The lead inspected and
+merged their branches and asked for one follow-up (the route-bound forced path, 17.1). All evidence is offline (nativeProof=false).
+
+**Kinds of finding.** R18-F1 and R18-F2 are production defects. R17-F1 was filed as an evidence gap; the installed code shows its route is
+reachable, so it is corrected as a production defect (17.1). R13-F2 is an evidence gap in the readers' test data. R18-F3..F5 are evidence-reader
+defects: a reader could certify contents it never checked. None of the seven is an observed gameplay failure, and none concerns corruption of
+the save bytes the product writes. Native observations remain assigned to the owner's integrated-alpha playtest.
+
+**Records corrections.**
+- Section 16.3 said the assisted-cold suite "cannot run in this lab". The cause was a compile break in its harness template: round 13
+  (`044841ba`) made the producer read `MountedArchiveData.Schema`, which the template's facade lacked. The facade now defines it from the `src/`
+  constant (no assertion changed), and the composed assisted suite runs: 232/0 (scenario 101, reader 131).
+- Commit `5b29eb5f` on the carrier branch holds only a file rename (a failed `git add`) and does not build by itself; `cb389ced` carries its
+  content. It is preserved, not rewritten.
+- The R16-F3 figure that round 18 verified (50.15 mm: 2.778e-6 s, 0.025 mm) changes with the R18-F1 correction (17.2); the R16-F3 properties
+  still hold.
+
+### 17.1 Exact-carrier issuance and delivery (R17-F1, R18-F2)
+
+**Installed facts (read-only IL, Assembly-CSharp 2.1.7b, MVID 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7).**
+- `UnitMovementAgent.CanMoveInTurnBased` (060018A9): the mount is not the current unit, so the product's prefix returning false (paired activation
+  with `IsCommandsPreventMovement`, `AnimationManager.IsPreventingMovement` or `!IsReallyMoving`) leads to the denial branch. Outside force mode and
+  cutscene control it calls `CompleteMovement()` unless the Move-slot command is `DontInterruptInTurnBasedMode`; the product's carrier
+  `UnitMoveTo` is not. `CompleteMovement` ends in `Stop()`, which clears `Path` and `RequestedPath`. So the R17-F1 route clears a delivered path
+  before `TickDelegated` runs: a production defect, not a rebuttal case.
+- `PathTo(UnitCommand command, ...)` (060018A3) carries the exact issuing command; the request is `m_RequestedPath` (0400118E).
+- `OnPathComplete(Path p)` (060018B9) acts only when `p` is the outstanding request; it then either delivers (`set_Path(p)`, `SetWaypoint(1)`) or
+  calls `OnPathNotFound`. `set_Path`/`set_RequestedPath` claim their path, so A* cannot hand back the object the agent holds.
+- `FollowPrecomputedPath(Path p, float)` (060018B6) sets `RequestedPath` and calls `OnPathComplete` synchronously, with no `PathTo`. Its only
+  caller is `UnitCommand.TickApproaching` (060027A6), which passes a fresh copy of the ticking command's `ForcedPath`.
+
+**Correction.** One per-carrier record (`Domain/MountedCarrierApproachLedger`) replaces the round-17/18 flags. It is written only by
+`Integration/MountedCarrierPathObserver`, behind observation-only `PatchExact` hooks on `PathTo` (prefix/postfix), `OnPathComplete`
+(prefix/postfix) and `FollowPrecomputedPath` (prefix), plus a postfix on the existing `TickApproaching` patch that scopes the exact ticking
+command. The hooks are filtered to agents with a registered carrier (one weak-table lookup) and are installed and removed with every other
+patch.
+- A request is recorded for the exact command `PathTo` carries (a new `m_RequestedPath` object after the call), or, for a forced path, for the
+  innermost `TickApproaching` command in scope. It is accepted only for a carrier registered to that same agent.
+- A delivery is recorded only when `p` was that carrier's outstanding request and the agent's `Path` is `p` after native returns.
+- Phases: AwaitingFirstRequest (admitted, no request of its own), RequestPending, RequestUndelivered (not found, replaced or stopped before
+  delivery), Delivered (pooled reuse included: identity is taken at delivery), EndedByNative (delivered, then cleared or replaced by native).
+- `CarrierAcquiredPath` reads the carrier's own delivery (or, unchanged, the route-bound displacement criterion). The round-18 entry marker in
+  `TickDelegated`, the Move-slot positive-tick fact and the rider-sampled path baseline are removed. Movement is credited to a carrier only when
+  the moving path is the one delivered to it (diagnostic; not an acquisition criterion).
+- Unchanged: strike entitlement, the newer-input rules, the OWNER AMENDMENT 1 terminal disposition, save and teardown behavior.
+
+**Harness corrections.** `AgentMove` no longer skips the movement hook when the test-only `PathOwner` differs from the carrier (it is now only an
+observation). `PathTo`, `OnPathComplete`, `FollowPrecomputedPath` and the `CanMoveInTurnBased` denial are modeled from the IL above and call the
+production hooks. Not modeled: A* timing beyond same-tick or next-approach-tick delivery, `RepathNeeded`/tile handler conditions, cutscene
+control, and `MountMovementPrefix`'s own wrapper (the harness calls the real `TryOverrideMountTurnMovement` and maps false to the native branch).
+
+**Cases (connected harness, rider-first).**
+- R17-F1, path-requested carrier: first path delivered between rider observations (0 observations). With each guard active on the first tick:
+  the real `TryOverrideMountTurnMovement` returns false, the modeled denial clears Path and request, phase EndedByNative, delivery recorded,
+  target drifts 0.8 m, 1 carrier, installed force-finish disposition, Move 0 -> 0 s, Standard 0 -> 0, 0 strikes; the admitted ground order then
+  moves the mount 0.5 m. Unguarded control: the hook moves the mount 0.075 m (0.01667 s), path kept.
+- R17-F1, route-bound carrier (forced path): the same with the guard: 1 carrier, force-finish disposition (entry=override-route), nothing spent,
+  successor 0.5 m. Adapter zero-tick variant: the existing first-tick decision refuses (`no-executable-movement`), the order ends with nothing
+  spent, 1 carrier. Control: a predecessor's scoped forced path on the same agent is not attributed to the carrier.
+- R18-F2: a predecessor path is moving while the new carrier holds the Move slot with its own first request pending. The movement hook runs
+  before the carrier's first path instruction and the denial clears the old path, in three variants (adapter zero tick, guard before the adapter,
+  predecessor moves first). In each the carrier stays RequestUndelivered with no delivery, is not ended, re-requests and receives its own path,
+  moves along it (0.819 m / 0.819 m / 0.793 m, credited) and strikes once; 1 carrier. The predecessor's 0.15 m tick is not credited to it.
+- Kept: delivery/use/loss between observations, pooled path with and without a pending frame, first tick denied, pending request, and the
+  already-legal strike controls, now through the hooks.
+- Discrimination: with round-18 logic restored, both R17-F1 guard cases issue 2 carriers and the two R18-F2 adapter/predecessor variants end
+  before the carrier's own path. Without the forced-path prefix, the route-bound guard case issues 2 carriers.
+
+Remaining limits: `ForcePath` (UnitMoveAlongPath, ability movement) is never attributed; the product's carriers do not use it. A scope entry left
+by a throwing native `TickApproaching` is trimmed later; attribution always uses the innermost entry. The hooks have not been observed in game.
+
+### 17.2 Step-search classification (R18-F1)
+
+`PairedAttackClickProbe.ClassifyStep` reports why a sample fails, from the existing evaluator: TooLong when the tick does not settle within the
+remainder (`StepSettlementAdmits`, with the 0.1 mm completion margin), TooShort when it settles but moves less than 0.01 mm
+(`StepMinimumDisplacementMetres`); `Executable` is exactly `ClassifyStep == Executable`. Bisection lowers the upper bound on TooLong and raises the
+lower bound on TooShort or Executable. The predicate is not assumed monotonic: a TooShort sample above a verified one is treated as an upper bound.
+The back-off stays inside [first verified, last verified], and the returned float duration is re-checked through `SimulateTick` and `Executable`;
+zero is returned only when nothing executable was verified. Same 40 samples, same floor and margin, no new tolerance.
+
+Connected later step, 9 m/s, 8.9 mm of step left (physical / native balance deltas):
+
+| Gap | Duration | Unsnapped travel | Distance to end | Balances | Disposition |
+|---|---|---|---|---|---|
+| 50.112 mm (new) | 1.25300176e-6 s | 0.01128 mm | 50.10073 mm | +0.011325 / +0.011265 mm | next tick 0, native force-finish, no strike |
+| 50.15 mm | 4.34061258e-6 s | 0.039063 mm | 50.11094 mm | +0.039101 / +0.039041 mm | one more 0.0105 mm tick, then 0, force-finish |
+| 50.6 mm | 5.277851e-5 s | 0.475004 mm | 50.12499 mm | +0.475049 / +0.474989 mm | one more 0.0191 mm tick, then 0, force-finish |
+| 45 mm | 0 | 0 | 45 mm | 0 / 0 | ended at once |
+
+Each balance delta matches that tick's own movement within 1e-6 m. Discrimination: with the round-18 search restored, only the 50.112 mm case
+fails (returns 0). A legal interval that no bisection sample lands in can still be lost, as the owner instruction allows.
+
+### 17.3 Archive members decoded by the product codec (R18-F3, R18-F4)
+
+Shared helpers in `scripts/runtime/Chunk7PersistenceEvidence.ps1`:
+- `Read-KmcChunk7MountedArchiveMember`: exact SHA-256 and length; a ZIP with exactly one bounded `kmc-mounted-state` member read as strict UTF-8;
+  the file re-hashed after reading; the member decoded by the candidate's `MountedArchiveCodec.Decode` (compiled from `src/`, the mechanism the
+  current-writer test already used), which refuses duplicate JSON names before anything is parsed loosely. It returns the actual source schema
+  and the normalized graph (re-encoded by the product `Encode`).
+- `Assert-KmcChunk7ArchiveMemberSnapshot`: the snapshot's exact versioned field set, its version against the member's actual source schema
+  (separately), then every field of the decoded graph against the snapshot. The only normalizations are version 3 (version number, no
+  StepTravel) and numeric value equality.
+
+UPG-01 (`Assert-KmcUpgradeResaveEvidence`): the member is read first, then area, campaign, the restored pair, its slot rows and independent step
+travel are checked on the member, then the full comparison. New child `chunk7\Test-Chunk7UpgradeResaveMember.ps1` 22/0: current 4/4 exploration
+and combat (step travel 0.25 written while MetresStepped is 0) and historical 3/3 accepted; refused with matching hash, length and pair ids: a
+valid same-version member for another area (4 and 3), campaign or pair, different step travel, a different slot row, GameTimeTicks alone,
+duplicate SchemaVersion, duplicate StepTravel, schema-3 bytes under a schema-4 snapshot, schema 4 without StepTravel, schema 3 with StepTravel,
+schema 5, plain text, a ZIP without the member and a ZIP with two. A control shows `ConvertFrom-Json` collapses the duplicate SchemaVersion (the
+R18-F4 bug).
+
+Finalize2: the producer reads both retained resaves' members after their hash checks; each must carry the restored pair, area, campaign and the
+expected slot rows and equal its snapshot in full, and both must have the same source schema. The consumer reads both selected inputs, requires
+each to be its producer's write (hash, length), to equal that write's snapshot and to carry the kept or removed rows. The cold observation's
+`sourceSchema` is the consumer's normalized graph version (`archiveData.SchemaVersion`); it must equal the format read from the bytes (the
+bridge build normalizes to 3 and must have written 3). The opaque `kept`/`removed` payloads are replaced by versioned ZIPs; schema-4 members come
+from the production serializer. `Test-Finalize2UpgradeReaders.ps1 -SkipRetainedBridge` 88/0: 3/3 and 4/4 through the same-candidate producer and
+consumer; refused: plain text, schema-3 bytes reported as 4, schema 4 without StepTravel, another area, different kept rows, and the crossed
+consumer versions. The pinned bridge identities and the skipped frozen-r05 section are unchanged.
+
+Limits: no real UPG-01 or Finalize2 runtime evidence exists in this lab. The rule that UPG-01 slot rows belong to the restored rider or mount comes
+from the Finalize2 rows and has not met a real UPG-01 save.
+
+### 17.4 Producer-shaped observations and same-process versions (R13-F2, R18-F5)
+
+**Hook identity.** `NativeArchiveRestorationProbe` patches `typeof(UnitCombatState)` token 0600939D and records the reflected declaring type,
+name, token and module MVID. In the installed module that token is `Kingmaker.Controllers.Combat.UnitCombatState.OnNewRound` (MVID 07fa1e4d...),
+matching `Test-AssemblyContracts.ps1` and `MountedPatchController`. `Kingmaker.UnitLogic.UnitCombatState` does not exist and the real type has no
+`NewRound`; the probe has reflected the real names since it was introduced (`0c9ca30e`). The bootstrap and Manual-seed readers and the synthetic
+bootstrap fixture (also the base of the Manual-seed and assisted fixtures) now carry the real identity; the old name survives only as a refusal.
+Not changed (bounded): the Manual-derived and Medium/Cumulative suites already replace the top-level hook with the real identity when they load
+their fixtures; nested copies in those fixture files are compared only with each other and are not validated.
+
+**R18-F5.** Manual-derived: the normalized graph version must equal the same process's Manual write (`nativeWrite.schema`). Pre-owned owner seed:
+`ownerMadeEmptyArchive.schemaVersion` must equal the same process's advertised `capability.nativeWriterSchema`. The input file's own version stays
+independent (a schema-3 input decoded by the current writer is a 4/4 record).
+
+**New child `chunk7\Test-Chunk7ProducerObservations.ps1` 51/0.** Hook rows are built the way the probe builds them (tokens resolved in the
+installed module; the product hooks' declaring type from `src/`, their tokens synthetic because no product DLL is loaded); archive rows come from
+the candidate codec decoding a schema-3 empty graph (source 3, graph 4), filled field by field as the producers fill them.
+- Through the complete dispatched readers, accepted: bootstrap (schema-3 input normalized to 4), Manual seed, Manual-derived with a non-missing
+  archive (paid and existing Horse, graph 4 with write 4), assisted cold over the capture emitted by the actual assisted scenario source compiled
+  with its controlled native facades (its hook rows are grafted, producer-shaped, because the facade probe emits none), and the pre-owned owner
+  seed (4/4); plus the earlier-build 3/3 controls.
+- Refused in each of the four hook readers: method `NewRound`, type `Kingmaker.UnitLogic.UnitCombatState`, token 0600939E, Prepare's token on the
+  round hook, a foreign module, a substituted declaring type, and graph versions 2, 5 and the string 4. Refused in Manual-derived and owner seed:
+  both crossings (3 beside 4, 4 beside 3), changing only the normalized graph field.
+
+Other suites: bootstrap 151/0, Manual seed 70/0, Manual-derived 118/0, current-writer readers 139/0, persistence save fixtures 687/0, assisted
+cold 232/0.
+
+### 17.5 Per-finding evidence record
+
+| Finding | Production or complete-reader entry exercised | Input | Asserted result | Offline substitution | Candidate-bound evidence |
+|---|---|---|---|---|---|
+| R17-F1 | `TryOverrideMountTurnMovement`, the observer hooks, `CarrierAcquiredPath`, `TickApproach` | modeled delivered path (requested and forced), guard on first tick, 0.8 m drift | 1 carrier, force-finish, nothing spent, successor moves | native denial, `PathTo`/`OnPathComplete`/`FollowPrecomputedPath` modeled from IL | attack-path harness child of the focused gate; native contract pins |
+| R18-F2 | same | predecessor path moving, new carrier pending, denial clears it | carrier gets its own path, 1 strike, 1 carrier | same | same |
+| R18-F1 | `StepExecutableDuration`/`ClassifyStep` via `TickDelegated` | 50.112, 50.15, 50.6, 45 mm gaps at 9 m/s, 8.9 mm left | positive step meeting floor and margin; 45 mm ends at once | installed tick simulated by the product's own `SimulateTick` | attack-path harness child |
+| R18-F3 | `Finalize2UpgradeEvidence` producer and consumer | generated versioned ZIP resaves (production serializer for 4) | 3/3 and 4/4 accepted; listed crossings refused | no native replay | `Test-Finalize2UpgradeReaders.ps1 -SkipRetainedBridge` child |
+| R18-F4 | `Assert-KmcUpgradeResaveEvidence` | generated ZIP resaves | full member/snapshot comparison; listed refusals | generated fixtures only | `chunk7\Test-Chunk7UpgradeResaveMember.ps1` child |
+| R13-F2 | bootstrap, Manual-seed, Manual-derived and assisted cold readers | producer-shaped observations (installed tokens, candidate codec) | current observations accepted; wrong hook/version refused | product hook tokens synthetic; assisted hook rows grafted | `chunk7\Test-Chunk7ProducerObservations.ps1` child |
+| R18-F5 | Manual-derived and owner-seed world readers | same | 3/3 and 4/4 accepted; both crossings refused | same | same child |
+
+### 17.6 Validation
+
+See the developer report and the ledger excerpt for the candidate's focused gate (21 children). After the last merge (`cd1bd115`) the lead re-ran the owned two-pair reader suite, which reads the edited owner-seed binding (264.6 s): 1,429 pass / 52 fail, the same failure set as round 18 (all 52 the unchanged `Chunk7RealtimeEvidence.ps1:108` default-off Charge check). Not run: Test-Tiers Full, the Medium/Cumulative suites, any game.
